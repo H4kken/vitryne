@@ -10,6 +10,8 @@ pub mod mesh;
 pub mod metrics;
 pub mod render;
 pub mod scene;
+pub mod selfcol;
+pub mod selfcheck;
 pub mod sim;
 pub mod timer;
 pub mod triangle;

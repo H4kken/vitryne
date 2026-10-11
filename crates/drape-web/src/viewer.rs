@@ -42,7 +42,7 @@ pub struct App {
 #[wasm_bindgen]
 impl App {
     /// Build the scene and the GPU state on `<canvas id=canvas_id>`.
-    pub async fn create(canvas_id: String, scene: String, res: f32, obj: String, sdf: Vec<u8>) -> Result<App, JsValue> {
+    pub async fn create(canvas_id: String, scene: String, res: f32, opts: String, obj: String, sdf: Vec<u8>) -> Result<App, JsValue> {
         let canvas: web_sys::HtmlCanvasElement = web_sys::window()
             .and_then(|w| w.document())
             .and_then(|d| d.get_element_by_id(&canvas_id))
@@ -58,7 +58,7 @@ impl App {
         }
         let config = surface.get_default_config(&g.adapter, w, h).ok_or("surface unsupported by adapter")?;
         surface.configure(&g.device, &config);
-        let (built, load): (Built, serde_json::Value) = super::build_scene(&scene, res, 0, &obj, &sdf)?;
+        let (built, load): (Built, serde_json::Value) = super::build_scene(&scene, res, 0, &opts, &obj, &sdf)?;
         let solver = Solver::new(&g.device, &built.mesh, &built.constraints, built.material.density, built.sim, built.collider.clone());
         let renderer = Renderer::new(&g.device, config.format, &built.mesh, &solver, &built.collider_mesh);
         let core = Core {

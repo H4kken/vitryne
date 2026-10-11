@@ -27,15 +27,17 @@ function ndc(e) {
   return [((e.clientX - r.left) / r.width) * 2 - 1, 1 - ((e.clientY - r.top) / r.height) * 2];
 }
 
+// Scene value: "<scene>:<res>[:nopins]"; self-collision from the checkbox.
 async function load(sceneRes) {
-  const [scene, res] = sceneRes.split(':');
+  const [scene, res, extra] = sceneRes.split(':');
+  const opts = JSON.stringify({ self_collision: $('selfc').checked, pins: extra !== 'nopins', ...(q.has('rebuild') ? { self_rebuild: parseInt(q.get('rebuild'), 10) } : {}) });
   status.textContent = `loading ${scene}…`;
   if (scene === 'tshirt' && !assets) assets = await loadTshirtAssets(q);
   fitCanvas();
   const a = assets ?? { obj: '', sdf: new Uint8Array() };
   app?.free();
   app = null;
-  app = await App.create('gfx', scene, parseFloat(res), scene === 'tshirt' ? a.obj : '', scene === 'tshirt' ? a.sdf : new Uint8Array());
+  app = await App.create('gfx', scene, parseFloat(res), opts, scene === 'tshirt' ? a.obj : '', scene === 'tshirt' ? a.sdf : new Uint8Array());
   status.textContent = q.get('auto') === '1' ? 'auto test running…' : 'ok: running';
   status.className = '';
 }
@@ -92,10 +94,12 @@ $('fast').onclick = () => { const on = !$('fast').classList.contains('on'); togg
 $('pause').onclick = () => { const on = !$('pause').classList.contains('on'); toggle($('pause'), on); app?.set_paused(on); };
 $('reset').onclick = () => app?.reset();
 $('scene').onchange = () => load($('scene').value).catch(fail);
+$('selfc').onchange = () => load($('scene').value).catch(fail);
 window.addEventListener('keydown', (e) => {
   if (e.key === 'f' || e.key === 'F') $('fast').click();
   if (e.key === ' ') $('pause').click();
   if (e.key === 'r' || e.key === 'R') $('reset').click();
+  if (e.key === 'c' || e.key === 'C') $('selfc').click();
 });
 
 function fail(e) {
@@ -105,7 +109,7 @@ function fail(e) {
   console.error(e);
 }
 
-// Automation: ?auto=1 [&scene=tshirt:0.00864] [&post=1&name=X]
+// Automation: ?auto=1 [&scene=tshirt:0.00864] [&sc=1] [&rebuild=k] [&post=1&name=X]
 // Fast-drapes until sim t >= 6 s, then drags the cloth at the view centre in a circle for 3 s
 // at normal speed, measuring rAF fps and the sampled GPU frame cost, then reports.
 async function autoTest() {
@@ -133,6 +137,7 @@ async function autoTest() {
   const rep = {
     user_agent: navigator.userAgent,
     scene: q.get('scene') ?? $('scene').value,
+    self_collision: $('selfc').checked,
     vertices: app.vertices(),
     load: JSON.parse(app.load_info() || '{}'),
     asset_fetch_ms: assets?.fetch_ms,
@@ -155,6 +160,7 @@ async function autoTest() {
   if (!navigator.gpu) throw new Error('navigator.gpu missing: this browser has no WebGPU (WebGL fallback is disabled by design)');
   await init();
   if (q.has('scene')) $('scene').value = q.get('scene');
+  if (q.get('sc') === '1') $('selfc').checked = true;
   await load($('scene').value);
   requestAnimationFrame(tick);
   if (q.get('auto') === '1') await autoTest();

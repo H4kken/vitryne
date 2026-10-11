@@ -54,6 +54,9 @@ pub struct SheetScene {
     /// string. Below 1.0 the sheet starts compressed in X (rest shape unchanged) and the edge
     /// hangs with slack.
     pub pin_spacing: f32,
+    /// false: no pins, the sheet falls flat onto the sphere and folds around it (M4 self-
+    /// collision test: the hanging skirt folds onto itself).
+    pub pins: bool,
 }
 
 impl Default for SheetScene {
@@ -61,7 +64,7 @@ impl Default for SheetScene {
     /// above a 30 cm sphere: the near half hangs from the pins onto the sphere, the far half
     /// drapes over it.
     fn default() -> Self {
-        Self { grid: 100, size: 1.0, height: 1.0, sphere_center: [0.0, 0.68, 0.0], sphere_radius: 0.3, pin_spacing: 0.9 }
+        Self { grid: 100, size: 1.0, height: 1.0, sphere_center: [0.0, 0.68, 0.0], sphere_radius: 0.3, pin_spacing: 0.9, pins: true }
     }
 }
 
@@ -69,11 +72,13 @@ impl SheetScene {
     pub fn build(&self, sim: SimConfig) -> Built {
         let mut mesh = ClothMesh::grid(self.grid, self.size, self.height);
         let n = self.grid;
-        for p in &mut mesh.pos {
-            p.x *= self.pin_spacing;
+        if self.pins {
+            for p in &mut mesh.pos {
+                p.x *= self.pin_spacing;
+            }
+            mesh.pinned[0] = true; // (-x, -z)
+            mesh.pinned[(n - 1) as usize] = true; // (+x, -z)
         }
-        mesh.pinned[0] = true; // (-x, -z)
-        mesh.pinned[(n - 1) as usize] = true; // (+x, -z)
         let material = Material::cotton();
         let constraints = Constraints::build(&mesh, &material);
         let c = Vec3::from(self.sphere_center);

@@ -30,6 +30,10 @@ node web/tools/chrome-check.mjs http://localhost:5173/ shot.png   # headless rea
 #   post=1 makes the page send its JSON to the dev server -> bench/browser-check/X.json
 node web/tools/chrome-check.mjs "http://localhost:5173/bench.html?auto=1&grids=100" shot.png 590000 out.json
 python3 bench/compare.py bench/browser-check/chrome-grids.json     # native vs browser table
+# self-collision (M4): add --self-collision [--self-rebuild K] to view/bench/bench-drag; --no-pins drops the sheet
+cargo run -p drape-native --release -- bench --scene sheet --no-pins --self-collision --out bench/m4/native/drop-sc-k1.json
+#   web: viewer checkbox "self-collision" (C), scene "Sheet 10k dropped"; bench.html checkbox, or &sc=1&rebuild=K&nopins=1
+python3 bench/m4/compare_m4.py bench/m4/browser/chrome_tshirt_sc_k1.json   # native vs browser, M4
 ```
 
 ## Measurement modes
@@ -137,7 +141,7 @@ Bending is about 55% of GPU time and stretch about 25%. Profiling uses one pass 
 ### Open problems / notes
 - **Taut pins vibrate.** With the pins exactly at rest length (`--pin-spacing 1.0`), the nearly inextensible edge between them can't sag, so it vibrates like a taut string (46 mm/s at the edge midpoint, found through `final_fastest_vertices`). It still rests at frame 663 with damping 1.0, but at damping 0.5 it never did. Garments have no pins, so this matters less, but the stiff-constraint jitter mechanism may come back at seams.
 - **Damping:** the default went from 0.5/s to 1.0/s. At 0.5/s the slack case rests at frame 723 instead of 462. Simple velocity damping is crude: it also slows the fall (terminal speed ≈ 9.8 m/s). A better damping model is in "Later".
-- **No self-collision yet (M4).** Folds can pass through each other; the back face shows through on the left flap in the frames.
+- **No self-collision yet (done in M4).** Folds can pass through each other; the back face shows through on the left flap in the frames.
 - The grid-of-100 run shows a 10.7 m/s spike at frame 0. That comes from the 10% initial compression being released on a very coarse mesh (11 cm edges), and it's irrelevant to the other sizes.
 - Material values are placeholders, not calibrated (out of scope).
 - Not tested on Windows yet. The web build still renders the M0 triangle; the cloth goes to the browser in M3.
@@ -364,6 +368,135 @@ Bending is still the biggest phase. SDF collision, which does 8 scattered reads 
 - **Canvas colour:** the browser canvas uses a non-sRGB format, so the shading is darker than native. Rendering quality is out of scope.
 - `?sdf=bake` exists for testing the wasm bake path; it's slow (9 s).
 - The debug hook `DRAPE_DEBUG_EPISODE=N` (native only) prints the fastest vertex every frame of drag episode N. It's how the causes above were found.
+
+## M4 — Self-collision ✅ with one known gap (2026-10-12)
+
+**Done-when:** "self-intersection count at rest is reported; target 0 persistent."
+- ✅ **Reported:** every bench now reports it at the initial placement, at the end of the run, and 300 frames later. "Persistent" means present at both of the last two checks. The drag test also checks at the start of every episode, then 2 s and 3 s after the last drag.
+- ✅ **0 persistent wherever cloth isn't crushed against the body:**
+  - the dropped sheet, which folds heavily: 91 → 0;
+  - the T-shirt drape at every size: 0, with self-collision on or off;
+  - 5 of 6 random-drag runs: 0.
+- ❌ **One drag seed keeps 11–12 pairs** (80 without self-collision). They're at the armpit, where the sleeve is pinched between arm and torso. See the findings.
+
+Raw JSON: [bench/m4/native/](bench/m4/native/) and [bench/m4/browser/](bench/m4/browser/). Comparison script: [bench/m4/compare_m4.py](bench/m4/compare_m4.py).
+
+### What works
+- **Self-collision on the GPU** ([selfcol.wgsl](crates/drape-core/shaders/selfcol.wgsl), [selfcol.rs](crates/drape-core/src/selfcol.rs)): the same WGSL native and in the browser.
+- **Hash rebuild** (count, scan_local, scan_blocks, scatter, query), **every `--self-rebuild K` substeps; default K = 1, as in the plan:**
+  - **Counting sort:** `atomicAdd` counts per hash cell, then a two-level exclusive scan (256-cell blocks, then one workgroup over the block totals). The scatter uses `atomicSub`, which returns the counts to zero, so no clear pass is needed. The only atomics are u32 counters (hard rule 4).
+  - **Hash:** linear in x, so each 3×3×3 query reads 9 contiguous rows instead of 27 cells.
+  - **Query:** writes a per-vertex neighbour list (≤ 32) of vertices within radius + margin (1.5 r), so a list stays valid for a few substeps.
+- **Every substep** (snapshot, collide):
+  - Each vertex reads a positions snapshot and gathers its own correction from its list: Jacobi, averaged, with a Coulomb friction term (μ 0.2).
+  - Corrections are **summed in fixed point (1e-8 m)**. Integer sums don't depend on the atomic-dependent list order, so a run is **bit-reproducible run to run**. Before this fix, two identical native runs diverged.
+- **Repulsion distance r = 0.75 × the mean edge length:** 9.3 / 6.6 / 4.6 / 3.3 mm at 5k / 10k / 20k / 40k vertices. Point-to-point contact only stops another layer if no gap between its vertices is much wider than 2r, so r has to follow the mesh resolution, not the fabric's thickness.
+- **Excluded pairs:** vertices within 2r of each other along the rest mesh, where seams count as length 0, never repel. They're close because the cloth is connected there, not because two layers met. The lists are computed on the CPU at load (Dijkstra, 7 ms at 10k), about 6 per vertex.
+- **Limits:** a separate pipeline layout with 7 storage buffers (the default limit is 8), so the solver's own bind groups are untouched. `Features::empty()` and `Limits::default()` still hold.
+- **Benchmark-only checks:**
+  - **[selfcheck.rs](crates/drape-core/src/selfcheck.rs):** an exact triangle–triangle intersection count on a position readback. It uses a uniform grid with edge-against-triangle tests, and skips pairs that share a vertex directly or through a seam.
+  - **`verify`:** reads back the last sort and checks that it's a permutation in cell order, plus neighbour-list usage. It passed in every run, native, Chrome and Safari, and no list ever overflowed.
+- **Switches:**
+  - Native: `--self-collision`, `--self-rebuild K`, `--self-radius`, `--self-exclude`, `--self-friction`, `--self-push-speed`, and `--no-pins` (the unpinned sheet drop scene).
+  - Web: a viewer checkbox (C) and a "Sheet 10k dropped" scene; `bench.html` checkboxes, or the `sc`, `rebuild` and `nopins` URL parameters.
+
+| Self-collision off: the back face shows through at the left fold | Self-collision on |
+|---|---|
+| ![off](docs/m4/drop-off.png) | ![on](docs/m4/drop-on.png) |
+
+### Numbers: drape (native Metal, Apple M2, 20 substeps, pipelined ms per frame)
+
+| Scene | Vertices | r (mm) | Off | On, K = 1 | On, K = 4 | Rest frame off / on | Self-intersections at end: off → on | Persistent: off → on |
+|---|---|---|---|---|---|---|---|---|
+| Sheet dropped on sphere | 10,000 | 8.6 | 1.41 | 4.05 | 2.27 | 304 / 278 | **92 → 0** | **91 → 0** |
+| T-shirt | 5,053 | 9.3 | 1.33 | 3.16 | 1.92 | 287 / 287 | 0 → 0 | 0 → 0 |
+| T-shirt | 10,002 | 6.6 | 1.80 | 4.32 | 2.75 | 286 / 286 | 0 → 0 | 0 → 0 |
+| T-shirt | 19,967 | 4.6 | 2.80 | 7.31 | 4.73 | 219 / 232 | 0 → 0 | 0 → 0 |
+| T-shirt | 39,674 | 3.3 | 4.91 | 12.00 | 7.78 | 284 / 284 | 0 → 0 | 0 → 0 |
+
+- **The T-shirt drape doesn't touch itself on this avatar:** its rest neighbour lists are empty, with fewer than 0.01 contacts per vertex. It drapes identically with self-collision on: same rest frame, 0 mm penetration, same seam gaps. Self-collision is exercised by the folding sheet and by the drag test.
+- **Cost:** self-collision roughly doubles the frame cost at K = 1 (+2.5 ms at 10k, +7 ms at 40k). At K = 4 it adds 50–60%.
+- **Rest:** still 0.5–1.0 s of wall time to rest at ≤ 20k with K = 1. At 40k with K = 1 it's 3.4 s (284 frames × 12.0 ms), just over the 3 s target; at K = 4 it's 2.2 s.
+
+**GPU time by kernel, T-shirt 10k (profiling mode, ms per frame; one pass per kernel, so it includes per-pass overhead):**
+
+| | predict | stretch | sew | bend | **hash: count / scan / blocks / scatter** | **query** | body collide | **snapshot / collide** | update |
+|---|---|---|---|---|---|---|---|---|---|
+| K = 1 | 0.13 | 0.60 | 0.13 | 1.19 | 0.11 / 0.22 / 0.13 / 0.14 | **1.90** | 0.59 | 0.12 / 0.28 | 0.16 |
+| K = 4 | 0.12 | 0.59 | 0.13 | 1.13 | 0.03 / 0.06 / 0.03 / 0.03 | **0.47** | 0.46 | 0.11 / 0.27 | 0.12 |
+
+- **The counting sort is cheap:** about 30 µs for a whole rebuild.
+- **The neighbour query is the cost:** about 90 µs per rebuild at 10k. It's latency-bound: each thread runs a chain of dependent reads through 9 hash rows, and with only 10k threads nothing hides the latency. Making the hash rows contiguous (27 → 9 lookups) saved only about 0.35 ms per frame at K = 1.
+- **The neighbour list pays off:** before it, the plan's literal version (probe the hash for every vertex in every substep) cost 2.3 ms per frame for the collide pass alone. With the list, the per-substep collide costs 0.28 ms.
+
+### Numbers: 60 s random-drag test (native, T-shirt 10k, harsh drags; the M3 setup)
+
+| Seed | Max speed, m/s: off / K = 1 / K = 4 | Frames ≥ 5 m/s: off / K = 1 / K = 4 | Episodes starting with intersections: off / K = 1 / K = 4 | Intersections after settle (persistent): off / K = 1 / K = 4 |
+|---|---|---|---|---|
+| 1 | 3.98 / 5.36 / 5.18 | 0 / 1 / 2 | 2 / 0 / 0 | 0 / 0 / 0 |
+| 2 | 8.24 / 15.32 / 27.54 | 2 / 6 / 6 | 0 / 0 / 0 | 0 / 0 / 0 |
+| 3 | 11.81 / 7.25 / 6.92 | 2 / 5 / 5 | 0 / 0 / 0 | 0 / 0 / 0 |
+| 4 | 11.41 / 12.54 / 12.55 | 5 / 6 / 6 | 0 / 0 / 0 | 0 / 0 / 0 |
+| 5 | 24.30 / 27.73 / 11.62 | 5 / 5 / 6 | 16 / 16 / 29 | **100 (80) / 12 (12) / 11 (11)** |
+| 6 | 6.90 / 9.00 / 8.01 | 4 / 4 / 6 | 0 / 0 / 1 | 0 / 0 / 0 |
+| **All** | | **18 / 27 / 31** | **18 / 16 / 30** | |
+
+- **Holds in every run:** no NaN, 0.00 mm body penetration after the settle, and seam gaps ≤ 3.3 mm. During the drags, the GPU-sampled minimum distance to the body stays positive: 0.08–1.15 mm with self-collision, 0.93–1.76 mm without.
+- **Frame cost during the drags:** 2.49 ms off, 5.10 ms at K = 1, 3.46 ms at K = 4.
+- **The rebuild interval doesn't change quality much:** K = 4 behaves about like K = 1 (one extra spike frame here and there, 108 transient pairs in one seed-6 episode) and is about 1.6 ms per frame cheaper at 10k. **I'd use K = 4 in the M5 matrix and REPORT;** K = 1 stays the default because it's the plan's version.
+
+### Native vs browser with self-collision (K = 1)
+
+| T-shirt | Native ms | Chrome 150 | Safari 27 | Shape diff vs native, mean / max (mm), Chrome · Safari | Self-intersections, all |
+|---|---|---|---|---|---|
+| 5k | 3.16 | 3.02 (0.96×) | 3.76 (1.19×) | 0.01 / 0.19 · 0.01 / 0.19 | 0 |
+| 10k | 4.32 | 4.23 (0.98×) | 5.07 (1.17×) | 0.05 / 0.36 · 0.05 / 0.36 | 0 |
+| 20k | 7.31 | 7.16 (0.98×) | 8.41 (1.15×) | 0.02 / 0.19 · 0.02 / 0.19 | 0 |
+| 40k | 12.00 | 11.61 (0.97×) | 12.96 (1.08×) | 0.03 / 0.24 · 0.03 / 0.24 | 0 |
+| 10k, K = 4 | 2.75 | 2.73 (0.99×) | 3.07 (1.12×) | 0.06 / 0.37 · 0.05 / 0.36 | 0 |
+| 20k, K = 4 | 4.73 | 4.85 (1.03×) | 5.17 (1.09×) | 0.02 / 0.19 · 0.02 / 0.19 | 0 |
+
+- **Rest frame:** identical in both browsers at every size.
+- **Interactive drag with self-collision on** (viewer automation, as in M3):
+
+  | | 10k | 20k | Dropped sheet |
+  |---|---|---|---|
+  | Chrome | 53.5 fps | 54.3 fps | 52.7 fps |
+  | Safari | 56.2 fps | 54.3 fps | 55.0 fps |
+
+  **≥ 30 fps ✅** in both browsers.
+- **Dropped sheet:** 0 self-intersections in Chrome and Safari with self-collision on. With it off: 15 (Chrome) and 99 (Safari) at the end, vs 92 natively. The free fall is chaotic, so each target folds differently; rest frames are 297–337.
+
+**Drag test in Chrome (identical drags, K = 1):**
+
+| Seed | Native max v | Chrome max v | Native frames ≥ 5 m/s | Chrome | Native intersections after / persistent | Chrome |
+|---|---|---|---|---|---|---|
+| 1 | 5.36 | 5.36 | 1 | 1 | 0 / 0 | 0 / 0 |
+| 2 | 15.32 | 13.44 | 6 | 6 | 0 / 0 | 0 / 0 |
+| 3 | 7.25 | 7.10 | 5 | 5 | 0 / 0 | 0 / 0 |
+| 4 | 12.54 | 12.54 | 6 | 6 | 0 / 0 | 0 / 0 |
+| 5 | 27.73 | 27.40 | 5 | 5 | 12 / 12 | 9 / 9 |
+| 6 | 9.00 | 9.19 | 4 | 4 | 0 / 0 | 0 / 0 |
+
+**Drag test in Safari with self-collision: not run.** The first attempt hit my 15-minute script timeout during seed 6 (Safari takes about 3 minutes per seed), so no result was saved. On the rerun, the tab disappeared during seed 1: closed or crashed, cause not investigated. You chose to skip it. Safari ran the M3 drag test fine, and Chrome matches native seed by seed here.
+
+**Parity is no longer exact with self-collision.** In M3, browsers reproduced native to within 0.05 mm, with identical drag runs. With self-collision, the drape matches to within 0.37 mm and the drag runs match statistically: the same spike-frame count in every seed, max speeds within about 15%, and the same seed-5 tangle. They're no longer bit-identical. Each target is bit-reproducible on its own; the remaining difference is float rounding between shader compilers (sqrt, FMA contraction), which contact events amplify.
+
+### Findings
+1. **Deviation from the plan: gather, not scatter.** The plan says to accumulate collision corrections with fixed-point `atomicAdd`. Each vertex here gathers its own correction from its neighbour list instead: no atomics on the corrections at all, no races, and a fixed-point sum that is still order-independent. The hash itself is the plan's counting sort.
+2. **Deviation from the plan: neighbour lists.** The plan's literal version, probing the hash in every substep, works (K = 1 is the default) and costs 2.3 ms per frame at 10k for the probe alone. Splitting it into a list rebuild every K substeps (radius + margin) plus a cheap per-substep gather is the standard approach, and it's what makes the per-substep collide cheap.
+3. **The repulsion must not be inelastic.** Copying the body contact's inelastic trick (shift `prev` by the push) produced fake velocity. Whenever the repulsion fought another constraint, the other constraint's correction became velocity and the repulsion's didn't. Examples: the drag patch keeps its grab-time shape, and the body pushes the inner layer back. The result was held vertices sitting still while reading 5–12 m/s. **Now:** the push is elastic up to 1 m/s of separation speed and inelastic beyond (so deep catches don't launch), and only the approach velocity is removed.
+4. **Order matters.** With the repulsion before the body contact, the body pushed layers back into each other every substep: 44 frames over 5 m/s across the 6 seeds. With the repulsion after the body contact: 27, and still 0 mm penetration, because the next substep's body pass corrects any small push inward.
+5. **The drag needs room for a layer.** The drag target was allowed within 7 mm of the body. With self-collision, the layer pressed under the dragged cloth needs 2 mm (body contact) + r. Raising the target's margin by r took seed 3 from 14 to 4 spike frames.
+6. **The remaining failure is the pinch.** Seed 5 tangles in episode 27, a 23 cm pull on the left sleeve. The sleeve ends up crossing itself on the inner upper arm next to the torso, and every vertex involved is at the 2 mm body-contact distance. The layers are squeezed into a gap narrower than 2 × 2 mm + r. The body wins, and point repulsion can't undo a crossing once it has happened: it then holds the two layers on the wrong sides. This is the M3 crease problem again (same armpit). Self-collision cuts the damage from 100 to 12 pairs, but can't fix it.
+7. **Self-collision makes the drag spikes somewhat more frequent** (18 → 27 frames over 5 m/s in 21,600 frames). They come in the same episodes as without self-collision: whips of free edges and creases, made worse by the extra contacts. There's still no NaN, and nothing ends up inside the body.
+
+### Open problems / notes
+- **Intersections that already exist can't be undone.** Point-to-point repulsion has no notion of which side a layer belongs on. Untangling (intersection-contour methods, as in Baraff et al. 2003 or Volino & Magnenat-Thalmann 2006) or triangle-level continuous collision would fix it; both are out of the plan's scope. A cheaper partial fix is a wider arm–torso gap in the avatar pose (see M3).
+- **The repulsion radius follows the mesh** (0.75 × edge), so folded cloth stacks 3–9 mm per layer, which is thicker than real cotton. Triangle–point or edge–edge contact would allow a fabric-scale thickness.
+- **The query kernel is latency-bound.** Options if it matters in M5: cell size 2r with a 2×2×2 query, a resolved cell-start pass, or a Morton-ordered vertex layout so neighbouring threads share cache lines.
+- **K = 4 is the better trade-off.** I'd use it for the M5 matrix.
+- **The debug hooks** `DRAPE_DEBUG_SELF=1` (intersecting panel pairs and body distance at each episode start) and `DRAPE_DEBUG_SPIKE=1` (fastest vertex and its self-collision neighbours at every spike frame) are native-only. They're how findings 3–6 were found.
 
 ## Later
 - Better damping than global velocity damping (e.g. damping only along constraints, or in the solver itself), so the drape rests faster without slowing free fall.

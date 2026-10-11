@@ -8,6 +8,7 @@ use crate::{
     gpu::Gpu,
     metrics::{FrameMetrics, GpuMetrics, RestDetector},
     scene::Built,
+    selfcheck::{self, SelfIntersections},
     sim::{SimConfig, Solver},
     timer::{self, GpuTimer, PassTime},
 };
@@ -145,6 +146,26 @@ pub struct BenchResult {
     pub trace: Vec<(u32, f32, f32, f32)>,
     /// Final positions at the end of the serial run (see `BenchConfig::record_positions`).
     pub final_positions_b64: Option<String>,
+    /// Self-collision setup, when enabled.
+    pub self_collision: Option<SelfCollisionInfo>,
+    /// Cloth self-intersections (CPU check, computed with self-collision on or off) at the
+    /// initial placement, at the end of the serial run, and after the pipelined frames;
+    /// `persistent_pairs` of the last = pairs present at both of the last two checks.
+    pub self_intersections_initial: SelfIntersections,
+    pub self_intersections_final: SelfIntersections,
+    pub self_intersections_after_pipelined: SelfIntersections,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SelfCollisionInfo {
+    pub radius_mm: f32,
+    pub excluded_pairs: usize,
+    pub table_size: u32,
+    pub buffer_bytes: u64,
+    pub query_radius_mm: f32,
+    pub rebuild_every: u32,
+    /// Counting-sort and neighbour-list check on the last rebuild (readback).
+    pub check: crate::selfcol::SelfCheck,
 }
 
 /// Exact signed distance of every vertex to the body (CPU, BVH). Benchmark-only.
@@ -220,6 +241,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
             (c.stretch.items.len() + c.sew.items.len()) as u64 * 16,
             c.bend.items.len() as u64 * 48,
             solver.sdf_buf.size(),
+            solver.self_collision.as_ref().map_or(0, |sc| sc.buffer_bytes),
         ]
         .into_iter()
         .max()
@@ -227,7 +249,8 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         total_sim_buffer_bytes: built.mesh.n_verts() as u64 * 48
             + (c.stretch.items.len() + c.sew.items.len()) as u64 * 16
             + c.bend.items.len() as u64 * 48
-            + solver.sdf_buf.size(),
+            + solver.sdf_buf.size()
+            + solver.self_collision.as_ref().map_or(0, |sc| sc.buffer_bytes),
     };
     log::info!("bench mesh: {mesh:?}");
 
@@ -342,6 +365,24 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
     crate::gpu_async::work_done(device, queue).await;
     let frame_ms_pipelined = t0.elapsed().as_secs_f64() * 1000.0 / cfg.pipelined_frames.max(1) as f64;
 
+    let pos_after: Vec<Vec3> = read_vec4(device, queue, &solver.pos, solver.n_verts).await.iter().map(|p| Vec3::new(p[0], p[1], p[2])).collect();
+    let weld = selfcheck::weld_map(built.mesh.n_verts(), c);
+    let self_intersections_initial = selfcheck::check(&built.mesh, &weld, &built.mesh.pos, None);
+    let self_intersections_final = selfcheck::check(&built.mesh, &weld, &pos, None);
+    let self_intersections_after_pipelined = selfcheck::check(&built.mesh, &weld, &pos_after, Some(&self_intersections_final));
+    let self_collision = match &solver.self_collision {
+        Some(sc) => Some(SelfCollisionInfo {
+            radius_mm: sc.radius * 1000.0,
+            excluded_pairs: sc.excluded_pairs,
+            table_size: sc.table_size,
+            buffer_bytes: sc.buffer_bytes,
+            query_radius_mm: sc.query_radius * 1000.0,
+            rebuild_every: sim.self_rebuild_every,
+            check: sc.verify(device, queue).await,
+        }),
+        None => None,
+    };
+
     for p in &mut phase_sum {
         p.ms /= phase_samples.max(1) as f64;
     }
@@ -382,5 +423,9 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
             base64(bytemuck::cast_slice(&flat))
         }),
         config: cfg,
+        self_collision,
+        self_intersections_initial,
+        self_intersections_final,
+        self_intersections_after_pipelined,
     }
 }

@@ -12,6 +12,7 @@ use crate::{
     gpu::Gpu,
     metrics::GpuMetrics,
     scene::Built,
+    selfcheck::{self, SelfIntersections},
     sim::{DRAG_RADIUS, DragPatch, SimConfig, Solver},
 };
 
@@ -48,6 +49,9 @@ pub struct DragEpisode {
     /// Group (panel) of the dragged vertex.
     pub group: &'static str,
     pub patch_vertices: usize,
+    /// Self-intersecting triangle pairs when the episode starts (after the previous one's
+    /// pause), CPU check on the readback used for picking.
+    pub self_intersections_at_start: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -76,6 +80,13 @@ pub struct DragResult {
     /// Exact penetration after the last drag and a 3 s settle.
     pub penetration_after: Option<Penetration>,
     pub max_seam_gap_mm_after: Option<f32>,
+    /// Episodes that started with any self-intersection, and the worst count.
+    pub episodes_starting_intersected: usize,
+    pub max_self_intersections_at_episode_start: usize,
+    /// Self-intersections 2 s and 3 s after the last drag; `persistent_pairs` of the second =
+    /// pairs present at both.
+    pub self_intersections_after_2s: SelfIntersections,
+    pub self_intersections_after: SelfIntersections,
     /// Sim-only serial frame time during the drag phase, ms.
     pub frame_ms_serial: Stats,
 }
@@ -102,6 +113,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
     let metrics = GpuMetrics::new(device, &solver);
     let free: Vec<u32> = (0..built.mesh.n_verts() as u32).filter(|&i| !built.mesh.pinned[i as usize]).collect();
     let adj = built.mesh.neighbors();
+    let weld = selfcheck::weld_map(built.mesh.n_verts(), &built.constraints);
     let mut rng = Rng(cfg.seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
     let fps = 1.0 / sim.frame_dt;
 
@@ -158,7 +170,30 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
             min_collider_dist_mm: f32::MAX,
             group,
             patch_vertices: patch.vertices.len(),
+            self_intersections_at_start: 0,
         };
+        let si = selfcheck::check(&built.mesh, &weld, &pos, None);
+        ep.self_intersections_at_start = si.pairs;
+        #[cfg(not(target_arch = "wasm32"))]
+        if si.pairs > 0 && std::env::var("DRAPE_DEBUG_SELF").is_ok() {
+            let g = |t: u32| {
+                let v = built.mesh.tris[t as usize][0];
+                built.groups.iter().find(|(_, r)| r.contains(&v)).map(|(n, _)| *n).unwrap_or("")
+            };
+            let mut by: std::collections::BTreeMap<(&str, &str), usize> = Default::default();
+            for &(a, b) in &si.pair_set {
+                let (ga, gb) = (g(a), g(b));
+                *by.entry((ga.min(gb), ga.max(gb))).or_default() += 1;
+            }
+            let prev = episodes.last().map(|e: &DragEpisode| (e.vertex, e.group, e.offset));
+            // Pinched against the body? Body distance of the intersecting triangles' vertices.
+            if let crate::sim::Collider::Sdf(sdf) = &built.collider {
+                let mut d: Vec<f32> = si.pair_set.iter().flat_map(|&(a, b)| [a, b]).flat_map(|t| built.mesh.tris[t as usize]).map(|v| sdf.sample(pos[v as usize]) * 1000.0).collect();
+                d.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                eprintln!("  body distance of involved vertices, mm: min {:.1} median {:.1} max {:.1}", d[0], d[d.len() / 2], d[d.len() - 1]);
+            }
+            eprintln!("episode {} starts with {} pairs {:?}; previous drag {:?}; sample {:?}", episodes.len(), si.pairs, by, prev, &si.sample[..si.sample.len().min(3)]);
+        }
         for k in 0..pull_frames + hold_frames + pause_frames {
             if frame >= end {
                 break;
@@ -201,6 +236,22 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 queue.submit([e.finish()]);
                 let v: Vec<[f32; 4]> = crate::gpu_async::read_buffer(device, &rb).await;
                 let sp = |t: f32| v.iter().filter(|v| Vec3::new(v[0], v[1], v[2]).length() >= t).count();
+                #[cfg(not(target_arch = "wasm32"))]
+                if std::env::var("DRAPE_DEBUG_SPIKE").is_ok() {
+                    let p = solver.read_positions(device, queue).await;
+                    let (fi, fv) = v.iter().enumerate().map(|(i, v)| (i, Vec3::new(v[0], v[1], v[2]).length())).fold((0, 0.0), |a, b| if b.1 > a.1 { b } else { a });
+                    let g = built.groups.iter().find(|(_, r)| r.contains(&(fi as u32))).map(|(n, _)| *n).unwrap_or("");
+                    let body = match &built.collider { crate::sim::Collider::Sdf(sdf) => sdf.sample(p[fi]) * 1000.0, _ => 0.0 };
+                    let close = p.iter().enumerate().filter(|(j, q)| *j != fi && (**q - p[fi]).length() < 0.007 && !adj[fi].contains(&(*j as u32))).count();
+                    let in_patch = patch.vertices.iter().any(|(pv, _)| *pv as usize == fi);
+                    if let Some(sc) = &solver.self_collision {
+                        let ex = crate::selfcol::exclusion_lists(&built.mesh, &built.constraints, sc.radius * sim.self_exclude_radii);
+                        let (a, b) = (ex[fi] as usize, ex[fi + 1] as usize);
+                        let near: Vec<(usize, f32, bool)> = p.iter().enumerate().filter(|(j, q)| *j != fi && (**q - p[fi]).length() < sc.query_radius).map(|(j, q)| (j, (*q - p[fi]).length() * 1000.0, ex[a..b].contains(&(j as u32)))).collect();
+                        eprintln!("   within query radius (j, mm, excluded): {near:?}");
+                    }
+                    eprintln!("spike ep {} k={k}: v{fi} {g} {fv:.1} m/s, body {body:.1} mm, {close} non-adjacent verts within 7 mm, in_patch {in_patch}, n>5 {}", episodes.len(), sp(5.0));
+                }
                 let n5 = sp(5.0);
                 if n5 > max_vertices_over_5ms {
                     max_vertices_over_5ms = n5;
@@ -235,11 +286,17 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
     solver.end_drag();
 
     // Settle 3 s, then the exact checks.
-    for _ in 0..(3.0 * fps) as u32 {
+    for _ in 0..(2.0 * fps) as u32 {
+        step(frame);
+        frame += 1;
+    }
+    let self_intersections_after_2s = selfcheck::check(&built.mesh, &weld, &solver.read_positions(device, queue).await, None);
+    for _ in 0..(1.0 * fps) as u32 {
         step(frame);
         frame += 1;
     }
     let pos = solver.read_positions(device, queue).await;
+    let self_intersections_after = selfcheck::check(&built.mesh, &weld, &pos, Some(&self_intersections_after_2s));
     let c = &built.constraints;
     let max_seam_gap_mm_after =
         (!c.sew.items.is_empty()).then(|| c.sew.items.iter().map(|s| (pos[s.i as usize] - pos[s.j as usize]).length()).fold(0.0f32, f32::max) * 1000.0);
@@ -262,6 +319,10 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
         penetration_after: penetration_check(built, &pos),
         max_seam_gap_mm_after,
         frame_ms_serial: Stats::of(&frame_ms),
+        episodes_starting_intersected: episodes.iter().filter(|e| e.self_intersections_at_start > 0).count(),
+        max_self_intersections_at_episode_start: episodes.iter().map(|e| e.self_intersections_at_start).max().unwrap_or(0),
+        self_intersections_after_2s,
+        self_intersections_after,
         episodes,
         config: cfg,
     }

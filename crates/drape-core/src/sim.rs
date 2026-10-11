@@ -7,7 +7,7 @@ use glam::{Vec3, Vec4};
 use serde::Serialize;
 use wgpu::util::DeviceExt;
 
-use crate::{body::Sdf, constraints::Constraints, mesh::ClothMesh, timer::GpuTimer};
+use crate::{body::Sdf, constraints::Constraints, mesh::ClothMesh, selfcol::SelfCollision, timer::GpuTimer};
 
 pub const SHADER: &str = concat!(include_str!("../shaders/sdf.wgsl"), include_str!("../shaders/sim.wgsl"));
 
@@ -99,6 +99,23 @@ pub struct SimConfig {
     /// Max collision push-out per vertex per substep, m. Default: uncapped (capping it let
     /// cloth sink into the body under load, see PROGRESS M3).
     pub contact_max_step: f32,
+    /// Cloth-cloth vertex repulsion (M4), every substep.
+    pub self_collision: bool,
+    /// Repulsion distance as a multiple of the mean rest edge length. Point-point contact only
+    /// stops a layer if no gap between its vertices is wider than ~2x the radius, so the
+    /// radius has to follow the mesh resolution rather than the fabric thickness.
+    pub self_radius_edges: f32,
+    /// Pairs closer than this many radii along the rest mesh (or across a seam) never repel.
+    pub self_exclude_radii: f32,
+    pub self_friction: f32,
+    /// Rebuild the hash and neighbour lists every this many substeps (1 = every substep, as
+    /// the plan has it). Lists cover radius + margin, so a vertex pair can close up to the
+    /// margin between rebuilds and still be caught.
+    pub self_rebuild_every: u32,
+    /// Neighbour-list margin, in radii.
+    pub self_margin_radii: f32,
+    /// Separation speed a repulsion push may create, m/s (beyond it the push is inelastic).
+    pub self_max_push_speed: f32,
     pub schedule: Schedule,
 }
 
@@ -114,6 +131,13 @@ impl Default for SimConfig {
             stretch_damping: 1e-5,
             contact_max_step: 1.0,
             air_drag: 4.0,
+            self_collision: false,
+            self_radius_edges: 0.75,
+            self_exclude_radii: 2.0,
+            self_friction: 0.2,
+            self_rebuild_every: 1,
+            self_margin_radii: 0.5,
+            self_max_push_speed: 1.0,
             schedule: Schedule::NONE,
         }
     }
@@ -203,8 +227,15 @@ enum Kernel {
 
 const ENTRY_POINTS: [&str; 7] = ["predict", "solve_stretch", "solve_sew", "solve_bend", "collide_sphere", "collide_sdf", "update_velocity"];
 
+#[derive(Clone, Copy)]
+enum Pipe {
+    Sim(Kernel),
+    /// Index into the self-collision kernels (own pipeline layout and bind group).
+    SelfCol(usize),
+}
+
 struct Dispatch {
-    kernel: Kernel,
+    pipe: Pipe,
     range_offset: u32,
     groups: u32,
 }
@@ -230,8 +261,10 @@ pub struct Solver {
     state_bg: wgpu::BindGroup,
     cons_bg: wgpu::BindGroup,
     pipelines: Vec<wgpu::ComputePipeline>,
-    phases: Vec<(&'static str, Vec<Dispatch>)>,
+    /// (label, dispatches, run every this many substeps).
+    phases: Vec<(&'static str, Vec<Dispatch>, u32)>,
     init_pos: Vec<[f32; 4]>,
+    pub self_collision: Option<SelfCollision>,
 }
 
 fn storage_entry(binding: u32, read_only: bool) -> wgpu::BindGroupLayoutEntry {
@@ -436,7 +469,7 @@ impl Solver {
             .collect();
 
         let vgroups = n.div_ceil(WG);
-        let per_vertex = |kernel| vec![Dispatch { kernel, range_offset: 0, groups: vgroups }];
+        let per_vertex = |kernel| vec![Dispatch { pipe: Pipe::Sim(kernel), range_offset: 0, groups: vgroups }];
         let ns = cons.stretch.ranges.len();
         let nsew = sew_ranges.len();
         let colored = |kernel, ranges: &[(u32, u32)], base: usize| -> Vec<Dispatch> {
@@ -444,18 +477,36 @@ impl Solver {
                 .iter()
                 .enumerate()
                 .map(|(k, &(_, count))| Dispatch {
-                    kernel,
+                    pipe: Pipe::Sim(kernel),
                     range_offset: ((base + k) as u64 * RANGE_STRIDE) as u32,
                     groups: count.div_ceil(WG),
                 })
                 .filter(|d| d.groups > 0)
                 .collect()
         };
+        let self_collision = cfg.self_collision.then(|| {
+            let r = cfg.self_radius_edges * mesh.mean_edge_length();
+            let rq = r * (1.0 + cfg.self_margin_radii);
+            SelfCollision::new(device, mesh, cons, &pos, &prev, r, rq, r * cfg.self_exclude_radii, cfg.self_friction, cfg.self_max_push_speed * h)
+        });
+        // One phase per kernel, so profiling mode times each.
+        let self_kernel = |k: usize| -> Vec<Dispatch> {
+            self_collision.as_ref().map(|sc| vec![Dispatch { pipe: Pipe::SelfCol(k), range_offset: 0, groups: sc.groups[k] }]).unwrap_or_default()
+        };
         let phases = vec![
             ("predict", per_vertex(Kernel::Predict)),
             ("stretch", colored(Kernel::Stretch, &cons.stretch.ranges, 0)),
             ("sew", colored(Kernel::Sew, &sew_ranges, ns)),
             ("bend", colored(Kernel::Bend, &cons.bend.ranges, ns + nsew)),
+            // Hash rebuild before the body contact, repulsion after it. With the repulsion
+            // first, the body pushed layers back into each other and the two fought every
+            // substep (drag test: 44 frames over 5 m/s across 6 seeds vs 27 this way, and no
+            // body penetration either way; PROGRESS M4).
+            ("sc_count", self_kernel(0)),
+            ("sc_scan_local", self_kernel(1)),
+            ("sc_scan_blocks", self_kernel(2)),
+            ("sc_scatter", self_kernel(3)),
+            ("sc_query", self_kernel(4)),
             (
                 "collide",
                 per_vertex(match collider {
@@ -463,9 +514,16 @@ impl Solver {
                     Collider::Sdf(_) => Kernel::CollideSdf,
                 }),
             ),
+            ("sc_snapshot", self_kernel(5)),
+            ("sc_collide", self_kernel(6)),
             ("update", per_vertex(Kernel::Update)),
         ];
-        let phases = phases.into_iter().filter(|(_, d)| !d.is_empty()).collect();
+        let rebuild = cfg.self_rebuild_every.max(1);
+        let phases = phases
+            .into_iter()
+            .filter(|(_, d)| !d.is_empty())
+            .map(|(l, d)| (l, d, if crate::selfcol::ENTRY_POINTS[..crate::selfcol::REBUILD_KERNELS].contains(&l) { rebuild } else { 1 }))
+            .collect();
 
         Self {
             cfg,
@@ -486,6 +544,7 @@ impl Solver {
             pipelines,
             phases,
             init_pos,
+            self_collision,
         }
     }
 
@@ -505,7 +564,8 @@ impl Solver {
     /// whipping large regions of cloth around.
     pub fn set_drag_target(&self, target: Vec3) {
         let Some((n, from)) = self.drag.get() else { return };
-        let margin = self.cfg.thickness + 0.005;
+        // With self-collision, leave room for one more layer between the hand and the body.
+        let margin = self.cfg.thickness + 0.005 + self.self_collision.as_ref().map_or(0.0, |sc| sc.radius);
         let outside = |p: Vec3| match &self.collider {
             Collider::Sdf(sdf) => sdf.sample(p) >= margin,
             Collider::Sphere(s) => (p - s.truncate()).length() >= s.w + margin,
@@ -567,18 +627,36 @@ impl Solver {
     }
 
     pub fn dispatches_per_frame(&self) -> u32 {
-        self.cfg.substeps * self.phases.iter().map(|(_, d)| d.len() as u32).sum::<u32>()
+        (0..self.cfg.substeps).map(|s| self.phases.iter().filter(|p| s % p.2 == 0).map(|p| p.1.len() as u32).sum::<u32>()).sum()
     }
 
     /// Passes encoded per frame in profiling mode (one per phase per substep).
     pub fn profiled_passes_per_frame(&self) -> u32 {
-        self.cfg.substeps * self.phases.len() as u32
+        (0..self.cfg.substeps).map(|s| self.phases.iter().filter(|p| s % p.2 == 0).count() as u32).sum()
     }
 
-    fn run(&self, pass: &mut wgpu::ComputePass<'_>, ds: &[Dispatch]) {
+    /// `bound`: which group 0 is currently set (0 = none, 1 = solver state, 2 = self-collision,
+    /// whose kernels have their own layout), so it is only rebound when switching.
+    fn run(&self, pass: &mut wgpu::ComputePass<'_>, ds: &[Dispatch], bound: &mut u8) {
         for d in ds {
-            pass.set_pipeline(&self.pipelines[d.kernel as usize]);
-            pass.set_bind_group(1, &self.cons_bg, &[d.range_offset]);
+            match d.pipe {
+                Pipe::Sim(k) => {
+                    pass.set_pipeline(&self.pipelines[k as usize]);
+                    if *bound != 1 {
+                        pass.set_bind_group(0, &self.state_bg, &[]);
+                        *bound = 1;
+                    }
+                    pass.set_bind_group(1, &self.cons_bg, &[d.range_offset]);
+                }
+                Pipe::SelfCol(k) => {
+                    let sc = self.self_collision.as_ref().unwrap();
+                    pass.set_pipeline(&sc.pipelines[k]);
+                    if *bound != 2 {
+                        pass.set_bind_group(0, &sc.bind_group, &[]);
+                        *bound = 2;
+                    }
+                }
+            }
             pass.dispatch_workgroups(d.groups, 1, 1);
         }
     }
@@ -588,23 +666,21 @@ impl Solver {
     pub fn encode_frame(&self, encoder: &mut wgpu::CommandEncoder, timer: Option<&mut GpuTimer>) {
         match timer {
             Some(timer) if timer.enabled() => {
-                for _ in 0..self.cfg.substeps {
-                    for (label, ds) in &self.phases {
+                for s in 0..self.cfg.substeps {
+                    for (label, ds, _) in self.phases.iter().filter(|p| s % p.2 == 0) {
                         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                             label: Some(label),
                             timestamp_writes: timer.compute_pass_writes(label),
                         });
-                        pass.set_bind_group(0, &self.state_bg, &[]);
-                        self.run(&mut pass, ds);
+                        self.run(&mut pass, ds, &mut 0);
                     }
                 }
             }
             _ => {
                 let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("sim-frame"), timestamp_writes: None });
-                pass.set_bind_group(0, &self.state_bg, &[]);
-                for _ in 0..self.cfg.substeps {
-                    for (_, ds) in &self.phases {
-                        self.run(&mut pass, ds);
+                for s in 0..self.cfg.substeps {
+                    for (_, ds, _) in self.phases.iter().filter(|p| s % p.2 == 0) {
+                        self.run(&mut pass, ds, &mut 0);
                     }
                 }
             }

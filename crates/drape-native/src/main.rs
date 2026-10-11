@@ -183,6 +183,28 @@ impl SceneArgs {
         if let Some(v) = num(args, "--contact-max-step") {
             a.sim.contact_max_step = v;
         }
+        if take_flag(args, "--no-pins") {
+            a.sheet.pins = false;
+        }
+        a.sim.self_collision = take_flag(args, "--self-collision");
+        if let Some(v) = num(args, "--self-radius") {
+            a.sim.self_radius_edges = v;
+        }
+        if let Some(v) = num(args, "--self-exclude") {
+            a.sim.self_exclude_radii = v;
+        }
+        if let Some(v) = num(args, "--self-friction") {
+            a.sim.self_friction = v;
+        }
+        if let Some(v) = take_value(args, "--self-rebuild") {
+            a.sim.self_rebuild_every = v.parse().expect("--self-rebuild");
+        }
+        if let Some(v) = num(args, "--self-push-speed") {
+            a.sim.self_max_push_speed = v;
+        }
+        if let Some(v) = num(args, "--self-margin") {
+            a.sim.self_margin_radii = v;
+        }
         a
     }
 

@@ -19,15 +19,33 @@ pub fn init() {
     let _ = console_log::init_with_level(log::Level::Info);
 }
 
+/// Scene options as JSON, all optional: `{"self_collision": bool, "self_rebuild": u32,
+/// "pins": bool}` (the same switches as the native `--self-collision`, `--self-rebuild`,
+/// `--no-pins`).
+fn parse_opts(opts: &str) -> Result<serde_json::Value, JsValue> {
+    if opts.trim().is_empty() {
+        return Ok(serde_json::json!({}));
+    }
+    serde_json::from_str(opts).map_err(|e| format!("options: {e}").into())
+}
+
 /// Scene by name. `res`: sheet = vertices per side, tshirt = target edge length (m).
 /// The T-shirt needs the body OBJ; the SDF is baked here when `sdf` is empty.
-fn build_scene(scene: &str, res: f32, substeps: u32, obj: &str, sdf: &[u8]) -> Result<(Built, serde_json::Value), JsValue> {
+fn build_scene(scene: &str, res: f32, substeps: u32, opts: &str, obj: &str, sdf: &[u8]) -> Result<(Built, serde_json::Value), JsValue> {
+    let o = parse_opts(opts)?;
     let mut sim = SheetScene::config();
     if substeps > 0 {
         sim.substeps = substeps;
     }
+    sim.self_collision = o["self_collision"].as_bool().unwrap_or(false);
+    if let Some(k) = o["self_rebuild"].as_u64() {
+        sim.self_rebuild_every = k as u32;
+    }
     match scene {
-        "sheet" => Ok((SheetScene { grid: res as u32, ..Default::default() }.build(sim), serde_json::json!({}))),
+        "sheet" => {
+            let pins = o["pins"].as_bool().unwrap_or(true);
+            Ok((SheetScene { grid: res as u32, pins, ..Default::default() }.build(sim), serde_json::json!({})))
+        }
         "tshirt" => {
             let t0 = Instant::now();
             let body = Arc::new(BodyQuery::new(BodyMesh::from_obj(obj).map_err(|e| format!("body obj: {e}"))?));
@@ -64,11 +82,12 @@ pub async fn run_bench(
     frames: u32,
     gpu_timestamps: bool,
     record_positions: bool,
+    opts: String,
     obj: String,
     sdf: Vec<u8>,
 ) -> Result<String, JsValue> {
     let g = headless_gpu(gpu_timestamps).await?;
-    let (built, load) = build_scene(&scene, res, substeps, &obj, &sdf)?;
+    let (built, load) = build_scene(&scene, res, substeps, &opts, &obj, &sdf)?;
     let cfg = drape_core::bench::BenchConfig { frames, record_positions, ..Default::default() };
     let r = drape_core::bench::run(&g, &built, cfg).await;
     g.device.destroy();
@@ -79,9 +98,19 @@ pub async fn run_bench(
 
 /// The same random-drag stability test as `drape bench-drag`, as JSON.
 #[wasm_bindgen]
-pub async fn run_drag_bench(res: f32, seed: u32, drag_s: f32, max_offset: f32, min_pull_s: f32, obj: String, sdf: Vec<u8>) -> Result<String, JsValue> {
+#[allow(clippy::too_many_arguments)]
+pub async fn run_drag_bench(
+    res: f32,
+    seed: u32,
+    drag_s: f32,
+    max_offset: f32,
+    min_pull_s: f32,
+    opts: String,
+    obj: String,
+    sdf: Vec<u8>,
+) -> Result<String, JsValue> {
     let g = headless_gpu(false).await?;
-    let (built, _) = build_scene("tshirt", res, 0, &obj, &sdf)?;
+    let (built, _) = build_scene("tshirt", res, 0, &opts, &obj, &sdf)?;
     let cfg = drape_core::dragbench::DragBenchConfig { seed: seed as u64, drag_s, max_offset, min_pull_s, ..Default::default() };
     let r = drape_core::dragbench::run(&g, &built, cfg).await;
     g.device.destroy();
