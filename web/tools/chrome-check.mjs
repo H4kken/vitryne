@@ -1,11 +1,12 @@
 // Headless check against real Chrome with its GPU: loads a page, waits for #status, saves a screenshot.
-// usage: node tools/chrome-check.mjs <url> <screenshot.png> [timeoutMs]
+// usage: node tools/chrome-check.mjs <url> <screenshot.png> [timeoutMs] [report-out.json]
+// Waits until #status starts with 'ok' or 'error', then prints #report (parsed if JSON).
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const [url, shot, timeoutMs = '20000'] = process.argv.slice(2);
+const [url, shot, timeoutMs = '20000', reportOut] = process.argv.slice(2);
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const port = 9300 + Math.floor(Math.random() * 500);
 const chrome = spawn(CHROME, [
@@ -45,6 +46,10 @@ const ua = await evaluate('navigator.userAgent');
 const report = await evaluate("document.getElementById('report')?.textContent ?? ''");
 const png = (await send('Page.captureScreenshot', { format: 'png' })).result.data;
 writeFileSync(shot, Buffer.from(png, 'base64'));
-console.log(JSON.stringify({ status, ua, report: report ? JSON.parse(report) : null, console: logs }, null, 2));
+let parsed = null;
+try { parsed = report ? JSON.parse(report) : null; } catch { parsed = report; }
+if (reportOut) writeFileSync(reportOut, JSON.stringify(parsed, null, 1));
+// No process.exit(): it can truncate piped stdout.
+console.log(JSON.stringify({ status, ua, report: reportOut ? `written to ${reportOut}` : parsed, console: logs }, null, 2));
 ws.close(); chrome.kill();
-process.exit(/^ok/.test(status) ? 0 : 1);
+process.exitCode = /^ok/.test(status) ? 0 : 1;

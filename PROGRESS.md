@@ -18,6 +18,12 @@ cargo run -p drape-native --release -- frames --at 0,60,600 --out-dir /tmp/f    
 cd web && npm install && npm run dev                      # builds wasm, serves http://localhost:5173
 node web/tools/chrome-check.mjs http://localhost:5173/ shot.png   # headless real-Chrome check (GPU on)
 # web profiling mode: append ?gpu-timestamps=1 to the URL
+
+# browser bench (same code as `drape bench`): open http://localhost:5173/bench.html, press Run, Copy JSON
+#   automation: bench.html?auto=1&grids=10,100&substeps=20&frames=1200[&ts=1][&post=1&name=X]
+#   post=1 makes the page send its JSON to the dev server -> bench/browser-check/X.json
+node web/tools/chrome-check.mjs "http://localhost:5173/bench.html?auto=1&grids=100" shot.png 590000 out.json
+python3 bench/compare.py bench/browser-check/chrome-grids.json     # native vs browser table
 ```
 
 ## Measurement modes
@@ -129,6 +135,70 @@ Bending is about 55% of GPU time and stretch about 25%. Profiling uses one pass 
 - The grid-of-100 run shows a 10.7 m/s spike at frame 0. That comes from the 10% initial compression being released on a very coarse mesh (11 cm edges), and it's irrelevant to the other sizes.
 - Material values are placeholders, not calibrated (out of scope).
 - Not tested on Windows yet. The web build still renders the M0 triangle; the cloth goes to the browser in M3.
+
+## Browser check (pulled forward from M3) ✅ (2026-10-11)
+
+**Question:** does the browser add enough cost per GPU job to break the "< 3 s to rest" test?
+**Answer: no.** On this M2, Chrome is **1.10–1.19×** native and Safari **1.00–1.14×**. Both are well inside the plan's "browser ≤ 2× native". Raw JSON is in [bench/browser-check/](bench/browser-check/).
+
+### How it was measured
+- [bench.html](web/bench.html) calls `drape_web::run_bench`, which runs the **same `drape_core::bench::run`** as the native CLI, with the same scene, defaults and frame counts (1200 frames).
+- Each run gets a fresh device, with no features and default limits. Both browsers report the `BrowserWebGpu` backend and empty features.
+- The page is served cross-origin isolated (COOP/COEP in [vite.config.js](web/vite.config.js)), so `performance.now()` has fine resolution in both browsers.
+- **Chrome 150:** headless with the real GPU, driven by `chrome-check.mjs` over CDP.
+- **Safari 27.0.1:** opened normally (`open -a Safari …?auto=1&post=1`). The page POSTs its JSON to a dev-only endpoint on the Vite server, because Safari remote automation needs a sudo setting.
+
+### Native vs Chrome (20 substeps)
+
+| Vertices | Native ms per frame | Chrome ms per frame | Ratio | Rest frame (native / Chrome) | Wall time to rest (native / Chrome) | Chrome NaN frames |
+|---|---|---|---|---|---|---|
+| 100 | 0.84 | 0.98 | 1.16× | 452 / 451 | 0.38 / 0.44 s | 0 |
+| 2,500 | 0.99 | 1.16 | 1.17× | 287 / 278 | 0.28 / 0.32 s | 0 |
+| 5,041 | 1.12 | 1.31 | 1.17× | 440 / 466 | 0.49 / 0.61 s | 0 |
+| **10,000** | 1.33 | **1.56** | 1.17× | 462 / 460 | 0.61 / **0.72 s** | 0 |
+| 19,881 | 2.18 | 2.39 | 1.10× | 458 / 488 | 1.00 / 1.17 s | 0 |
+| 40,000 | 4.15 | 4.94 | 1.19× | 582 / 541 | 2.41 / 2.67 s | 0 |
+
+**10k vertices in Chrome, varying substeps:** 10 → 0.79 ms (1.15×), 15 → 1.15 ms (1.15×), 30 → 2.26 ms (1.14×).
+
+### Native vs Safari (20 substeps)
+
+| Vertices | Native ms per frame | Safari ms per frame | Ratio | Rest frame (native / Safari) | Wall time to rest (native / Safari) | Safari NaN frames |
+|---|---|---|---|---|---|---|
+| 100 | 0.84 | 0.89 | 1.06× | 452 / 451 | 0.38 / 0.40 s | 0 |
+| 2,500 | 0.99 | 1.13 | 1.14× | 287 / 267 | 0.28 / 0.30 s | 0 |
+| 5,041 | 1.12 | 1.17 | 1.05× | 440 / 440 | 0.49 / 0.52 s | 0 |
+| **10,000** | 1.33 | **1.45** | 1.09× | 462 / 458 | 0.61 / **0.66 s** | 0 |
+| 19,881 | 2.18 | 2.18 | 1.00× | 458 / 444 | 1.00 / 0.97 s | 0 |
+| 40,000 | 4.15 | 4.63 | 1.12× | 582 / 569 | 2.41 / 2.64 s | 0 |
+
+### Cost per GPU job (the M1 worry)
+The 100-vertex sheet is almost pure overhead: 580 dispatches with almost no work in each.
+
+| | Native Metal | Chrome | Safari |
+|---|---|---|---|
+| Per dispatch | 1.45 µs | 1.7 µs | 1.5 µs |
+
+The browsers add 3–17% per dispatch, not multiples. The 26 colours × 20 substeps design holds in the browser.
+
+### GPU time by phase (profiling mode, ms per frame)
+
+| | predict | stretch | bend | collide | update |
+|---|---|---|---|---|---|
+| Native 10k | 0.12 | 0.46 | 1.05 | 0.09 | 0.11 |
+| Chrome 10k | 0.18 | 0.99 | 2.60 | 0.15 | 0.16 |
+| Safari 10k | 0.14 | 0.71 | 1.43 | 0.10 | 0.11 |
+| Native 40k | 0.34 | 1.41 | 3.13 | 0.22 | 0.29 |
+| Chrome 40k | 0.17 | 1.16 | 3.60 | 0.11 | 0.17 |
+| Safari 40k | 0.16 | 1.19 | 2.88 | 0.12 | 0.16 |
+
+Bending is the biggest phase on every target. Both browsers support `timestamp-query`. Profiling mode uses one pass per phase per substep, so absolute numbers carry per-pass overhead. Chrome's 10k row is inflated by that overhead, which is more than its canonical 1.56 ms frame.
+
+### Notes / open problems
+- **Results agree but aren't bit-identical across targets.** Rest frames differ by 0–10% (40k: native 582, Chrome 541, Safari 569). The shader compilers differ (naga→MSL on native, Tint/Dawn in Chrome, WebKit's compiler in Safari), and a falling cloth amplifies tiny floating-point differences. Stability and penetration agree everywhere: no NaNs, min distance 2.00 mm, max speed after 1 s ≤ 2.1 m/s. M3's "same results within tolerance" needs a real definition, for example the final shape compared within N mm instead of identical rest frames.
+- **Still untested:** Firefox (not installed here) and the Windows laptop. Running there just means opening `bench.html` and pressing Run, then Copy JSON.
+- Safari ran in a visible, focused window. Background tabs may be throttled, so for manual runs keep the tab in front.
+- `chrome-check.mjs` used to cut piped output at 64 KB (`process.exit` drops buffered stdout). It now writes the report to a file and sets `exitCode` instead.
 
 ## Later
 - Better damping than global velocity damping (e.g. damping only along constraints, or in the solver itself), so the drape rests faster without slowing free fall.

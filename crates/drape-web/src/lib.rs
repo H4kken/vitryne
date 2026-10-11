@@ -54,3 +54,18 @@ pub async fn start(canvas_id: String, gpu_timestamps: bool) -> Result<String, Js
     let out = serde_json::json!({ "adapter": g.report, "gpu_pass_times": gpu_pass_times });
     Ok(serde_json::to_string_pretty(&out).unwrap_or_default())
 }
+
+/// Runs the same headless benchmark as `drape bench` (drape_core::bench::run) and returns its
+/// JSON. A fresh device per run, since `gpu_timestamps` changes the requested features.
+#[wasm_bindgen]
+pub async fn run_bench(grid: u32, substeps: u32, frames: u32, gpu_timestamps: bool) -> Result<String, JsValue> {
+    let instance = gpu::create_instance();
+    let g = gpu::Gpu::new(&instance, None, gpu::GpuOptions { gpu_timestamps }).await?;
+    let mut cfg = drape_core::bench::BenchConfig::default();
+    cfg.scene.grid = grid;
+    cfg.sim.substeps = substeps;
+    cfg.frames = frames;
+    let r = drape_core::bench::run(&g, cfg).await;
+    g.device.destroy();
+    serde_json::to_string(&r).map_err(|e| e.to_string().into())
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>drape-spike bench</title>
+  <style>
+    body { margin: 0; padding: 16px; background: #111; color: #ddd; font: 13px/1.45 ui-monospace, monospace; }
+    h1 { font-size: 15px; margin: 0 0 12px; }
+    label { margin-right: 12px; }
+    input[type=text] { width: 160px; background: #222; color: #ddd; border: 1px solid #444; padding: 3px 6px; font: inherit; }
+    button { background: #2d5; color: #000; border: 0; padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer; margin-right: 8px; }
+    button:disabled { background: #555; cursor: default; }
+    table { border-collapse: collapse; margin: 14px 0; }
+    td, th { border: 1px solid #333; padding: 3px 8px; text-align: right; }
+    th { background: #1c1c1c; }
+    pre { white-space: pre-wrap; word-break: break-all; max-height: 40vh; overflow: auto; background: #181818; padding: 8px; }
+    #status.err { color: #f66; }
+    .wrap { overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>drape-spike — M1 sheet benchmark (same code as <code>drape bench</code>)</h1>
+  <div>
+    <label>grids <input id="grids" type="text" value="10,50,71,100,141,200" /></label>
+    <label>substeps <input id="substeps" type="text" value="20" /></label>
+    <label>frames <input id="frames" type="text" value="1200" /></label>
+    <label><input id="ts" type="checkbox" /> gpu-timestamps (profiling)</label>
+  </div>
+  <p>
+    <button id="run">Run</button>
+    <button id="copy" disabled>Copy JSON</button>
+  </p>
+  <p id="status">idle</p>
+  <div class="wrap"><table id="table"></table></div>
+  <pre id="report"></pre>
+  <script type="module" src="/bench.js"></script>
+</body>
+</html>
