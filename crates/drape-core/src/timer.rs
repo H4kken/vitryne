@@ -6,12 +6,7 @@
 //! Browsers may quantize timestamps for privacy; check resolution per browser before trusting
 //! sub-100 µs numbers (Chrome 150 on M2 gave ~µs-resolution values without any flag).
 
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::{Arc, Mutex},
-    task::{Context, Poll, Waker},
-};
+use crate::gpu_async::map_read;
 
 pub struct GpuTimer {
     inner: Option<Inner>,
@@ -30,6 +25,18 @@ struct Inner {
 pub struct PassTime {
     pub label: &'static str,
     pub ms: f64,
+}
+
+/// Sum pass times with the same label (e.g. one "stretch" entry per substep), keeping first-seen order.
+pub fn sum_by_label(times: &[PassTime]) -> Vec<PassTime> {
+    let mut out: Vec<PassTime> = Vec::new();
+    for t in times {
+        match out.iter_mut().find(|o| o.label == t.label) {
+            Some(o) => o.ms += t.ms,
+            None => out.push(t.clone()),
+        }
+    }
+    out
 }
 
 impl GpuTimer {
@@ -133,41 +140,5 @@ impl GpuTimer {
                 ms: ticks[2 * k + 1].wrapping_sub(ticks[2 * k]) as f64 * inner.period_ns / 1e6,
             })
             .collect()
-    }
-}
-
-/// Map a buffer slice for reading on either target. Native: blocks on `device.poll`.
-/// Web: the browser resolves the map; the returned future just waits for it.
-pub async fn map_read(device: &wgpu::Device, slice: &wgpu::BufferSlice<'_>) -> Result<(), wgpu::BufferAsyncError> {
-    let state = Arc::new(Mutex::new((None, None::<Waker>)));
-    let s = state.clone();
-    slice.map_async(wgpu::MapMode::Read, move |r| {
-        let mut g = s.lock().unwrap();
-        g.0 = Some(r);
-        if let Some(w) = g.1.take() {
-            w.wake();
-        }
-    });
-    #[cfg(not(target_arch = "wasm32"))]
-    device.poll(wgpu::PollType::wait_indefinitely()).expect("device poll");
-    #[cfg(target_arch = "wasm32")]
-    let _ = device;
-    MapFuture(state).await
-}
-
-type MapState = Arc<Mutex<(Option<Result<(), wgpu::BufferAsyncError>>, Option<Waker>)>>;
-struct MapFuture(MapState);
-
-impl Future for MapFuture {
-    type Output = Result<(), wgpu::BufferAsyncError>;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut g = self.0.lock().unwrap();
-        match g.0.take() {
-            Some(r) => Poll::Ready(r),
-            None => {
-                g.1 = Some(cx.waker().clone());
-                Poll::Pending
-            }
-        }
     }
 }
