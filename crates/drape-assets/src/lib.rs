@@ -1,1 +1,5 @@
-//! Procedural T-shirt pattern, triangulation, body loading and SDF bake (M2).
+//! Procedural T-shirt pattern, meshing, initial placement and the T-shirt scene.
+
+pub mod meshing;
+pub mod pattern;
+pub mod tshirt;

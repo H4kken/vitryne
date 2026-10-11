@@ -7,7 +7,8 @@ const results = [];
 
 const COLS = [
   ['vertices', (r) => r.mesh.vertices],
-  ['substeps', (r) => r.config.sim.substeps],
+  ['scene', (r) => r.scene ?? 'sheet'],
+  ['substeps', (r) => (r.sim ?? r.config.sim).substeps],
   ['dispatches', (r) => r.mesh.dispatches_per_frame],
   ['pipelined ms', (r) => r.frame_ms_pipelined.toFixed(2)],
   ['serial med ms', (r) => r.frame_ms_serial.median.toFixed(2)],
@@ -16,7 +17,7 @@ const COLS = [
   ['rest wall s (pipelined)', (r) => (r.rest_wall_s_pipelined == null ? '—' : r.rest_wall_s_pipelined.toFixed(2))],
   ['max v >1s', (r) => r.max_speed_after_1s.toFixed(2)],
   ['NaN frames', (r) => r.non_finite_frames],
-  ['min dist mm', (r) => r.min_sphere_dist_mm_final.toFixed(2)],
+  ['min dist mm', (r) => (r.min_collider_dist_mm_final ?? r.min_sphere_dist_mm_final).toFixed(2)],
 ];
 
 function renderTable() {

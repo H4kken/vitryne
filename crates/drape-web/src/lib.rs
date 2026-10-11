@@ -1,3 +1,6 @@
+// wasm-only crate: compiles to nothing on native so `cargo test --workspace` works.
+#![cfg(target_arch = "wasm32")]
+
 //! wasm entry point. Same drape-core, WebGPU backend only (no WebGL fallback).
 
 use drape_core::{gpu, timer::GpuTimer, triangle::TriangleRenderer};
@@ -61,11 +64,12 @@ pub async fn start(canvas_id: String, gpu_timestamps: bool) -> Result<String, Js
 pub async fn run_bench(grid: u32, substeps: u32, frames: u32, gpu_timestamps: bool) -> Result<String, JsValue> {
     let instance = gpu::create_instance();
     let g = gpu::Gpu::new(&instance, None, gpu::GpuOptions { gpu_timestamps }).await?;
-    let mut cfg = drape_core::bench::BenchConfig::default();
-    cfg.scene.grid = grid;
-    cfg.sim.substeps = substeps;
-    cfg.frames = frames;
-    let r = drape_core::bench::run(&g, cfg).await;
+    let scene = drape_core::scene::SheetScene { grid, ..Default::default() };
+    let mut sim = drape_core::scene::SheetScene::config();
+    sim.substeps = substeps;
+    let built = scene.build(sim);
+    let cfg = drape_core::bench::BenchConfig { frames, ..Default::default() };
+    let r = drape_core::bench::run(&g, &built, cfg).await;
     g.device.destroy();
     serde_json::to_string(&r).map_err(|e| e.to_string().into())
 }

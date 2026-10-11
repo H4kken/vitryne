@@ -94,6 +94,8 @@ pub fn color<T: Copy>(items: &[T], n_verts: usize, verts: impl Fn(&T) -> [u32; 4
 pub struct Constraints {
     pub stretch: Colored<Stretch>,
     pub bend: Colored<Bend>,
+    /// Zero-length seam constraints (`rest` = 0; compliance comes from the ramp schedule).
+    pub sew: Colored<Stretch>,
 }
 
 fn cot(a: Vec3, b: Vec3) -> f32 {
@@ -140,7 +142,14 @@ impl Constraints {
         Self {
             stretch: color(&stretch, n, |s| [s.i, s.j, 0, 0], 2),
             bend: color(&bend, n, |b| b.idx, 4),
+            sew: Colored { items: Vec::new(), ranges: Vec::new() },
         }
+    }
+
+    /// Sewing constraints between vertex pairs (each pair: two vertices that must meet).
+    pub fn set_sewing(&mut self, pairs: &[(u32, u32)], n_verts: usize) {
+        let items: Vec<Stretch> = pairs.iter().map(|&(i, j)| Stretch { i, j, rest: 0.0, compliance: 0.0 }).collect();
+        self.sew = color(&items, n_verts, |s| [s.i, s.j, 0, 0], 2);
     }
 }
 

@@ -6,12 +6,20 @@ import glob
 import json
 import sys
 
+def sim_of(r):
+    return r.get('sim') or r['config']['sim']  # M2+ files have top-level 'sim'
+
+
+def scene_of(r):
+    return r.get('scene_params') or r['config'].get('scene') or {}
+
+
 native = {}
-for p in glob.glob('bench/m1/*.json'):
+for p in glob.glob('bench/m1/*.json') + glob.glob('bench/m2/*.json'):
     r = json.load(open(p))
-    if r['gpu_timestamps'] or r['config']['scene']['pin_spacing'] != 0.9 or r['config']['sim']['damping'] != 1.0:
+    if r['gpu_timestamps'] or scene_of(r).get('pin_spacing', 0.9) != 0.9 or sim_of(r)['damping'] != 1.0:
         continue
-    native[(r['mesh']['vertices'], r['config']['sim']['substeps'])] = r
+    native[(r.get('scene', 'sheet'), r['mesh']['vertices'], sim_of(r)['substeps'])] = r
 
 def fmt(x, d=2):
     return '—' if x is None else f'{x:.{d}f}'
@@ -20,10 +28,10 @@ print('| Vertices | Substeps | Native pipelined ms | Browser pipelined ms | Rati
 print('|---|---|---|---|---|---|---|---|---|---|---|')
 for path in sys.argv[1:]:
     for b in json.load(open(path))['runs']:
-        key = (b['mesh']['vertices'], b['config']['sim']['substeps'])
+        key = (b.get('scene', 'sheet'), b['mesh']['vertices'], sim_of(b)['substeps'])
         n = native.get(key)
         np_ = n['frame_ms_pipelined'] if n else None
         bp = b['frame_ms_pipelined']
-        print(f"| {key[0]:,} | {key[1]} | {fmt(np_)} | {fmt(bp)} | {fmt(bp / np_ if np_ else None)}× | "
+        print(f"| {key[1]:,} | {key[2]} | {fmt(np_)} | {fmt(bp)} | {fmt(bp / np_ if np_ else None)}× | "
               f"{n['rest_frame'] if n else '—'} | {b['rest_frame']} | {fmt(n['rest_wall_s_pipelined'] if n else None)} s | "
               f"{fmt(b['rest_wall_s_pipelined'])} s | {b['non_finite_frames']} | {b['max_speed_after_1s']:.2f} |")

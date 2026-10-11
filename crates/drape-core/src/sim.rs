@@ -1,13 +1,80 @@
 //! GPU XPBD solver. Everything per frame stays on the GPU (hard rule 5).
 
+use std::sync::Arc;
+
 use bytemuck::{Pod, Zeroable};
 use glam::{Vec3, Vec4};
 use serde::Serialize;
 use wgpu::util::DeviceExt;
 
-use crate::{constraints::Constraints, mesh::ClothMesh, timer::GpuTimer};
+use crate::{body::Sdf, constraints::Constraints, mesh::ClothMesh, timer::GpuTimer};
 
-pub const SHADER: &str = include_str!("../shaders/sim.wgsl");
+pub const SHADER: &str = concat!(include_str!("../shaders/sdf.wgsl"), include_str!("../shaders/sim.wgsl"));
+
+/// What the cloth collides with.
+#[derive(Clone)]
+pub enum Collider {
+    /// Analytic sphere (M1).
+    Sphere(Vec4),
+    /// Baked signed distance field of the avatar (M2+).
+    Sdf(Arc<Sdf>),
+}
+
+/// Time-dependent parameters, evaluated on the CPU and written to the uniform each frame.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct Schedule {
+    /// Sewing compliance goes log-linearly from start to end over `sew_ramp_s`.
+    pub sew_compliance_start: f32,
+    pub sew_compliance_end: f32,
+    pub sew_ramp_s: f32,
+    /// Max sewing correction per vertex per substep while the seams close (t < sew_ramp_s), m.
+    /// Lifted afterwards: a closed seam under load needs larger corrections, and clamping
+    /// them lets the seam creep open.
+    pub sew_max_step: f32,
+    /// Gravity is off until `gravity_delay_s`, then ramps to full over `gravity_ramp_s`, so
+    /// panels don't fall off before the seams have closed.
+    pub gravity_delay_s: f32,
+    pub gravity_ramp_s: f32,
+}
+
+impl Schedule {
+    /// No sewing, full gravity from t = 0 (M1 sheet).
+    pub const NONE: Self = Self {
+        sew_compliance_start: 0.0,
+        sew_compliance_end: 0.0,
+        sew_ramp_s: 0.0,
+        sew_max_step: 0.0,
+        gravity_delay_s: 0.0,
+        gravity_ramp_s: 0.0,
+    };
+
+    pub fn gravity_scale(&self, t: f32) -> f32 {
+        if t < self.gravity_delay_s {
+            0.0
+        } else if self.gravity_ramp_s <= 0.0 {
+            1.0
+        } else {
+            ((t - self.gravity_delay_s) / self.gravity_ramp_s).min(1.0)
+        }
+    }
+
+    pub fn sew_compliance(&self, t: f32) -> f32 {
+        if self.sew_ramp_s <= 0.0 || t >= self.sew_ramp_s {
+            return self.sew_compliance_end;
+        }
+        let u = t / self.sew_ramp_s;
+        (self.sew_compliance_start.ln() * (1.0 - u) + self.sew_compliance_end.ln() * u).exp()
+    }
+
+    pub fn sew_step_limit(&self, t: f32) -> f32 {
+        if t < self.sew_ramp_s { self.sew_max_step } else { 1.0e9 }
+    }
+
+    /// Nothing can count as "at rest" before every ramp has finished.
+    pub fn end_s(&self) -> f32 {
+        self.sew_ramp_s.max(self.gravity_delay_s + self.gravity_ramp_s)
+    }
+}
 pub const WG: u32 = 64;
 /// Dynamic uniform offsets must be multiples of `min_uniform_buffer_offset_alignment` (256 by default).
 const RANGE_STRIDE: u64 = 256;
@@ -22,11 +89,20 @@ pub struct SimConfig {
     /// Collision thickness, m.
     pub thickness: f32,
     pub friction: f32,
+    pub schedule: Schedule,
 }
 
 impl Default for SimConfig {
     fn default() -> Self {
-        Self { substeps: 20, frame_dt: 1.0 / 60.0, gravity: [0.0, -9.81, 0.0], damping: 1.0, thickness: 0.002, friction: 0.3 }
+        Self {
+            substeps: 20,
+            frame_dt: 1.0 / 60.0,
+            gravity: [0.0, -9.81, 0.0],
+            damping: 1.0,
+            thickness: 0.002,
+            friction: 0.3,
+            schedule: Schedule::NONE,
+        }
     }
 }
 
@@ -35,10 +111,16 @@ impl Default for SimConfig {
 struct Params {
     gravity_dt: [f32; 4],
     sphere: [f32; 4],
+    sdf_origin: [f32; 4],
+    sdf_dims: [u32; 4],
     n_verts: u32,
     damping: f32,
     thickness: f32,
     friction: f32,
+    sew_compliance: f32,
+    sew_max_step: f32,
+    sdf_band: f32,
+    _p0: f32,
 }
 
 #[repr(C)]
@@ -53,10 +135,14 @@ struct Range {
 enum Kernel {
     Predict = 0,
     Stretch = 1,
-    Bend = 2,
-    Collide = 3,
-    Update = 4,
+    Sew = 2,
+    Bend = 3,
+    CollideSphere = 4,
+    CollideSdf = 5,
+    Update = 6,
 }
+
+const ENTRY_POINTS: [&str; 7] = ["predict", "solve_stretch", "solve_sew", "solve_bend", "collide_sphere", "collide_sdf", "update_velocity"];
 
 struct Dispatch {
     kernel: Kernel,
@@ -71,7 +157,10 @@ pub struct Solver {
     pub prev: wgpu::Buffer,
     pub vel: wgpu::Buffer,
     pub params: wgpu::Buffer,
-    pub sphere: Vec4,
+    pub collider: Collider,
+    /// SDF values (or a 1-element dummy for the sphere), shared with the metrics pass.
+    pub sdf_buf: wgpu::Buffer,
+    base_params: Params,
     state_bg: wgpu::BindGroup,
     cons_bg: wgpu::BindGroup,
     pipelines: Vec<wgpu::ComputePipeline>,
@@ -123,7 +212,7 @@ impl Solver {
         cons: &Constraints,
         density: f32,
         cfg: SimConfig,
-        sphere: Vec4,
+        collider: Collider,
     ) -> Self {
         let n = mesh.n_verts() as u32;
         let inv_mass = mesh.inv_masses(density);
@@ -145,22 +234,55 @@ impl Solver {
             usage: vs,
         });
         let h = cfg.frame_dt / cfg.substeps as f32;
-        let p = Params {
+        let mut p = Params {
             gravity_dt: [cfg.gravity[0], cfg.gravity[1], cfg.gravity[2], h],
-            sphere: sphere.to_array(),
+            sphere: [0.0, -1000.0, 0.0, 0.0],
+            sdf_origin: [0.0; 4],
+            sdf_dims: [1, 1, 1, 0],
             n_verts: n,
             damping: cfg.damping,
             thickness: cfg.thickness,
             friction: cfg.friction,
+            sew_compliance: cfg.schedule.sew_compliance_end,
+            sew_max_step: cfg.schedule.sew_max_step,
+            sdf_band: 0.0,
+            _p0: 0.0,
         };
+        let sdf_data: Vec<f32> = match &collider {
+            Collider::Sphere(s) => {
+                p.sphere = s.to_array();
+                vec![0.0]
+            }
+            Collider::Sdf(sdf) => {
+                p.sdf_origin = sdf.origin.extend(sdf.cell).to_array();
+                p.sdf_dims = [sdf.dims.x, sdf.dims.y, sdf.dims.z, 0];
+                p.sdf_band = sdf.band;
+                log::info!(
+                    "SDF {}x{}x{} @ {:.1} mm = {:.1} MB (maxStorageBufferBindingSize 128 MiB)",
+                    sdf.dims.x,
+                    sdf.dims.y,
+                    sdf.dims.z,
+                    sdf.cell * 1000.0,
+                    sdf.bytes() as f64 / 1e6
+                );
+                sdf.values.clone()
+            }
+        };
+        let sdf_buf = storage_init(device, "sdf", &sdf_data);
         let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("sim-params"),
             contents: bytemuck::bytes_of(&p),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        // One 256-byte slot per colour: stretch colours first, then bend colours.
-        let all_ranges: Vec<(u32, u32)> = cons.stretch.ranges.iter().chain(&cons.bend.ranges).copied().collect();
+        // Sewing constraints live in the stretch buffer, after the stretch constraints.
+        let n_stretch = cons.stretch.items.len() as u32;
+        let sew_ranges: Vec<(u32, u32)> = cons.sew.ranges.iter().map(|&(o, c)| (o + n_stretch, c)).collect();
+        let lin: Vec<_> = cons.stretch.items.iter().chain(&cons.sew.items).copied().collect();
+
+        // One 256-byte slot per colour: stretch, then sew, then bend.
+        let all_ranges: Vec<(u32, u32)> =
+            cons.stretch.ranges.iter().chain(&sew_ranges).chain(&cons.bend.ranges).copied().collect();
         let mut range_bytes = vec![0u8; (all_ranges.len().max(1) as u64 * RANGE_STRIDE) as usize];
         for (k, &(offset, count)) in all_ranges.iter().enumerate() {
             let r = Range { offset, count, _p: [0; 2] };
@@ -172,12 +294,18 @@ impl Solver {
             contents: &range_bytes,
             usage: wgpu::BufferUsages::UNIFORM,
         });
-        let stretch = storage_init(device, "stretch", &cons.stretch.items);
+        let stretch = storage_init(device, "stretch+sew", &lin);
         let bend = storage_init(device, "bend", &cons.bend.items);
 
         let state_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("sim-state"),
-            entries: &[uniform_entry(0, false, 48), storage_entry(1, false), storage_entry(2, false), storage_entry(3, false)],
+            entries: &[
+                uniform_entry(0, false, std::mem::size_of::<Params>() as u64),
+                storage_entry(1, false),
+                storage_entry(2, false),
+                storage_entry(3, false),
+                storage_entry(4, true),
+            ],
         });
         let cons_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("sim-constraints"),
@@ -191,6 +319,7 @@ impl Solver {
                 wgpu::BindGroupEntry { binding: 1, resource: pos.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 2, resource: prev.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 3, resource: vel.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 4, resource: sdf_buf.as_entire_binding() },
             ],
         });
         let cons_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -219,7 +348,7 @@ impl Solver {
             bind_group_layouts: &[Some(&state_bgl), Some(&cons_bgl)],
             immediate_size: 0,
         });
-        let pipelines = ["predict", "solve_stretch", "solve_bend", "collide_sphere", "update_velocity"]
+        let pipelines = ENTRY_POINTS
             .iter()
             .map(|entry| {
                 device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -236,6 +365,7 @@ impl Solver {
         let vgroups = n.div_ceil(WG);
         let per_vertex = |kernel| vec![Dispatch { kernel, range_offset: 0, groups: vgroups }];
         let ns = cons.stretch.ranges.len();
+        let nsew = sew_ranges.len();
         let colored = |kernel, ranges: &[(u32, u32)], base: usize| -> Vec<Dispatch> {
             ranges
                 .iter()
@@ -251,12 +381,35 @@ impl Solver {
         let phases = vec![
             ("predict", per_vertex(Kernel::Predict)),
             ("stretch", colored(Kernel::Stretch, &cons.stretch.ranges, 0)),
-            ("bend", colored(Kernel::Bend, &cons.bend.ranges, ns)),
-            ("collide", per_vertex(Kernel::Collide)),
+            ("sew", colored(Kernel::Sew, &sew_ranges, ns)),
+            ("bend", colored(Kernel::Bend, &cons.bend.ranges, ns + nsew)),
+            (
+                "collide",
+                per_vertex(match collider {
+                    Collider::Sphere(_) => Kernel::CollideSphere,
+                    Collider::Sdf(_) => Kernel::CollideSdf,
+                }),
+            ),
             ("update", per_vertex(Kernel::Update)),
         ];
+        let phases = phases.into_iter().filter(|(_, d)| !d.is_empty()).collect();
 
-        Self { cfg, n_verts: n, pos, prev, vel, params, sphere, state_bg, cons_bg, pipelines, phases, init_pos }
+        Self { cfg, n_verts: n, pos, prev, vel, params, collider, sdf_buf, base_params: p, state_bg, cons_bg, pipelines, phases, init_pos }
+    }
+
+    /// Write this frame's ramped parameters (gravity, sewing compliance). Call before
+    /// `encode_frame`; a 96-byte upload, not a readback.
+    pub fn prepare_frame(&self, queue: &wgpu::Queue, frame: u32) {
+        let t = frame as f32 * self.cfg.frame_dt;
+        let sch = &self.cfg.schedule;
+        let mut p = self.base_params;
+        let g = sch.gravity_scale(t);
+        p.gravity_dt[0] *= g;
+        p.gravity_dt[1] *= g;
+        p.gravity_dt[2] *= g;
+        p.sew_compliance = sch.sew_compliance(t);
+        p.sew_max_step = sch.sew_step_limit(t);
+        queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&p));
     }
 
     pub fn dispatches_per_frame(&self) -> u32 {
@@ -315,7 +468,7 @@ impl Solver {
     }
 }
 
-/// Analytic sphere, for M1 only (M2 replaces it with the body SDF).
-pub fn sphere(center: Vec3, radius: f32) -> Vec4 {
-    center.extend(radius)
+/// Analytic sphere collider (M1 scene).
+pub fn sphere(center: Vec3, radius: f32) -> Collider {
+    Collider::Sphere(center.extend(radius))
 }

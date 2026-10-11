@@ -11,6 +11,9 @@ cargo run -p drape-native --release -- snapshot out.ppm  # headless render check
 cargo run -p drape-native --release                       # viewer: M1 sheet (drag orbit, wheel zoom, space pause, R reset)
 cargo run -p drape-native --release -- bench --grid 100 --out bench/m1/grid100.json   # headless bench, JSON
 cargo run -p drape-native --release -- frames --at 0,60,600 --out-dir /tmp/f          # render sim frames to PNG
+# T-shirt on the avatar (M2): add --scene tshirt [--edge 0.00864] [--sdf-cell 0.004] to view/bench/frames
+cargo run -p drape-native --release -- bench --scene tshirt --edge 0.00864 --out bench/m2/tshirt_10k.json
+cargo run -p drape-native --release -- pattern-svg pattern.svg     # meshed pattern + seams
 # scene/sim flags: --grid N --substeps S --damping D --friction MU --pin-spacing F --no-sphere
 # add --gpu-timestamps to any native command for the opt-in profiling mode
 
@@ -200,6 +203,75 @@ Bending is the biggest phase on every target. Both browsers support `timestamp-q
 - Safari ran in a visible, focused window. Background tabs may be throttled, so for manual runs keep the tab in front.
 - `chrome-check.mjs` used to cut piped output at 64 KB (`process.exit` drops buffered stdout). It now writes the report to a file and sets `exitCode` instead.
 
+## M2 — T-shirt on the body, native ✅ (2026-10-11)
+
+**Done-when met:** the T-shirt drapes onto the avatar and comes to rest without explosions at 10k and 20k vertices, and also at 5k and 40k. Raw JSON is in [bench/m2/](bench/m2/).
+
+![drape sequence](docs/m2/drape-10k.png)
+![at rest: front, back, three-quarter](docs/m2/rest-10k.png)
+
+### What works
+- **Avatar:** the MakeHuman base mesh (CC0), body group only, in metres. 13,380 vertices and 26,756 triangles, A-pose, 1.67 m tall. The source, license and measurements are in [assets/body/README.md](assets/body/README.md).
+- **Body on the CPU** ([body.rs](crates/drape-core/src/body.rs)):
+  - a triangle BVH (built in 18 ms)
+  - exact signed distance, with the sign from angle-weighted pseudo-normals (unit-tested on a cube for face, edge and vertex regions)
+  - a narrow-band **SDF bake**: exact within ±4 cm, and only the sign beyond that, from one BVH ray per grid row
+- **SDF size:** a box around the torso and upper arms at 4 mm is 226×216×126 = **24.6 MB, baked in 0.43 s** on native (multi-threaded with rayon). It's cached under `target/sdf-cache/`, and the bake also builds for wasm.
+- **SDF on the GPU:** stored in a storage buffer and sampled by hand with trilinear interpolation and an analytic gradient in [sdf.wgsl](crates/drape-core/shaders/sdf.wgsl). Core WebGPU can't filter float 3D textures, so the shader does it. The same snippet is prepended to the sim and metrics shaders.
+- **Collision:** each vertex is projected out to `sdf ≥ 2 mm` along the gradient, with the same Coulomb friction as M1.
+- **Procedural T-shirt** ([tshirt.rs](crates/drape-assets/src/tshirt.rs)): front, back and 2 sleeves as 2D polygons in metres, with 10 seams. The pieces are sized from the avatar's measurements: chest 0.96 m around with ease, sleeve opening 0.34 m. The meshed pattern with colour-coded seams is in [docs/m2/pattern-10k.png](docs/m2/pattern-10k.png).
+- **Meshing** ([meshing.rs](crates/drape-assets/src/meshing.rs)): the boundary is resampled at the target edge length, and both sides of each seam get **the same segment count**. The interior is an equilateral lattice, and spade's constrained Delaunay triangulation joins the two. The mean edge comes out within 1% of the target.
+- **Sewing:** zero-length constraints, graph-coloured (3 colours), stored after the stretch constraints in the same buffer so no extra binding is needed.
+  - **Ramp-in:** compliance goes from 1e-2 to 1e-8 over 0.5 s, on a log scale.
+  - **Correction clamp:** at most 0.5 mm per vertex per substep while the seams close. Seams close within about 20 frames from initial gaps of up to 372 mm (mean 158 mm).
+- **Initial placement:** hardcoded for this garment. The body panels sit on a cylinder of radius 0.20 m around the torso, front in front and back behind. The sleeves are wrapped on a cylinder of radius 0.10 m around each measured upper-arm axis. **No vertex starts inside the body.**
+- **Schedule:** gravity is off for 0.6 s, so the panels don't fall before the seams have closed, and then ramps to full over 0.3 s. Ramped parameters are a 96-byte uniform upload per frame, not a readback. Rest detection can't start until all ramps have finished.
+- **Bench additions:**
+  - an **exact CPU penetration check** at the end of the run: BVH signed distance for every cloth vertex
+  - the SDF-vs-exact error at those vertices
+  - per-seam gaps, including where along each seam the worst gap is
+  - each of the fastest vertices labelled with its panel
+- **Viewer:** `--scene tshirt` runs at 60 fps at 10k vertices. **F** toggles *fast drape*, 8 sim frames per display frame, so the drape should settle in about 0.7 s on screen instead of 5.6 s. That's calculated (333 frames ÷ 8 ÷ 60 fps); the key press itself hasn't been exercised, because the smoke test is headless.
+
+### Numbers (native Metal, Apple M2, normal mode, 20 substeps, 4 mm SDF, 900 frames)
+
+| Target | Vertices | Mean edge (mm) | Colours (stretch+sew+bend) / dispatches | **Pipelined ms per frame** | Serial median ms | Rest frame (sim time) | **Wall time to rest** | Max speed (m/s) | Max speed after ramps | **Exact max penetration (mm)** | GPU min SDF distance (mm) | SDF error (mm) | Max seam gap (mm) | NaN frames |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 5k | 5,053 | 12.4 | 8+3+18 / 640 | 1.28 | 1.78 | 274 (4.6 s) | **0.35 s** | 3.85 | 1.05 | **0.00** | 1.90 | 0.95 | 1.5 | 0 |
+| **10k** | 10,002 | 8.7 | 8+3+18 / 640 | **1.85** | 2.30 | 333 (5.6 s) | **0.62 s** | 4.41 | 1.47 | **0.00** | 1.83 | 1.19 | 1.5 | 0 |
+| **20k** | 19,967 | 6.2 | 9+3+18 / 660 | **3.19** | 3.42 | 347 (5.8 s) | **1.11 s** | 4.86 | 1.96 | **0.00** | 1.92 | 1.36 | 2.2 | 0 |
+| 40k | 39,674 | 4.4 | 9+3+18 / 660 | 5.16 | 5.70 | 328 (5.5 s) | **1.69 s** | 3.92 | 3.92 | **0.00** | 1.91 | 1.39 | 3.5 | 0 |
+| 10k, 3 mm SDF | 10,002 | 8.7 | 8+3+18 / 640 | 1.94 | 2.53 | 337 (5.6 s) | 0.65 s | 4.34 | 1.41 | 0.00 | 1.95 | 0.95 | 1.5 | 0 |
+
+Against the plan's criteria, on native so far:
+- **Drape to rest < 3 s:** ✅ at every size, measured as wall time with frames queued back to back.
+- **Body penetration at rest < 2 mm:** ✅ 0.00 mm, exact, at every size.
+- **Stability:** ✅ no NaNs, and the max speed stays under 5 m/s **including the sewing phase**. That's the raw criterion with nothing excluded; unlike the M1 sheet, nothing free-falls here.
+
+**GPU time by phase at 10k (profiling mode, ms per frame):**
+
+| predict | stretch | sew | bend | collide (SDF) | update |
+|---|---|---|---|---|---|
+| 0.12 | 0.48 | 0.14 | **1.08** | 0.37 | 0.12 |
+
+Bending is still the biggest phase. SDF collision, which does 8 scattered reads per vertex, costs 3× the analytic sphere.
+
+### Findings
+- **The most important bug: the sewing clamp must be lifted once the seams are closed.** At first the 0.5 mm clamp stayed on for the whole run. Under gravity, the closed seams then crept open, the sleeves slid down the A-pose arms, and the whole shirt fell off within 2 s (final seam gap 1.7 m). The clamp now applies only during the 0.5 s ramp. Closed seams need larger corrections under load than the clamp allows.
+- **Seam gaps at rest are small, but the four-way underarm junction is sensitive to the mesh.** Mean gaps are 0.05–0.4 mm. The maximum is 1.5–3.5 mm in the main runs, always at the underarm junction, where the front, back and both sleeve corners meet in the armpit crease and the torso and arm surfaces both push outward. In one earlier mesh (edge 8.8 mm, 9,637 vertices, [tshirt_9.6k_edge8.8mm.json](bench/m2/tshirt_9.6k_edge8.8mm.json)), that junction stayed open by **18 mm**, while everything else was below 4 mm. A taller sleeve cap made it worse (24 mm), so I reverted it. Merging junction vertices once they meet would remove this. That's in "Later".
+- **A 4 mm SDF is good enough.** Against the exact distance, its error at the cloth vertices is ≤ 1.4 mm. A 3 mm SDF lowers that to 0.95 mm but is 2.4× bigger (58 MB, closer to the 128 MiB binding limit), with no change in the results.
+- **Sim time vs wall time again:** rest takes 4.6–5.8 s of simulated time, but the sim runs 9× faster than real time at 10k, so wall time is 0.62 s. The browser viewer in M3 needs the same "fast drape" mode.
+
+### Open problems / notes
+- **The penetration check only looks at vertices.** Body features poking through a triangle's interior aren't detected. With 4–12 mm triangles on a smooth body, and the 2 mm thickness, this is unlikely, but it's unmeasured. The SDF also doesn't include the hands or head; the shirt can't reach them, but a dragged sleeve could leave the SDF box, where there's no collision.
+- **Fit is approximate.** The sleeve cap is flat, which suits a T-pose, so the sleeves flare a little on the A-pose arms. The neckline is generous. Garment fit and fabric calibration are out of scope.
+- **No self-collision yet (M4).** Folds and the doubled-up cloth at the seams can interpenetrate.
+- **The T-shirt doesn't run in the browser yet.** The sheet does (checked again after the bench refactor: Chrome 1.55 ms). M3 needs the body OBJ and the baked SDF served to the page: either fetch the cached `.bin` (24.6 MB) or bake in wasm (single-threaded, so probably several seconds; measure it).
+- `drape-web` now compiles to nothing on native, so `cargo test --workspace` works.
+
 ## Later
 - Better damping than global velocity damping (e.g. damping only along constraints, or in the solver itself), so the drape rests faster without slowing free fall.
 - Cut dispatch count if the browser overhead is high: fewer colours, or merging stretch and bend into one coloured pass.
+- Merge seam vertices once they meet, especially at junctions like the underarm.
+- Triangle-level penetration check (body vertices against cloth triangles), not just cloth vertices.
+- A sleeve cap shaped for the A-pose (pattern fit; out of scope for the spike).

@@ -4,7 +4,11 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
-use crate::{mesh::ClothMesh, sim::Solver};
+use crate::{
+    mesh::ClothMesh,
+    scene::RenderMesh,
+    sim::Solver,
+};
 
 pub const NORMALS_SHADER: &str = include_str!("../shaders/normals.wgsl");
 pub const SHADER: &str = include_str!("../shaders/render.wgsl");
@@ -26,6 +30,10 @@ impl Default for OrbitCamera {
 }
 
 impl OrbitCamera {
+    pub fn looking_at(target: Vec3, distance: f32) -> Self {
+        Self { target, distance, ..Default::default() }
+    }
+
     pub fn eye(&self) -> Vec3 {
         let (sy, cy) = self.yaw.sin_cos();
         let (sp, cp) = self.pitch.sin_cos();
@@ -96,31 +104,9 @@ fn material(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, front: [f32; 
     })
 }
 
-/// UV sphere as (positions w=1, normals, indices).
-fn uv_sphere(center: Vec3, r: f32, rings: u32, segs: u32) -> (Vec<[f32; 4]>, Vec<[f32; 4]>, Vec<u32>) {
-    let (mut p, mut n, mut idx) = (Vec::new(), Vec::new(), Vec::new());
-    for i in 0..=rings {
-        let th = std::f32::consts::PI * i as f32 / rings as f32;
-        for j in 0..=segs {
-            let ph = std::f32::consts::TAU * j as f32 / segs as f32;
-            let d = Vec3::new(th.sin() * ph.cos(), th.cos(), th.sin() * ph.sin());
-            let q = center + d * r;
-            p.push([q.x, q.y, q.z, 1.0]);
-            n.push([d.x, d.y, d.z, 0.0]);
-        }
-    }
-    let w = segs + 1;
-    for i in 0..rings {
-        for j in 0..segs {
-            let (a, b, c, d) = (i * w + j, i * w + j + 1, (i + 1) * w + j, (i + 1) * w + j + 1);
-            idx.extend_from_slice(&[a, b, c, b, d, c]);
-        }
-    }
-    (p, n, idx)
-}
 
 impl Renderer {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, mesh: &ClothMesh, solver: &Solver) -> Self {
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, mesh: &ClothMesh, solver: &Solver, collider: &RenderMesh) -> Self {
         let n = mesh.n_verts() as u32;
         // Normals compute.
         let tris: Vec<u32> = mesh.tris.iter().flatten().copied().collect();
@@ -231,12 +217,13 @@ impl Renderer {
             n_indices: tris.len() as u32,
             material: material(device, &mat_bgl, [0.85, 0.3, 0.25], [0.55, 0.55, 0.6]),
         };
-        let s = solver.sphere;
-        let (sp, sn, si) = uv_sphere(s.truncate(), s.w, 48, 96);
+        let sp: Vec<[f32; 4]> = collider.pos.iter().map(|p| p.extend(1.0).to_array()).collect();
+        let sn: Vec<[f32; 4]> = collider.nrm.iter().map(|n| n.extend(0.0).to_array()).collect();
+        let si = &collider.idx;
         let collider = Some(DrawMesh {
-            pos: init("sphere-pos", bytemuck::cast_slice(&sp), wgpu::BufferUsages::VERTEX),
-            nrm: init("sphere-nrm", bytemuck::cast_slice(&sn), wgpu::BufferUsages::VERTEX),
-            index: init("sphere-idx", bytemuck::cast_slice(&si), wgpu::BufferUsages::INDEX),
+            pos: init("collider-pos", bytemuck::cast_slice(&sp), wgpu::BufferUsages::VERTEX),
+            nrm: init("collider-nrm", bytemuck::cast_slice(&sn), wgpu::BufferUsages::VERTEX),
+            index: init("collider-idx", bytemuck::cast_slice(si), wgpu::BufferUsages::INDEX),
             n_indices: si.len() as u32,
             material: material(device, &mat_bgl, [0.75, 0.75, 0.72], [0.75, 0.75, 0.72]),
         });

@@ -1,12 +1,15 @@
 // GPU reduction of per-frame metrics so the bench reads back 16 bytes, not the whole mesh.
-// result = (kinetic energy J, max speed m/s, min signed distance to sphere m, non-finite count)
+// result = (kinetic energy J, max speed m/s, min signed distance to the collider m, non-finite count)
+// Prepended at build time: sdf.wgsl (sdf_eval).
 
 struct MParams {
     sphere: vec4<f32>,
+    sdf_origin: vec4<f32>,
+    sdf_dims: vec4<u32>,
     n_verts: u32,
     n_partials: u32,
-    _p0: u32,
-    _p1: u32,
+    use_sdf: u32,
+    sdf_band: f32,
 };
 
 @group(0) @binding(0) var<uniform> M: MParams;
@@ -14,6 +17,7 @@ struct MParams {
 @group(0) @binding(2) var<storage, read> vel: array<vec4<f32>>;
 @group(0) @binding(3) var<storage, read_write> partials: array<vec4<f32>>;
 @group(0) @binding(4) var<storage, read_write> result: array<vec4<f32>>;
+@group(0) @binding(5) var<storage, read> sdf_values: array<f32>;
 
 const WG: u32 = 64u;
 var<workgroup> s: array<vec4<f32>, 64>;
@@ -58,7 +62,11 @@ fn reduce_vertices(@builtin(global_invocation_id) gid: vec3<u32>,
                 a.x = 0.5 * v2 / p.w;
                 a.y = sqrt(v2);
             }
-            a.z = length(p.xyz - M.sphere.xyz) - M.sphere.w;
+            if (M.use_sdf == 1u) {
+                a.z = sdf_eval(p.xyz, M.sdf_origin, M.sdf_dims, M.sdf_band).x;
+            } else {
+                a.z = length(p.xyz - M.sphere.xyz) - M.sphere.w;
+            }
         }
     }
     s[li] = a;

@@ -1,6 +1,7 @@
 //! Drape spike core: GPU device setup, solver, metrics.
 
 pub mod bench;
+pub mod body;
 pub mod constraints;
 pub mod gpu;
 pub mod gpu_async;

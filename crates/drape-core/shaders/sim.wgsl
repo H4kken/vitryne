@@ -1,16 +1,23 @@
 // XPBD cloth, small steps (Macklin et al. 2019): one iteration per substep, so lambda starts at
 // zero every substep and never has to be stored. Shared by native and web (hard rule 2).
 //
-// Per substep: predict -> stretch (one dispatch per colour) -> bend (per colour)
-//              -> collide_sphere -> update_velocity.
+// Per substep: predict -> stretch (one dispatch per colour) -> sew (per colour)
+//              -> bend (per colour) -> collide (sphere or SDF) -> update_velocity.
+// Prepended at build time: sdf.wgsl (sdf_eval).
 
 struct Params {
-    gravity_dt: vec4<f32>,  // xyz = gravity (m/s²), w = substep dt (s)
+    gravity_dt: vec4<f32>,  // xyz = gravity (m/s², already ramped), w = substep dt (s)
     sphere: vec4<f32>,      // xyz = centre, w = radius (m)
+    sdf_origin: vec4<f32>,  // xyz = grid origin, w = cell size (m)
+    sdf_dims: vec4<u32>,    // xyz = grid dims (corner samples)
     n_verts: u32,
     damping: f32,           // linear velocity damping (1/s)
     thickness: f32,         // collision offset (m)
     friction: f32,          // Coulomb coefficient against the collider
+    sew_compliance: f32,    // ramped from soft to stiff while sewing
+    sew_max_step: f32,      // max sewing correction per vertex per substep (m)
+    sdf_band: f32,
+    _p0: f32,
 };
 
 // One entry per colour, selected with a dynamic uniform offset (no push constants: hard rule 1).
@@ -41,8 +48,10 @@ struct Bend {
 @group(0) @binding(1) var<storage, read_write> pos: array<vec4<f32>>;   // xyz, w = inverse mass
 @group(0) @binding(2) var<storage, read_write> prev: array<vec4<f32>>;
 @group(0) @binding(3) var<storage, read_write> vel: array<vec4<f32>>;
+@group(0) @binding(4) var<storage, read> sdf_values: array<f32>;
 
 @group(1) @binding(0) var<uniform> R: Range;
+// Stretch constraints, followed by the sewing constraints (same layout, rest = 0).
 @group(1) @binding(1) var<storage, read> stretch: array<Stretch>;
 @group(1) @binding(2) var<storage, read> bend: array<Bend>;
 
@@ -78,6 +87,29 @@ fn solve_stretch(@builtin(global_invocation_id) gid: vec3<u32>) {
     pos[c.j] = vec4<f32>(pj.xyz - (pj.w * dl) * n, pj.w);
 }
 
+// Zero-length seam constraint with ramped compliance and a per-substep step clamp, so seams
+// close smoothly instead of snapping (the plan's main explosion risk).
+@compute @workgroup_size(64)
+fn solve_sew(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x >= R.count) { return; }
+    let c = stretch[R.offset + gid.x];
+    let pi = pos[c.i];
+    let pj = pos[c.j];
+    let w = pi.w + pj.w;
+    if (w == 0.0) { return; }
+    let d = pi.xyz - pj.xyz;
+    let dt = P.gravity_dt.w;
+    let alpha = P.sew_compliance / (dt * dt);
+    // C = |d|, gradient = d/|d|: the update is along d with magnitude |d| * w / (w + alpha).
+    var corr = -d / (w + alpha);
+    let m = max(pi.w, pj.w) * length(corr);
+    if (m > P.sew_max_step) {
+        corr = corr * (P.sew_max_step / m);
+    }
+    pos[c.i] = vec4<f32>(pi.xyz + pi.w * corr, pi.w);
+    pos[c.j] = vec4<f32>(pj.xyz - pj.w * corr, pj.w);
+}
+
 @compute @workgroup_size(64)
 fn solve_bend(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (gid.x >= R.count) { return; }
@@ -100,22 +132,10 @@ fn solve_bend(@builtin(global_invocation_id) gid: vec3<u32>) {
     pos[b.idx.w] = vec4<f32>(p3.xyz + (p3.w * k.w) * dl, p3.w);
 }
 
-@compute @workgroup_size(64)
-fn collide_sphere(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let i = gid.x;
-    if (i >= P.n_verts) { return; }
-    let p = pos[i];
-    if (p.w == 0.0) { return; }
-    let c = P.sphere.xyz;
-    let r = P.sphere.w + P.thickness;
-    let d = p.xyz - c;
-    let dist = length(d);
-    if (dist >= r || dist < 1e-9) { return; }
-    let n = d / dist;
-    var x = c + n * r;
-    // Friction: cancel tangential motion over this substep, limited by the Coulomb cone
-    // (normal correction depth * mu).
-    let depth = r - dist;
+// Project out to the contact surface along `n`, then cancel tangential motion over this
+// substep, limited by the Coulomb cone (normal correction depth * mu).
+fn contact(i: u32, p: vec4<f32>, n: vec3<f32>, depth: f32) {
+    var x = p.xyz + n * depth;
     let dx = x - prev[i].xyz;
     let dxt = dx - dot(dx, n) * n;
     let lt = length(dxt);
@@ -123,6 +143,32 @@ fn collide_sphere(@builtin(global_invocation_id) gid: vec3<u32>) {
         x = x - dxt * min(1.0, P.friction * depth / lt);
     }
     pos[i] = vec4<f32>(x, p.w);
+}
+
+@compute @workgroup_size(64)
+fn collide_sphere(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n_verts) { return; }
+    let p = pos[i];
+    if (p.w == 0.0) { return; }
+    let d = p.xyz - P.sphere.xyz;
+    let dist = length(d);
+    let r = P.sphere.w + P.thickness;
+    if (dist >= r || dist < 1e-9) { return; }
+    contact(i, p, d / dist, r - dist);
+}
+
+@compute @workgroup_size(64)
+fn collide_sdf(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n_verts) { return; }
+    let p = pos[i];
+    if (p.w == 0.0) { return; }
+    let s = sdf_eval(p.xyz, P.sdf_origin, P.sdf_dims, P.sdf_band);
+    if (s.x >= P.thickness) { return; }
+    let gl = length(s.yzw);
+    if (gl < 1e-6) { return; }
+    contact(i, p, s.yzw / gl, P.thickness - s.x);
 }
 
 @compute @workgroup_size(64)
