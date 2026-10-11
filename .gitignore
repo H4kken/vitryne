@@ -5,3 +5,4 @@
 *.ppm
 .DS_Store
 /.gstack
+/web/public/assets

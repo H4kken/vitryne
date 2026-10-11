@@ -113,6 +113,16 @@ impl ClothMesh {
         (count, list)
     }
 
+    /// Vertex adjacency over mesh edges.
+    pub fn neighbors(&self) -> Vec<Vec<u32>> {
+        let mut adj = vec![Vec::new(); self.n_verts()];
+        for e in self.edges() {
+            adj[e.v[0] as usize].push(e.v[1]);
+            adj[e.v[1] as usize].push(e.v[0]);
+        }
+        adj
+    }
+
     pub fn mean_edge_length(&self) -> f32 {
         let e = self.edges();
         e.iter().map(|e| (self.rest[e.v[0] as usize] - self.rest[e.v[1] as usize]).length()).sum::<f32>() / e.len() as f32

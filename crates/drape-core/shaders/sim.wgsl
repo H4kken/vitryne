@@ -17,7 +17,12 @@ struct Params {
     sew_compliance: f32,    // ramped from soft to stiff while sewing
     sew_max_step: f32,      // max sewing correction per vertex per substep (m)
     sdf_band: f32,
-    _p0: f32,
+    stretch_damping: f32,   // XPBD constraint damping beta (s), Macklin et al. 2016 eq. 26
+    drag_target: vec4<f32>, // xyz = where the grabbed patch's centre is pulled, w = compliance
+    drag_count: u32,        // vertices in the grabbed patch, 0 = no drag
+    contact_max_step: f32,  // max collision push-out per substep (m)
+    air_drag: f32,          // quadratic air drag k = 0.5 rho Cd / areal density (1/m)
+    _p2: u32,
 };
 
 // One entry per colour, selected with a dynamic uniform offset (no push constants: hard rule 1).
@@ -54,6 +59,8 @@ struct Bend {
 // Stretch constraints, followed by the sewing constraints (same layout, rest = 0).
 @group(1) @binding(1) var<storage, read> stretch: array<Stretch>;
 @group(1) @binding(2) var<storage, read> bend: array<Bend>;
+// Grabbed patch: (vertex index as bits in w, offset from the patch centre in xyz).
+@group(1) @binding(3) var<storage, read> drag_patch: array<vec4<f32>>;
 
 @compute @workgroup_size(64)
 fn predict(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -65,6 +72,9 @@ fn predict(@builtin(global_invocation_id) gid: vec3<u32>) {
     let dt = P.gravity_dt.w;
     var v = vel[i].xyz + P.gravity_dt.xyz * dt;
     v = v * max(0.0, 1.0 - P.damping * dt);
+    // Quadratic air drag, semi-implicit so it stays stable at any speed. Negligible at drape
+    // speeds, strong for whipping free edges.
+    v = v / (1.0 + P.air_drag * length(v) * dt);
     pos[i] = vec4<f32>(p.xyz + v * dt, p.w);
 }
 
@@ -81,8 +91,11 @@ fn solve_stretch(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (len < 1e-9) { return; }
     let dt = P.gravity_dt.w;
     let alpha = c.compliance / (dt * dt);
-    let dl = -(len - c.rest) / (w + alpha);
     let n = d / len;
+    // Damping: resist the relative velocity along the edge this substep (internal friction).
+    let gamma = alpha * P.stretch_damping / dt;
+    let rel = dot(n, (pi.xyz - prev[c.i].xyz) - (pj.xyz - prev[c.j].xyz));
+    let dl = (-(len - c.rest) - gamma * rel) / ((1.0 + gamma) * w + alpha);
     pos[c.i] = vec4<f32>(pi.xyz + (pi.w * dl) * n, pi.w);
     pos[c.j] = vec4<f32>(pj.xyz - (pj.w * dl) * n, pj.w);
 }
@@ -133,8 +146,11 @@ fn solve_bend(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 
 // Project out to the contact surface along `n`, then cancel tangential motion over this
-// substep, limited by the Coulomb cone (normal correction depth * mu).
-fn contact(i: u32, p: vec4<f32>, n: vec3<f32>, depth: f32) {
+// substep, limited by the Coulomb cone (normal correction depth * mu). The push-out per substep
+// is capped: in narrow creases (between the thighs, armpits) the gradient flips between
+// neighbouring vertices, and full projections there turn into large velocity kicks.
+fn contact(i: u32, p: vec4<f32>, n: vec3<f32>, depth_in: f32) {
+    let depth = min(depth_in, P.contact_max_step);
     var x = p.xyz + n * depth;
     let dx = x - prev[i].xyz;
     let dxt = dx - dot(dx, n) * n;
@@ -143,13 +159,39 @@ fn contact(i: u32, p: vec4<f32>, n: vec3<f32>, depth: f32) {
         x = x - dxt * min(1.0, P.friction * depth / lt);
     }
     pos[i] = vec4<f32>(x, p.w);
+    // Inelastic contact: the push-out moves the vertex but must not launch it. Shift `prev` so
+    // the outward normal velocity this substep is zero (otherwise a 6 mm push-out in one
+    // substep becomes a 7 m/s kick). Tangential motion (after friction) is untouched.
+    let pv = prev[i];
+    let vn = dot(x - pv.xyz, n);
+    if (vn > 0.0) {
+        prev[i] = vec4<f32>(pv.xyz + n * vn, pv.w);
+    }
+}
+
+// Mouse drag: zero-length XPBD attachments of a small patch (picked vertex + connected
+// neighbours, <= 32) to a moving target, keeping their offsets. Applied at the start of the
+// collide pass (per-vertex lookup, no extra dispatch), so collision still wins.
+fn apply_drag(i: u32, p: vec4<f32>) -> vec4<f32> {
+    if (P.drag_count == 0u || p.w == 0.0) { return p; }
+    for (var k = 0u; k < P.drag_count; k = k + 1u) {
+        let e = drag_patch[k];
+        if (bitcast<u32>(e.w) == i) {
+            let dt = P.gravity_dt.w;
+            let alpha = P.drag_target.w / (dt * dt);
+            let t = P.drag_target.xyz + e.xyz;
+            return vec4<f32>(p.xyz + (t - p.xyz) * (p.w / (p.w + alpha)), p.w);
+        }
+    }
+    return p;
 }
 
 @compute @workgroup_size(64)
 fn collide_sphere(@builtin(global_invocation_id) gid: vec3<u32>) {
     let i = gid.x;
     if (i >= P.n_verts) { return; }
-    let p = pos[i];
+    let p = apply_drag(i, pos[i]);
+    pos[i] = p;
     if (p.w == 0.0) { return; }
     let d = p.xyz - P.sphere.xyz;
     let dist = length(d);
@@ -162,7 +204,8 @@ fn collide_sphere(@builtin(global_invocation_id) gid: vec3<u32>) {
 fn collide_sdf(@builtin(global_invocation_id) gid: vec3<u32>) {
     let i = gid.x;
     if (i >= P.n_verts) { return; }
-    let p = pos[i];
+    let p = apply_drag(i, pos[i]);
+    pos[i] = p;
     if (p.w == 0.0) { return; }
     let s = sdf_eval(p.xyz, P.sdf_origin, P.sdf_dims, P.sdf_band);
     if (s.x >= P.thickness) { return; }

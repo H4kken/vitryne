@@ -3,18 +3,37 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>drape-spike</title>
+  <title>drape-spike viewer</title>
   <style>
-    body { margin: 0; padding: 16px; background: #111; color: #ddd; font: 13px/1.4 ui-monospace, monospace; }
-    canvas { display: block; width: 512px; height: 512px; max-width: 100%; background: #000; }
-    pre { white-space: pre-wrap; word-break: break-all; }
+    html, body { margin: 0; height: 100%; background: #16161a; color: #ddd; font: 13px/1.4 ui-monospace, monospace; overflow: hidden; }
+    canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+    #hud { position: fixed; left: 12px; top: 10px; background: rgba(0,0,0,.55); padding: 8px 10px; border-radius: 6px; max-width: calc(100vw - 48px); }
+    #hud select, #hud button { font: inherit; background: #2a2a30; color: #ddd; border: 1px solid #444; padding: 2px 6px; margin: 2px 4px 2px 0; }
+    #hud button.on { background: #2d5; color: #000; }
     #status.err { color: #f66; }
+    #report { display: none; }
   </style>
 </head>
 <body>
-  <canvas id="gfx" width="512" height="512"></canvas>
-  <p id="status">loading…</p>
+  <canvas id="gfx"></canvas>
+  <div id="hud">
+    <div>
+      <select id="scene">
+        <option value="tshirt:0.0122">T-shirt 5k</option>
+        <option value="tshirt:0.00864" selected>T-shirt 10k</option>
+        <option value="tshirt:0.0061">T-shirt 20k</option>
+        <option value="tshirt:0.00432">T-shirt 40k</option>
+        <option value="sheet:100">Sheet 10k</option>
+      </select>
+      <button id="fast" title="F">fast drape</button>
+      <button id="pause" title="space">pause</button>
+      <button id="reset" title="R">reset</button>
+    </div>
+    <div id="stats">loading…</div>
+    <div>drag the cloth to pull it · drag elsewhere to orbit · wheel to zoom</div>
+    <p id="status">loading…</p>
+  </div>
   <pre id="report"></pre>
-  <script type="module" src="/main.js"></script>
+  <script type="module" src="/viewer.js"></script>
 </body>
 </html>

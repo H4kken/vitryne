@@ -193,9 +193,13 @@ pub struct SdfParams {
 }
 
 impl Default for SdfParams {
-    /// Torso + upper arms only (all the T-shirt can touch).
+    /// Everything the T-shirt can reach, including when dragged: hips and thighs, forearms.
+    /// Outside the box there is no collision, so the box must not clip the body anywhere the
+    /// cloth can go (an earlier box ending at y = 0.70 let dragged hems sink into the hips and
+    /// whip at the box boundary). The 12 cm band covers the whole torso interior, so even a deep
+    /// penetration has a gradient pointing out.
     fn default() -> Self {
-        Self { cell: 0.004, band: 0.04, min: [-0.45, 0.70, -0.20], max: [0.45, 1.56, 0.30] }
+        Self { cell: 0.004, band: 0.12, min: [-0.55, 0.40, -0.25], max: [0.55, 1.60, 0.35] }
     }
 }
 

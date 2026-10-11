@@ -46,6 +46,14 @@ impl OrbitCamera {
             * glam::camera::rh::view::look_at_mat4(self.eye(), self.target, Vec3::Y)
     }
 
+    /// World-space ray through a point in normalized device coordinates (x, y in -1..1, y up).
+    pub fn ray(&self, ndc_x: f32, ndc_y: f32, aspect: f32) -> (Vec3, Vec3) {
+        let inv = self.view_proj(aspect).inverse();
+        let near = inv.project_point3(Vec3::new(ndc_x, ndc_y, 0.0));
+        let far = inv.project_point3(Vec3::new(ndc_x, ndc_y, 1.0));
+        (near, (far - near).normalize())
+    }
+
     pub fn orbit(&mut self, dx: f32, dy: f32) {
         self.yaw -= dx * 0.008;
         self.pitch = (self.pitch + dy * 0.008).clamp(-1.5, 1.5);
@@ -54,6 +62,34 @@ impl OrbitCamera {
     pub fn zoom(&mut self, steps: f32) {
         self.distance = (self.distance * 0.9f32.powf(steps)).clamp(0.2, 20.0);
     }
+}
+
+/// Vertex closest to the ray among those within `radius` of it, preferring the nearest along
+/// the ray (so the front layer wins over the back of the shirt).
+pub fn pick(positions: &[Vec3], origin: Vec3, dir: Vec3, radius: f32) -> Option<u32> {
+    let mut best: Option<(u32, f32)> = None;
+    for (i, p) in positions.iter().enumerate() {
+        let v = *p - origin;
+        let t = v.dot(dir);
+        if t <= 0.0 {
+            continue;
+        }
+        if (v - t * dir).length() <= radius && best.is_none_or(|(_, bt)| t < bt) {
+            best = Some((i as u32, t));
+        }
+    }
+    best.map(|(i, _)| i)
+}
+
+/// Where the drag target goes when the mouse ray moves: the ray's intersection with the plane
+/// through `anchor` facing the camera.
+pub fn drag_target(camera: &OrbitCamera, origin: Vec3, dir: Vec3, anchor: Vec3) -> Vec3 {
+    let n = (camera.eye() - camera.target).normalize();
+    let denom = dir.dot(n);
+    if denom.abs() < 1e-6 {
+        return anchor;
+    }
+    origin + dir * ((anchor - origin).dot(n) / denom)
 }
 
 #[repr(C)]

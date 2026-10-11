@@ -1,8 +1,13 @@
 //! Native entry point.
-//!   drape [view]            winit viewer (drag = orbit, wheel = zoom, space = pause, R = reset,
-//!                           F = fast drape: 8 sim frames per display frame)
-//!   drape bench [--frames F] [--out file.json]
+//!   drape [view]            winit viewer: drag on cloth = pull it, drag elsewhere = orbit,
+//!                           wheel = zoom, space = pause, R = reset,
+//!                           F = fast drape (8 sim frames per display frame)
+//!   drape bench [--frames F] [--record-positions] [--out file.json]
 //!                           headless benchmark, prints JSON
+//!   drape bench-drag [--drag-seconds S] [--seed N] [--max-offset M] [--min-pull S] [--out file.json]
+//!                           drape to rest, then scripted random drags (stability criterion)
+//!   drape export-web-assets <dir>
+//!                           body OBJ + baked SDF (.bin) for the web pages
 //!   drape frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
 //!                           headless: render the sim at those frames to PNGs
 //!   drape info              print adapter report as JSON and exit
@@ -14,7 +19,8 @@
 //! Scene: --scene sheet|tshirt (default sheet).
 //!   sheet:  --grid N (vertices per side), --pin-spacing F, --no-sphere
 //!   tshirt: --edge E (target edge length, m; 0.00864 ≈ 10k verts), --sdf-cell C (m)
-//! Sim (any scene): --substeps S, --damping D, --friction MU.
+//! Sim (any scene): --substeps S, --damping D, --friction MU, --stretch-damping BETA (s),
+//! --contact-max-step M, --air-drag K (1/m).
 //! `--gpu-timestamps` (any command): opt-in profiling mode, see `GpuOptions`.
 
 use std::sync::Arc;
@@ -23,9 +29,9 @@ use drape_assets::tshirt::{self, SdfParams, TshirtParams};
 use drape_core::{
     body::{BodyMesh, BodyQuery, Sdf},
     gpu,
-    render::{OrbitCamera, Renderer},
+    render::{self, OrbitCamera, Renderer},
     scene::{Built, SheetScene},
-    sim::Solver,
+    sim::{DRAG_RADIUS, DragPatch, Solver},
     timer::GpuTimer,
     triangle::TriangleRenderer,
 };
@@ -55,6 +61,7 @@ fn main() {
             if let Some(v) = take_value(&mut args, "--frames") {
                 cfg.frames = v.parse().expect("--frames");
             }
+            cfg.record_positions = take_flag(&mut args, "--record-positions");
             let out = take_value(&mut args, "--out");
             let built = scene_args.build();
             let r = pollster::block_on(drape_core::bench::run(&g, &built, cfg));
@@ -63,6 +70,41 @@ fn main() {
                 std::fs::write(&path, &json).expect("write --out");
             }
             println!("{json}");
+        }
+        "bench-drag" => {
+            let g = headless_gpu();
+            let mut cfg = drape_core::dragbench::DragBenchConfig::default();
+            if let Some(v) = take_value(&mut args, "--drag-seconds") {
+                cfg.drag_s = v.parse().expect("--drag-seconds");
+            }
+            if let Some(v) = take_value(&mut args, "--seed") {
+                cfg.seed = v.parse().expect("--seed");
+            }
+            if let Some(v) = take_value(&mut args, "--max-offset") {
+                cfg.max_offset = v.parse().expect("--max-offset");
+            }
+            if let Some(v) = take_value(&mut args, "--min-pull") {
+                cfg.min_pull_s = v.parse().expect("--min-pull");
+            }
+            let out = take_value(&mut args, "--out");
+            let built = scene_args.build();
+            let r = pollster::block_on(drape_core::dragbench::run(&g, &built, cfg));
+            let json = serde_json::to_string_pretty(&r).unwrap();
+            if let Some(path) = out {
+                std::fs::write(&path, &json).expect("write --out");
+            }
+            println!("{json}");
+        }
+        "export-web-assets" => {
+            let dir = args.get(1).cloned().unwrap_or_else(|| "web/public/assets".into());
+            std::fs::create_dir_all(&dir).unwrap();
+            let obj = std::fs::read_to_string(BODY_OBJ).expect("body obj");
+            let body = BodyQuery::new(BodyMesh::from_obj(&obj).expect("parse body obj"));
+            let sdf = load_or_bake_sdf(&obj, &body, &scene_args.sdf);
+            std::fs::write(format!("{dir}/makehuman_body_m.obj"), &obj).unwrap();
+            let name = format!("{dir}/sdf_{}mm.bin", (scene_args.sdf.cell * 1000.0).round() as u32);
+            std::fs::write(&name, sdf.to_bytes()).unwrap();
+            println!("wrote {dir}/makehuman_body_m.obj and {name} ({:.1} MB)", sdf.bytes() as f64 / 1e6);
         }
         "frames" => {
             let at: Vec<u32> = take_value(&mut args, "--at")
@@ -84,7 +126,7 @@ fn main() {
             snapshot(&headless_gpu(), out);
         }
         other => {
-            eprintln!("unknown command '{other}' (view | bench | frames | pattern-svg | info | snapshot)");
+            eprintln!("unknown command '{other}' (view | bench | bench-drag | frames | export-web-assets | pattern-svg | info | snapshot)");
             std::process::exit(2);
         }
     }
@@ -131,6 +173,15 @@ impl SceneArgs {
         }
         if let Some(v) = num(args, "--friction") {
             a.sim.friction = v;
+        }
+        if let Some(v) = num(args, "--stretch-damping") {
+            a.sim.stretch_damping = v;
+        }
+        if let Some(v) = num(args, "--air-drag") {
+            a.sim.air_drag = v;
+        }
+        if let Some(v) = num(args, "--contact-max-step") {
+            a.sim.contact_max_step = v;
         }
         a
     }
@@ -356,12 +407,22 @@ struct ViewerState {
     renderer: Renderer,
     camera: OrbitCamera,
     dragging: bool,
+    /// Anchor point of the grabbed patch (drag plane passes through it).
+    pulling: Option<glam::Vec3>,
+    adj: Vec<Vec<u32>>,
     last_cursor: Option<(f64, f64)>,
     paused: bool,
     fast: bool,
     sim_frame: u32,
     frames: u32,
     fps_t0: std::time::Instant,
+}
+
+impl ViewerState {
+    fn mouse_ray(&self, x: f64, y: f64) -> (glam::Vec3, glam::Vec3) {
+        let (w, h) = (self.config.width as f32, self.config.height as f32);
+        self.camera.ray(2.0 * x as f32 / w - 1.0, 1.0 - 2.0 * y as f32 / h, w / h)
+    }
 }
 
 fn run_viewer(opts: gpu::GpuOptions, built: Built) {
@@ -401,6 +462,8 @@ impl ApplicationHandler for Viewer {
             renderer,
             camera: OrbitCamera::looking_at(built.camera.0, built.camera.1),
             dragging: false,
+            pulling: None,
+            adj: built.mesh.neighbors(),
             last_cursor: None,
             paused: false,
             fast: false,
@@ -420,11 +483,32 @@ impl ApplicationHandler for Viewer {
                 s.surface.configure(&s.gpu.device, &s.config);
             }
             WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => {
-                s.dragging = state == ElementState::Pressed;
+                if state == ElementState::Pressed {
+                    // Pick on the CPU from a one-off position readback (not per frame).
+                    if let Some((x, y)) = s.last_cursor {
+                        let (o, d) = s.mouse_ray(x, y);
+                        let pos = pollster::block_on(s.solver.read_positions(&s.gpu.device, &s.gpu.queue));
+                        if let Some(v) = render::pick(&pos, o, d, 0.015) {
+                            let patch = DragPatch::grab(&s.adj, &pos, v, DRAG_RADIUS);
+                            s.solver.begin_drag(&s.gpu.queue, &patch);
+                            s.solver.set_drag_target(pos[v as usize]);
+                            s.pulling = Some(pos[v as usize]);
+                        }
+                    }
+                    s.dragging = s.pulling.is_none();
+                } else {
+                    s.dragging = false;
+                    s.pulling = None;
+                    s.solver.end_drag();
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 if let (true, Some((x, y))) = (s.dragging, s.last_cursor) {
                     s.camera.orbit((position.x - x) as f32, (position.y - y) as f32);
+                }
+                if let Some(anchor) = s.pulling {
+                    let (o, d) = s.mouse_ray(position.x, position.y);
+                    s.solver.set_drag_target(render::drag_target(&s.camera, o, d, anchor));
                 }
                 s.last_cursor = Some((position.x, position.y));
             }

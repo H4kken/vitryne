@@ -20,12 +20,31 @@ pub struct BenchConfig {
     pub pipelined_frames: u32,
     pub rest_vrms: f32,
     pub rest_window: u32,
+    /// Include the final positions (f32 xyz, little endian, base64) for cross-target shape
+    /// comparison (bench/compare.py).
+    pub record_positions: bool,
 }
 
 impl Default for BenchConfig {
     fn default() -> Self {
-        Self { frames: 600, pipelined_frames: 300, rest_vrms: 0.005, rest_window: 30 }
+        Self { frames: 600, pipelined_frames: 300, rest_vrms: 0.005, rest_window: 30, record_positions: false }
     }
+}
+
+pub fn base64(bytes: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for c in bytes.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        for k in 0..4 {
+            if k <= c.len() {
+                out.push(T[(n >> (18 - 6 * k) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -37,7 +56,7 @@ pub struct Stats {
 }
 
 impl Stats {
-    fn of(v: &[f64]) -> Self {
+    pub fn of(v: &[f64]) -> Self {
         let mut s = v.to_vec();
         s.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let q = |f: f64| s[((s.len() - 1) as f64 * f).round() as usize];
@@ -124,6 +143,41 @@ pub struct BenchResult {
     pub final_fastest_vertices: Vec<(u32, f32, &'static str)>,
     /// Every 10th frame: (frame, vrms m/s, max speed m/s, min collider dist m), for plotting.
     pub trace: Vec<(u32, f32, f32, f32)>,
+    /// Final positions at the end of the serial run (see `BenchConfig::record_positions`).
+    pub final_positions_b64: Option<String>,
+}
+
+/// Exact signed distance of every vertex to the body (CPU, BVH). Benchmark-only.
+pub fn penetration_check(built: &Built, pos: &[Vec3]) -> Option<Penetration> {
+    built.body.as_ref().map(|body| {
+        let band = 0.05;
+        let mut min_d = f32::MAX;
+        let mut worst = None;
+        let (mut inside, mut within) = (0, 0);
+        let mut sdf_err: Option<f32> = None;
+        for (i, p) in pos.iter().enumerate() {
+            let Some(d) = body.signed_distance(*p, band) else { continue };
+            if d < min_d {
+                min_d = d;
+                worst = Some((i as u32, p.to_array()));
+            }
+            inside += (d < 0.0) as usize;
+            within += (d < built.sim.thickness) as usize;
+            if let crate::sim::Collider::Sdf(sdf) = &built.collider {
+                let e = (sdf.sample(*p) - d).abs();
+                if d.abs() < sdf.band * 0.9 {
+                    sdf_err = Some(sdf_err.unwrap_or(0.0).max(e));
+                }
+            }
+        }
+        Penetration {
+            max_penetration_mm: (-min_d).max(0.0) * 1000.0,
+            vertices_inside: inside,
+            vertices_within_thickness: within,
+            worst_vertex: worst,
+            sdf_error_max_mm: sdf_err.map(|e| e * 1000.0),
+        }
+    })
 }
 
 async fn read_vec4(device: &wgpu::Device, queue: &wgpu::Queue, src: &wgpu::Buffer, n: u32) -> Vec<[f32; 4]> {
@@ -274,35 +328,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
             (*name, max, g.iter().sum::<f32>() / g.len().max(1) as f32, kmax as f32 / (g.len().max(2) - 1) as f32)
         })
         .collect();
-    let penetration = built.body.as_ref().map(|body| {
-        let band = 0.05;
-        let mut min_d = f32::MAX;
-        let mut worst = None;
-        let (mut inside, mut within) = (0, 0);
-        let mut sdf_err: Option<f32> = None;
-        for (i, p) in pos.iter().enumerate() {
-            let Some(d) = body.signed_distance(*p, band) else { continue };
-            if d < min_d {
-                min_d = d;
-                worst = Some((i as u32, p.to_array()));
-            }
-            inside += (d < 0.0) as usize;
-            within += (d < sim.thickness) as usize;
-            if let crate::sim::Collider::Sdf(sdf) = &built.collider {
-                let e = (sdf.sample(*p) - d).abs();
-                if d.abs() < sdf.band * 0.9 {
-                    sdf_err = Some(sdf_err.unwrap_or(0.0).max(e));
-                }
-            }
-        }
-        Penetration {
-            max_penetration_mm: (-min_d).max(0.0) * 1000.0,
-            vertices_inside: inside,
-            vertices_within_thickness: within,
-            worst_vertex: worst,
-            sdf_error_max_mm: sdf_err.map(|e| e * 1000.0),
-        }
-    });
+    let penetration = penetration_check(built, &pos);
 
     // Pipelined throughput: queue frames back to back, wait once. Continues from the rested
     // state with the end-of-schedule parameters.
@@ -351,6 +377,10 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         gpu_phase_ms: phase_sum,
         final_fastest_vertices,
         trace,
+        final_positions_b64: cfg.record_positions.then(|| {
+            let flat: Vec<f32> = pos.iter().flat_map(|p| p.to_array()).collect();
+            base64(bytemuck::cast_slice(&flat))
+        }),
         config: cfg,
     }
 }

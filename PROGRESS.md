@@ -22,6 +22,9 @@ cd web && npm install && npm run dev                      # builds wasm, serves 
 node web/tools/chrome-check.mjs http://localhost:5173/ shot.png   # headless real-Chrome check (GPU on)
 # web profiling mode: append ?gpu-timestamps=1 to the URL
 
+# browser viewer (M3): http://localhost:5173/ (T-shirt 5k-40k or sheet; drag cloth, F = fast drape)
+#   automation: /?auto=1&scene=tshirt:0.00864[&post=1&dir=m3&name=X]
+# drag stability (M3): cargo run -p drape-native --release -- bench-drag --scene tshirt --seed 1
 # browser bench (same code as `drape bench`): open http://localhost:5173/bench.html, press Run, Copy JSON
 #   automation: bench.html?auto=1&grids=10,100&substeps=20&frames=1200[&ts=1][&post=1&name=X]
 #   post=1 makes the page send its JSON to the dev server -> bench/browser-check/X.json
@@ -269,9 +272,104 @@ Bending is still the biggest phase. SDF collision, which does 8 scattered reads 
 - **The T-shirt doesn't run in the browser yet.** The sheet does (checked again after the bench refactor: Chrome 1.55 ms). M3 needs the body OBJ and the baked SDF served to the page: either fetch the cached `.bin` (24.6 MB) or bake in wasm (single-threaded, so probably several seconds; measure it).
 - `drape-web` builds on native too; only the canvas `start()` is wasm-only. So `cargo test --workspace` and rust-analyzer both check it.
 
+## M3 — Browser port and parity ✅ Chrome + Safari, ⏸ Firefox (2026-10-11)
+
+**Done-when:** runs in Chrome ✅ and Safari ✅. **Firefox isn't installed on this Mac, and you chose to skip it for now**, so it's untested. Running `bench.html` there is a matter of Run → Copy JSON. Native and browser numbers are side by side below. Raw JSON is in [bench/m3/](bench/m3/), and the comparison script is [bench/compare_m3.py](bench/compare_m3.py).
+
+![Safari 27, T-shirt 10k after the automated drag](docs/m3/safari-viewer-10k.jpg)
+
+### What works
+- **Web viewer** ([web/index.html](web/index.html), [viewer.rs](crates/drape-web/src/viewer.rs)): the same `Solver` and `Renderer` as native, in a canvas, driven by `requestAnimationFrame`.
+  - Choice of T-shirt 5k/10k/20k/40k or the M1 sheet; fast drape (F), pause, reset; orbit and zoom.
+  - **Mouse drag:** pointer-down does a one-off position readback, a CPU ray pick (nearest vertex within 1.5 cm of the ray, front-most), then grabs a patch. A drag elsewhere orbits. The native viewer has the same drag.
+- **Drag model** ([sim.rs](crates/drape-core/src/sim.rs)), settled through the stability test below:
+  - **Patch:** the picked vertex plus graph-connected neighbours within 1.5 cm (≤ 32), so the other layer of the shirt isn't grabbed.
+  - **Spring:** XPBD attachments with a **fixed total stiffness of 100 N/m**, so 1 cm of lag pulls with 1 N, independent of mesh resolution.
+  - **Release:** a 6-frame soft release.
+  - **Body blocking:** the target can't enter the body. It stops at the surface, like a hand.
+  - **Cost:** applied in the collide pass, so there's no extra dispatch.
+- **Assets on the web:** `npm run assets` exports the body OBJ (0.87 MB) and the baked SDF (50.2 MB, **14.9 MB gzipped**) to `web/public/assets` (git-ignored). On the M2 Mac with a local server: the fetch takes 50–200 ms, decode 8–13 ms, and the BVH 24–26 ms. **Baking the SDF in wasm takes 9.2–9.4 s** (single thread; native with rayon takes 1.7 s), so **download it, don't bake it**.
+- **Bench page:** T-shirt drape, the 60 s random-drag test, the sheet, and SDF-bake timing, all running the same `drape_core` code as the CLI. It's automatable through URL parameters, and with `post=1` it sends its results and progress logs back to the dev server, which is how the Safari runs work.
+- **`bench-drag`** ([dragbench.rs](crates/drape-core/src/dragbench.rs)): the plan's stability test. Drape for 4 s, then 60 s of random drags: ~43 episodes, each picking a random vertex, pulling it 5–25 cm in a random direction over ≥ 0.3 s, holding, releasing and pausing. Then a 3 s settle and the exact penetration check. **The script comes from a fixed-seed RNG, so native and every browser replay identical drags.**
+
+### Native vs browser: T-shirt drape (Apple M2, 20 substeps, 900 frames)
+
+#### Chrome: bench/m3/chrome_tshirt.json
+
+| Vertices | Native ms | Chrome ms | Ratio | Native rest frame | Chrome rest frame | Native wall to rest | Chrome wall to rest | Chrome max pen (mm) | Chrome max v | Chrome NaN | Shape diff mean / p95 / max (mm) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 5,053 | 1.31 | 1.44 | 1.10× | 287 | 287 | 0.38 s | 0.41 s | 0.00 | 3.12 | 0 | 0.00 / 0.01 / 0.02 |
+| 10,002 | 1.75 | 1.83 | 1.05× | 286 | 286 | 0.50 s | 0.52 s | 0.00 | 2.57 | 0 | 0.00 / 0.00 / 0.01 |
+| 19,967 | 2.62 | 2.97 | 1.13× | 219 | 219 | 0.57 s | 0.65 s | 0.00 | 3.26 | 0 | 0.00 / 0.00 / 0.02 |
+| 39,674 | 4.80 | 5.36 | 1.11× | 284 | 284 | 1.36 s | 1.52 s | 0.00 | 2.01 | 0 | 0.00 / 0.01 / 0.04 |
+
+#### Safari: bench/m3/safari_tshirt.json
+
+| Vertices | Native ms | Safari ms | Ratio | Native rest frame | Safari rest frame | Native wall to rest | Safari wall to rest | Safari max pen (mm) | Safari max v | Safari NaN | Shape diff mean / p95 / max (mm) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 5,053 | 1.31 | 1.39 | 1.06× | 287 | 287 | 0.38 s | 0.40 s | 0.00 | 3.12 | 0 | 0.00 / 0.01 / 0.01 |
+| 10,002 | 1.75 | 1.86 | 1.06× | 286 | 286 | 0.50 s | 0.53 s | 0.00 | 2.57 | 0 | 0.00 / 0.00 / 0.01 |
+| 19,967 | 2.62 | 2.94 | 1.12× | 219 | 219 | 0.57 s | 0.64 s | 0.00 | 3.26 | 0 | 0.01 / 0.01 / 0.02 |
+| 39,674 | 4.80 | 5.11 | 1.06× | 284 | 284 | 1.36 s | 1.45 s | 0.00 | 2.01 | 0 | 0.01 / 0.01 / 0.05 |
+
+- **Speed:** browsers are **1.05–1.13× native** (Chrome) and **1.06–1.12×** (Safari), well within "browser ≤ 2× native".
+- **Results:** "same results within tolerance" holds almost exactly. The rest frame is identical, and the final shape is within **0.05 mm per vertex** of native at every size. Here, unlike the M1 sheet, the damped drape converges to the same state whichever shader compiler ran it.
+- **Drape criteria in both browsers:** rest in 0.40–1.52 s of wall time, 0.00 mm penetration, max speed ≤ 3.3 m/s, and no NaNs.
+
+### Interactive drag (viewer automation: fast-drape to 6 s, then 3 s of circular dragging at the view centre)
+
+| | 10k fps while dragging | 20k fps while dragging | Fast drape: 6 s of sim takes (10k / 20k) |
+|---|---|---|---|
+| Chrome 150 | **56.6** | **55.9** | 0.72 s / 1.07 s |
+| Safari 27 | **55.9** | **56.3** | 0.76 s / 1.17 s |
+
+**≥ 30 fps ✅**: both browsers stay near the 60 Hz cap. The page also samples an offscreen "work per frame" time (Chrome 9.5 / 12.4 ms, Safari 10.3 / 13.3 ms at 10k / 20k). That's only an upper bound: in a live page, the GPU-done callback is delayed by the event loop, and the bench's serial sim time is about 2.3 ms at 10k.
+
+### Stability: 60 s of random drags (native; Chrome and Safari give identical numbers)
+
+| Mesh | Seed | Episodes | **Max speed (m/s)** | Frames ≥ 5 m/s (of 3,600) | Vertices ≥ 5 m/s on worst frame | NaN | Min SDF distance during drags (mm) | **Penetration after settle (mm)** | Seam gap after (mm) | Gentle variant: max speed | Gentle: frames ≥ 5 m/s |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 10k | 1 | 44 | 3.98 | 0 | 0 | 0 | 1.6 | 0.00 | 1.9 | 4.10 | 0 |
+| 10k | 2 | 43 | 8.24 | 2 | 168 | 0 | 0.9 | 0.00 | 3.3 | 6.60 | 1 |
+| 10k | 3 | 43 | 11.81 | 2 | 2 | 0 | 1.2 | 0.00 | 2.1 | 4.60 | 0 |
+| 20k | 1 | 44 | 8.24 | 3 | 191 | 0 | 1.6 | 0.00 | 3.9 | 4.55 | 0 |
+| 20k | 2 | 43 | 6.07 | 3 | 253 | 0 | 0.7 | 0.00 | 2.7 | 2.47 | 0 |
+| 20k | 3 | 43 | 6.66 | 2 | 16 | 0 | 1.4 | 0.00 | 3.9 | 6.31 | 1 |
+
+- **Gentle variant:** pulls of 5–15 cm over ≥ 0.5 s.
+- **Chrome and Safari both reproduced all 6 native runs exactly** (same max speeds and spike counts), with no NaN and 0.00 mm penetration after.
+
+**Against the plan's criterion ("no NaN, no explosion, max vertex speed < 5 m/s"):**
+- ✅ No NaN, ever.
+- ✅ The cloth never ends up in the body (0.00 mm after every run), and seams stay closed (< 4 mm).
+- ❌ **The raw speed limit is broken in 5 of 6 harsh runs and 2 of 6 gentle ones.** Each time it's only 1–3 frames out of 3,600: from 2 vertices up to about 250 for one or two frames, peaking at 6–12 m/s. The cloth recovers right away.
+- **Verdict:** stable, but it doesn't strictly pass. Every remaining spike happens at **body creases** (front of the armpit, the crotch, where the arm touches the torso in the A-pose) or on a **free edge whipping** under a hard, fast pull.
+
+### Findings: what the drag test exposed (all fixed, all in both targets)
+1. **The SDF box was clipping the body.** A box ending at y = 0.70 let dragged hems sink into the hips, and the cloth whipped at the box boundary (62 m/s, then 35 mm of penetration). **Fix:** the box now covers everything the shirt can reach (y 0.40–1.60, x ±0.55); at 4 mm that's 50 MB.
+2. **A narrow SDF band left no escape route.** Beyond ±4 cm the gradient is zero, so cloth dragged deep inside couldn't get out. **Fix:** a 12 cm band, which covers the whole torso interior.
+3. **The drag was effectively rigid.** A per-vertex compliance of 1e-3 m/N looks soft, but it's rigid for 5–10 mg vertices, and it rammed cloth through the body at more than 100 N. **Fix:** a fixed total stiffness (100 N/m).
+4. **Inside targets jumped across the body.** Snapping a target inside the body to the *nearest* surface made it jump to the far side as a drag path crossed the body (250 vertices above 5 m/s). **Fix:** the target is blocked at the surface instead.
+5. **Push-out became launch velocity.** In position-based dynamics, a 6 mm push-out in one substep turns into a 7 m/s velocity. **Fix:** inelastic contact, which zeroes the outward normal velocity after a contact. This also made the drape rest sooner: 10k now rests at frame 286 instead of 333.
+6. **Free edges whipped.** **Fix:** XPBD stretch damping (β = 1e-5 s, Macklin 2016) plus quadratic air drag (k = ½ρC_d/σ ≈ 4 /m for cotton). Both are physically motivated, and both are now defaults for every scene.
+7. **Tried and rejected:** capping the push-out per substep (1–5 mm). It lets cloth sink 40–100 mm into the body under drag load. The cap is now off by default (`contact_max_step`).
+
+### Defaults changed in M3 (the M1/M2 tables above used the old ones)
+`stretch_damping` 0 → 1e-5 s · `air_drag` 0 → 4 /m · inelastic contact · drag spring 100 N/m total · SDF box y 0.40–1.60, x ±0.55, z −0.25–0.35, band 12 cm (50.2 MB). **The M3 tables are the current baseline.** Native T-shirt at 10k: 1.75 ms per frame, rest at frame 286 (0.50 s).
+
+### Open problems / notes
+- **Creases are the weak spot.** Per-vertex SDF projection can't represent a gap narrower than twice the thickness: the armpit in A-pose, or a dragged hem between the thighs. Options: a slightly bigger arm–torso gap in the avatar pose; a velocity filter at contacts; a triangle-level contact; or a max-velocity clamp. The clamp would make the number pass but hide the issue, so I didn't add one.
+- **Firefox is untested** (skipped for now at your request). **The Windows laptop is untested.**
+- **The SDF download is 50 MB raw / 15 MB gzip.** That's fine on a local server. For production, compress it (f16 storage would need the `shader-f16` feature, so instead quantise to i16 in a u32 buffer), use a coarser grid outside the torso, or bake it on a server.
+- **Canvas colour:** the browser canvas uses a non-sRGB format, so the shading is darker than native. Rendering quality is out of scope.
+- `?sdf=bake` exists for testing the wasm bake path; it's slow (9 s).
+- The debug hook `DRAPE_DEBUG_EPISODE=N` (native only) prints the fastest vertex every frame of drag episode N. It's how the causes above were found.
+
 ## Later
 - Better damping than global velocity damping (e.g. damping only along constraints, or in the solver itself), so the drape rests faster without slowing free fall.
 - Cut dispatch count if the browser overhead is high: fewer colours, or merging stretch and bend into one coloured pass.
 - Merge seam vertices once they meet, especially at junctions like the underarm.
 - Triangle-level penetration check (body vertices against cloth triangles), not just cloth vertices.
 - A sleeve cap shaped for the A-pose (pattern fit; out of scope for the spike).
+- Better crease contact (see M3): velocity filter at contacts, or triangle-level body contact.
+- Smaller SDF download (i16 quantisation, adaptive grid) for production.

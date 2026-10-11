@@ -353,6 +353,33 @@ impl Sdf {
         v
     }
 
+    /// Central-difference gradient of the trilinear field.
+    pub fn gradient(&self, p: Vec3) -> Vec3 {
+        let h = self.cell * 0.5;
+        Vec3::new(
+            self.sample(p + Vec3::X * h) - self.sample(p - Vec3::X * h),
+            self.sample(p + Vec3::Y * h) - self.sample(p - Vec3::Y * h),
+            self.sample(p + Vec3::Z * h) - self.sample(p - Vec3::Z * h),
+        ) / (2.0 * h)
+    }
+
+    /// Move `p` out until it is at least `margin` outside the surface (a few gradient steps).
+    /// Points deeper than the band (zero gradient) are returned unchanged.
+    pub fn push_out(&self, mut p: Vec3, margin: f32) -> Vec3 {
+        for _ in 0..4 {
+            let d = self.sample(p);
+            if d >= margin {
+                break;
+            }
+            let g = self.gradient(p);
+            if g.length() < 1e-6 {
+                break;
+            }
+            p += g.normalize() * (margin - d);
+        }
+        p
+    }
+
     /// Binary cache format: magic, origin, cell, dims, band, values (little endian f32/u32).
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut b = Vec::with_capacity(48 + self.values.len() * 4);

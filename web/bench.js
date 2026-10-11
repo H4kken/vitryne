@@ -1,85 +1,126 @@
-import init, { run_bench } from './pkg/drape_web.js';
+import init, { run_bench, run_drag_bench, bake_sdf_ms } from './pkg/drape_web.js';
+import { loadTshirtAssets } from './assets.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
+// With &post=1, progress and errors also go to the dev server (bench/<dir>/<name>.log.json), so
+// browsers we can't automate (Safari) still tell us what happened.
+const report = (kind, text) => q.get('post') === '1' && fetch(`/__bench-result?dir=${q.get('dir') ?? 'browser-check'}&name=${encodeURIComponent((q.get('name') ?? 'browser') + '.log')}`, { method: 'POST', body: JSON.stringify({ kind, text, t: performance.now(), ua: navigator.userAgent }) }).catch(() => {});
+window.addEventListener('error', (e) => report('error', String(e.message)));
+window.addEventListener('unhandledrejection', (e) => report('error', String(e.reason?.message ?? e.reason)));
 const status = $('status');
 const results = [];
+let assets = null;
 
-const COLS = [
-  ['vertices', (r) => r.mesh.vertices],
+const f2 = (x) => (x == null ? '—' : x.toFixed(2));
+const DRAPE_COLS = [
   ['scene', (r) => r.scene ?? 'sheet'],
+  ['vertices', (r) => r.mesh.vertices],
   ['substeps', (r) => (r.sim ?? r.config.sim).substeps],
   ['dispatches', (r) => r.mesh.dispatches_per_frame],
-  ['pipelined ms', (r) => r.frame_ms_pipelined.toFixed(2)],
-  ['serial med ms', (r) => r.frame_ms_serial.median.toFixed(2)],
-  ['serial p95 ms', (r) => r.frame_ms_serial.p95.toFixed(2)],
+  ['pipelined ms', (r) => f2(r.frame_ms_pipelined)],
+  ['serial med ms', (r) => f2(r.frame_ms_serial.median)],
   ['rest frame', (r) => r.rest_frame ?? '—'],
-  ['rest wall s (pipelined)', (r) => (r.rest_wall_s_pipelined == null ? '—' : r.rest_wall_s_pipelined.toFixed(2))],
-  ['max v >1s', (r) => r.max_speed_after_1s.toFixed(2)],
+  ['rest wall s', (r) => f2(r.rest_wall_s_pipelined)],
+  ['max v', (r) => f2(r.max_speed)],
   ['NaN frames', (r) => r.non_finite_frames],
-  ['min dist mm', (r) => (r.min_collider_dist_mm_final ?? r.min_sphere_dist_mm_final).toFixed(2)],
+  ['max pen mm', (r) => f2(r.penetration?.max_penetration_mm)],
+  ['seam gap mm', (r) => f2(r.max_seam_gap_mm)],
+];
+const DRAG_COLS = [
+  ['vertices', (r) => r.vertices],
+  ['seed', (r) => r.config.seed],
+  ['episodes', (r) => r.episodes.length],
+  ['max v', (r) => f2(r.max_speed)],
+  ['frames >5 m/s', (r) => r.frames_over_5ms],
+  ['verts >5 m/s', (r) => r.max_vertices_over_5ms],
+  ['NaN frames', (r) => r.non_finite_frames],
+  ['pen after mm', (r) => f2(r.penetration_after?.max_penetration_mm)],
+  ['seam gap after mm', (r) => f2(r.max_seam_gap_mm_after)],
+  ['frame ms', (r) => f2(r.frame_ms_serial.median)],
 ];
 
-function renderTable() {
-  const t = $('table');
-  t.innerHTML = '<tr>' + COLS.map(([h]) => `<th>${h}</th>`).join('') + '</tr>' +
-    results.map((r) => '<tr>' + COLS.map(([, f]) => `<td>${f(r)}</td>`).join('') + '</tr>').join('');
+function renderTable(cols) {
+  $('table').innerHTML = '<tr>' + cols.map(([h]) => `<th>${h}</th>`).join('') + '</tr>' +
+    results.map((r) => '<tr>' + cols.map(([, f]) => `<td>${f(r)}</td>`).join('') + '</tr>').join('');
 }
 
-function output() {
-  return {
-    user_agent: navigator.userAgent,
-    cross_origin_isolated: self.crossOriginIsolated,
-    date: new Date().toISOString(),
-    runs: results,
-  };
-}
+const output = () => ({ user_agent: navigator.userAgent, cross_origin_isolated: self.crossOriginIsolated, date: new Date().toISOString(), runs: results });
+const nums = (s, parse = parseFloat) => s.split(',').map((x) => parse(x.trim())).filter((x) => x > 0);
+const tick = () => new Promise((r) => setTimeout(r, 0));
 
-async function run({ grids, substeps, frames, ts }) {
+async function run() {
   $('run').disabled = true;
   results.length = 0;
   try {
     if (!navigator.gpu) throw new Error('navigator.gpu missing: no WebGPU in this browser');
-    for (const ss of substeps) {
-      for (const g of grids) {
-        status.textContent = `running grid ${g} (${g * g} verts), ${ss} substeps, ${frames} frames…`;
-        await new Promise((r) => setTimeout(r, 0)); // let the status paint
-        results.push(JSON.parse(await run_bench(g, ss, frames, ts)));
-        renderTable();
+    const mode = $('mode').value;
+    const res = nums($('res').value);
+    const substeps = nums($('substeps').value, (x) => parseInt(x, 10));
+    const frames = parseInt($('frames').value, 10);
+    if (mode !== 'sheet' && !assets) {
+      status.textContent = 'loading body + SDF…';
+      assets = await loadTshirtAssets(q);
+    }
+    const obj = assets?.obj ?? '';
+    const sdf = assets?.sdf ?? new Uint8Array();
+    if (mode === 'bake') {
+      status.textContent = 'baking SDF in wasm (single thread)…';
+      await tick();
+      results.push({ bake_ms: bake_sdf_ms(obj) });
+    } else if (mode === 'drag') {
+      const [maxOff, minPull] = $('gentle').checked ? [0.15, 0.5] : [0.25, 0.3];
+      for (const r of res) for (const seed of nums($('seeds').value, (x) => parseInt(x, 10))) {
+        status.textContent = `drag test edge ${r}, seed ${seed}…`;
+        report('progress', status.textContent);
+        await tick();
+        results.push(JSON.parse(await run_drag_bench(r, seed, 60, maxOff, minPull, obj, sdf)));
+        renderTable(DRAG_COLS);
+      }
+    } else {
+      for (const ss of substeps) for (const r of res) {
+        status.textContent = `${mode} res ${r}, ${ss} substeps, ${frames} frames…`;
+        report('progress', status.textContent);
+        await tick();
+        results.push(JSON.parse(await run_bench(mode, r, ss, frames, $('ts').checked, $('record').checked, mode === 'tshirt' ? obj : '', mode === 'tshirt' ? sdf : new Uint8Array())));
+        renderTable(DRAPE_COLS);
       }
     }
-    $('report').textContent = JSON.stringify(output(), null, 1);
-    if (q.get('post') === '1') {
-      await fetch(`/__bench-result?name=${encodeURIComponent(q.get('name') ?? 'browser')}`, { method: 'POST', body: JSON.stringify(output(), null, 1) });
-    }
+    const out = output();
+    if (assets) { out.asset_fetch_ms = assets.fetch_ms; out.sdf_download_bytes = assets.sdf_download_bytes; }
+    $('report').textContent = JSON.stringify(out, null, 1);
     $('copy').disabled = false;
+    if (q.get('post') === '1') {
+      await fetch(`/__bench-result?dir=${q.get('dir') ?? 'browser-check'}&name=${encodeURIComponent(q.get('name') ?? 'browser')}`, { method: 'POST', body: JSON.stringify(out) });
+    }
     status.textContent = `ok: ${results.length} runs done`;
     status.className = '';
   } catch (e) {
     status.textContent = 'error: ' + (e?.message ?? e);
     status.className = 'err';
+    report('error', status.textContent);
     console.error(e);
   } finally {
     $('run').disabled = false;
   }
 }
 
-const list = (s) => s.split(',').map((x) => parseInt(x.trim(), 10)).filter((x) => x > 0);
-const fromInputs = () => ({
-  grids: list($('grids').value),
-  substeps: list($('substeps').value),
-  frames: parseInt($('frames').value, 10),
-  ts: $('ts').checked,
-});
-
-$('run').onclick = () => run(fromInputs());
+$('run').onclick = run;
 $('copy').onclick = () => navigator.clipboard.writeText(JSON.stringify(output(), null, 1));
+$('mode').onchange = () => {
+  const m = $('mode').value;
+  $('res').value = m === 'sheet' ? '10,50,71,100,141,200' : m === 'drag' ? '0.00864,0.0061' : '0.0122,0.00864,0.0061,0.00432';
+  $('frames').value = m === 'sheet' ? '1200' : '900';
+};
 
 await init();
 status.textContent = 'ready' + (self.crossOriginIsolated ? '' : ' (not cross-origin isolated: coarse timers)');
 
-// Automation: ?auto=1&grids=..&substeps=..&frames=..&ts=1 fills the inputs and runs.
+// Automation: ?auto=1&mode=tshirt|drag|sheet|bake&res=..&substeps=..&frames=..&seeds=..&gentle=1&ts=1&record=0
 // &post=1&name=X also sends the JSON to the dev server (saved as bench/browser-check/X.json).
-for (const k of ['grids', 'substeps', 'frames']) if (q.has(k)) $(k).value = q.get(k);
+if (q.has('mode')) { $('mode').value = q.get('mode'); $('mode').onchange(); }
+for (const k of ['res', 'substeps', 'frames', 'seeds']) if (q.has(k)) $(k).value = q.get(k);
 if (q.get('ts') === '1') $('ts').checked = true;
-if (q.get('auto') === '1') run(fromInputs());
+if (q.get('gentle') === '1') $('gentle').checked = true;
+if (q.get('record') === '0') $('record').checked = false;
+if (q.get('auto') === '1') run();

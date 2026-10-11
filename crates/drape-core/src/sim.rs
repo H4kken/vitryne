@@ -89,6 +89,16 @@ pub struct SimConfig {
     /// Collision thickness, m.
     pub thickness: f32,
     pub friction: f32,
+    /// XPBD constraint damping on stretch (beta, s). Internal friction of the fabric: damps
+    /// stretching motion (snaps, whips) without slowing rigid motion like global damping does.
+    pub stretch_damping: f32,
+    /// Quadratic air drag k = 0.5 rho_air C_d / areal density (1/m): 0.5 * 1.2 * 1.0 / 0.15 = 4
+    /// for cotton jersey. Isotropic (no normals in the sim pass), so it overestimates drag on
+    /// motion within the cloth plane.
+    pub air_drag: f32,
+    /// Max collision push-out per vertex per substep, m. Default: uncapped (capping it let
+    /// cloth sink into the body under load, see PROGRESS M3).
+    pub contact_max_step: f32,
     pub schedule: Schedule,
 }
 
@@ -101,6 +111,9 @@ impl Default for SimConfig {
             damping: 1.0,
             thickness: 0.002,
             friction: 0.3,
+            stretch_damping: 1e-5,
+            contact_max_step: 1.0,
+            air_drag: 4.0,
             schedule: Schedule::NONE,
         }
     }
@@ -120,7 +133,53 @@ struct Params {
     sew_compliance: f32,
     sew_max_step: f32,
     sdf_band: f32,
-    _p0: f32,
+    stretch_damping: f32,
+    drag_target: [f32; 4],
+    drag_count: u32,
+    contact_max_step: f32,
+    air_drag: f32,
+    _p1: u32,
+}
+
+/// Total stiffness of the drag spring (N/m), shared by the patch vertices (per-vertex compliance
+/// = n / k). A fixed total force scale, independent of mesh resolution: 1 cm of lag pulls with
+/// 1 N, about the shirt's weight. (A per-vertex compliance looked soft but is effectively rigid
+/// for 5-10 mg vertices, and rammed cloth through the body at 100+ N.)
+pub const DRAG_STIFFNESS: f32 = 100.0;
+/// Grab radius and size of the dragged patch.
+pub const DRAG_RADIUS: f32 = 0.015;
+pub const DRAG_MAX_VERTICES: usize = 32;
+/// Soft release length, frames.
+pub const RELEASE_FRAMES: u32 = 6;
+
+/// A grabbed patch: vertices and their offsets from the patch centre at grab time.
+#[derive(Debug, Clone, Serialize)]
+pub struct DragPatch {
+    pub center: [f32; 3],
+    pub vertices: Vec<(u32, [f32; 3])>,
+}
+
+impl DragPatch {
+    /// The picked vertex plus vertices reachable from it over mesh edges and within `radius`
+    /// of it (graph-connected, so the other layer of the shirt isn't grabbed).
+    pub fn grab(adj: &[Vec<u32>], pos: &[Vec3], picked: u32, radius: f32) -> Self {
+        let c = pos[picked as usize];
+        let mut seen = std::collections::HashSet::from([picked]);
+        let mut queue = std::collections::VecDeque::from([picked]);
+        let mut verts = Vec::new();
+        while let Some(v) = queue.pop_front() {
+            verts.push((v, (pos[v as usize] - c).to_array()));
+            if verts.len() >= DRAG_MAX_VERTICES {
+                break;
+            }
+            for &n in &adj[v as usize] {
+                if (pos[n as usize] - c).length() <= radius && seen.insert(n) {
+                    queue.push_back(n);
+                }
+            }
+        }
+        Self { center: c.to_array(), vertices: verts }
+    }
 }
 
 #[repr(C)]
@@ -161,6 +220,13 @@ pub struct Solver {
     /// SDF values (or a 1-element dummy for the sphere), shared with the metrics pass.
     pub sdf_buf: wgpu::Buffer,
     base_params: Params,
+    /// Patch size and current target (None = not dragging).
+    drag: std::cell::Cell<Option<(u32, Vec3)>>,
+    drag_compliance: std::cell::Cell<f32>,
+    /// Frames left in the soft release after `end_drag` (the grab fades out instead of
+    /// letting go of stretched cloth all at once).
+    releasing: std::cell::Cell<u32>,
+    drag_buf: wgpu::Buffer,
     state_bg: wgpu::BindGroup,
     cons_bg: wgpu::BindGroup,
     pipelines: Vec<wgpu::ComputePipeline>,
@@ -246,7 +312,12 @@ impl Solver {
             sew_compliance: cfg.schedule.sew_compliance_end,
             sew_max_step: cfg.schedule.sew_max_step,
             sdf_band: 0.0,
-            _p0: 0.0,
+            stretch_damping: cfg.stretch_damping,
+            drag_target: [0.0, 0.0, 0.0, 0.0],
+            drag_count: 0,
+            contact_max_step: cfg.contact_max_step,
+            air_drag: cfg.air_drag,
+            _p1: 0,
         };
         let sdf_data: Vec<f32> = match &collider {
             Collider::Sphere(s) => {
@@ -296,6 +367,7 @@ impl Solver {
         });
         let stretch = storage_init(device, "stretch+sew", &lin);
         let bend = storage_init(device, "bend", &cons.bend.items);
+        let drag_buf = storage_init(device, "drag-patch", &[[0f32; 4]; DRAG_MAX_VERTICES]);
 
         let state_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("sim-state"),
@@ -309,7 +381,7 @@ impl Solver {
         });
         let cons_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("sim-constraints"),
-            entries: &[uniform_entry(0, true, 16), storage_entry(1, true), storage_entry(2, true)],
+            entries: &[uniform_entry(0, true, 16), storage_entry(1, true), storage_entry(2, true), storage_entry(3, true)],
         });
         let state_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("sim-state"),
@@ -336,6 +408,7 @@ impl Solver {
                 },
                 wgpu::BindGroupEntry { binding: 1, resource: stretch.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 2, resource: bend.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 3, resource: drag_buf.as_entire_binding() },
             ],
         });
 
@@ -394,11 +467,79 @@ impl Solver {
         ];
         let phases = phases.into_iter().filter(|(_, d)| !d.is_empty()).collect();
 
-        Self { cfg, n_verts: n, pos, prev, vel, params, collider, sdf_buf, base_params: p, state_bg, cons_bg, pipelines, phases, init_pos }
+        Self {
+            cfg,
+            n_verts: n,
+            pos,
+            prev,
+            vel,
+            params,
+            collider,
+            sdf_buf,
+            base_params: p,
+            drag: std::cell::Cell::new(None),
+            releasing: std::cell::Cell::new(0),
+            drag_compliance: std::cell::Cell::new(0.0),
+            drag_buf,
+            state_bg,
+            cons_bg,
+            pipelines,
+            phases,
+            init_pos,
+        }
     }
 
-    /// Write this frame's ramped parameters (gravity, sewing compliance). Call before
-    /// `encode_frame`; a 96-byte upload, not a readback.
+    /// Start dragging a grabbed patch (one small upload).
+    pub fn begin_drag(&self, queue: &wgpu::Queue, patch: &DragPatch) {
+        let data: Vec<[f32; 4]> = patch.vertices.iter().map(|(v, o)| [o[0], o[1], o[2], f32::from_bits(*v)]).collect();
+        queue.write_buffer(&self.drag_buf, 0, bytemuck::cast_slice(&data));
+        self.drag.set(Some((data.len() as u32, Vec3::from(patch.center))));
+        self.drag_compliance.set(data.len() as f32 / DRAG_STIFFNESS);
+        self.releasing.set(0);
+    }
+
+    /// Move the patch centre's target; takes effect at the next `prepare_frame`. The target
+    /// behaves like a hand that can't enter the body: it moves from its last position toward
+    /// the request and stops at the surface (+5 mm). Snapping inside targets to the *nearest*
+    /// surface instead made them jump to the far side of the body as a drag path crossed it,
+    /// whipping large regions of cloth around.
+    pub fn set_drag_target(&self, target: Vec3) {
+        let Some((n, from)) = self.drag.get() else { return };
+        let margin = self.cfg.thickness + 0.005;
+        let outside = |p: Vec3| match &self.collider {
+            Collider::Sdf(sdf) => sdf.sample(p) >= margin,
+            Collider::Sphere(s) => (p - s.truncate()).length() >= s.w + margin,
+        };
+        let t = if outside(target) {
+            target
+        } else {
+            let steps = ((target - from).length() / 0.002).ceil().max(1.0) as u32;
+            let mut last = from;
+            for k in 1..=steps {
+                let p = from.lerp(target, k as f32 / steps as f32);
+                if !outside(p) {
+                    break;
+                }
+                last = p;
+            }
+            last
+        };
+        self.drag.set(Some((n, t)));
+    }
+
+    /// Let go: the attachment fades out over `RELEASE_FRAMES` (compliance ×10 per frame).
+    pub fn end_drag(&self) {
+        if self.drag.get().is_some() && self.releasing.get() == 0 {
+            self.releasing.set(RELEASE_FRAMES);
+        }
+    }
+
+    pub fn dragging(&self) -> bool {
+        self.drag.get().is_some() && self.releasing.get() == 0
+    }
+
+    /// Write this frame's parameters (ramped gravity and sewing compliance, drag). Call before
+    /// `encode_frame`; a 128-byte upload, not a readback.
     pub fn prepare_frame(&self, queue: &wgpu::Queue, frame: u32) {
         let t = frame as f32 * self.cfg.frame_dt;
         let sch = &self.cfg.schedule;
@@ -409,6 +550,19 @@ impl Solver {
         p.gravity_dt[2] *= g;
         p.sew_compliance = sch.sew_compliance(t);
         p.sew_max_step = sch.sew_step_limit(t);
+        if let Some((n, t)) = self.drag.get() {
+            p.drag_count = n;
+            p.drag_target[..3].copy_from_slice(&t.to_array());
+            p.drag_target[3] = self.drag_compliance.get();
+            let r = self.releasing.get();
+            if r > 0 {
+                p.drag_target[3] *= 10f32.powi((RELEASE_FRAMES - r + 1) as i32);
+                if r == 1 {
+                    self.drag.set(None);
+                }
+                self.releasing.set(r - 1);
+            }
+        }
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&p));
     }
 
@@ -455,6 +609,21 @@ impl Solver {
                 }
             }
         }
+    }
+
+    /// Benchmark/picking readback of all positions (not used per frame by the solver).
+    pub async fn read_positions(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<Vec3> {
+        let rb = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("pos-readback"),
+            size: self.n_verts as u64 * 16,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut enc = device.create_command_encoder(&Default::default());
+        enc.copy_buffer_to_buffer(&self.pos, 0, &rb, 0, self.n_verts as u64 * 16);
+        queue.submit([enc.finish()]);
+        let v: Vec<[f32; 4]> = crate::gpu_async::read_buffer(device, &rb).await;
+        v.iter().map(|p| Vec3::new(p[0], p[1], p[2])).collect()
     }
 
     pub fn reset(&self, queue: &wgpu::Queue) {

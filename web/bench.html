@@ -7,8 +7,8 @@
   <style>
     body { margin: 0; padding: 16px; background: #111; color: #ddd; font: 13px/1.45 ui-monospace, monospace; }
     h1 { font-size: 15px; margin: 0 0 12px; }
-    label { margin-right: 12px; }
-    input[type=text] { width: 160px; background: #222; color: #ddd; border: 1px solid #444; padding: 3px 6px; font: inherit; }
+    label { margin-right: 12px; white-space: nowrap; }
+    input[type=text], select { width: 180px; background: #222; color: #ddd; border: 1px solid #444; padding: 3px 6px; font: inherit; }
     button { background: #2d5; color: #000; border: 0; padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer; margin-right: 8px; }
     button:disabled { background: #555; cursor: default; }
     table { border-collapse: collapse; margin: 14px 0; }
@@ -20,12 +20,21 @@
   </style>
 </head>
 <body>
-  <h1>drape-spike — M1 sheet benchmark (same code as <code>drape bench</code>)</h1>
+  <h1>drape-spike benchmark (same code as <code>drape bench</code> / <code>drape bench-drag</code>)</h1>
   <div>
-    <label>grids <input id="grids" type="text" value="10,50,71,100,141,200" /></label>
+    <label>mode <select id="mode">
+      <option value="tshirt" selected>T-shirt drape</option>
+      <option value="drag">T-shirt 60 s random drags</option>
+      <option value="sheet">M1 sheet</option>
+      <option value="bake">SDF bake in wasm</option>
+    </select></label>
+    <label>res <input id="res" type="text" value="0.0122,0.00864,0.0061,0.00432" title="tshirt/drag: edge length (m); sheet: vertices per side" /></label>
     <label>substeps <input id="substeps" type="text" value="20" /></label>
-    <label>frames <input id="frames" type="text" value="1200" /></label>
-    <label><input id="ts" type="checkbox" /> gpu-timestamps (profiling)</label>
+    <label>frames <input id="frames" type="text" value="900" /></label>
+    <label>seeds <input id="seeds" type="text" value="1,2,3" title="drag mode" /></label>
+    <label><input id="gentle" type="checkbox" /> gentle drags</label>
+    <label><input id="ts" type="checkbox" /> gpu-timestamps</label>
+    <label><input id="record" type="checkbox" checked /> record final positions</label>
   </div>
   <p>
     <button id="run">Run</button>
