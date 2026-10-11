@@ -1,0 +1,8 @@
+[package]
+name = "drape-assets"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+glam.workspace = true

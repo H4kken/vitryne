@@ -1,0 +1,13 @@
+{
+  "name": "drape-spike-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "wasm": "cd .. && cargo build -p drape-web --target wasm32-unknown-unknown --profile release-wasm && wasm-bindgen --target web --out-dir web/pkg target/wasm32-unknown-unknown/release-wasm/drape_web.wasm",
+    "dev": "npm run wasm && vite",
+    "build": "npm run wasm && vite build"
+  },
+  "devDependencies": {
+    "vite": "8.3.1"
+  }
+}
