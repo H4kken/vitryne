@@ -267,7 +267,7 @@ Bending is still the biggest phase. SDF collision, which does 8 scattered reads 
 - **Fit is approximate.** The sleeve cap is flat, which suits a T-pose, so the sleeves flare a little on the A-pose arms. The neckline is generous. Garment fit and fabric calibration are out of scope.
 - **No self-collision yet (M4).** Folds and the doubled-up cloth at the seams can interpenetrate.
 - **The T-shirt doesn't run in the browser yet.** The sheet does (checked again after the bench refactor: Chrome 1.55 ms). M3 needs the body OBJ and the baked SDF served to the page: either fetch the cached `.bin` (24.6 MB) or bake in wasm (single-threaded, so probably several seconds; measure it).
-- `drape-web` now compiles to nothing on native, so `cargo test --workspace` works.
+- `drape-web` builds on native too; only the canvas `start()` is wasm-only. So `cargo test --workspace` and rust-analyzer both check it.
 
 ## Later
 - Better damping than global velocity damping (e.g. damping only along constraints, or in the solver itself), so the drape rests faster without slowing free fall.

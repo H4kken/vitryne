@@ -1,9 +1,6 @@
-// wasm-only crate: compiles to nothing on native so `cargo test --workspace` works.
-#![cfg(target_arch = "wasm32")]
-
 //! wasm entry point. Same drape-core, WebGPU backend only (no WebGL fallback).
 
-use drape_core::{gpu, timer::GpuTimer, triangle::TriangleRenderer};
+use drape_core::gpu;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(start)]
@@ -12,11 +9,14 @@ pub fn init() {
     let _ = console_log::init_with_level(log::Level::Info);
 }
 
-/// Renders the M0 triangle into `<canvas id=canvas_id>`.
+/// Renders the M0 triangle into `<canvas id=canvas_id>`. wasm-only (canvas surface); the rest
+/// of the crate also builds natively so `cargo test --workspace` and rust-analyzer check it.
 /// Returns `{ "adapter": AdapterReport, "gpu_pass_times": [...] }` as JSON.
 /// `gpu_timestamps` turns on the opt-in profiling mode (see `GpuOptions`).
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub async fn start(canvas_id: String, gpu_timestamps: bool) -> Result<String, JsValue> {
+    use drape_core::{timer::GpuTimer, triangle::TriangleRenderer};
     let canvas: web_sys::HtmlCanvasElement = web_sys::window()
         .and_then(|w| w.document())
         .and_then(|d| d.get_element_by_id(&canvas_id))
