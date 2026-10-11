@@ -17,8 +17,24 @@ pub fn create_instance() -> wgpu::Instance {
     wgpu::Instance::new(desc)
 }
 
-/// The only features/limits we ever request: the WebGPU defaults.
-pub fn required_features() -> wgpu::Features {
+/// How the device is created. `Default` is the canonical mode used for every pass/fail number.
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct GpuOptions {
+    /// Opt-in profiling mode: additionally request WebGPU's `timestamp-query`
+    /// (pass-level `timestampWrites` only, which is all core WebGPU has).
+    /// Never used for pass/fail numbers; every report says whether it was on.
+    pub gpu_timestamps: bool,
+}
+
+/// Features we request. Canonical mode: none (hard rule 1).
+/// Profiling mode: `TIMESTAMP_QUERY` and nothing else, if the adapter has it.
+pub fn required_features(opts: GpuOptions, adapter: &wgpu::Adapter) -> wgpu::Features {
+    if opts.gpu_timestamps {
+        if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+            return wgpu::Features::TIMESTAMP_QUERY;
+        }
+        log::warn!("gpu_timestamps requested but adapter lacks timestamp-query; continuing without");
+    }
     wgpu::Features::empty()
 }
 
@@ -49,6 +65,8 @@ pub struct AdapterReport {
     /// What the device was created with: must equal the WebGPU defaults.
     pub device_limits: LimitsSummary,
     pub device_features: String,
+    /// True only in the opt-in profiling mode (device has `timestamp-query`).
+    pub gpu_timestamps: bool,
 }
 
 /// The limits that matter for this spike, kept short enough to read in a log.
@@ -90,6 +108,7 @@ impl Gpu {
     pub async fn new(
         instance: &wgpu::Instance,
         surface: Option<&wgpu::Surface<'_>>,
+        opts: GpuOptions,
     ) -> Result<Self, String> {
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -102,10 +121,11 @@ impl Gpu {
             .await
             .map_err(|e| format!("no WebGPU adapter: {e}"))?;
 
+        let features = required_features(opts, &adapter);
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("drape-device"),
-                required_features: required_features(),
+                required_features: features,
                 required_limits: required_limits(),
                 ..Default::default()
             })
@@ -113,7 +133,11 @@ impl Gpu {
             .map_err(|e| format!("request_device failed: {e}"))?;
 
         // Belt and braces: fail loudly if the device ever drifts from WebGPU defaults.
-        assert_eq!(device.features(), wgpu::Features::empty(), "device has non-default features");
+        assert_eq!(device.features(), features, "device features differ from what we requested");
+        assert!(
+            (features - wgpu::Features::TIMESTAMP_QUERY).is_empty(),
+            "only timestamp-query may ever be requested, and only in profiling mode"
+        );
         assert_eq!(device.limits(), wgpu::Limits::default(), "device limits != WebGPU defaults");
 
         let info = adapter.get_info();
@@ -129,6 +153,7 @@ impl Gpu {
             adapter_limits: (&adapter.limits()).into(),
             device_limits: (&device.limits()).into(),
             device_features: format!("{:?}", device.features()),
+            gpu_timestamps: features.contains(wgpu::Features::TIMESTAMP_QUERY),
         };
         log::info!(
             "adapter: {}",

@@ -10,7 +10,7 @@ const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/M
 const port = 9300 + Math.floor(Math.random() * 500);
 const chrome = spawn(CHROME, [
   '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'drape-chrome-'))}`,
-  '--no-first-run', '--enable-unsafe-webgpu', '--window-size=560,900', 'about:blank',
+  '--no-first-run', '--enable-unsafe-webgpu', ...(process.env.CHROME_FLAGS ?? '').split(' ').filter(Boolean), '--window-size=560,900', 'about:blank',
 ], { stdio: 'ignore' });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

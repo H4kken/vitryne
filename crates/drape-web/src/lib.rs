@@ -1,6 +1,6 @@
 //! wasm entry point. Same drape-core, WebGPU backend only (no WebGL fallback).
 
-use drape_core::{gpu, triangle::TriangleRenderer};
+use drape_core::{gpu, timer::GpuTimer, triangle::TriangleRenderer};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(start)]
@@ -9,9 +9,11 @@ pub fn init() {
     let _ = console_log::init_with_level(log::Level::Info);
 }
 
-/// Renders the M0 triangle into `<canvas id=canvas_id>`. Returns the adapter report as JSON.
+/// Renders the M0 triangle into `<canvas id=canvas_id>`.
+/// Returns `{ "adapter": AdapterReport, "gpu_pass_times": [...] }` as JSON.
+/// `gpu_timestamps` turns on the opt-in profiling mode (see `GpuOptions`).
 #[wasm_bindgen]
-pub async fn start(canvas_id: String) -> Result<String, JsValue> {
+pub async fn start(canvas_id: String, gpu_timestamps: bool) -> Result<String, JsValue> {
     let canvas: web_sys::HtmlCanvasElement = web_sys::window()
         .and_then(|w| w.document())
         .and_then(|d| d.get_element_by_id(&canvas_id))
@@ -24,7 +26,7 @@ pub async fn start(canvas_id: String) -> Result<String, JsValue> {
     let surface = instance
         .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
         .map_err(|e| format!("create_surface: {e}"))?;
-    let g = gpu::Gpu::new(&instance, Some(&surface)).await?;
+    let g = gpu::Gpu::new(&instance, Some(&surface), gpu::GpuOptions { gpu_timestamps }).await?;
     if g.report.backend != "BrowserWebGpu" {
         return Err(format!("expected BrowserWebGpu backend, got {}", g.report.backend).into());
     }
@@ -34,6 +36,7 @@ pub async fn start(canvas_id: String) -> Result<String, JsValue> {
         .ok_or("surface unsupported by adapter")?;
     surface.configure(&g.device, &config);
     let renderer = TriangleRenderer::new(&g.device, config.format);
+    let mut timer = GpuTimer::new(&g.device, &g.queue, 1);
 
     let frame = match surface.get_current_texture() {
         wgpu::CurrentSurfaceTexture::Success(f) | wgpu::CurrentSurfaceTexture::Suboptimal(f) => f,
@@ -41,9 +44,13 @@ pub async fn start(canvas_id: String) -> Result<String, JsValue> {
     };
     let view = frame.texture.create_view(&Default::default());
     let mut enc = g.device.create_command_encoder(&Default::default());
-    renderer.draw(&mut enc, &view);
+    timer.begin_frame();
+    renderer.draw(&mut enc, &view, timer.render_pass_writes("triangle"));
+    timer.resolve(&mut enc);
     g.queue.submit([enc.finish()]);
     g.queue.present(frame);
+    let gpu_pass_times = timer.read(&g.device).await;
 
-    Ok(serde_json::to_string_pretty(&g.report).unwrap_or_default())
+    let out = serde_json::json!({ "adapter": g.report, "gpu_pass_times": gpu_pass_times });
+    Ok(serde_json::to_string_pretty(&out).unwrap_or_default())
 }

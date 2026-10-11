@@ -9,11 +9,18 @@ Machine used so far: MacBook Air, Apple M2 (integrated GPU), macOS (Darwin 27). 
 cargo run -p drape-native --release -- info              # adapter report JSON
 cargo run -p drape-native --release -- snapshot out.ppm  # headless render check
 cargo run -p drape-native --release                       # winit viewer
+# add --gpu-timestamps to any native command for the opt-in profiling mode
 
 # web (needs: rustup target add wasm32-unknown-unknown; cargo install wasm-bindgen-cli --version 0.2.129)
 cd web && npm install && npm run dev                      # builds wasm, serves http://localhost:5173
 node web/tools/chrome-check.mjs http://localhost:5173/ shot.png   # headless real-Chrome check (GPU on)
+# web profiling mode: append ?gpu-timestamps=1 to the URL
 ```
+
+## Measurement modes
+
+- **Canonical (default):** `Features::empty()` + `Limits::default()`. Every pass/fail number comes from this mode.
+- **Profiling (`--gpu-timestamps` native, `?gpu-timestamps=1` web):** additionally requests WebGPU `timestamp-query` and nothing else, and uses only pass-level `timestampWrites` (core WebGPU; the native-only `TIMESTAMP_QUERY_INSIDE_*` features stay off). Used only to find which pass dominates GPU time (M5). Every report has `"gpu_timestamps": true|false`; device creation asserts that no other feature is ever requested. If the adapter lacks timestamps, it logs a warning and falls back to canonical.
 
 ---
 
@@ -46,7 +53,8 @@ node web/tools/chrome-check.mjs http://localhost:5173/ shot.png   # headless rea
 | wasm size (release, after wasm-bindgen) | — | 277 KB (70 KB gzip) |
 
 ### Open problems / notes
-- **Timestamp queries vs. hard rule 1.** Both adapters offer `TIMESTAMP_QUERY`, but rule 1 says to request `Features::empty()`, and the plan's metrics section says to "use timestamp queries where available". These conflict. **For now: no timestamp queries.** M1 will time with the CPU around `queue.submit` + `on_submitted_work_done`. If per-pass GPU timing is needed (M5 bottleneck analysis), the proposal is an opt-in `--gpu-timestamps` profiling mode that is never used for pass/fail numbers. **Needs your call.**
+- **Timestamp queries vs. hard rule 1: resolved (you approved, 2026-10-11).** There is an opt-in profiling mode (see "Measurement modes"). Canonical numbers use CPU timing around `queue.submit` + `on_submitted_work_done`. `drape_core::timer::GpuTimer` gives per-pass GPU times on both targets and does nothing in canonical mode.
+  - Triangle pass, 512² (web) / 256² (native): **native Metal 0.049 ms, Chrome 0.046 ms.** Chrome values have µs-level resolution even without `--enable-webgpu-developer-features` (0.044 ms with it). Safari and Firefox timestamp support/resolution are still to be checked in M3.
 - Chrome doesn't reveal the adapter name or vendor to the page (empty strings, device_type `Other`). Machine identity for the report has to be recorded by hand.
 - gstack's headless Chromium has no GPU adapter (`requestAdapter` returns null), so it can't run WebGPU tests. Browser checks go through `web/tools/chrome-check.mjs`, which drives the installed Google Chrome over CDP with the GPU on.
 - Native viewer: launched and ran without errors. I couldn't screenshot the window from the CLI (no accessibility permission), so pixels were checked with the offscreen `snapshot` command, which uses the same renderer.

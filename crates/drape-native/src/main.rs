@@ -2,10 +2,12 @@
 //!   drape [view]           winit window with the M0 triangle
 //!   drape info             print adapter report as JSON and exit
 //!   drape snapshot <out>   render the triangle offscreen and write a PPM (headless check)
+//!
+//! `--gpu-timestamps` (any command): opt-in profiling mode, see `GpuOptions`.
 
 use std::sync::Arc;
 
-use drape_core::{gpu, triangle::TriangleRenderer};
+use drape_core::{gpu, timer::GpuTimer, triangle::TriangleRenderer};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -15,28 +17,36 @@ use winit::{
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info,wgpu_core=warn,wgpu_hal=warn,naga=warn")).init();
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let opts = gpu::GpuOptions { gpu_timestamps: take_flag(&mut args, "--gpu-timestamps") };
     match args.first().map(String::as_str).unwrap_or("view") {
-        "view" => run_viewer(),
+        "view" => run_viewer(opts),
         "info" => {
             let instance = gpu::create_instance();
-            let g = pollster::block_on(gpu::Gpu::new(&instance, None)).expect("gpu init");
+            let g = pollster::block_on(gpu::Gpu::new(&instance, None, opts)).expect("gpu init");
             println!("{}", serde_json::to_string_pretty(&g.report).unwrap());
         }
         "snapshot" => {
             let out = args.get(1).map(String::as_str).unwrap_or("triangle.ppm");
-            snapshot(out);
+            snapshot(out, opts);
         }
         other => {
-            eprintln!("unknown command '{other}' (expected view | info | snapshot <out.ppm>)");
+            eprintln!("unknown command '{other}' (expected view | info | snapshot <out.ppm>) [--gpu-timestamps]");
             std::process::exit(2);
         }
     }
 }
 
-fn snapshot(out: &str) {
+fn take_flag(args: &mut Vec<String>, flag: &str) -> bool {
+    let before = args.len();
+    args.retain(|a| a != flag);
+    args.len() != before
+}
+
+fn snapshot(out: &str, opts: gpu::GpuOptions) {
     let instance = gpu::create_instance();
-    let g = pollster::block_on(gpu::Gpu::new(&instance, None)).expect("gpu init");
+    let g = pollster::block_on(gpu::Gpu::new(&instance, None, opts)).expect("gpu init");
+    let mut timer = GpuTimer::new(&g.device, &g.queue, 1);
     let (w, h) = (256u32, 256u32);
     let format = wgpu::TextureFormat::Rgba8Unorm;
     let tex = g.device.create_texture(&wgpu::TextureDescriptor {
@@ -59,7 +69,9 @@ fn snapshot(out: &str) {
     });
     let renderer = TriangleRenderer::new(&g.device, format);
     let mut enc = g.device.create_command_encoder(&Default::default());
-    renderer.draw(&mut enc, &view);
+    timer.begin_frame();
+    renderer.draw(&mut enc, &view, timer.render_pass_writes("triangle"));
+    timer.resolve(&mut enc);
     enc.copy_texture_to_buffer(
         tex.as_image_copy(),
         wgpu::TexelCopyBufferInfo {
@@ -81,10 +93,15 @@ fn snapshot(out: &str) {
     // Centre pixel should be inside the triangle (not the clear colour).
     let c = ((h / 2 * w + w / 2) * 4) as usize;
     println!("wrote {out}; centre pixel rgb = {:?}", &data[c..c + 3]);
+    if timer.enabled() {
+        let times = pollster::block_on(timer.read(&g.device));
+        println!("gpu pass times: {}", serde_json::to_string(&times).unwrap());
+    }
 }
 
 struct Viewer {
     instance: wgpu::Instance,
+    opts: gpu::GpuOptions,
     state: Option<ViewerState>,
 }
 
@@ -96,9 +113,9 @@ struct ViewerState {
     renderer: TriangleRenderer,
 }
 
-fn run_viewer() {
+fn run_viewer(opts: gpu::GpuOptions) {
     let event_loop = EventLoop::new().expect("event loop");
-    let mut app = Viewer { instance: gpu::create_instance(), state: None };
+    let mut app = Viewer { instance: gpu::create_instance(), opts, state: None };
     event_loop.run_app(&mut app).expect("run");
 }
 
@@ -112,7 +129,7 @@ impl ApplicationHandler for Viewer {
                 .expect("window"),
         );
         let surface = self.instance.create_surface(window.clone()).expect("surface");
-        let gpu = pollster::block_on(gpu::Gpu::new(&self.instance, Some(&surface))).expect("gpu init");
+        let gpu = pollster::block_on(gpu::Gpu::new(&self.instance, Some(&surface), self.opts)).expect("gpu init");
         let size = window.inner_size();
         let config = surface
             .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
@@ -143,7 +160,7 @@ impl ApplicationHandler for Viewer {
                 };
                 let view = frame.texture.create_view(&Default::default());
                 let mut enc = s.gpu.device.create_command_encoder(&Default::default());
-                s.renderer.draw(&mut enc, &view);
+                s.renderer.draw(&mut enc, &view, None);
                 s.gpu.queue.submit([enc.finish()]);
                 s.gpu.queue.present(frame);
             }
