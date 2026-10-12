@@ -154,6 +154,8 @@ pub struct SimConfig {
     pub untangle_max_ratio: f32,
     /// Self-collision repulsion skips pairs of vertices both flagged as tangled.
     pub untangle_skip_repulsion: bool,
+    /// Stretch sweeps per substep (Gauss-Seidel iterations of the edge constraints).
+    pub stretch_iterations: u32,
     /// M2 long-range stretch limits (longrange.rs): spans in mean rest edge lengths, 0 = unused.
     /// All zero = off.
     pub long_range_spans: [f32; 4],
@@ -186,7 +188,7 @@ impl Default for SimConfig {
             damping: 1.0,
             thickness: 0.002,
             friction: 0.3,
-            stretch_damping: 1e-5,
+            stretch_damping: 1e-4,
             contact_max_step: 1.0,
             contact_max_accel: 30.0,
             contact_vfriction: 0.0,
@@ -203,14 +205,15 @@ impl Default for SimConfig {
             untangle_step_edges: 0.1,
             untangle_max_ratio: 1.0,
             untangle_skip_repulsion: true,
-            long_range_spans: [0.0; 4],
-            long_range_cross_spans: [0.0; 4],
+            stretch_iterations: 3,
+            long_range_spans: [4.0, 16.0, 64.0, 0.0],
+            long_range_cross_spans: [2.0, 4.0, 8.0, 16.0],
             long_range_every: 1,
             long_range_iterations: 1,
             long_range_slot: 0,
             strain_limit: 0.0,
-            long_range_omega: 1.0,
-            long_range_slack: 0.0,
+            long_range_omega: 0.5,
+            long_range_slack: 0.01,
             long_range_damping: 0.0,
             schedule: Schedule::NONE,
         }
@@ -806,7 +809,9 @@ impl Solver {
             },
             (
                 "stretch",
-                colored(Kernel::Stretch, &cons.stretch.ranges, 0),
+                (0..cfg.stretch_iterations.max(1))
+                    .flat_map(|_| colored(Kernel::Stretch, &cons.stretch.ranges, 0))
+                    .collect(),
                 (1, 0),
             ),
             if cfg.long_range_slot == 0 {

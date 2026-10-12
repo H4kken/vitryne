@@ -311,6 +311,9 @@ impl SceneArgs {
                 a.sim.long_range_spans[k] = x.parse().expect("--long-range");
             }
         }
+        if let Some(v) = take_value(args, "--stretch-iterations") {
+            a.sim.stretch_iterations = v.parse().expect("--stretch-iterations");
+        }
         if let Some(v) = take_value(args, "--long-range-cross") {
             a.sim.long_range_cross_spans = [0.0; 4];
             for (k, x) in v.split(',').take(4).enumerate() {
