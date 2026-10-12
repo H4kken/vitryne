@@ -620,6 +620,24 @@ Raw JSON: [bench/s2/native/](bench/s2/native/). Native Metal, Apple M2, canonica
 - Not run in a browser yet: the web build compiles (wasm32 checked), but `bench.html` can't load garments yet. That's needed for the S3 Chrome runs.
 - Self-collision is still K = 4 throughout; the drag test hasn't been run on the new garments yet (that's S3's test).
 
+## S3 — criterion change (2026-10-12, before the S3 runs it affects)
+
+**Old drag-test criterion:** "0 NaN; **0 frames** > 5 m/s". **New:** 0 NaN, no vertex ≥ 20 m/s, no run of more than 3 consecutive frames with a vertex ≥ 5 m/s, and after the test: body penetration < 2 mm and no seam torn open (max seam gap at most 5 mm wider than at rest before the drags). Agreed with you during S3.
+
+**Why the old one measures the wrong thing:**
+- **Where 5 m/s came from:** spike 1's plan used "max vertex speed < 5 m/s" as a stand-in for "no explosion". An unstable solver throws vertices at tens to hundreds of m/s; draping is under 1 m/s and hand-speed dragging 1–2 m/s.
+- **What the S3 measurements show** (spike attribution with `DRAPE_DEBUG_ATTRIB=1`, which replays each spike frame pass by pass; details in the S3 section):
+  - With the contact velocity filter on, every remaining frame over 5 m/s is a **free-cloth snap**: 1–36 vertices, 8–120 mm from the body, stretch-driven, mostly in the middle of a hard pull.
+  - Each one lasts **a single frame** and peaks at 5–12 m/s. The cloth settles at once, with no NaN, nothing left inside the body, and the seams still closed.
+  - Neither 40 substeps nor zero friction changes them.
+- **The problem:** cloth snapped taut really does move that fast locally (a flicked towel's tip goes supersonic), and the harsh script pulls up to 25 cm in 0.3 s. So under this script, "a vertex over 5 m/s for one frame" can't separate a snap from a blow-up, and the blow-up is what the test is for.
+- **Caveat, not resolved:** one constraint iteration per substep leaves the cloth too stretchy (S2: p99 strain 33% at rest). A stretchy cloth that goes taut can overshoot, so part of each snap may come from the solver. S5's "fewer substeps × more iterations" touches this.
+
+**Why the new one is not looser where it matters:**
+- **A blow-up still fails:** ≥ 20 m/s, a NaN, or > 3 frames in a row over 5 m/s, i.e. a failure to recover.
+- **Real damage still fails:** cloth left inside the body, or seams torn open.
+- **Same speed reporting:** the bench still reports frames ≥ 5 m/s and the max speed, so the numbers stay comparable with spike 1 and S2.
+
 ## Later
 - Better damping than global velocity damping (e.g. damping only along constraints, or in the solver itself), so the drape rests faster without slowing free fall.
 - Cut dispatch count if the browser overhead is high: fewer colours, or merging stretch and bend into one coloured pass.
