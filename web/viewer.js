@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import init, { App } from './pkg/drape_web.js';
-import { loadTshirtAssets } from './assets.js';
+import { loadGarmentAssets, loadTshirtAssets } from './assets.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -28,17 +28,33 @@ function ndc(e) {
   return [((e.clientX - r.left) / r.width) * 2 - 1, 1 - ((e.clientY - r.top) / r.height) * 2];
 }
 
-// Scene value: "<scene>:<res>[:nopins]"; self-collision from the checkbox.
+// Scene value: "<scene>:<res>[:nopins]"; self-collision from the checkbox. Scenes: sheet,
+// tshirt (the spike-1 procedural T-shirt, res = edge length in m), and garment-<name> for the
+// DXF-AAMA garments in assets/garments (tshirt, trousers, hoodie; res = target vertex count).
 async function load(sceneRes) {
-  const [scene, res, extra] = sceneRes.split(':');
-  const opts = JSON.stringify({ self_collision: $('selfc').checked, pins: extra !== 'nopins', ...(q.has('rebuild') ? { self_rebuild: parseInt(q.get('rebuild'), 10) } : {}), ...(q.has('ut') ? { untangle_every: parseInt(q.get('ut'), 10) } : {}) });
-  status.textContent = `loading ${scene}…`;
-  if (scene === 'tshirt' && !assets) assets = await loadTshirtAssets(q);
+  const [sceneName, res, extra] = sceneRes.split(':');
+  const garment = sceneName.startsWith('garment-') ? sceneName.slice('garment-'.length) : '';
+  const scene = garment ? 'garment' : sceneName;
+  status.textContent = `loading ${sceneName}…`;
+  if (garment) {
+    if ((assets?.garment ?? '') !== garment) assets = await loadGarmentAssets(garment);
+  } else if (scene === 'tshirt' && (!assets || assets.garment)) {
+    assets = await loadTshirtAssets(q);
+  }
+  // Garments were all measured with the hash rebuilt every 4th substep (PROGRESS.md M2).
+  const rebuild = q.has('rebuild') ? parseInt(q.get('rebuild'), 10) : garment ? 4 : undefined;
+  const opts = JSON.stringify({
+    self_collision: $('selfc').checked,
+    pins: extra !== 'nopins',
+    ...(rebuild ? { self_rebuild: rebuild } : {}),
+    ...(q.has('ut') ? { untangle_every: parseInt(q.get('ut'), 10) } : {}),
+    ...(garment ? { garment_toml: assets.toml, garment_dxf: assets.dxf } : {}),
+  });
   fitCanvas();
-  const a = assets ?? { obj: '', sdf: new Uint8Array() };
+  const a = scene === 'sheet' ? { obj: '', sdf: new Uint8Array() } : assets;
   app?.free();
   app = null;
-  app = await App.create('gfx', scene, parseFloat(res), opts, scene === 'tshirt' ? a.obj : '', scene === 'tshirt' ? a.sdf : new Uint8Array());
+  app = await App.create('gfx', scene, parseFloat(res), opts, a.obj, a.sdf);
   status.textContent = q.get('auto') === '1' ? 'auto test running…' : 'ok: running';
   status.className = '';
 }

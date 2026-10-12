@@ -20,14 +20,27 @@
   <div id="hud">
     <div>
       <select id="scene">
-        <option value="tshirt:0.0122">T-shirt 5k</option>
-        <option value="tshirt:0.00864" selected>T-shirt 10k</option>
-        <option value="tshirt:0.0061">T-shirt 20k</option>
-        <option value="tshirt:0.00432">T-shirt 40k</option>
-        <option value="sheet:100">Sheet 10k</option>
-        <option value="sheet:100:nopins">Sheet 10k dropped (folds)</option>
+        <optgroup label="Garments (DXF-AAMA patterns)">
+          <option value="garment-tshirt:5000">T-shirt 5k</option>
+          <option value="garment-tshirt:10000" selected>T-shirt 10k</option>
+          <option value="garment-tshirt:20000">T-shirt 20k</option>
+          <option value="garment-trousers:5000">Trousers 5k</option>
+          <option value="garment-trousers:10000">Trousers 10k</option>
+          <option value="garment-trousers:20000">Trousers 20k</option>
+          <option value="garment-hoodie:5000">Hoodie 5k</option>
+          <option value="garment-hoodie:10000">Hoodie 10k</option>
+          <option value="garment-hoodie:20000">Hoodie 20k</option>
+        </optgroup>
+        <optgroup label="Spike scenes">
+          <option value="tshirt:0.0122">Procedural T-shirt 5k</option>
+          <option value="tshirt:0.00864">Procedural T-shirt 10k</option>
+          <option value="tshirt:0.0061">Procedural T-shirt 20k</option>
+          <option value="tshirt:0.00432">Procedural T-shirt 40k</option>
+          <option value="sheet:100">Sheet 10k</option>
+          <option value="sheet:100:nopins">Sheet 10k dropped (folds)</option>
+        </optgroup>
       </select>
-      <label title="C: reloads the scene"><input id="selfc" type="checkbox" /> self-collision</label>
+      <label title="C: reloads the scene"><input id="selfc" type="checkbox" checked /> self-collision</label>
       <button id="fast" title="F">fast drape</button>
       <button id="pause" title="space">pause</button>
       <button id="reset" title="R">reset</button>

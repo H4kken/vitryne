@@ -299,5 +299,15 @@ knob for the 20k time is 2 sweeps (trousers 5.9%, T-shirt 8.4% at 10k, about 0.5
 
 ### Not yet done
 
-The web viewer uses the same defaults and rebuilds with `./check`, but `bench.html` has no
-parameters for the new options. The strain tables above come from `strain.py`; Safari wasn't run.
+`bench.html` has no parameters for the new options (they run at their defaults). The strain
+tables above come from `strain.py`; Safari wasn't run.
+
+### Added after review: the three garments in the browser viewer
+
+The interactive viewer (`index.html`) only had the spike-1 procedural T-shirt and the sheet; the
+trousers and hoodie were only in `bench.html` (numbers, no picture). It now lists the three
+DXF garments at 5k / 10k / 20k (the default is the Teagan T-shirt at 10k) beside the old spike
+scenes, and `?scene=garment-trousers:10000` selects one. Self-collision is on by default, and the
+garments use `self_rebuild 4` as in the benchmarks. Checked in Chrome 150 on the M2, 10k, auto
+test (fast drape, then 3 s of dragging): all three load and drape, 56 fps while dragging, GPU
+cost ~10 ms/frame with rendering (median).
