@@ -33,7 +33,9 @@ pub fn required_features(opts: GpuOptions, adapter: &wgpu::Adapter) -> wgpu::Fea
         if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
             return wgpu::Features::TIMESTAMP_QUERY;
         }
-        log::warn!("gpu_timestamps requested but adapter lacks timestamp-query; continuing without");
+        log::warn!(
+            "gpu_timestamps requested but adapter lacks timestamp-query; continuing without"
+        );
     }
     wgpu::Features::empty()
 }
@@ -133,12 +135,20 @@ impl Gpu {
             .map_err(|e| format!("request_device failed: {e}"))?;
 
         // Belt and braces: fail loudly if the device ever drifts from WebGPU defaults.
-        assert_eq!(device.features(), features, "device features differ from what we requested");
+        assert_eq!(
+            device.features(),
+            features,
+            "device features differ from what we requested"
+        );
         assert!(
             (features - wgpu::Features::TIMESTAMP_QUERY).is_empty(),
             "only timestamp-query may ever be requested, and only in profiling mode"
         );
-        assert_eq!(device.limits(), wgpu::Limits::default(), "device limits != WebGPU defaults");
+        assert_eq!(
+            device.limits(),
+            wgpu::Limits::default(),
+            "device limits != WebGPU defaults"
+        );
 
         let info = adapter.get_info();
         let report = AdapterReport {
@@ -160,6 +170,11 @@ impl Gpu {
             serde_json::to_string_pretty(&report).unwrap_or_default()
         );
 
-        Ok(Self { adapter, device, queue, report })
+        Ok(Self {
+            adapter,
+            device,
+            queue,
+            report,
+        })
     }
 }

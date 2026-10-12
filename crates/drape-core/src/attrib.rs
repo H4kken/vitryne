@@ -25,7 +25,9 @@ impl Attrib {
                 mapped_at_creation: false,
             })
         };
-        Self { snap: [mk("snap-pos"), mk("snap-prev"), mk("snap-vel")] }
+        Self {
+            snap: [mk("snap-pos"), mk("snap-prev"), mk("snap-vel")],
+        }
     }
 
     fn bufs<'a>(solver: &'a Solver) -> [&'a wgpu::Buffer; 3] {
@@ -54,7 +56,15 @@ impl Attrib {
 
     /// Replay the frame for the vertices in `watch` and print each phase's share of their final
     /// velocity (projected on the final velocity direction and on the body normal).
-    pub async fn replay(&self, device: &wgpu::Device, queue: &wgpu::Queue, solver: &Solver, sdf: Option<&Sdf>, watch: &[usize], tag: &str) {
+    pub async fn replay(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        solver: &Solver,
+        sdf: Option<&Sdf>,
+        watch: &[usize],
+        tag: &str,
+    ) {
         let mut e = device.create_command_encoder(&Default::default());
         for (s, d) in self.snap.iter().zip(Self::bufs(solver)) {
             e.copy_buffer_to_buffer(s, 0, d, 0, s.size());
@@ -82,14 +92,24 @@ impl Attrib {
                     let dv = ((p2[i] - q2[i]) - (p[i] - q[i])) / h;
                     contrib[ph][k] += dv;
                     if k == 0 && dv.length() > peak[ph].0 {
-                        peak[ph] = (dv.length(), s, sdf.map_or(0.0, |f| f.sample(p2[i]) * 1000.0));
+                        peak[ph] = (
+                            dv.length(),
+                            s,
+                            sdf.map_or(0.0, |f| f.sample(p2[i]) * 1000.0),
+                        );
                     }
                 }
                 (p, q) = (p2, q2);
             }
         }
         let vel = rd(&solver.vel).await;
-        eprintln!("[attrib {tag}] {n} vertices >= 5 m/s; fastest v{} {:.2} m/s, start {:.2} m/s, body {:.1} mm", watch[0], vel[watch[0]].length(), v0[0].length(), sdf.map_or(0.0, |f| f.sample(p[watch[0]]) * 1000.0));
+        eprintln!(
+            "[attrib {tag}] {n} vertices >= 5 m/s; fastest v{} {:.2} m/s, start {:.2} m/s, body {:.1} mm",
+            watch[0],
+            vel[watch[0]].length(),
+            v0[0].length(),
+            sdf.map_or(0.0, |f| f.sample(p[watch[0]]) * 1000.0)
+        );
         for (ph, l) in labels.iter().enumerate() {
             let (mut along, mut normal) = (0.0, 0.0);
             for (k, &i) in watch.iter().enumerate() {

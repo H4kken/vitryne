@@ -7,9 +7,15 @@ use glam::{Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
 
-use crate::{body::Sdf, constraints::Constraints, mesh::ClothMesh, selfcol::SelfCollision, timer::GpuTimer, untangle::Untangle};
+use crate::{
+    body::Sdf, constraints::Constraints, mesh::ClothMesh, selfcol::SelfCollision, timer::GpuTimer,
+    untangle::Untangle,
+};
 
-pub const SHADER: &str = concat!(include_str!("../shaders/sdf.wgsl"), include_str!("../shaders/sim.wgsl"));
+pub const SHADER: &str = concat!(
+    include_str!("../shaders/sdf.wgsl"),
+    include_str!("../shaders/sim.wgsl")
+);
 
 /// What the cloth collides with.
 #[derive(Clone)]
@@ -67,12 +73,17 @@ impl Schedule {
     }
 
     pub fn sew_step_limit(&self, t: f32) -> f32 {
-        if t < self.sew_ramp_s { self.sew_max_step } else { 1.0e9 }
+        if t < self.sew_ramp_s {
+            self.sew_max_step
+        } else {
+            1.0e9
+        }
     }
 
     /// Nothing can count as "at rest" before every ramp has finished.
     pub fn end_s(&self) -> f32 {
-        self.sew_ramp_s.max(self.gravity_delay_s + self.gravity_ramp_s)
+        self.sew_ramp_s
+            .max(self.gravity_delay_s + self.gravity_ramp_s)
     }
 }
 pub const WG: u32 = 64;
@@ -234,7 +245,10 @@ impl DragPatch {
                 }
             }
         }
-        Self { center: c.to_array(), vertices: verts }
+        Self {
+            center: c.to_array(),
+            vertices: verts,
+        }
     }
 }
 
@@ -257,7 +271,15 @@ enum Kernel {
     Update = 6,
 }
 
-const ENTRY_POINTS: [&str; 7] = ["predict", "solve_stretch", "solve_sew", "solve_bend", "collide_sphere", "collide_sdf", "update_velocity"];
+const ENTRY_POINTS: [&str; 7] = [
+    "predict",
+    "solve_stretch",
+    "solve_sew",
+    "solve_bend",
+    "collide_sphere",
+    "collide_sdf",
+    "update_velocity",
+];
 
 #[derive(Clone, Copy)]
 enum Pipe {
@@ -335,7 +357,11 @@ fn uniform_entry(binding: u32, dynamic: bool, size: u64) -> wgpu::BindGroupLayou
 /// Storage buffers can't be empty; pad with one zeroed element.
 fn storage_init<T: Pod + Zeroable>(device: &wgpu::Device, label: &str, data: &[T]) -> wgpu::Buffer {
     let zero = [T::zeroed()];
-    let contents: &[u8] = if data.is_empty() { bytemuck::cast_slice(&zero) } else { bytemuck::cast_slice(data) };
+    let contents: &[u8] = if data.is_empty() {
+        bytemuck::cast_slice(&zero)
+    } else {
+        bytemuck::cast_slice(data)
+    };
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some(label),
         contents,
@@ -354,8 +380,15 @@ impl Solver {
     ) -> Self {
         let n = mesh.n_verts() as u32;
         let inv_mass = mesh.inv_masses(density);
-        let init_pos: Vec<[f32; 4]> = mesh.pos.iter().zip(&inv_mass).map(|(p, &w)| [p.x, p.y, p.z, w]).collect();
-        let vs = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC;
+        let init_pos: Vec<[f32; 4]> = mesh
+            .pos
+            .iter()
+            .zip(&inv_mass)
+            .map(|(p, &w)| [p.x, p.y, p.z, w])
+            .collect();
+        let vs = wgpu::BufferUsages::STORAGE
+            | wgpu::BufferUsages::COPY_DST
+            | wgpu::BufferUsages::COPY_SRC;
         let pos = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("pos"),
             contents: bytemuck::cast_slice(&init_pos),
@@ -422,15 +455,36 @@ impl Solver {
 
         // Sewing constraints live in the stretch buffer, after the stretch constraints.
         let n_stretch = cons.stretch.items.len() as u32;
-        let sew_ranges: Vec<(u32, u32)> = cons.sew.ranges.iter().map(|&(o, c)| (o + n_stretch, c)).collect();
-        let lin: Vec<_> = cons.stretch.items.iter().chain(&cons.sew.items).copied().collect();
+        let sew_ranges: Vec<(u32, u32)> = cons
+            .sew
+            .ranges
+            .iter()
+            .map(|&(o, c)| (o + n_stretch, c))
+            .collect();
+        let lin: Vec<_> = cons
+            .stretch
+            .items
+            .iter()
+            .chain(&cons.sew.items)
+            .copied()
+            .collect();
 
         // One 256-byte slot per colour: stretch, then sew, then bend.
-        let all_ranges: Vec<(u32, u32)> =
-            cons.stretch.ranges.iter().chain(&sew_ranges).chain(&cons.bend.ranges).copied().collect();
+        let all_ranges: Vec<(u32, u32)> = cons
+            .stretch
+            .ranges
+            .iter()
+            .chain(&sew_ranges)
+            .chain(&cons.bend.ranges)
+            .copied()
+            .collect();
         let mut range_bytes = vec![0u8; (all_ranges.len().max(1) as u64 * RANGE_STRIDE) as usize];
         for (k, &(offset, count)) in all_ranges.iter().enumerate() {
-            let r = Range { offset, count, _p: [0; 2] };
+            let r = Range {
+                offset,
+                count,
+                _p: [0; 2],
+            };
             let o = k * RANGE_STRIDE as usize;
             range_bytes[o..o + 16].copy_from_slice(bytemuck::bytes_of(&r));
         }
@@ -455,17 +509,37 @@ impl Solver {
         });
         let cons_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("sim-constraints"),
-            entries: &[uniform_entry(0, true, 16), storage_entry(1, true), storage_entry(2, true), storage_entry(3, true)],
+            entries: &[
+                uniform_entry(0, true, 16),
+                storage_entry(1, true),
+                storage_entry(2, true),
+                storage_entry(3, true),
+            ],
         });
         let state_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("sim-state"),
             layout: &state_bgl,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: params.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: pos.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: prev.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: vel.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: sdf_buf.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: params.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: pos.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: prev.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: vel.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: sdf_buf.as_entire_binding(),
+                },
             ],
         });
         let cons_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -480,9 +554,18 @@ impl Solver {
                         size: wgpu::BufferSize::new(16),
                     }),
                 },
-                wgpu::BindGroupEntry { binding: 1, resource: stretch.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: bend.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: drag_buf.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: stretch.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: bend.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: drag_buf.as_entire_binding(),
+                },
             ],
         });
 
@@ -510,7 +593,13 @@ impl Solver {
             .collect();
 
         let vgroups = n.div_ceil(WG);
-        let per_vertex = |kernel| vec![Dispatch { pipe: Pipe::Sim(kernel), range_offset: 0, groups: vgroups }];
+        let per_vertex = |kernel| {
+            vec![Dispatch {
+                pipe: Pipe::Sim(kernel),
+                range_offset: 0,
+                groups: vgroups,
+            }]
+        };
         let ns = cons.stretch.ranges.len();
         let nsew = sew_ranges.len();
         let colored = |kernel, ranges: &[(u32, u32)], base: usize| -> Vec<Dispatch> {
@@ -525,22 +614,69 @@ impl Solver {
                 .filter(|d| d.groups > 0)
                 .collect()
         };
-        let untangle = (cfg.self_collision && cfg.untangle_every > 0)
-            .then(|| Untangle::new(device, mesh, cons, &pos, &prev, cfg.untangle_step_edges * mesh.mean_edge_length(), cfg.untangle_max_ratio));
+        let untangle = (cfg.self_collision && cfg.untangle_every > 0).then(|| {
+            Untangle::new(
+                device,
+                mesh,
+                cons,
+                &pos,
+                &prev,
+                cfg.untangle_step_edges * mesh.mean_edge_length(),
+                cfg.untangle_max_ratio,
+            )
+        });
         // The full detection must run at least as often as the gated one, or crossings it would
         // find are never looked for.
-        assert!(untangle.is_none() || cfg.untangle_check_every > 0, "untangle_check_every must be > 0");
+        assert!(
+            untangle.is_none() || cfg.untangle_check_every > 0,
+            "untangle_check_every must be > 0"
+        );
         let self_collision = cfg.self_collision.then(|| {
             let r = cfg.self_radius_edges * mesh.mean_edge_length();
             let rq = r * (1.0 + cfg.self_margin_radii);
-            let flags = untangle.as_ref().filter(|_| cfg.untangle_skip_repulsion).map(|u| &u.acc);
-            SelfCollision::new(device, mesh, cons, &pos, &prev, r, rq, r * cfg.self_exclude_radii, cfg.self_friction, cfg.self_max_push_speed * h, flags)
+            let flags = untangle
+                .as_ref()
+                .filter(|_| cfg.untangle_skip_repulsion)
+                .map(|u| &u.acc);
+            SelfCollision::new(
+                device,
+                mesh,
+                cons,
+                &pos,
+                &prev,
+                r,
+                rq,
+                r * cfg.self_exclude_radii,
+                cfg.self_friction,
+                cfg.self_max_push_speed * h,
+                flags,
+            )
         });
         // One phase per kernel, so profiling mode times each: (label, dispatches, (every, offset)).
         let rebuild = cfg.self_rebuild_every.max(1);
         let self_kernel = |k: usize| {
-            let d = self_collision.as_ref().map(|sc| vec![Dispatch { pipe: Pipe::SelfCol(k), range_offset: 0, groups: sc.groups[k] }]).unwrap_or_default();
-            (crate::selfcol::PHASES[k], d, (if k < crate::selfcol::REBUILD_KERNELS { rebuild } else { 1 }, 0))
+            let d = self_collision
+                .as_ref()
+                .map(|sc| {
+                    vec![Dispatch {
+                        pipe: Pipe::SelfCol(k),
+                        range_offset: 0,
+                        groups: sc.groups[k],
+                    }]
+                })
+                .unwrap_or_default();
+            (
+                crate::selfcol::PHASES[k],
+                d,
+                (
+                    if k < crate::selfcol::REBUILD_KERNELS {
+                        rebuild
+                    } else {
+                        1
+                    },
+                    0,
+                ),
+            )
         };
         // Full detection at offset 0; the gated passes halfway between, so with the defaults they
         // never land on a full one (substeps 2, 6, 10, ... of each 40).
@@ -550,19 +686,37 @@ impl Solver {
             let d = untangle
                 .as_ref()
                 .filter(|_| !gated || gated_every < check)
-                .map(|u| vec![Dispatch { pipe: Pipe::Untangle(k, gated), range_offset: 0, groups: u.groups[k] }])
+                .map(|u| {
+                    vec![Dispatch {
+                        pipe: Pipe::Untangle(k, gated),
+                        range_offset: 0,
+                        groups: u.groups[k],
+                    }]
+                })
                 .unwrap_or_default();
             if gated {
-                (crate::untangle::PHASES_GATED[k], d, (gated_every, gated_every / 2))
+                (
+                    crate::untangle::PHASES_GATED[k],
+                    d,
+                    (gated_every, gated_every / 2),
+                )
             } else {
                 (crate::untangle::PHASES[k], d, (check, 0))
             }
         };
         let phases = vec![
             ("predict", per_vertex(Kernel::Predict), (1, 0)),
-            ("stretch", colored(Kernel::Stretch, &cons.stretch.ranges, 0), (1, 0)),
+            (
+                "stretch",
+                colored(Kernel::Stretch, &cons.stretch.ranges, 0),
+                (1, 0),
+            ),
             ("sew", colored(Kernel::Sew, &sew_ranges, ns), (1, 0)),
-            ("bend", colored(Kernel::Bend, &cons.bend.ranges, ns + nsew), (1, 0)),
+            (
+                "bend",
+                colored(Kernel::Bend, &cons.bend.ranges, ns + nsew),
+                (1, 0),
+            ),
             // Hash rebuild before the body contact, repulsion after it. With the repulsion
             // first, the body pushed layers back into each other and the two fought every
             // substep (drag test: 44 frames over 5 m/s across 6 seeds vs 27 this way, and no
@@ -597,7 +751,10 @@ impl Solver {
             untangle_kernel(5, true),
             ("update", per_vertex(Kernel::Update), (1, 0)),
         ];
-        let phases = phases.into_iter().filter(|(_, d, _)| !d.is_empty()).collect();
+        let phases = phases
+            .into_iter()
+            .filter(|(_, d, _)| !d.is_empty())
+            .collect();
 
         Self {
             cfg,
@@ -626,9 +783,14 @@ impl Solver {
 
     /// Start dragging a grabbed patch (one small upload).
     pub fn begin_drag(&self, queue: &wgpu::Queue, patch: &DragPatch) {
-        let data: Vec<[f32; 4]> = patch.vertices.iter().map(|(v, o)| [o[0], o[1], o[2], f32::from_bits(*v)]).collect();
+        let data: Vec<[f32; 4]> = patch
+            .vertices
+            .iter()
+            .map(|(v, o)| [o[0], o[1], o[2], f32::from_bits(*v)])
+            .collect();
         queue.write_buffer(&self.drag_buf, 0, bytemuck::cast_slice(&data));
-        self.drag.set(Some((data.len() as u32, Vec3::from(patch.center))));
+        self.drag
+            .set(Some((data.len() as u32, Vec3::from(patch.center))));
         self.drag_compliance.set(data.len() as f32 / DRAG_STIFFNESS);
         self.releasing.set(0);
     }
@@ -639,9 +801,12 @@ impl Solver {
     /// surface instead made them jump to the far side of the body as a drag path crossed it,
     /// whipping large regions of cloth around.
     pub fn set_drag_target(&self, target: Vec3) {
-        let Some((n, from)) = self.drag.get() else { return };
+        let Some((n, from)) = self.drag.get() else {
+            return;
+        };
         // With self-collision, leave room for one more layer between the hand and the body.
-        let margin = self.cfg.thickness + 0.005 + self.self_collision.as_ref().map_or(0.0, |sc| sc.radius);
+        let margin =
+            self.cfg.thickness + 0.005 + self.self_collision.as_ref().map_or(0.0, |sc| sc.radius);
         let outside = |p: Vec3| match &self.collider {
             Collider::Sdf(sdf) => sdf.sample(p) >= margin,
             Collider::Sphere(s) => (p - s.truncate()).length() >= s.w + margin,
@@ -704,7 +869,11 @@ impl Solver {
     }
 
     /// Phases that run in substep `s` of `frame`.
-    fn due_in(&self, frame: u32, s: u32) -> impl Iterator<Item = &(&'static str, Vec<Dispatch>, (u32, u32))> {
+    fn due_in(
+        &self,
+        frame: u32,
+        s: u32,
+    ) -> impl Iterator<Item = &(&'static str, Vec<Dispatch>, (u32, u32))> {
         let g = frame.wrapping_mul(self.cfg.substeps).wrapping_add(s);
         self.phases.iter().filter(move |p| g % p.2.0 == p.2.1)
     }
@@ -717,13 +886,17 @@ impl Solver {
     /// In frame 0, which has every phase that runs less than once per frame (all start at
     /// substep 0), so it's the largest frame.
     pub fn dispatches_per_frame(&self) -> u32 {
-        (0..self.cfg.substeps).map(|s| self.due_in(0, s).map(|p| p.1.len() as u32).sum::<u32>()).sum()
+        (0..self.cfg.substeps)
+            .map(|s| self.due_in(0, s).map(|p| p.1.len() as u32).sum::<u32>())
+            .sum()
     }
 
     /// Passes encoded per frame in profiling mode (one per phase per substep), in the largest
     /// frame (frame 0).
     pub fn profiled_passes_per_frame(&self) -> u32 {
-        (0..self.cfg.substeps).map(|s| self.due_in(0, s).count() as u32).sum()
+        (0..self.cfg.substeps)
+            .map(|s| self.due_in(0, s).count() as u32)
+            .sum()
     }
 
     /// `bound`: which group 0 is currently set (0 = none, 1 = solver state, 2 = self-collision,
@@ -778,7 +951,10 @@ impl Solver {
                 }
             }
             _ => {
-                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("sim-frame"), timestamp_writes: None });
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("sim-frame"),
+                    timestamp_writes: None,
+                });
                 for s in 0..self.cfg.substeps {
                     for (_, ds, _) in self.due(s) {
                         self.run(&mut pass, ds, &mut 0);
@@ -794,12 +970,20 @@ impl Solver {
         self.phases.iter().map(|p| p.0).collect()
     }
 
-    pub fn encode_phase(&self, encoder: &mut wgpu::CommandEncoder, substep: u32, phase: usize) -> bool {
+    pub fn encode_phase(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        substep: u32,
+        phase: usize,
+    ) -> bool {
         let (_, ds, (every, offset)) = &self.phases[phase];
         if (self.frame.get() * self.cfg.substeps + substep) % every != *offset {
             return false;
         }
-        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("replay"), timestamp_writes: None });
+        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("replay"),
+            timestamp_writes: None,
+        });
         self.run(&mut pass, ds, &mut 0);
         true
     }
@@ -826,7 +1010,12 @@ impl Solver {
     }
 
     pub fn total_free_mass(mesh: &ClothMesh, density: f32) -> f32 {
-        mesh.masses(density).iter().zip(&mesh.pinned).filter(|(_, p)| !**p).map(|(m, _)| m).sum()
+        mesh.masses(density)
+            .iter()
+            .zip(&mesh.pinned)
+            .filter(|(_, p)| !**p)
+            .map(|(m, _)| m)
+            .sum()
     }
 }
 

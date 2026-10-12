@@ -39,7 +39,14 @@ pub struct TshirtParams {
 
 impl Default for TshirtParams {
     fn default() -> Self {
-        Self { edge: 0.00864, hem_y: 0.80, torso_radius: 0.20, torso_axis_z: 0.04, sleeve_radius: 0.10, sleeve_offset: 0.08 }
+        Self {
+            edge: 0.00864,
+            hem_y: 0.80,
+            torso_radius: 0.20,
+            torso_axis_z: 0.04,
+            sleeve_radius: 0.10,
+            sleeve_offset: 0.08,
+        }
     }
 }
 
@@ -60,7 +67,12 @@ fn mirror(pts: &[Vec2]) -> Vec<Vec2> {
 
 fn body_panel(name: &'static str, neck_y: f32) -> Panel {
     let e = PatternEdge::new;
-    let arm_r = bezier(Vec2::new(CHEST, UNDERARM_Y), Vec2::new(0.19, 0.44), SHOULDER, 12);
+    let arm_r = bezier(
+        Vec2::new(CHEST, UNDERARM_Y),
+        Vec2::new(0.19, 0.44),
+        SHOULDER,
+        12,
+    );
     let neck_r = bezier(NECK, Vec2::new(0.07, neck_y), Vec2::new(0.0, neck_y), 10);
     // Neck runs right to left across the top: right half reversed, then the mirrored half.
     let mut neck: Vec<Vec2> = neck_r.clone();
@@ -69,45 +81,91 @@ fn body_panel(name: &'static str, neck_y: f32) -> Panel {
         name,
         vec![
             e("hem", vec![Vec2::new(-HEM, 0.0), Vec2::new(HEM, 0.0)]),
-            e("side_r", vec![Vec2::new(HEM, 0.0), Vec2::new(CHEST, UNDERARM_Y)]),
+            e(
+                "side_r",
+                vec![Vec2::new(HEM, 0.0), Vec2::new(CHEST, UNDERARM_Y)],
+            ),
             e("arm_r", arm_r.clone()),
             e("shoulder_r", vec![SHOULDER, NECK]),
             e("neck", neck),
-            e("shoulder_l", vec![Vec2::new(-NECK.x, NECK.y), Vec2::new(-SHOULDER.x, SHOULDER.y)]),
+            e(
+                "shoulder_l",
+                vec![
+                    Vec2::new(-NECK.x, NECK.y),
+                    Vec2::new(-SHOULDER.x, SHOULDER.y),
+                ],
+            ),
             e("arm_l", mirror(&arm_r)),
-            e("side_l", vec![Vec2::new(-CHEST, UNDERARM_Y), Vec2::new(-HEM, 0.0)]),
+            e(
+                "side_l",
+                vec![Vec2::new(-CHEST, UNDERARM_Y), Vec2::new(-HEM, 0.0)],
+            ),
         ],
     )
 }
 
 fn sleeve(name: &'static str) -> Panel {
     let e = PatternEdge::new;
-    let cap_p = bezier(SLEEVE_UNDER, Vec2::new(0.10, CAP_TOP_Y), Vec2::new(0.0, CAP_TOP_Y), 12);
+    let cap_p = bezier(
+        SLEEVE_UNDER,
+        Vec2::new(0.10, CAP_TOP_Y),
+        Vec2::new(0.0, CAP_TOP_Y),
+        12,
+    );
     let cap_m: Vec<Vec2> = mirror(&cap_p);
     Panel::new(
         name,
         vec![
-            e("hem", vec![Vec2::new(-SLEEVE_HEM, 0.0), Vec2::new(SLEEVE_HEM, 0.0)]),
+            e(
+                "hem",
+                vec![Vec2::new(-SLEEVE_HEM, 0.0), Vec2::new(SLEEVE_HEM, 0.0)],
+            ),
             e("under_p", vec![Vec2::new(SLEEVE_HEM, 0.0), SLEEVE_UNDER]),
             e("cap_p", cap_p),
             e("cap_m", cap_m),
-            e("under_m", vec![Vec2::new(-SLEEVE_UNDER.x, SLEEVE_UNDER.y), Vec2::new(-SLEEVE_HEM, 0.0)]),
+            e(
+                "under_m",
+                vec![
+                    Vec2::new(-SLEEVE_UNDER.x, SLEEVE_UNDER.y),
+                    Vec2::new(-SLEEVE_HEM, 0.0),
+                ],
+            ),
         ],
     )
 }
 
 pub fn pattern() -> Pattern {
-    let panels = vec![body_panel("front", FRONT_NECK_Y), body_panel("back", BACK_NECK_Y), sleeve("sleeve_r"), sleeve("sleeve_l")];
+    let panels = vec![
+        body_panel("front", FRONT_NECK_Y),
+        body_panel("back", BACK_NECK_Y),
+        sleeve("sleeve_r"),
+        sleeve("sleeve_l"),
+    ];
     let (front, back, sr, sl) = (0, 1, 2, 3);
     let ed = |p: usize, n: &str| (p, panels[p].edge(n));
     let seam = Seam::simple;
     let seams = vec![
         seam("side_r", ed(front, "side_r"), ed(back, "side_r"), false),
         seam("side_l", ed(front, "side_l"), ed(back, "side_l"), false),
-        seam("shoulder_r", ed(front, "shoulder_r"), ed(back, "shoulder_r"), false),
-        seam("shoulder_l", ed(front, "shoulder_l"), ed(back, "shoulder_l"), false),
+        seam(
+            "shoulder_r",
+            ed(front, "shoulder_r"),
+            ed(back, "shoulder_r"),
+            false,
+        ),
+        seam(
+            "shoulder_l",
+            ed(front, "shoulder_l"),
+            ed(back, "shoulder_l"),
+            false,
+        ),
         // Armholes: body arm edge vs sleeve cap half (front half = cap_p, +x).
-        seam("armhole_front_r", ed(front, "arm_r"), ed(sr, "cap_p"), false),
+        seam(
+            "armhole_front_r",
+            ed(front, "arm_r"),
+            ed(sr, "cap_p"),
+            false,
+        ),
         seam("armhole_back_r", ed(back, "arm_r"), ed(sr, "cap_m"), true),
         seam("armhole_front_l", ed(front, "arm_l"), ed(sl, "cap_p"), true),
         seam("armhole_back_l", ed(back, "arm_l"), ed(sl, "cap_m"), false),
@@ -151,7 +209,11 @@ pub fn place(mp: &mut MeshedPattern, p: &TshirtParams) {
                 0 | 1 => {
                     let phi = q.x / r;
                     let s = if pi == 0 { 1.0 } else { -1.0 };
-                    Vec3::new(r * phi.sin(), p.hem_y + q.y, p.torso_axis_z + s * r * phi.cos())
+                    Vec3::new(
+                        r * phi.sin(),
+                        p.hem_y + q.y,
+                        p.torso_axis_z + s * r * phi.cos(),
+                    )
                 }
                 _ => {
                     let side = if pi == 2 { 1.0 } else { -1.0 };
@@ -199,13 +261,24 @@ impl Default for SdfParams {
     /// whip at the box boundary). The 12 cm band covers the whole torso interior, so even a deep
     /// penetration has a gradient pointing out.
     fn default() -> Self {
-        Self { cell: 0.004, band: 0.12, min: [-0.55, 0.40, -0.25], max: [0.55, 1.60, 0.35] }
+        Self {
+            cell: 0.004,
+            band: 0.12,
+            min: [-0.55, 0.40, -0.25],
+            max: [0.55, 1.60, 0.35],
+        }
     }
 }
 
 impl SdfParams {
     pub fn bake(&self, q: &BodyQuery) -> Sdf {
-        Sdf::bake(q, Vec3::from(self.min), Vec3::from(self.max), self.cell, self.band)
+        Sdf::bake(
+            q,
+            Vec3::from(self.min),
+            Vec3::from(self.max),
+            self.cell,
+            self.band,
+        )
     }
 }
 
@@ -221,7 +294,12 @@ pub fn tshirt_schedule() -> Schedule {
 }
 
 /// Builds the T-shirt scene. The SDF is passed in so callers can cache it (bake takes seconds).
-pub fn build(params: &TshirtParams, body: Arc<BodyQuery>, sdf: Arc<Sdf>, mut sim: SimConfig) -> Built {
+pub fn build(
+    params: &TshirtParams,
+    body: Arc<BodyQuery>,
+    sdf: Arc<Sdf>,
+    mut sim: SimConfig,
+) -> Built {
     let pat = pattern();
     let mut mp = mesh_pattern(&pat, params.edge);
     place(&mut mp, params);
@@ -231,8 +309,17 @@ pub fn build(params: &TshirtParams, body: Arc<BodyQuery>, sdf: Arc<Sdf>, mut sim
     sim.schedule = tshirt_schedule();
 
     // Diagnostics: seam lengths, initial seam gaps, initial penetration.
-    let gaps: Vec<f32> = mp.sew_pairs.iter().map(|&(i, j)| (mp.mesh.pos[i as usize] - mp.mesh.pos[j as usize]).length()).collect();
-    let inside = mp.mesh.pos.iter().filter(|p| sdf.sample(**p) < sim.thickness).count();
+    let gaps: Vec<f32> = mp
+        .sew_pairs
+        .iter()
+        .map(|&(i, j)| (mp.mesh.pos[i as usize] - mp.mesh.pos[j as usize]).length())
+        .collect();
+    let inside = mp
+        .mesh
+        .pos
+        .iter()
+        .filter(|p| sdf.sample(**p) < sim.thickness)
+        .count();
     log::info!(
         "tshirt: {} verts, {} tris, {} sew pairs (initial gap max {:.0} mm, mean {:.0} mm), {} verts start inside thickness",
         mp.mesh.n_verts(),
@@ -244,10 +331,19 @@ pub fn build(params: &TshirtParams, body: Arc<BodyQuery>, sdf: Arc<Sdf>, mut sim
     );
 
     let names = ["front", "back", "sleeve_r", "sleeve_l"];
-    let groups = mp.panel_vertices.iter().enumerate().map(|(i, r)| (names[i].to_string(), r.clone())).collect();
+    let groups = mp
+        .panel_vertices
+        .iter()
+        .enumerate()
+        .map(|(i, r)| (names[i].to_string(), r.clone()))
+        .collect();
     let seams = mp.seam_pairs.clone();
     let bm: &BodyMesh = &body.mesh;
-    let collider_mesh = RenderMesh { pos: bm.pos.clone(), nrm: bm.vertex_normals(), idx: bm.tris.iter().flatten().copied().collect() };
+    let collider_mesh = RenderMesh {
+        pos: bm.pos.clone(),
+        nrm: bm.vertex_normals(),
+        idx: bm.tris.iter().flatten().copied().collect(),
+    };
     Built {
         name: "tshirt".into(),
         description: serde_json::json!({ "tshirt": params, "pattern_panels": pat.panels.len(), "seams": pat.seams.len(),
@@ -286,12 +382,22 @@ mod tests {
         for t in &mp.mesh.tris {
             let [a, b, c] = t.map(|k| mp.uv[k as usize]);
             let area2 = (b - a).perp_dot(c - a);
-            let panel = mp.panel_vertices.iter().position(|r| r.contains(&t[0])).unwrap();
+            let panel = mp
+                .panel_vertices
+                .iter()
+                .position(|r| r.contains(&t[0]))
+                .unwrap();
             if area2 < worst.0 {
                 worst = (area2, (a + b + c) / 3.0, panel);
             }
         }
         // Equilateral 1 cm triangle: 2*area = 8.7e-5. Require at least 5% of that.
-        assert!(worst.0 > 0.05 * 8.7e-5, "worst triangle 2*area {} at {} in panel {}", worst.0, worst.1, worst.2);
+        assert!(
+            worst.0 > 0.05 * 8.7e-5,
+            "worst triangle 2*area {} at {} in panel {}",
+            worst.0,
+            worst.1,
+            worst.2
+        );
     }
 }

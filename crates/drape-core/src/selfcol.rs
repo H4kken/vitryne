@@ -10,7 +10,10 @@ use wgpu::util::DeviceExt;
 
 use crate::{constraints::Constraints, mesh::ClothMesh};
 
-pub const SHADER: &str = concat!(include_str!("../shaders/selfcol.wgsl"), include_str!("../shaders/hashgrid.wgsl"));
+pub const SHADER: &str = concat!(
+    include_str!("../shaders/selfcol.wgsl"),
+    include_str!("../shaders/hashgrid.wgsl")
+);
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
@@ -30,9 +33,25 @@ struct SelfParams {
 
 /// Kernels in dispatch order: the first `REBUILD_KERNELS` rebuild the hash and the neighbour
 /// lists, the rest run every substep. The two scans are shared with untangling (hashgrid.wgsl).
-pub const ENTRY_POINTS: [&str; 7] = ["sc_count", "hg_scan_local", "hg_scan_blocks", "sc_scatter", "sc_query", "sc_snapshot", "sc_collide"];
+pub const ENTRY_POINTS: [&str; 7] = [
+    "sc_count",
+    "hg_scan_local",
+    "hg_scan_blocks",
+    "sc_scatter",
+    "sc_query",
+    "sc_snapshot",
+    "sc_collide",
+];
 /// Phase labels (profiling, attribution), in `ENTRY_POINTS` order.
-pub const PHASES: [&str; 7] = ["sc_count", "sc_scan_local", "sc_scan_blocks", "sc_scatter", "sc_query", "sc_snapshot", "sc_collide"];
+pub const PHASES: [&str; 7] = [
+    "sc_count",
+    "sc_scan_local",
+    "sc_scan_blocks",
+    "sc_scatter",
+    "sc_query",
+    "sc_snapshot",
+    "sc_collide",
+];
 pub const REBUILD_KERNELS: usize = 5;
 /// Neighbour-list capacity per vertex (a fold of 3-4 layers lists ~25 within the query radius).
 pub const MAX_NEIGHBORS: u32 = 32;
@@ -153,7 +172,14 @@ impl SelfCollision {
             t0.elapsed().as_secs_f64() * 1e3
         );
         let st = wgpu::BufferUsages::STORAGE;
-        let zeroed = |label, size: u64| device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size, usage: st, mapped_at_creation: false });
+        let zeroed = |label, size: u64| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(label),
+                size,
+                usage: st,
+                mapped_at_creation: false,
+            })
+        };
         // Zero-initialised: the scatter pass returns every count to zero, so no clear pass.
         let cell_count = zeroed("self-cell-count", table_size as u64 * 4);
         let cell_start = zeroed("self-cell-start", (table_size + n_blocks) as u64 * 4);
@@ -177,12 +203,17 @@ impl SelfCollision {
         // Untangling's flags (S4), or a dummy the shader never reads.
         let dummy = tangled.is_none().then(|| zeroed("self-tangled-dummy", 4));
         let tangled = tangled.or(dummy.as_ref()).unwrap();
-        let buffer_bytes = cell_count.size() + cell_start.size() + sorted.size() + excl_buf.size() + nbr.size();
+        let buffer_bytes =
+            cell_count.size() + cell_start.size() + sorted.size() + excl_buf.size() + nbr.size();
 
         let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer { ty, has_dynamic_offset: false, min_binding_size: None },
+            ty: wgpu::BindingType::Buffer {
+                ty,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
             count: None,
         };
         let rw = wgpu::BufferBindingType::Storage { read_only: false };
@@ -204,15 +235,42 @@ impl SelfCollision {
             label: Some("self-collision"),
             layout: &bgl,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: params.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: pos.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: prev.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: cell_count.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: cell_start.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 5, resource: sorted.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 6, resource: excl_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 7, resource: nbr.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 8, resource: tangled.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: params.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: pos.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: prev.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: cell_count.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: cell_start.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: sorted.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: excl_buf.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: nbr.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: tangled.as_entire_binding(),
+                },
             ],
         });
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -281,8 +339,13 @@ impl SelfCollision {
                 if i >= n || std::mem::replace(&mut seen[i], true) {
                     return Err(format!("slot {s}: vertex {i} out of range or duplicated"));
                 }
-                let c = (glam::Vec3::new(e[0], e[1], e[2]) * inv).floor().as_ivec3().as_uvec3(); // as the GPU computes it
-                let h = ((c.y.wrapping_mul(19349663) ^ c.z.wrapping_mul(83492791)).wrapping_add(c.x)) & (self.table_size - 1);
+                let c = (glam::Vec3::new(e[0], e[1], e[2]) * inv)
+                    .floor()
+                    .as_ivec3()
+                    .as_uvec3(); // as the GPU computes it
+                let h = ((c.y.wrapping_mul(19349663) ^ c.z.wrapping_mul(83492791))
+                    .wrapping_add(c.x))
+                    & (self.table_size - 1);
                 if h < last_cell {
                     return Err(format!("slot {s}: cell {h} after cell {last_cell}"));
                 }
@@ -290,7 +353,9 @@ impl SelfCollision {
             }
             Ok(())
         })();
-        let counts: Vec<u32> = (0..n).map(|i| nb[i * (MAX_NEIGHBORS as usize + 1)]).collect();
+        let counts: Vec<u32> = (0..n)
+            .map(|i| nb[i * (MAX_NEIGHBORS as usize + 1)])
+            .collect();
         SelfCheck {
             sort,
             max_neighbors_found: counts.iter().copied().max().unwrap_or(0),
@@ -332,7 +397,10 @@ mod tests {
         // Symmetric.
         for v in 0..m.n_verts() {
             for &w in list(v) {
-                assert!(list(w as usize).contains(&(v as u32)), "{v} -> {w} not symmetric");
+                assert!(
+                    list(w as usize).contains(&(v as u32)),
+                    "{v} -> {w} not symmetric"
+                );
             }
         }
     }

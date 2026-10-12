@@ -51,9 +51,14 @@ use winit::{
 };
 
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info,wgpu_core=warn,wgpu_hal=warn,naga=warn")).init();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info,wgpu_core=warn,wgpu_hal=warn,naga=warn"),
+    )
+    .init();
     let mut args: Vec<String> = std::env::args().skip(1).collect();
-    let opts = gpu::GpuOptions { gpu_timestamps: take_flag(&mut args, "--gpu-timestamps") };
+    let opts = gpu::GpuOptions {
+        gpu_timestamps: take_flag(&mut args, "--gpu-timestamps"),
+    };
     let scene_args = SceneArgs::take(&mut args);
     let headless_gpu = || {
         let instance = gpu::create_instance();
@@ -61,7 +66,10 @@ fn main() {
     };
     match args.first().map(String::as_str).unwrap_or("view") {
         "view" => run_viewer(opts, scene_args.build()),
-        "info" => println!("{}", serde_json::to_string_pretty(&headless_gpu().report).unwrap()),
+        "info" => println!(
+            "{}",
+            serde_json::to_string_pretty(&headless_gpu().report).unwrap()
+        ),
         "bench" => {
             let g = headless_gpu();
             let mut cfg = drape_core::bench::BenchConfig::default();
@@ -103,20 +111,32 @@ fn main() {
             println!("{json}");
         }
         "export-web-assets" => {
-            let dir = args.get(1).cloned().unwrap_or_else(|| "web/public/assets".into());
+            let dir = args
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| "web/public/assets".into());
             std::fs::create_dir_all(&dir).unwrap();
             let obj = std::fs::read_to_string(BODY_OBJ).expect("body obj");
             let body = BodyQuery::new(BodyMesh::from_obj(&obj).expect("parse body obj"));
             let sdf = load_or_bake_sdf(&obj, &body, &scene_args.sdf);
             std::fs::write(format!("{dir}/makehuman_body_m.obj"), &obj).unwrap();
-            let name = format!("{dir}/sdf_{}mm.bin", (scene_args.sdf.cell * 1000.0).round() as u32);
+            let name = format!(
+                "{dir}/sdf_{}mm.bin",
+                (scene_args.sdf.cell * 1000.0).round() as u32
+            );
             std::fs::write(&name, sdf.to_bytes()).unwrap();
-            println!("wrote {dir}/makehuman_body_m.obj and {name} ({:.1} MB)", sdf.bytes() as f64 / 1e6);
+            println!(
+                "wrote {dir}/makehuman_body_m.obj and {name} ({:.1} MB)",
+                sdf.bytes() as f64 / 1e6
+            );
             // Garments (S3): toml + DXF, and an SDF baked over each garment's own box.
             for e in std::fs::read_dir("assets/garments").expect("assets/garments") {
                 let src = e.unwrap().path();
-                let Ok(toml) = std::fs::read_to_string(src.join("garment.toml")) else { continue };
-                let g = Garment::load_file(src.join("garment.toml").to_str().unwrap()).unwrap_or_else(|e| panic!("{e}"));
+                let Ok(toml) = std::fs::read_to_string(src.join("garment.toml")) else {
+                    continue;
+                };
+                let g = Garment::load_file(src.join("garment.toml").to_str().unwrap())
+                    .unwrap_or_else(|e| panic!("{e}"));
                 let gname = src.file_name().unwrap().to_str().unwrap();
                 let out = format!("{dir}/garments/{gname}");
                 std::fs::create_dir_all(&out).unwrap();
@@ -135,7 +155,11 @@ fn main() {
                 .collect();
             let dir = take_value(&mut args, "--out-dir").unwrap_or_else(|| ".".into());
             // --cam yaw,pitch,distance[,tx,ty,tz] overrides the scene camera.
-            let cam = take_value(&mut args, "--cam").map(|v| v.split(',').map(|x| x.parse::<f32>().expect("--cam")).collect::<Vec<_>>());
+            let cam = take_value(&mut args, "--cam").map(|v| {
+                v.split(',')
+                    .map(|x| x.parse::<f32>().expect("--cam"))
+                    .collect::<Vec<_>>()
+            });
             render_frames(&headless_gpu(), &scene_args.build(), &at, &dir, cam);
         }
         "garment-svg" => {
@@ -145,8 +169,16 @@ fn main() {
             let gp = g.pattern().unwrap_or_else(|e| panic!("{e}"));
             let mp = drape_assets::meshing::mesh_pattern(&gp.pattern, edge);
             let title = format!("{} (edge {:.1} mm)", g.spec.name, edge * 1000.0);
-            std::fs::write(&out, drape_assets::preview::pattern_svg(&gp.pattern, &mp, &gp.labels, &title)).expect("write svg");
-            println!("wrote {out}: {} vertices; import: {}", mp.mesh.n_verts(), serde_json::to_string(&g.report).unwrap());
+            std::fs::write(
+                &out,
+                drape_assets::preview::pattern_svg(&gp.pattern, &mp, &gp.labels, &title),
+            )
+            .expect("write svg");
+            println!(
+                "wrote {out}: {} vertices; import: {}",
+                mp.mesh.n_verts(),
+                serde_json::to_string(&g.report).unwrap()
+            );
         }
         "pattern-svg" => {
             let out = args.get(1).cloned().unwrap_or_else(|| "pattern.svg".into());
@@ -157,7 +189,9 @@ fn main() {
             snapshot(&headless_gpu(), out);
         }
         other => {
-            eprintln!("unknown command '{other}' (view | bench | bench-drag | frames | export-web-assets | pattern-svg | info | snapshot)");
+            eprintln!(
+                "unknown command '{other}' (view | bench | bench-drag | frames | export-web-assets | pattern-svg | info | snapshot)"
+            );
             std::process::exit(2);
         }
     }
@@ -189,7 +223,9 @@ impl SceneArgs {
         if let Some(v) = take_value(args, "--verts") {
             a.verts = v.parse().expect("--verts");
         }
-        let num = |args: &mut Vec<String>, flag: &str| take_value(args, flag).map(|v| v.parse::<f32>().unwrap_or_else(|_| panic!("{flag}")));
+        let num = |args: &mut Vec<String>, flag: &str| {
+            take_value(args, flag).map(|v| v.parse::<f32>().unwrap_or_else(|_| panic!("{flag}")))
+        };
         if let Some(v) = take_value(args, "--grid") {
             a.sheet.grid = v.parse().expect("--grid");
         }
@@ -275,35 +311,53 @@ impl SceneArgs {
             "sheet" => self.sheet.build(self.sim),
             "tshirt" => {
                 let t0 = std::time::Instant::now();
-                let obj = std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
-                let body = std::sync::Arc::new(BodyQuery::new(BodyMesh::from_obj(&obj).expect("parse body obj")));
-                log::info!("body: {} verts, {} tris, BVH in {:.0} ms", body.mesh.pos.len(), body.mesh.tris.len(), t0.elapsed().as_secs_f64() * 1000.0);
+                let obj =
+                    std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
+                let body = std::sync::Arc::new(BodyQuery::new(
+                    BodyMesh::from_obj(&obj).expect("parse body obj"),
+                ));
+                log::info!(
+                    "body: {} verts, {} tris, BVH in {:.0} ms",
+                    body.mesh.pos.len(),
+                    body.mesh.tris.len(),
+                    t0.elapsed().as_secs_f64() * 1000.0
+                );
                 let sdf = std::sync::Arc::new(load_or_bake_sdf(&obj, &body, &self.sdf));
                 tshirt::build(&self.tshirt, body, sdf, self.sim)
             }
             "garment" => {
                 let g = self.garment();
                 let edge = self.garment_edge(&g);
-                let obj = std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
-                let body = std::sync::Arc::new(BodyQuery::new(BodyMesh::from_obj(&obj).expect("parse body obj")));
+                let obj =
+                    std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
+                let body = std::sync::Arc::new(BodyQuery::new(
+                    BodyMesh::from_obj(&obj).expect("parse body obj"),
+                ));
                 let mut sdf_params = g.sdf_params();
                 if self.sdf.cell != SdfParams::default().cell {
                     sdf_params.cell = self.sdf.cell;
                 }
                 let sdf = std::sync::Arc::new(load_or_bake_sdf(&obj, &body, &sdf_params));
-                g.build(edge, body, sdf, self.sim).unwrap_or_else(|e| panic!("{e}"))
+                g.build(edge, body, sdf, self.sim)
+                    .unwrap_or_else(|e| panic!("{e}"))
             }
             other => panic!("unknown --scene {other} (sheet | tshirt | garment)"),
         }
     }
 
     fn garment(&self) -> Garment {
-        let path = self.garment.as_deref().expect("--garment path/garment.toml");
+        let path = self
+            .garment
+            .as_deref()
+            .expect("--garment path/garment.toml");
         Garment::load_file(path).unwrap_or_else(|e| panic!("{e}"))
     }
 
     fn garment_edge(&self, g: &Garment) -> f32 {
-        self.edge.unwrap_or_else(|| g.edge_for_vertices(self.verts).unwrap_or_else(|e| panic!("{e}")))
+        self.edge.unwrap_or_else(|| {
+            g.edge_for_vertices(self.verts)
+                .unwrap_or_else(|e| panic!("{e}"))
+        })
     }
 }
 
@@ -340,13 +394,25 @@ fn load_or_bake_sdf(obj: &str, body: &BodyQuery, p: &SdfParams) -> Sdf {
 fn pattern_svg(out: &str, edge: f32) {
     let pat = tshirt::pattern();
     let mp = drape_assets::meshing::mesh_pattern(&pat, edge);
-    std::fs::write(out, drape_assets::preview::pattern_svg(&pat, &mp, &[], &format!("procedural T-shirt, edge {:.1} mm", edge * 1000.0))).expect("write svg");
+    std::fs::write(
+        out,
+        drape_assets::preview::pattern_svg(
+            &pat,
+            &mp,
+            &[],
+            &format!("procedural T-shirt, edge {:.1} mm", edge * 1000.0),
+        ),
+    )
+    .expect("write svg");
     println!("wrote {out}: {} vertices", mp.mesh.n_verts());
 }
 
 fn take_value(args: &mut Vec<String>, flag: &str) -> Option<String> {
     let i = args.iter().position(|a| a == flag)?;
-    let v = args.get(i + 1).cloned().unwrap_or_else(|| panic!("{flag} needs a value"));
+    let v = args
+        .get(i + 1)
+        .cloned()
+        .unwrap_or_else(|| panic!("{flag} needs a value"));
     args.drain(i..=i + 1);
     Some(v)
 }
@@ -373,7 +439,11 @@ impl Offscreen {
         assert_eq!((w * 4) % 256, 0);
         let tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("offscreen"),
-            size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -388,7 +458,13 @@ impl Offscreen {
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
-        Self { tex, view, readback, w, h }
+        Self {
+            tex,
+            view,
+            readback,
+            w,
+            h,
+        }
     }
 
     fn copy(&self, enc: &mut wgpu::CommandEncoder) {
@@ -396,14 +472,25 @@ impl Offscreen {
             self.tex.as_image_copy(),
             wgpu::TexelCopyBufferInfo {
                 buffer: &self.readback,
-                layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(self.w * 4), rows_per_image: Some(self.h) },
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(self.w * 4),
+                    rows_per_image: Some(self.h),
+                },
             },
-            wgpu::Extent3d { width: self.w, height: self.h, depth_or_array_layers: 1 },
+            wgpu::Extent3d {
+                width: self.w,
+                height: self.h,
+                depth_or_array_layers: 1,
+            },
         );
     }
 
     fn read(&self, device: &wgpu::Device) -> Vec<u8> {
-        pollster::block_on(drape_core::gpu_async::read_buffer::<u8>(device, &self.readback))
+        pollster::block_on(drape_core::gpu_async::read_buffer::<u8>(
+            device,
+            &self.readback,
+        ))
     }
 }
 
@@ -417,9 +504,22 @@ fn write_png(path: &str, w: u32, h: u32, rgba: &[u8]) {
 
 fn render_frames(g: &gpu::Gpu, built: &Built, at: &[u32], dir: &str, cam: Option<Vec<f32>>) {
     std::fs::create_dir_all(dir).unwrap();
-    let solver = Solver::new(&g.device, &built.mesh, &built.constraints, built.material.density, built.sim, built.collider.clone());
+    let solver = Solver::new(
+        &g.device,
+        &built.mesh,
+        &built.constraints,
+        built.material.density,
+        built.sim,
+        built.collider.clone(),
+    );
     let off = Offscreen::new(&g.device, 1024, 768);
-    let mut renderer = Renderer::new(&g.device, Offscreen::FORMAT, &built.mesh, &solver, &built.collider_mesh);
+    let mut renderer = Renderer::new(
+        &g.device,
+        Offscreen::FORMAT,
+        &built.mesh,
+        &solver,
+        &built.collider_mesh,
+    );
     let mut camera = OrbitCamera::looking_at(built.camera.0, built.camera.1);
     if let Some(c) = cam {
         camera.yaw = c[0];
@@ -433,7 +533,9 @@ fn render_frames(g: &gpu::Gpu, built: &Built, at: &[u32], dir: &str, cam: Option
     for f in 0..=last {
         if at.contains(&f) {
             let mut enc = g.device.create_command_encoder(&Default::default());
-            renderer.draw(&g.device, &g.queue, &mut enc, &off.view, off.w, off.h, &camera);
+            renderer.draw(
+                &g.device, &g.queue, &mut enc, &off.view, off.w, off.h, &camera,
+            );
             off.copy(&mut enc);
             g.queue.submit([enc.finish()]);
             let px = off.read(&g.device);
@@ -503,13 +605,19 @@ struct ViewerState {
 impl ViewerState {
     fn mouse_ray(&self, x: f64, y: f64) -> (glam::Vec3, glam::Vec3) {
         let (w, h) = (self.config.width as f32, self.config.height as f32);
-        self.camera.ray(2.0 * x as f32 / w - 1.0, 1.0 - 2.0 * y as f32 / h, w / h)
+        self.camera
+            .ray(2.0 * x as f32 / w - 1.0, 1.0 - 2.0 * y as f32 / h, w / h)
     }
 }
 
 fn run_viewer(opts: gpu::GpuOptions, built: Built) {
     let event_loop = EventLoop::new().expect("event loop");
-    let mut app = Viewer { instance: gpu::create_instance(), opts, built, state: None };
+    let mut app = Viewer {
+        instance: gpu::create_instance(),
+        opts,
+        built,
+        state: None,
+    };
     event_loop.run_app(&mut app).expect("run");
 }
 
@@ -518,15 +626,37 @@ impl ApplicationHandler for Viewer {
         if self.state.is_some() {
             return;
         }
-        let window = Arc::new(el.create_window(Window::default_attributes().with_title("drape-spike (native)")).expect("window"));
-        let surface = self.instance.create_surface(window.clone()).expect("surface");
-        let gpu = pollster::block_on(gpu::Gpu::new(&self.instance, Some(&surface), self.opts)).expect("gpu init");
+        let window = Arc::new(
+            el.create_window(Window::default_attributes().with_title("drape-spike (native)"))
+                .expect("window"),
+        );
+        let surface = self
+            .instance
+            .create_surface(window.clone())
+            .expect("surface");
+        let gpu = pollster::block_on(gpu::Gpu::new(&self.instance, Some(&surface), self.opts))
+            .expect("gpu init");
         let size = window.inner_size();
-        let config = surface.get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1)).expect("surface unsupported by adapter");
+        let config = surface
+            .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
+            .expect("surface unsupported by adapter");
         surface.configure(&gpu.device, &config);
         let built = &self.built;
-        let solver = Solver::new(&gpu.device, &built.mesh, &built.constraints, built.material.density, built.sim, built.collider.clone());
-        let renderer = Renderer::new(&gpu.device, config.format, &built.mesh, &solver, &built.collider_mesh);
+        let solver = Solver::new(
+            &gpu.device,
+            &built.mesh,
+            &built.constraints,
+            built.material.density,
+            built.sim,
+            built.collider.clone(),
+        );
+        let renderer = Renderer::new(
+            &gpu.device,
+            config.format,
+            &built.mesh,
+            &solver,
+            &built.collider_mesh,
+        );
         log::info!(
             "scene: {} verts, {} stretch colours, {} bend colours, {} dispatches/frame",
             built.mesh.n_verts(),
@@ -564,12 +694,18 @@ impl ApplicationHandler for Viewer {
                 s.config.height = size.height.max(1);
                 s.surface.configure(&s.gpu.device, &s.config);
             }
-            WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => {
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Left,
+                ..
+            } => {
                 if state == ElementState::Pressed {
                     // Pick on the CPU from a one-off position readback (not per frame).
                     if let Some((x, y)) = s.last_cursor {
                         let (o, d) = s.mouse_ray(x, y);
-                        let pos = pollster::block_on(s.solver.read_positions(&s.gpu.device, &s.gpu.queue));
+                        let pos = pollster::block_on(
+                            s.solver.read_positions(&s.gpu.device, &s.gpu.queue),
+                        );
                         if let Some(v) = render::pick(&pos, o, d, 0.015) {
                             let patch = DragPatch::grab(&s.adj, &pos, v, DRAG_RADIUS);
                             s.solver.begin_drag(&s.gpu.queue, &patch);
@@ -586,11 +722,13 @@ impl ApplicationHandler for Viewer {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 if let (true, Some((x, y))) = (s.dragging, s.last_cursor) {
-                    s.camera.orbit((position.x - x) as f32, (position.y - y) as f32);
+                    s.camera
+                        .orbit((position.x - x) as f32, (position.y - y) as f32);
                 }
                 if let Some(anchor) = s.pulling {
                     let (o, d) = s.mouse_ray(position.x, position.y);
-                    s.solver.set_drag_target(render::drag_target(&s.camera, o, d, anchor));
+                    s.solver
+                        .set_drag_target(render::drag_target(&s.camera, o, d, anchor));
                 }
                 s.last_cursor = Some((position.x, position.y));
             }
@@ -601,18 +739,21 @@ impl ApplicationHandler for Viewer {
                 };
                 s.camera.zoom(steps);
             }
-            WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => match event.logical_key {
-                Key::Named(NamedKey::Space) => s.paused = !s.paused,
-                Key::Character(c) if c.eq_ignore_ascii_case("f") => s.fast = !s.fast,
-                Key::Character(c) if c.eq_ignore_ascii_case("r") => {
-                    s.solver.reset(&s.gpu.queue);
-                    s.sim_frame = 0;
+            WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
+                match event.logical_key {
+                    Key::Named(NamedKey::Space) => s.paused = !s.paused,
+                    Key::Character(c) if c.eq_ignore_ascii_case("f") => s.fast = !s.fast,
+                    Key::Character(c) if c.eq_ignore_ascii_case("r") => {
+                        s.solver.reset(&s.gpu.queue);
+                        s.sim_frame = 0;
+                    }
+                    _ => {}
                 }
-                _ => {}
-            },
+            }
             WindowEvent::RedrawRequested => {
                 let frame = match s.surface.get_current_texture() {
-                    wgpu::CurrentSurfaceTexture::Success(f) | wgpu::CurrentSurfaceTexture::Suboptimal(f) => f,
+                    wgpu::CurrentSurfaceTexture::Success(f)
+                    | wgpu::CurrentSurfaceTexture::Suboptimal(f) => f,
                     _ => {
                         s.surface.configure(&s.gpu.device, &s.config);
                         s.window.request_redraw();
@@ -635,7 +776,15 @@ impl ApplicationHandler for Viewer {
                     s.solver.encode_frame(&mut enc, None);
                     s.sim_frame += 1;
                 }
-                s.renderer.draw(&s.gpu.device, &s.gpu.queue, &mut enc, &view, s.config.width, s.config.height, &s.camera);
+                s.renderer.draw(
+                    &s.gpu.device,
+                    &s.gpu.queue,
+                    &mut enc,
+                    &view,
+                    s.config.width,
+                    s.config.height,
+                    &s.camera,
+                );
                 s.gpu.queue.submit([enc.finish()]);
                 s.gpu.queue.present(frame);
                 s.frames += 1;
@@ -643,7 +792,10 @@ impl ApplicationHandler for Viewer {
                 if dt >= 1.0 {
                     let fps = s.frames as f64 / dt;
                     let t = s.sim_frame as f32 * s.solver.cfg.frame_dt;
-                    s.window.set_title(&format!("drape-spike (native) — {fps:.0} fps, sim t = {t:.1} s{}", if s.fast { ", FAST" } else { "" }));
+                    s.window.set_title(&format!(
+                        "drape-spike (native) — {fps:.0} fps, sim t = {t:.1} s{}",
+                        if s.fast { ", FAST" } else { "" }
+                    ));
                     log::info!("viewer: {fps:.1} fps, sim t = {t:.2} s, fast = {}", s.fast);
                     s.frames = 0;
                     s.fps_t0 = std::time::Instant::now();

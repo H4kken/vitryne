@@ -43,7 +43,10 @@ impl GpuTimer {
     /// `max_passes` = how many passes can be timed per `begin_frame`..`read` cycle.
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, max_passes: u32) -> Self {
         if !device.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
-            return Self { inner: None, labels: Vec::new() };
+            return Self {
+                inner: None,
+                labels: Vec::new(),
+            };
         }
         let capacity = max_passes * 2;
         let size = capacity as u64 * 8;
@@ -68,7 +71,10 @@ impl GpuTimer {
             capacity,
             period_ns: queue.get_timestamp_period() as f64,
         };
-        Self { inner: Some(inner), labels: Vec::new() }
+        Self {
+            inner: Some(inner),
+            labels: Vec::new(),
+        }
     }
 
     pub fn enabled(&self) -> bool {
@@ -90,20 +96,28 @@ impl GpuTimer {
         Some((&inner.query_set, i))
     }
 
-    pub fn render_pass_writes(&mut self, label: &'static str) -> Option<wgpu::RenderPassTimestampWrites<'_>> {
-        self.next_pair(label).map(|(query_set, i)| wgpu::RenderPassTimestampWrites {
-            query_set,
-            beginning_of_pass_write_index: Some(i),
-            end_of_pass_write_index: Some(i + 1),
-        })
+    pub fn render_pass_writes(
+        &mut self,
+        label: &'static str,
+    ) -> Option<wgpu::RenderPassTimestampWrites<'_>> {
+        self.next_pair(label)
+            .map(|(query_set, i)| wgpu::RenderPassTimestampWrites {
+                query_set,
+                beginning_of_pass_write_index: Some(i),
+                end_of_pass_write_index: Some(i + 1),
+            })
     }
 
-    pub fn compute_pass_writes(&mut self, label: &'static str) -> Option<wgpu::ComputePassTimestampWrites<'_>> {
-        self.next_pair(label).map(|(query_set, i)| wgpu::ComputePassTimestampWrites {
-            query_set,
-            beginning_of_pass_write_index: Some(i),
-            end_of_pass_write_index: Some(i + 1),
-        })
+    pub fn compute_pass_writes(
+        &mut self,
+        label: &'static str,
+    ) -> Option<wgpu::ComputePassTimestampWrites<'_>> {
+        self.next_pair(label)
+            .map(|(query_set, i)| wgpu::ComputePassTimestampWrites {
+                query_set,
+                beginning_of_pass_write_index: Some(i),
+                end_of_pass_write_index: Some(i + 1),
+            })
     }
 
     /// Record the resolve + copy at the end of the frame's last encoder.
@@ -120,13 +134,17 @@ impl GpuTimer {
     /// Read back the timings after the encoder holding `resolve` was submitted.
     /// This is a CPU readback: call it on sampled frames only (hard rule 5).
     pub async fn read(&self, device: &wgpu::Device) -> Vec<PassTime> {
-        let Some(inner) = &self.inner else { return Vec::new() };
+        let Some(inner) = &self.inner else {
+            return Vec::new();
+        };
         let n = self.labels.len() as u64 * 2;
         if n == 0 {
             return Vec::new();
         }
         let slice = inner.readback.slice(..n * 8);
-        map_read(device, &slice).await.expect("map gpu-timer readback");
+        map_read(device, &slice)
+            .await
+            .expect("map gpu-timer readback");
         let ticks: Vec<u64> = {
             let data = slice.get_mapped_range().expect("mapped range");
             bytemuck::cast_slice::<u8, u64>(&data).to_vec()

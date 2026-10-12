@@ -4,11 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
-use crate::{
-    mesh::ClothMesh,
-    scene::RenderMesh,
-    sim::Solver,
-};
+use crate::{mesh::ClothMesh, scene::RenderMesh, sim::Solver};
 
 pub const NORMALS_SHADER: &str = include_str!("../shaders/normals.wgsl");
 pub const SHADER: &str = include_str!("../shaders/render.wgsl");
@@ -25,13 +21,23 @@ pub struct OrbitCamera {
 
 impl Default for OrbitCamera {
     fn default() -> Self {
-        Self { target: Vec3::new(0.0, 0.6, 0.0), yaw: 0.6, pitch: 0.35, distance: 2.6, fov_y: 40f32.to_radians() }
+        Self {
+            target: Vec3::new(0.0, 0.6, 0.0),
+            yaw: 0.6,
+            pitch: 0.35,
+            distance: 2.6,
+            fov_y: 40f32.to_radians(),
+        }
     }
 }
 
 impl OrbitCamera {
     pub fn looking_at(target: Vec3, distance: f32) -> Self {
-        Self { target, distance, ..Default::default() }
+        Self {
+            target,
+            distance,
+            ..Default::default()
+        }
     }
 
     pub fn eye(&self) -> Vec3 {
@@ -127,30 +133,60 @@ pub struct Renderer {
     depth: Option<(wgpu::TextureView, u32, u32)>,
 }
 
-fn material(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, front: [f32; 3], back: [f32; 3]) -> wgpu::BindGroup {
+fn material(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    front: [f32; 3],
+    back: [f32; 3],
+) -> wgpu::BindGroup {
     let buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("material"),
-        contents: bytemuck::bytes_of(&MaterialU { front: [front[0], front[1], front[2], 1.0], back: [back[0], back[1], back[2], 1.0] }),
+        contents: bytemuck::bytes_of(&MaterialU {
+            front: [front[0], front[1], front[2], 1.0],
+            back: [back[0], back[1], back[2], 1.0],
+        }),
         usage: wgpu::BufferUsages::UNIFORM,
     });
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("material"),
         layout,
-        entries: &[wgpu::BindGroupEntry { binding: 0, resource: buf.as_entire_binding() }],
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: buf.as_entire_binding(),
+        }],
     })
 }
 
-
 impl Renderer {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, mesh: &ClothMesh, solver: &Solver, collider: &RenderMesh) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        mesh: &ClothMesh,
+        solver: &Solver,
+        collider: &RenderMesh,
+    ) -> Self {
         let n = mesh.n_verts() as u32;
         // Normals compute.
         let tris: Vec<u32> = mesh.tris.iter().flatten().copied().collect();
         let (adj_off, adj) = mesh.vertex_triangles();
-        let init = |label: &str, data: &[u8], usage| device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some(label), contents: data, usage });
+        let init = |label: &str, data: &[u8], usage| {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(label),
+                contents: data,
+                usage,
+            })
+        };
         let st = wgpu::BufferUsages::STORAGE;
-        let nparams = init("normals-params", bytemuck::cast_slice(&[n, 0, 0, 0]), wgpu::BufferUsages::UNIFORM);
-        let tris_buf = init("tris", bytemuck::cast_slice(&tris), st | wgpu::BufferUsages::INDEX);
+        let nparams = init(
+            "normals-params",
+            bytemuck::cast_slice(&[n, 0, 0, 0]),
+            wgpu::BufferUsages::UNIFORM,
+        );
+        let tris_buf = init(
+            "tris",
+            bytemuck::cast_slice(&tris),
+            st | wgpu::BufferUsages::INDEX,
+        );
         let adj_off_buf = init("adj-off", bytemuck::cast_slice(&adj_off), st);
         let adj_buf = init("adj", bytemuck::cast_slice(&adj), st);
         let nrm = device.create_buffer(&wgpu::BufferDescriptor {
@@ -175,12 +211,30 @@ impl Renderer {
             label: Some("normals"),
             layout: &normals_pipeline.get_bind_group_layout(0),
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: nparams.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: solver.pos.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: tris_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: adj_off_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: adj_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 5, resource: nrm.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: nparams.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: solver.pos.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: tris_buf.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: adj_off_buf.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: adj_buf.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: nrm.as_entire_binding(),
+                },
             ],
         });
 
@@ -191,7 +245,11 @@ impl Renderer {
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None },
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
                     count: None,
                 }],
             })
@@ -207,9 +265,15 @@ impl Renderer {
         let camera_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("camera"),
             layout: &cam_bgl,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: camera_buf.as_entire_binding() }],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buf.as_entire_binding(),
+            }],
         });
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("render.wgsl"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("render.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+        });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("render"),
             bind_group_layouts: &[Some(&cam_bgl), Some(&mat_bgl)],
@@ -219,21 +283,37 @@ impl Renderer {
             array_stride: 16,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: match loc {
-                0 => &[wgpu::VertexAttribute { format: wgpu::VertexFormat::Float32x4, offset: 0, shader_location: 0 }],
-                _ => &[wgpu::VertexAttribute { format: wgpu::VertexFormat::Float32x4, offset: 0, shader_location: 1 }],
+                0 => &[wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 0,
+                    shader_location: 0,
+                }],
+                _ => &[wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 0,
+                    shader_location: 1,
+                }],
             },
         };
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("render"),
             layout: Some(&layout),
-            vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_main"), buffers: &[Some(vb(0)), Some(vb(1))], compilation_options: Default::default() },
+            vertex: wgpu::VertexState {
+                module: &module,
+                entry_point: Some("vs_main"),
+                buffers: &[Some(vb(0)), Some(vb(1))],
+                compilation_options: Default::default(),
+            },
             fragment: Some(wgpu::FragmentState {
                 module: &module,
                 entry_point: Some("fs_main"),
                 targets: &[Some(format.into())],
                 compilation_options: Default::default(),
             }),
-            primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                ..Default::default()
+            },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
                 depth_write_enabled: Some(true),
@@ -253,25 +333,59 @@ impl Renderer {
             n_indices: tris.len() as u32,
             material: material(device, &mat_bgl, [0.85, 0.3, 0.25], [0.55, 0.55, 0.6]),
         };
-        let sp: Vec<[f32; 4]> = collider.pos.iter().map(|p| p.extend(1.0).to_array()).collect();
-        let sn: Vec<[f32; 4]> = collider.nrm.iter().map(|n| n.extend(0.0).to_array()).collect();
+        let sp: Vec<[f32; 4]> = collider
+            .pos
+            .iter()
+            .map(|p| p.extend(1.0).to_array())
+            .collect();
+        let sn: Vec<[f32; 4]> = collider
+            .nrm
+            .iter()
+            .map(|n| n.extend(0.0).to_array())
+            .collect();
         let si = &collider.idx;
         let collider = Some(DrawMesh {
-            pos: init("collider-pos", bytemuck::cast_slice(&sp), wgpu::BufferUsages::VERTEX),
-            nrm: init("collider-nrm", bytemuck::cast_slice(&sn), wgpu::BufferUsages::VERTEX),
-            index: init("collider-idx", bytemuck::cast_slice(si), wgpu::BufferUsages::INDEX),
+            pos: init(
+                "collider-pos",
+                bytemuck::cast_slice(&sp),
+                wgpu::BufferUsages::VERTEX,
+            ),
+            nrm: init(
+                "collider-nrm",
+                bytemuck::cast_slice(&sn),
+                wgpu::BufferUsages::VERTEX,
+            ),
+            index: init(
+                "collider-idx",
+                bytemuck::cast_slice(si),
+                wgpu::BufferUsages::INDEX,
+            ),
             n_indices: si.len() as u32,
             material: material(device, &mat_bgl, [0.75, 0.75, 0.72], [0.75, 0.75, 0.72]),
         });
 
-        Self { camera_buf, camera_bg, pipeline, normals_pipeline, normals_bg, normals_groups: n.div_ceil(64), cloth, collider, depth: None }
+        Self {
+            camera_buf,
+            camera_bg,
+            pipeline,
+            normals_pipeline,
+            normals_bg,
+            normals_groups: n.div_ceil(64),
+            cloth,
+            collider,
+            depth: None,
+        }
     }
 
     fn depth_view(&mut self, device: &wgpu::Device, w: u32, h: u32) -> wgpu::TextureView {
         if !matches!(&self.depth, Some((_, dw, dh)) if *dw == w && *dh == h) {
             let tex = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("depth"),
-                size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                size: wgpu::Extent3d {
+                    width: w,
+                    height: h,
+                    depth_or_array_layers: 1,
+                },
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
@@ -297,13 +411,18 @@ impl Renderer {
         camera: &OrbitCamera,
     ) {
         let cam = CameraU {
-            view_proj: camera.view_proj(w as f32 / h.max(1) as f32).to_cols_array_2d(),
+            view_proj: camera
+                .view_proj(w as f32 / h.max(1) as f32)
+                .to_cols_array_2d(),
             eye: camera.eye().extend(1.0).to_array(),
             light_dir: Vec3::new(0.4, 1.0, 0.6).normalize().extend(0.0).to_array(),
         };
         queue.write_buffer(&self.camera_buf, 0, bytemuck::bytes_of(&cam));
         {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("normals"), timestamp_writes: None });
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("normals"),
+                timestamp_writes: None,
+            });
             pass.set_pipeline(&self.normals_pipeline);
             pass.set_bind_group(0, &self.normals_bg, &[]);
             pass.dispatch_workgroups(self.normals_groups, 1, 1);
@@ -315,11 +434,22 @@ impl Renderer {
                 view,
                 depth_slice: None,
                 resolve_target: None,
-                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.09, g: 0.09, b: 0.11, a: 1.0 }), store: wgpu::StoreOp::Store },
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.09,
+                        g: 0.09,
+                        b: 0.11,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &depth,
-                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Discard }),
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Discard,
+                }),
                 stencil_ops: None,
             }),
             timestamp_writes: None,

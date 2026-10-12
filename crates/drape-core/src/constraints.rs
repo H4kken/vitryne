@@ -44,7 +44,11 @@ pub struct Material {
 impl Material {
     /// Roughly a mid-weight cotton jersey. Placeholder values, calibration is out of scope.
     pub fn cotton() -> Self {
-        Self { density: 0.15, stretch_k: 1.0e4, bend_kb: 5.0e-6 }
+        Self {
+            density: 0.15,
+            stretch_k: 1.0e4,
+            bend_kb: 5.0e-6,
+        }
     }
 }
 
@@ -63,7 +67,12 @@ impl<T> Colored<T> {
 
 /// Greedy colouring: each constraint takes the lowest colour none of its vertices has used yet.
 /// Max 64 colours (u64 mask per vertex), which is far more than meshes need.
-pub fn color<T: Copy>(items: &[T], n_verts: usize, verts: impl Fn(&T) -> [u32; 4], arity: usize) -> Colored<T> {
+pub fn color<T: Copy>(
+    items: &[T],
+    n_verts: usize,
+    verts: impl Fn(&T) -> [u32; 4],
+    arity: usize,
+) -> Colored<T> {
     let mut used = vec![0u64; n_verts];
     let mut color_of = Vec::with_capacity(items.len());
     let mut n_colors = 0usize;
@@ -127,7 +136,12 @@ impl Constraints {
             .map(|e| {
                 let [i0, i1] = e.v;
                 let (i2, i3) = (e.opposite[0], e.opposite[1]);
-                let (x0, x1, x2, x3) = (r[i0 as usize], r[i1 as usize], r[i2 as usize], r[i3 as usize]);
+                let (x0, x1, x2, x3) = (
+                    r[i0 as usize],
+                    r[i1 as usize],
+                    r[i2 as usize],
+                    r[i3 as usize],
+                );
                 // Angles of each triangle at the shared-edge endpoints.
                 let a0a = cot(x1 - x0, x2 - x0);
                 let a1a = cot(x0 - x1, x2 - x1);
@@ -135,20 +149,36 @@ impl Constraints {
                 let a1b = cot(x0 - x1, x3 - x1);
                 let k = [a1a + a1b, a0a + a0b, -(a0a + a1a), -(a0b + a1b)];
                 let area = tri_area(x0, x1, x2) + tri_area(x0, x1, x3);
-                Bend { idx: [i0, i1, i2, i3], k, compliance: area / (6.0 * mat.bend_kb), _pad: [0.0; 3] }
+                Bend {
+                    idx: [i0, i1, i2, i3],
+                    k,
+                    compliance: area / (6.0 * mat.bend_kb),
+                    _pad: [0.0; 3],
+                }
             })
             .collect();
 
         Self {
             stretch: color(&stretch, n, |s| [s.i, s.j, 0, 0], 2),
             bend: color(&bend, n, |b| b.idx, 4),
-            sew: Colored { items: Vec::new(), ranges: Vec::new() },
+            sew: Colored {
+                items: Vec::new(),
+                ranges: Vec::new(),
+            },
         }
     }
 
     /// Sewing constraints between vertex pairs (each pair: two vertices that must meet).
     pub fn set_sewing(&mut self, pairs: &[(u32, u32)], n_verts: usize) {
-        let items: Vec<Stretch> = pairs.iter().map(|&(i, j)| Stretch { i, j, rest: 0.0, compliance: 0.0 }).collect();
+        let items: Vec<Stretch> = pairs
+            .iter()
+            .map(|&(i, j)| Stretch {
+                i,
+                j,
+                rest: 0.0,
+                compliance: 0.0,
+            })
+            .collect();
         self.sew = color(&items, n_verts, |s| [s.i, s.j, 0, 0], 2);
     }
 }
@@ -174,8 +204,16 @@ mod tests {
         let c = Constraints::build(&m, &Material::cotton());
         check_coloring(&c.stretch, |s| vec![s.i, s.j]);
         check_coloring(&c.bend, |b| b.idx.to_vec());
-        assert!(c.stretch.n_colors() <= 12, "stretch colours: {}", c.stretch.n_colors());
-        assert!(c.bend.n_colors() <= 24, "bend colours: {}", c.bend.n_colors());
+        assert!(
+            c.stretch.n_colors() <= 12,
+            "stretch colours: {}",
+            c.stretch.n_colors()
+        );
+        assert!(
+            c.bend.n_colors() <= 24,
+            "bend colours: {}",
+            c.bend.n_colors()
+        );
     }
 
     #[test]
@@ -184,9 +222,15 @@ mod tests {
         let c = Constraints::build(&m, &Material::cotton());
         for b in &c.bend.items {
             let sum_k: f32 = b.k.iter().sum();
-            assert!(sum_k.abs() < 1e-4, "weights must sum to 0 (translation invariance)");
+            assert!(
+                sum_k.abs() < 1e-4,
+                "weights must sum to 0 (translation invariance)"
+            );
             let cv: Vec3 = (0..4).map(|i| b.k[i] * m.rest[b.idx[i] as usize]).sum();
-            assert!(cv.length() < 1e-5, "flat stencil must have zero curvature, got {cv}");
+            assert!(
+                cv.length() < 1e-5,
+                "flat stencil must have zero curvature, got {cv}"
+            );
         }
         // Lift one opposite vertex: curvature becomes nonzero.
         let b = c.bend.items[0];

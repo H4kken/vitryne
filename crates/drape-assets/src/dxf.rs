@@ -10,16 +10,35 @@ use glam::DVec2;
 pub enum Entity {
     /// POLYLINE (+ VERTEX ... SEQEND) or LWPOLYLINE. `bulges` counts arc segments, which are
     /// imported as straight chords.
-    Polyline { layer: String, pts: Vec<DVec2>, closed: bool, bulges: usize },
-    Line { layer: String, a: DVec2, b: DVec2 },
-    Point { layer: String, p: DVec2 },
-    Text { layer: String, p: DVec2, text: String },
+    Polyline {
+        layer: String,
+        pts: Vec<DVec2>,
+        closed: bool,
+        bulges: usize,
+    },
+    Line {
+        layer: String,
+        a: DVec2,
+        b: DVec2,
+    },
+    Point {
+        layer: String,
+        p: DVec2,
+    },
+    Text {
+        layer: String,
+        p: DVec2,
+        text: String,
+    },
 }
 
 impl Entity {
     pub fn layer(&self) -> &str {
         match self {
-            Entity::Polyline { layer, .. } | Entity::Line { layer, .. } | Entity::Point { layer, .. } | Entity::Text { layer, .. } => layer,
+            Entity::Polyline { layer, .. }
+            | Entity::Line { layer, .. }
+            | Entity::Point { layer, .. }
+            | Entity::Text { layer, .. } => layer,
         }
     }
 }
@@ -66,7 +85,9 @@ fn pairs(text: &str) -> Result<Vec<(i32, &str)>, String> {
             i += 1;
             continue;
         }
-        let code = lines[i].parse::<i32>().map_err(|_| format!("line {}: bad group code {:?}", i + 1, lines[i]))?;
+        let code = lines[i]
+            .parse::<i32>()
+            .map_err(|_| format!("line {}: bad group code {:?}", i + 1, lines[i]))?;
         out.push((code, lines[i + 1]));
         i += 2;
     }
@@ -87,7 +108,10 @@ impl Raw<'_> {
         self.s(code).and_then(|v| v.parse().ok()).unwrap_or(0.0)
     }
     fn i(&self, code: i32) -> i32 {
-        self.s(code).and_then(|v| v.trim().parse::<f64>().ok()).map(|v| v as i32).unwrap_or(0)
+        self.s(code)
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .map(|v| v as i32)
+            .unwrap_or(0)
     }
     fn layer(&self) -> String {
         self.s(8).unwrap_or("0").to_string()
@@ -98,7 +122,10 @@ fn raws<'a>(p: &[(i32, &'a str)]) -> Vec<Raw<'a>> {
     let mut out: Vec<Raw> = Vec::new();
     for &(code, v) in p {
         if code == 0 {
-            out.push(Raw { kind: v, codes: Vec::new() });
+            out.push(Raw {
+                kind: v,
+                codes: Vec::new(),
+            });
         } else if let Some(r) = out.last_mut() {
             r.codes.push((code, v));
         }
@@ -124,7 +151,11 @@ pub fn parse(text: &str) -> Result<Dxf, String> {
                     let mut k = 0;
                     while k < r.codes.len() {
                         if r.codes[k] == (9, "$INSUNITS") {
-                            dxf.insunits = r.codes.get(k + 1).and_then(|(_, v)| v.trim().parse::<f64>().ok()).map(|v| v as i32);
+                            dxf.insunits = r
+                                .codes
+                                .get(k + 1)
+                                .and_then(|(_, v)| v.trim().parse::<f64>().ok())
+                                .map(|v| v as i32);
                         }
                         k += 1;
                     }
@@ -137,7 +168,10 @@ pub fn parse(text: &str) -> Result<Dxf, String> {
             }
             "EOF" => break,
             "BLOCK" => {
-                block = Some(Block { name: r.s(2).unwrap_or("").to_string(), entities: Vec::new() });
+                block = Some(Block {
+                    name: r.s(2).unwrap_or("").to_string(),
+                    entities: Vec::new(),
+                });
                 continue;
             }
             "ENDBLK" => {
@@ -166,17 +200,58 @@ pub fn parse(text: &str) -> Result<Dxf, String> {
                 if i < rs.len() && rs[i].kind == "SEQEND" {
                     i += 1;
                 }
-                Some(Entity::Polyline { layer: r.layer(), pts, closed: r.i(70) & 1 == 1, bulges })
+                Some(Entity::Polyline {
+                    layer: r.layer(),
+                    pts,
+                    closed: r.i(70) & 1 == 1,
+                    bulges,
+                })
             }
             "LWPOLYLINE" => {
-                let xs: Vec<f64> = r.codes.iter().filter(|(c, _)| *c == 10).filter_map(|(_, v)| v.parse().ok()).collect();
-                let ys: Vec<f64> = r.codes.iter().filter(|(c, _)| *c == 20).filter_map(|(_, v)| v.parse().ok()).collect();
-                let bulges = r.codes.iter().filter(|(c, v)| *c == 42 && v.parse::<f64>().map(|b| b != 0.0).unwrap_or(false)).count();
-                Some(Entity::Polyline { layer: r.layer(), pts: xs.iter().zip(&ys).map(|(&x, &y)| DVec2::new(x, y)).collect(), closed: r.i(70) & 1 == 1, bulges })
+                let xs: Vec<f64> = r
+                    .codes
+                    .iter()
+                    .filter(|(c, _)| *c == 10)
+                    .filter_map(|(_, v)| v.parse().ok())
+                    .collect();
+                let ys: Vec<f64> = r
+                    .codes
+                    .iter()
+                    .filter(|(c, _)| *c == 20)
+                    .filter_map(|(_, v)| v.parse().ok())
+                    .collect();
+                let bulges = r
+                    .codes
+                    .iter()
+                    .filter(|(c, v)| {
+                        *c == 42 && v.parse::<f64>().map(|b| b != 0.0).unwrap_or(false)
+                    })
+                    .count();
+                Some(Entity::Polyline {
+                    layer: r.layer(),
+                    pts: xs
+                        .iter()
+                        .zip(&ys)
+                        .map(|(&x, &y)| DVec2::new(x, y))
+                        .collect(),
+                    closed: r.i(70) & 1 == 1,
+                    bulges,
+                })
             }
-            "LINE" => Some(Entity::Line { layer: r.layer(), a: DVec2::new(r.f(10), r.f(20)), b: DVec2::new(r.f(11), r.f(21)) }),
-            "POINT" => Some(Entity::Point { layer: r.layer(), p: DVec2::new(r.f(10), r.f(20)) }),
-            "TEXT" => Some(Entity::Text { layer: r.layer(), p: DVec2::new(r.f(10), r.f(20)), text: r.s(1).unwrap_or("").to_string() }),
+            "LINE" => Some(Entity::Line {
+                layer: r.layer(),
+                a: DVec2::new(r.f(10), r.f(20)),
+                b: DVec2::new(r.f(11), r.f(21)),
+            }),
+            "POINT" => Some(Entity::Point {
+                layer: r.layer(),
+                p: DVec2::new(r.f(10), r.f(20)),
+            }),
+            "TEXT" => Some(Entity::Text {
+                layer: r.layer(),
+                p: DVec2::new(r.f(10), r.f(20)),
+                text: r.s(1).unwrap_or("").to_string(),
+            }),
             "VERTEX" | "SEQEND" => None,
             other => {
                 *dxf.skipped.entry(other.to_string()).or_default() += 1;
@@ -212,8 +287,12 @@ mod tests {
         let b = &d.blocks[0];
         assert_eq!(b.name, "P1");
         assert_eq!(b.entities.len(), 4);
-        assert!(matches!(&b.entities[0], Entity::Polyline { layer, pts, closed: true, bulges: 1 } if layer == "1" && pts.len() == 3));
-        assert!(matches!(&b.entities[1], Entity::Polyline { layer, closed: false, .. } if layer == "8"));
+        assert!(
+            matches!(&b.entities[0], Entity::Polyline { layer, pts, closed: true, bulges: 1 } if layer == "1" && pts.len() == 3)
+        );
+        assert!(
+            matches!(&b.entities[1], Entity::Polyline { layer, closed: false, .. } if layer == "8")
+        );
         assert!(matches!(&b.entities[2], Entity::Line { layer, .. } if layer == "4"));
         assert!(matches!(&b.entities[3], Entity::Text { text, .. } if text == "Piece Name: P1"));
         assert_eq!(d.skipped.get("ARC"), Some(&1));

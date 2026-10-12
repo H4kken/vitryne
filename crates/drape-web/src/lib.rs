@@ -38,7 +38,14 @@ fn parse_opts(opts: &str) -> Result<serde_json::Value, JsValue> {
 /// Scene by name. `res`: sheet = vertices per side, tshirt = target edge length (m),
 /// garment = target vertex count. The T-shirt and garments need the body OBJ; the SDF is baked
 /// here when `sdf` is empty (garment: its own box from the toml).
-fn build_scene(scene: &str, res: f32, substeps: u32, opts: &str, obj: &str, sdf: &[u8]) -> Result<(Built, serde_json::Value), JsValue> {
+fn build_scene(
+    scene: &str,
+    res: f32,
+    substeps: u32,
+    opts: &str,
+    obj: &str,
+    sdf: &[u8],
+) -> Result<(Built, serde_json::Value), JsValue> {
     let o = parse_opts(opts)?;
     let mut sim = SheetScene::config();
     if substeps > 0 {
@@ -63,11 +70,21 @@ fn build_scene(scene: &str, res: f32, substeps: u32, opts: &str, obj: &str, sdf:
     match scene {
         "sheet" => {
             let pins = o["pins"].as_bool().unwrap_or(true);
-            Ok((SheetScene { grid: res as u32, pins, ..Default::default() }.build(sim), serde_json::json!({})))
+            Ok((
+                SheetScene {
+                    grid: res as u32,
+                    pins,
+                    ..Default::default()
+                }
+                .build(sim),
+                serde_json::json!({}),
+            ))
         }
         "tshirt" => {
             let t0 = Instant::now();
-            let body = Arc::new(BodyQuery::new(BodyMesh::from_obj(obj).map_err(|e| format!("body obj: {e}"))?));
+            let body = Arc::new(BodyQuery::new(
+                BodyMesh::from_obj(obj).map_err(|e| format!("body obj: {e}"))?,
+            ));
             let bvh_ms = t0.elapsed().as_secs_f64() * 1000.0;
             let t1 = Instant::now();
             let (sdf, source) = if sdf.is_empty() {
@@ -78,15 +95,32 @@ fn build_scene(scene: &str, res: f32, substeps: u32, opts: &str, obj: &str, sdf:
             let sdf_ms = t1.elapsed().as_secs_f64() * 1000.0;
             let load = serde_json::json!({ "bvh_ms": bvh_ms, "sdf_ms": sdf_ms, "sdf_source": source, "sdf_bytes": sdf.bytes() });
             log::info!("tshirt assets: {load}");
-            let params = TshirtParams { edge: res, ..Default::default() };
+            let params = TshirtParams {
+                edge: res,
+                ..Default::default()
+            };
             Ok((tshirt::build(&params, body, Arc::new(sdf), sim), load))
         }
         "garment" => {
-            let g = Garment::load(o["garment_toml"].as_str().unwrap_or(""), o["garment_dxf"].as_str().unwrap_or("")).map_err(|e| format!("garment: {e}"))?;
-            let edge = g.edge_for_vertices(res as u32).map_err(|e| format!("garment: {e}"))?;
-            let body = Arc::new(BodyQuery::new(BodyMesh::from_obj(obj).map_err(|e| format!("body obj: {e}"))?));
-            let sdf = if sdf.is_empty() { g.sdf_params().bake(&body) } else { Sdf::from_bytes(sdf).ok_or("bad SDF file")? };
-            let built = g.build(edge, body, Arc::new(sdf), sim).map_err(|e| format!("garment: {e}"))?;
+            let g = Garment::load(
+                o["garment_toml"].as_str().unwrap_or(""),
+                o["garment_dxf"].as_str().unwrap_or(""),
+            )
+            .map_err(|e| format!("garment: {e}"))?;
+            let edge = g
+                .edge_for_vertices(res as u32)
+                .map_err(|e| format!("garment: {e}"))?;
+            let body = Arc::new(BodyQuery::new(
+                BodyMesh::from_obj(obj).map_err(|e| format!("body obj: {e}"))?,
+            ));
+            let sdf = if sdf.is_empty() {
+                g.sdf_params().bake(&body)
+            } else {
+                Sdf::from_bytes(sdf).ok_or("bad SDF file")?
+            };
+            let built = g
+                .build(edge, body, Arc::new(sdf), sim)
+                .map_err(|e| format!("garment: {e}"))?;
             Ok((built, serde_json::json!({})))
         }
         other => Err(format!("unknown scene {other}").into()),
@@ -115,7 +149,11 @@ pub async fn run_bench(
 ) -> Result<String, JsValue> {
     let g = headless_gpu(gpu_timestamps).await?;
     let (built, load) = build_scene(&scene, res, substeps, &opts, &obj, &sdf)?;
-    let cfg = drape_core::bench::BenchConfig { frames, record_positions, ..Default::default() };
+    let cfg = drape_core::bench::BenchConfig {
+        frames,
+        record_positions,
+        ..Default::default()
+    };
     let r = drape_core::bench::run(&g, &built, cfg).await;
     g.device.destroy();
     let mut v = serde_json::to_value(&r).map_err(|e| e.to_string())?;
@@ -139,7 +177,13 @@ pub async fn run_drag_bench(
 ) -> Result<String, JsValue> {
     let g = headless_gpu(false).await?;
     let (built, _) = build_scene(&scene, res, 0, &opts, &obj, &sdf)?;
-    let cfg = drape_core::dragbench::DragBenchConfig { seed: seed as u64, drag_s, max_offset, min_pull_s, ..Default::default() };
+    let cfg = drape_core::dragbench::DragBenchConfig {
+        seed: seed as u64,
+        drag_s,
+        max_offset,
+        min_pull_s,
+        ..Default::default()
+    };
     let r = drape_core::dragbench::run(&g, &built, cfg).await;
     g.device.destroy();
     serde_json::to_string(&r).map_err(|e| e.to_string().into())
@@ -152,7 +196,12 @@ pub fn bake_sdf_ms(obj: String) -> Result<f64, JsValue> {
     let t0 = Instant::now();
     let sdf = SdfParams::default().bake(&body);
     let ms = t0.elapsed().as_secs_f64() * 1000.0;
-    log::info!("wasm SDF bake: {}x{}x{} in {ms:.0} ms", sdf.dims.x, sdf.dims.y, sdf.dims.z);
+    log::info!(
+        "wasm SDF bake: {}x{}x{} in {ms:.0} ms",
+        sdf.dims.x,
+        sdf.dims.y,
+        sdf.dims.z
+    );
     Ok(ms)
 }
 

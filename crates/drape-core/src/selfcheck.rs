@@ -72,7 +72,12 @@ fn tris_intersect(t: [Vec3; 3], o: [Vec3; 3]) -> bool {
         || (0..3).any(|k| segment_hits_triangle(o[k], o[(k + 1) % 3], t[0], t[1], t[2]))
 }
 
-pub fn check(mesh: &ClothMesh, weld: &[u32], pos: &[Vec3], previous: Option<&SelfIntersections>) -> SelfIntersections {
+pub fn check(
+    mesh: &ClothMesh,
+    weld: &[u32],
+    pos: &[Vec3],
+    previous: Option<&SelfIntersections>,
+) -> SelfIntersections {
     let cell = 2.0 * mesh.mean_edge_length();
     let tri = |t: &[u32; 3]| [pos[t[0] as usize], pos[t[1] as usize], pos[t[2] as usize]];
     let cell_of = |p: Vec3| (p / cell).floor().as_ivec3();
@@ -117,7 +122,11 @@ pub fn check(mesh: &ClothMesh, weld: &[u32], pos: &[Vec3], previous: Option<&Sel
             }
         }
     }
-    let triangles = pairs.iter().flat_map(|&(a, b)| [a, b]).collect::<HashSet<_>>().len();
+    let triangles = pairs
+        .iter()
+        .flat_map(|&(a, b)| [a, b])
+        .collect::<HashSet<_>>()
+        .len();
     let mut sorted: Vec<_> = pairs.iter().copied().collect();
     sorted.sort_unstable();
     let sample = sorted
@@ -152,7 +161,11 @@ mod tests {
         // rotated so it pierces the near half.
         for p in &mut m.pos {
             if p.x > 0.1 {
-                *p = Vec3::new(0.2 - p.x, (p.x - 0.1) * 0.5 * if p.z > 0.0 { 1.0 } else { -1.0 }, p.z);
+                *p = Vec3::new(
+                    0.2 - p.x,
+                    (p.x - 0.1) * 0.5 * if p.z > 0.0 { 1.0 } else { -1.0 },
+                    p.z,
+                );
             }
         }
         let r = check(&m, &weld, &m.pos.clone(), None);

@@ -42,7 +42,14 @@ pub struct App {
 #[wasm_bindgen]
 impl App {
     /// Build the scene and the GPU state on `<canvas id=canvas_id>`.
-    pub async fn create(canvas_id: String, scene: String, res: f32, opts: String, obj: String, sdf: Vec<u8>) -> Result<App, JsValue> {
+    pub async fn create(
+        canvas_id: String,
+        scene: String,
+        res: f32,
+        opts: String,
+        obj: String,
+        sdf: Vec<u8>,
+    ) -> Result<App, JsValue> {
         let canvas: web_sys::HtmlCanvasElement = web_sys::window()
             .and_then(|w| w.document())
             .and_then(|d| d.get_element_by_id(&canvas_id))
@@ -51,16 +58,34 @@ impl App {
             .map_err(|_| "element is not a canvas")?;
         let (w, h) = (canvas.width().max(1), canvas.height().max(1));
         let instance = gpu::create_instance();
-        let surface = instance.create_surface(wgpu::SurfaceTarget::Canvas(canvas)).map_err(|e| format!("create_surface: {e}"))?;
+        let surface = instance
+            .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
+            .map_err(|e| format!("create_surface: {e}"))?;
         let g = gpu::Gpu::new(&instance, Some(&surface), gpu::GpuOptions::default()).await?;
         if g.report.backend != "BrowserWebGpu" {
             return Err(format!("expected BrowserWebGpu backend, got {}", g.report.backend).into());
         }
-        let config = surface.get_default_config(&g.adapter, w, h).ok_or("surface unsupported by adapter")?;
+        let config = surface
+            .get_default_config(&g.adapter, w, h)
+            .ok_or("surface unsupported by adapter")?;
         surface.configure(&g.device, &config);
-        let (built, load): (Built, serde_json::Value) = super::build_scene(&scene, res, 0, &opts, &obj, &sdf)?;
-        let solver = Solver::new(&g.device, &built.mesh, &built.constraints, built.material.density, built.sim, built.collider.clone());
-        let renderer = Renderer::new(&g.device, config.format, &built.mesh, &solver, &built.collider_mesh);
+        let (built, load): (Built, serde_json::Value) =
+            super::build_scene(&scene, res, 0, &opts, &obj, &sdf)?;
+        let solver = Solver::new(
+            &g.device,
+            &built.mesh,
+            &built.constraints,
+            built.material.density,
+            built.sim,
+            built.collider.clone(),
+        );
+        let renderer = Renderer::new(
+            &g.device,
+            config.format,
+            &built.mesh,
+            &solver,
+            &built.collider_mesh,
+        );
         let core = Core {
             n_verts: built.mesh.n_verts() as u32,
             adj: built.mesh.neighbors(),
@@ -76,14 +101,18 @@ impl App {
             paused: Cell::new(false),
             offscreen: RefCell::new(None),
         };
-        Ok(App { core: Rc::new(core), load: load.to_string() })
+        Ok(App {
+            core: Rc::new(core),
+            load: load.to_string(),
+        })
     }
 
     /// One display frame: 1 sim frame (8 in fast-drape mode) + render + present.
     pub fn frame(&self) {
         let c = &self.core;
         let Some(frame) = (match c.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(f) | wgpu::CurrentSurfaceTexture::Suboptimal(f) => Some(f),
+            wgpu::CurrentSurfaceTexture::Success(f)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(f) => Some(f),
             _ => None,
         }) else {
             c.surface.configure(&c.gpu.device, &c.config.borrow());
@@ -108,7 +137,15 @@ impl App {
         }
         let view = frame.texture.create_view(&Default::default());
         let cfg = c.config.borrow();
-        c.renderer.borrow_mut().draw(&c.gpu.device, &c.gpu.queue, &mut enc, &view, cfg.width, cfg.height, &c.camera.borrow());
+        c.renderer.borrow_mut().draw(
+            &c.gpu.device,
+            &c.gpu.queue,
+            &mut enc,
+            &view,
+            cfg.width,
+            cfg.height,
+            &c.camera.borrow(),
+        );
         c.gpu.queue.submit([enc.finish()]);
         c.gpu.queue.present(frame);
     }
@@ -128,7 +165,11 @@ impl App {
                 if !matches!(&*off, Some((_, ow, oh)) if *ow == w && *oh == h) {
                     let tex = c.gpu.device.create_texture(&wgpu::TextureDescriptor {
                         label: Some("measure-offscreen"),
-                        size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                        size: wgpu::Extent3d {
+                            width: w,
+                            height: h,
+                            depth_or_array_layers: 1,
+                        },
                         mip_level_count: 1,
                         sample_count: 1,
                         dimension: wgpu::TextureDimension::D2,
@@ -148,7 +189,15 @@ impl App {
                 c.solver.encode_frame(&mut enc, None);
                 c.sim_frame.set(c.sim_frame.get() + 1);
             }
-            c.renderer.borrow_mut().draw(&c.gpu.device, &c.gpu.queue, &mut enc, &view, w, h, &c.camera.borrow());
+            c.renderer.borrow_mut().draw(
+                &c.gpu.device,
+                &c.gpu.queue,
+                &mut enc,
+                &view,
+                w,
+                h,
+                &c.camera.borrow(),
+            );
             c.gpu.queue.submit([enc.finish()]);
             drape_core::gpu_async::work_done(&c.gpu.device, &c.gpu.queue).await;
             Ok(JsValue::from_f64(t0.elapsed().as_secs_f64() * 1000.0))
@@ -164,7 +213,10 @@ impl App {
 
     fn ray(&self, x: f32, y: f32) -> (Vec3, Vec3) {
         let cfg = self.core.config.borrow();
-        self.core.camera.borrow().ray(x, y, cfg.width as f32 / cfg.height.max(1) as f32)
+        self.core
+            .camera
+            .borrow()
+            .ray(x, y, cfg.width as f32 / cfg.height.max(1) as f32)
     }
 
     /// Pointer down at normalized device coordinates. Resolves to true if cloth was grabbed
@@ -174,7 +226,9 @@ impl App {
         let (o, d) = self.ray(x, y);
         wasm_bindgen_futures::future_to_promise(async move {
             let pos = c.solver.read_positions(&c.gpu.device, &c.gpu.queue).await;
-            let Some(v) = render::pick(&pos, o, d, 0.015) else { return Ok(JsValue::FALSE) };
+            let Some(v) = render::pick(&pos, o, d, 0.015) else {
+                return Ok(JsValue::FALSE);
+            };
             let patch = DragPatch::grab(&c.adj, &pos, v, DRAG_RADIUS);
             c.solver.begin_drag(&c.gpu.queue, &patch);
             c.solver.set_drag_target(pos[v as usize]);

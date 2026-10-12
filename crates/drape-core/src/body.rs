@@ -24,7 +24,10 @@ impl BodyMesh {
             let mut it = line.split_whitespace();
             match it.next() {
                 Some("v") => {
-                    let c: Vec<f32> = it.take(3).map(|t| t.parse().map_err(|e| format!("line {}: {e}", ln + 1))).collect::<Result<_, _>>()?;
+                    let c: Vec<f32> = it
+                        .take(3)
+                        .map(|t| t.parse().map_err(|e| format!("line {}: {e}", ln + 1)))
+                        .collect::<Result<_, _>>()?;
                     if c.len() != 3 {
                         return Err(format!("line {}: bad vertex", ln + 1));
                     }
@@ -32,7 +35,14 @@ impl BodyMesh {
                 }
                 Some("f") => {
                     let idx: Vec<u32> = it
-                        .map(|t| t.split('/').next().unwrap().parse::<i64>().map(|i| (i - 1) as u32).map_err(|e| format!("line {}: {e}", ln + 1)))
+                        .map(|t| {
+                            t.split('/')
+                                .next()
+                                .unwrap()
+                                .parse::<i64>()
+                                .map(|i| (i - 1) as u32)
+                                .map_err(|e| format!("line {}: {e}", ln + 1))
+                        })
                         .collect::<Result<_, _>>()?;
                     for k in 1..idx.len().saturating_sub(1) {
                         tris.push([idx[0], idx[k], idx[k + 1]]);
@@ -51,7 +61,13 @@ impl BodyMesh {
     }
 
     pub fn signed_volume(&self) -> f32 {
-        self.tris.iter().map(|t| self.pos[t[0] as usize].dot(self.pos[t[1] as usize].cross(self.pos[t[2] as usize])) / 6.0).sum()
+        self.tris
+            .iter()
+            .map(|t| {
+                self.pos[t[0] as usize].dot(self.pos[t[1] as usize].cross(self.pos[t[2] as usize]))
+                    / 6.0
+            })
+            .sum()
     }
 
     pub fn vertex_normals(&self) -> Vec<Vec3> {
@@ -75,7 +91,10 @@ struct Aabb {
 
 impl Aabb {
     fn empty() -> Self {
-        Self { min: Vec3::splat(f32::MAX), max: Vec3::splat(f32::MIN) }
+        Self {
+            min: Vec3::splat(f32::MAX),
+            max: Vec3::splat(f32::MIN),
+        }
     }
     fn grow(&mut self, p: Vec3) {
         self.min = self.min.min(p);
@@ -122,7 +141,11 @@ impl BodyQuery {
         let face_n: Vec<Vec3> = mesh
             .tris
             .iter()
-            .map(|t| (p[t[1] as usize] - p[t[0] as usize]).cross(p[t[2] as usize] - p[t[0] as usize]).normalize_or_zero())
+            .map(|t| {
+                (p[t[1] as usize] - p[t[0] as usize])
+                    .cross(p[t[2] as usize] - p[t[0] as usize])
+                    .normalize_or_zero()
+            })
             .collect();
         let mut edge_n: HashMap<(u32, u32), Vec3> = HashMap::new();
         let mut vert_n = vec![Vec3::ZERO; p.len()];
@@ -137,8 +160,20 @@ impl BodyQuery {
                 vert_n[t[k] as usize] += e1.dot(e2).clamp(-1.0, 1.0).acos() * face_n[fi];
             }
         }
-        let mut q = Self { nodes: Vec::new(), order: (0..mesh.tris.len() as u32).collect(), face_n, edge_n, vert_n, mesh };
-        let centroids: Vec<Vec3> = q.mesh.tris.iter().map(|t| (p_of(&q.mesh, t[0]) + p_of(&q.mesh, t[1]) + p_of(&q.mesh, t[2])) / 3.0).collect();
+        let mut q = Self {
+            nodes: Vec::new(),
+            order: (0..mesh.tris.len() as u32).collect(),
+            face_n,
+            edge_n,
+            vert_n,
+            mesh,
+        };
+        let centroids: Vec<Vec3> = q
+            .mesh
+            .tris
+            .iter()
+            .map(|t| (p_of(&q.mesh, t[0]) + p_of(&q.mesh, t[1]) + p_of(&q.mesh, t[2])) / 3.0)
+            .collect();
         let n = q.order.len();
         q.build(&centroids, 0, n);
         q
@@ -161,14 +196,32 @@ impl BodyQuery {
         }
         let id = self.nodes.len() as u32;
         if end - start <= LEAF {
-            self.nodes.push(Node::Leaf { bb, start: start as u32, end: end as u32 });
+            self.nodes.push(Node::Leaf {
+                bb,
+                start: start as u32,
+                end: end as u32,
+            });
             return id;
         }
-        self.nodes.push(Node::Leaf { bb, start: 0, end: 0 }); // placeholder
+        self.nodes.push(Node::Leaf {
+            bb,
+            start: 0,
+            end: 0,
+        }); // placeholder
         let ext = cb.max - cb.min;
-        let axis = if ext.x >= ext.y && ext.x >= ext.z { 0 } else if ext.y >= ext.z { 1 } else { 2 };
+        let axis = if ext.x >= ext.y && ext.x >= ext.z {
+            0
+        } else if ext.y >= ext.z {
+            1
+        } else {
+            2
+        };
         let mid = (start + end) / 2;
-        self.order[start..end].select_nth_unstable_by(mid - start, |&a, &b| c[a as usize][axis].partial_cmp(&c[b as usize][axis]).unwrap());
+        self.order[start..end].select_nth_unstable_by(mid - start, |&a, &b| {
+            c[a as usize][axis]
+                .partial_cmp(&c[b as usize][axis])
+                .unwrap()
+        });
         let left = self.build(c, start, mid);
         let right = self.build(c, mid, end);
         self.nodes[id as usize] = Node::Inner { bb, left, right };
@@ -190,7 +243,12 @@ impl BodyQuery {
                     }
                     for &ti in &self.order[*start as usize..*end as usize] {
                         let t = self.mesh.tris[ti as usize];
-                        let (q, f) = closest_on_triangle(p, p_of(&self.mesh, t[0]), p_of(&self.mesh, t[1]), p_of(&self.mesh, t[2]));
+                        let (q, f) = closest_on_triangle(
+                            p,
+                            p_of(&self.mesh, t[0]),
+                            p_of(&self.mesh, t[1]),
+                            p_of(&self.mesh, t[2]),
+                        );
                         let d2 = (p - q).length_squared();
                         if d2 < best {
                             best = d2;
@@ -308,7 +366,11 @@ impl Sdf {
                         None => {
                             // Far from the surface: only the sign matters. One ray per row.
                             let xs = crossings.get_or_insert_with(|| q.x_crossings(p.y, p.z));
-                            if xs.iter().filter(|&&x| x > p.x).count() % 2 == 1 { -band } else { band }
+                            if xs.iter().filter(|&&x| x > p.x).count() % 2 == 1 {
+                                -band
+                            } else {
+                                band
+                            }
                         }
                     });
                 }
@@ -322,7 +384,13 @@ impl Sdf {
         };
         #[cfg(target_arch = "wasm32")]
         let slices: Vec<Vec<f32>> = (0..nz).map(slice).collect();
-        Self { origin: min, cell, dims, band, values: slices.concat() }
+        Self {
+            origin: min,
+            cell,
+            dims,
+            band,
+            values: slices.concat(),
+        }
     }
 
     pub fn bytes(&self) -> u64 {
@@ -340,12 +408,16 @@ impl Sdf {
         let i = g.floor();
         let f = g - i;
         let i = i.as_uvec3();
-        let at = |x: u32, y: u32, z: u32| self.values[((z * self.dims.y + y) * self.dims.x + x) as usize];
+        let at = |x: u32, y: u32, z: u32| {
+            self.values[((z * self.dims.y + y) * self.dims.x + x) as usize]
+        };
         let mut v = 0.0;
         for dz in 0..2 {
             for dy in 0..2 {
                 for dx in 0..2 {
-                    let w = (if dx == 1 { f.x } else { 1.0 - f.x }) * (if dy == 1 { f.y } else { 1.0 - f.y }) * (if dz == 1 { f.z } else { 1.0 - f.z });
+                    let w = (if dx == 1 { f.x } else { 1.0 - f.x })
+                        * (if dy == 1 { f.y } else { 1.0 - f.y })
+                        * (if dz == 1 { f.z } else { 1.0 - f.z });
                     v += w * at(i.x + dx, i.y + dy, i.z + dz);
                 }
             }
@@ -384,7 +456,13 @@ impl Sdf {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut b = Vec::with_capacity(48 + self.values.len() * 4);
         b.extend_from_slice(b"DSDF0001");
-        for f in [self.origin.x, self.origin.y, self.origin.z, self.cell, self.band] {
+        for f in [
+            self.origin.x,
+            self.origin.y,
+            self.origin.z,
+            self.cell,
+            self.band,
+        ] {
             b.extend_from_slice(&f.to_le_bytes());
         }
         for u in [self.dims.x, self.dims.y, self.dims.z] {
@@ -434,7 +512,8 @@ impl BodyQuery {
                 }
                 Node::Leaf { start, end, .. } => {
                     for &ti in &self.order[*start as usize..*end as usize] {
-                        let [a, b, c] = self.mesh.tris[ti as usize].map(|i| self.mesh.pos[i as usize]);
+                        let [a, b, c] =
+                            self.mesh.tris[ti as usize].map(|i| self.mesh.pos[i as usize]);
                         // Project to the YZ plane: is (y, z) inside triangle abc? Then solve for x.
                         let (ay, az, by, bz, cy, cz) = (a.y, a.z, b.y, b.z, c.y, c.z);
                         let det = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
@@ -457,7 +536,12 @@ impl BodyQuery {
 
     /// Inside test by crossing parity (works for any point, used where no surface is near).
     pub fn inside_by_parity(&self, p: Vec3) -> bool {
-        self.x_crossings(p.y, p.z).iter().filter(|&&x| x > p.x).count() % 2 == 1
+        self.x_crossings(p.y, p.z)
+            .iter()
+            .filter(|&&x| x > p.x)
+            .count()
+            % 2
+            == 1
     }
 }
 

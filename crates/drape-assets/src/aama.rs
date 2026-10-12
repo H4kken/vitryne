@@ -82,7 +82,10 @@ pub struct ImportReport {
 const ON_TOL: f64 = 5e-4;
 
 fn signed_area(p: &[DVec2]) -> f64 {
-    (0..p.len()).map(|i| p[i].perp_dot(p[(i + 1) % p.len()])).sum::<f64>() * 0.5
+    (0..p.len())
+        .map(|i| p[i].perp_dot(p[(i + 1) % p.len()]))
+        .sum::<f64>()
+        * 0.5
 }
 
 /// Nearest point on the closed polyline: (segment index, projected point, distance).
@@ -142,15 +145,29 @@ pub fn read(text: &str) -> Result<(Vec<Piece>, ImportReport), String> {
 }
 
 /// As `read`, with an explicit unit (metres per drawing unit) overriding `$INSUNITS`.
-pub fn read_with_units(text: &str, units_m: Option<f64>) -> Result<(Vec<Piece>, ImportReport), String> {
+pub fn read_with_units(
+    text: &str,
+    units_m: Option<f64>,
+) -> Result<(Vec<Piece>, ImportReport), String> {
     let d = dxf::parse(text)?;
     let unit = units_m.unwrap_or_else(|| d.unit_m());
-    let mut report = ImportReport { units_m: unit, skipped_entity_types: d.skipped.iter().map(|(k, v)| (k.clone(), *v)).collect(), ..Default::default() };
+    let mut report = ImportReport {
+        units_m: unit,
+        skipped_entity_types: d.skipped.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+        ..Default::default()
+    };
     let mut ignored: std::collections::BTreeMap<String, usize> = Default::default();
     let mut pieces = Vec::new();
     // Pieces live in blocks; a file without blocks gets its ENTITIES read as one block.
-    let loose = dxf::Block { name: "piece".into(), entities: d.entities.clone() };
-    let blocks: Vec<&dxf::Block> = if d.blocks.is_empty() { vec![&loose] } else { d.blocks.iter().collect() };
+    let loose = dxf::Block {
+        name: "piece".into(),
+        entities: d.entities.clone(),
+    };
+    let blocks: Vec<&dxf::Block> = if d.blocks.is_empty() {
+        vec![&loose]
+    } else {
+        d.blocks.iter().collect()
+    };
     for b in blocks {
         match piece_from_block(b, unit, &mut report, &mut ignored)? {
             Some(p) => {
@@ -164,16 +181,37 @@ pub fn read_with_units(text: &str, units_m: Option<f64>) -> Result<(Vec<Piece>, 
     Ok((pieces, report))
 }
 
-fn piece_from_block(b: &dxf::Block, unit: f64, report: &mut ImportReport, ignored: &mut std::collections::BTreeMap<String, usize>) -> Result<Option<Piece>, String> {
+fn piece_from_block(
+    b: &dxf::Block,
+    unit: f64,
+    report: &mut ImportReport,
+    ignored: &mut std::collections::BTreeMap<String, usize>,
+) -> Result<Option<Piece>, String> {
     let s = |p: DVec2| p * unit;
     let closed_on = |layer: &str| {
         b.entities
             .iter()
             .filter_map(|e| match e {
-                Entity::Polyline { layer: l, pts, closed, bulges } if l == layer && (*closed || (pts.len() > 3 && pts[0].distance(*pts.last().unwrap()) * unit < ON_TOL)) => Some((pts, *bulges)),
+                Entity::Polyline {
+                    layer: l,
+                    pts,
+                    closed,
+                    bulges,
+                } if l == layer
+                    && (*closed
+                        || (pts.len() > 3
+                            && pts[0].distance(*pts.last().unwrap()) * unit < ON_TOL)) =>
+                {
+                    Some((pts, *bulges))
+                }
                 _ => None,
             })
-            .max_by(|a, b| signed_area(a.0).abs().partial_cmp(&signed_area(b.0).abs()).unwrap())
+            .max_by(|a, b| {
+                signed_area(a.0)
+                    .abs()
+                    .partial_cmp(&signed_area(b.0).abs())
+                    .unwrap()
+            })
     };
     let (outline, from_sew_line) = match (closed_on("14"), closed_on("1")) {
         (Some(o), _) => (o, true),
@@ -192,7 +230,8 @@ fn piece_from_block(b: &dxf::Block, unit: f64, report: &mut ImportReport, ignore
 
     let mut name = b.name.clone();
     let mut quantity = 1;
-    let (mut turns, mut notches, mut mirror, mut grain, mut inner) = (Vec::new(), Vec::new(), None, None, Vec::new());
+    let (mut turns, mut notches, mut mirror, mut grain, mut inner) =
+        (Vec::new(), Vec::new(), None, None, Vec::new());
     for e in &b.entities {
         match (e.layer(), e) {
             ("1", Entity::Text { text, .. }) => {
@@ -210,11 +249,17 @@ fn piece_from_block(b: &dxf::Block, unit: f64, report: &mut ImportReport, ignore
             ("4", Entity::Line { a, b: bb, .. }) => {
                 // The slit's end on the boundary marks the notch.
                 let (a, bb) = (s(*a), s(*bb));
-                notches.push(if project(&boundary, a).2 <= project(&boundary, bb).2 { a } else { bb });
+                notches.push(if project(&boundary, a).2 <= project(&boundary, bb).2 {
+                    a
+                } else {
+                    bb
+                });
             }
             ("6", Entity::Line { a, b: bb, .. }) => mirror = Some((s(*a), s(*bb))),
             ("7", Entity::Line { a, b: bb, .. }) => grain = Some((s(*a), s(*bb))),
-            ("8", Entity::Polyline { pts, .. }) => inner.push(pts.iter().map(|&p| s(p)).collect::<Vec<_>>()),
+            ("8", Entity::Polyline { pts, .. }) => {
+                inner.push(pts.iter().map(|&p| s(p)).collect::<Vec<_>>())
+            }
             ("8", Entity::Line { a, b: bb, .. }) => inner.push(vec![s(*a), s(*bb)]),
             (layer, _) => *ignored.entry(layer.to_string()).or_default() += 1,
         }
@@ -226,14 +271,22 @@ fn piece_from_block(b: &dxf::Block, unit: f64, report: &mut ImportReport, ignore
         // No layer 2: corners are where the outline turns by more than 20°.
         let n = boundary.len();
         for i in 0..n {
-            if turn_deg(boundary[(i + n - 1) % n], boundary[i], boundary[(i + 1) % n]) > 20.0 {
+            if turn_deg(
+                boundary[(i + n - 1) % n],
+                boundary[i],
+                boundary[(i + 1) % n],
+            ) > 20.0
+            {
                 marks.push((boundary[i], LandmarkKind::Turn));
             }
         }
     }
     for t in turns {
         if project(&boundary, t).2 > 1e-3 {
-            report.warnings.push(format!("{name}: turn point {t:?} is {:.1} mm off the boundary", project(&boundary, t).2 * 1000.0));
+            report.warnings.push(format!(
+                "{name}: turn point {t:?} is {:.1} mm off the boundary",
+                project(&boundary, t).2 * 1000.0
+            ));
             continue;
         }
         let q = insert_on_boundary(&mut boundary, t);
@@ -241,7 +294,10 @@ fn piece_from_block(b: &dxf::Block, unit: f64, report: &mut ImportReport, ignore
     }
     for t in notches {
         if project(&boundary, t).2 > 2e-3 {
-            report.warnings.push(format!("{name}: notch {t:?} is {:.1} mm off the boundary", project(&boundary, t).2 * 1000.0));
+            report.warnings.push(format!(
+                "{name}: notch {t:?} is {:.1} mm off the boundary",
+                project(&boundary, t).2 * 1000.0
+            ));
             continue;
         }
         let q = insert_on_boundary(&mut boundary, t);
@@ -250,7 +306,10 @@ fn piece_from_block(b: &dxf::Block, unit: f64, report: &mut ImportReport, ignore
 
     let mut unfolded = false;
     if let Some((a, bb)) = mirror {
-        let m = Mirror { o: a, d: (bb - a).normalize() };
+        let m = Mirror {
+            o: a,
+            d: (bb - a).normalize(),
+        };
         // A bad mirror line on one piece shouldn't stop the others from importing: keep this
         // piece as drawn (folded) and say so.
         let (b0, m0, i0) = (boundary.clone(), marks.clone(), inner.clone());
@@ -285,12 +344,21 @@ fn piece_from_block(b: &dxf::Block, unit: f64, report: &mut ImportReport, ignore
             }
         }
         lm.push(line.len() - 1);
-        inner_lines.push(InnerLine { pts: line.iter().map(|p| p.as_vec2()).collect(), landmarks: lm });
+        inner_lines.push(InnerLine {
+            pts: line.iter().map(|p| p.as_vec2()).collect(),
+            landmarks: lm,
+        });
     }
 
     let mut landmarks: Vec<Landmark> = marks
         .iter()
-        .map(|(q, kind)| Landmark { at: boundary.iter().position(|p| p == q).expect("landmark is a boundary vertex"), kind: *kind })
+        .map(|(q, kind)| Landmark {
+            at: boundary
+                .iter()
+                .position(|p| p == q)
+                .expect("landmark is a boundary vertex"),
+            kind: *kind,
+        })
         .collect();
     landmarks.sort_by_key(|l| l.at);
     // One landmark per vertex; a turn point wins over a notch at the same place.
@@ -319,10 +387,17 @@ fn piece_from_block(b: &dxf::Block, unit: f64, report: &mut ImportReport, ignore
 /// Unfolds a cut-on-fold piece: the boundary must touch the mirror line along one run (the
 /// fold) and lie on one side of it otherwise. The result is the kept half plus its mirror
 /// image; landmarks and internal lines are mirrored too.
-fn unfold(boundary: &mut Vec<DVec2>, marks: &mut Vec<(DVec2, LandmarkKind)>, inner: &mut Vec<Vec<DVec2>>, m: &Mirror) -> Result<(), String> {
+fn unfold(
+    boundary: &mut Vec<DVec2>,
+    marks: &mut Vec<(DVec2, LandmarkKind)>,
+    inner: &mut Vec<Vec<DVec2>>,
+    m: &Mirror,
+) -> Result<(), String> {
     let n = boundary.len();
     let on: Vec<bool> = boundary.iter().map(|&p| m.dist(p).abs() < ON_TOL).collect();
-    let s = (0..n).find(|&i| on[i] && !on[(i + 1) % n]).ok_or("mirror line doesn't touch the boundary along a fold")?;
+    let s = (0..n)
+        .find(|&i| on[i] && !on[(i + 1) % n])
+        .ok_or("mirror line doesn't touch the boundary along a fold")?;
     let mut kept = vec![boundary[s]];
     let mut i = (s + 1) % n;
     while !on[i] {
@@ -340,7 +415,10 @@ fn unfold(boundary: &mut Vec<DVec2>, marks: &mut Vec<(DVec2, LandmarkKind)>, inn
         j = (j + 1) % n;
     }
     let side = m.dist(kept[1]).signum();
-    if kept[1..kept.len() - 1].iter().any(|&p| m.dist(p).signum() != side) {
+    if kept[1..kept.len() - 1]
+        .iter()
+        .any(|&p| m.dist(p).signum() != side)
+    {
         return Err("the outline lies on both sides of the mirror line".into());
     }
     // Snap the fold ends onto the line, so the mirrored halves meet exactly.
@@ -390,7 +468,9 @@ mod tests {
     use super::*;
 
     fn dxf_block(name: &str, body: &str) -> String {
-        format!("0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nBLOCKS\n0\nBLOCK\n8\n1\n2\n{name}\n70\n0\n10\n0\n20\n0\n3\n{name}\n{body}0\nENDBLK\n8\n1\n0\nENDSEC\n0\nEOF\n")
+        format!(
+            "0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nBLOCKS\n0\nBLOCK\n8\n1\n2\n{name}\n70\n0\n10\n0\n20\n0\n3\n{name}\n{body}0\nENDBLK\n8\n1\n0\nENDSEC\n0\nEOF\n"
+        )
     }
     fn poly(layer: u32, pts: &[(f64, f64)], closed: bool) -> String {
         let mut s = format!("0\nPOLYLINE\n8\n{layer}\n66\n1\n70\n{}\n", u8::from(closed));
@@ -400,15 +480,30 @@ mod tests {
         s + &format!("0\nSEQEND\n8\n{layer}\n")
     }
     fn line(layer: u32, a: (f64, f64), b: (f64, f64)) -> String {
-        format!("0\nLINE\n8\n{layer}\n10\n{}\n20\n{}\n11\n{}\n21\n{}\n", a.0, a.1, b.0, b.1)
+        format!(
+            "0\nLINE\n8\n{layer}\n10\n{}\n20\n{}\n11\n{}\n21\n{}\n",
+            a.0, a.1, b.0, b.1
+        )
     }
 
     #[test]
     fn half_front_on_fold_unfolds_with_landmarks() {
         // Half a front: fold along x = 0 from (0,0) to (0,500); clockwise on purpose.
-        let half = [(0.0, 0.0), (0.0, 500.0), (150.0, 520.0), (240.0, 300.0), (230.0, 0.0)];
+        let half = [
+            (0.0, 0.0),
+            (0.0, 500.0),
+            (150.0, 520.0),
+            (240.0, 300.0),
+            (230.0, 0.0),
+        ];
         let mut body = poly(1, &half, true);
-        for p in [(0.0, 0.0), (0.0, 500.0), (150.0, 520.0), (240.0, 300.0), (230.0, 0.0)] {
+        for p in [
+            (0.0, 0.0),
+            (0.0, 500.0),
+            (150.0, 520.0),
+            (240.0, 300.0),
+            (230.0, 0.0),
+        ] {
             body += &format!("0\nPOINT\n8\n2\n10\n{}\n20\n{}\n", p.0, p.1);
         }
         body += &line(4, (235.0, 150.0), (231.0, 150.0)); // notch slit, outer end first
@@ -425,7 +520,10 @@ mod tests {
         let xs: Vec<f32> = p.boundary.iter().map(|q| q.x).collect();
         assert!((xs.iter().cloned().fold(f32::MIN, f32::max) - 0.24).abs() < 1e-5);
         assert!((xs.iter().cloned().fold(f32::MAX, f32::min) + 0.24).abs() < 1e-5);
-        let area: f32 = (0..p.boundary.len()).map(|i| p.boundary[i].perp_dot(p.boundary[(i + 1) % p.boundary.len()])).sum::<f32>() * 0.5;
+        let area: f32 = (0..p.boundary.len())
+            .map(|i| p.boundary[i].perp_dot(p.boundary[(i + 1) % p.boundary.len()]))
+            .sum::<f32>()
+            * 0.5;
         assert!(area > 0.0);
         // Landmarks: 2 fold ends + 3 corners × 2 + 2 notches + 2 pocket-line ends on the hem.
         let count = |k| p.landmarks.iter().filter(|l| l.kind == k).count();
@@ -436,25 +534,44 @@ mod tests {
         // The pocket line ends on the fold, so it is joined with its image into one line.
         assert_eq!(p.inner.len(), 1);
         let l = &p.inner[0];
-        assert!((l.pts[0] - Vec2::new(0.1, 0.0)).length() < 1e-6 || (l.pts[0] - Vec2::new(-0.1, 0.0)).length() < 1e-6);
+        assert!(
+            (l.pts[0] - Vec2::new(0.1, 0.0)).length() < 1e-6
+                || (l.pts[0] - Vec2::new(-0.1, 0.0)).length() < 1e-6
+        );
         assert_eq!(l.landmarks.len(), 4); // two ends + two corners
         assert!(p.landmarks.windows(2).all(|w| w[0].at < w[1].at));
     }
 
     #[test]
     fn mirror_line_off_the_outline_is_a_warning() {
-        let mut body = poly(1, &[(10.0, 0.0), (100.0, 0.0), (100.0, 50.0), (10.0, 50.0)], true);
+        let mut body = poly(
+            1,
+            &[(10.0, 0.0), (100.0, 0.0), (100.0, 50.0), (10.0, 50.0)],
+            true,
+        );
         body += &line(6, (0.0, 0.0), (0.0, 50.0));
         let (pieces, rep) = read(&dxf_block("facing", &body)).unwrap();
         assert!(!pieces[0].unfolded);
         assert_eq!(pieces[0].boundary.len(), 4);
-        assert!(rep.warnings[0].contains("not unfolded"), "{:?}", rep.warnings);
+        assert!(
+            rep.warnings[0].contains("not unfolded"),
+            "{:?}",
+            rep.warnings
+        );
     }
 
     #[test]
     fn sew_line_wins_and_corners_are_detected_without_layer_2() {
-        let mut body = poly(1, &[(-10.0, -10.0), (110.0, -10.0), (110.0, 60.0), (-10.0, 60.0)], true);
-        body += &poly(14, &[(0.0, 0.0), (100.0, 0.0), (100.0, 50.0), (0.0, 50.0)], true);
+        let mut body = poly(
+            1,
+            &[(-10.0, -10.0), (110.0, -10.0), (110.0, 60.0), (-10.0, 60.0)],
+            true,
+        );
+        body += &poly(
+            14,
+            &[(0.0, 0.0), (100.0, 0.0), (100.0, 50.0), (0.0, 50.0)],
+            true,
+        );
         let (pieces, _) = read(&dxf_block("rect", &body)).unwrap();
         let p = &pieces[0];
         assert!(p.from_sew_line);

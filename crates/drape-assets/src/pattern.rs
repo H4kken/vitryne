@@ -13,7 +13,10 @@ pub struct PatternEdge {
 
 impl PatternEdge {
     pub fn new(name: impl Into<String>, pts: Vec<Vec2>) -> Self {
-        Self { name: name.into(), pts }
+        Self {
+            name: name.into(),
+            pts,
+        }
     }
 
     pub fn length(&self) -> f32 {
@@ -28,7 +31,9 @@ impl PatternEdge {
         let mut acc = 0.0;
         for k in 0..=n {
             let target = total * k as f32 / n as f32;
-            while seg + 1 < self.pts.len() - 1 && acc + self.pts[seg].distance(self.pts[seg + 1]) < target {
+            while seg + 1 < self.pts.len() - 1
+                && acc + self.pts[seg].distance(self.pts[seg + 1]) < target
+            {
                 acc += self.pts[seg].distance(self.pts[seg + 1]);
                 seg += 1;
             }
@@ -54,15 +59,25 @@ pub struct Panel {
 
 impl Panel {
     pub fn new(name: impl Into<String>, edges: Vec<PatternEdge>) -> Self {
-        Self { name: name.into(), edges, inner: Vec::new() }
+        Self {
+            name: name.into(),
+            edges,
+            inner: Vec::new(),
+        }
     }
 
     pub fn edge(&self, name: &str) -> usize {
-        self.edges.iter().position(|e| e.name == name).unwrap_or_else(|| panic!("{}: no edge {name}", self.name))
+        self.edges
+            .iter()
+            .position(|e| e.name == name)
+            .unwrap_or_else(|| panic!("{}: no edge {name}", self.name))
     }
 
     pub fn outline(&self) -> Vec<Vec2> {
-        self.edges.iter().flat_map(|e| e.pts[..e.pts.len() - 1].iter().copied()).collect()
+        self.edges
+            .iter()
+            .flat_map(|e| e.pts[..e.pts.len() - 1].iter().copied())
+            .collect()
     }
 
     /// Edge index of internal line `k` in the panel's flat edge numbering (boundary edges
@@ -73,7 +88,11 @@ impl Panel {
 
     pub fn area(&self) -> f32 {
         let o = self.outline();
-        (0..o.len()).map(|i| o[i].perp_dot(o[(i + 1) % o.len()])).sum::<f32>().abs() * 0.5
+        (0..o.len())
+            .map(|i| o[i].perp_dot(o[(i + 1) % o.len()]))
+            .sum::<f32>()
+            .abs()
+            * 0.5
     }
 }
 
@@ -102,9 +121,26 @@ pub struct Seam {
 
 impl Seam {
     /// A seam between two single forward edges.
-    pub fn simple(name: impl Into<String>, a: (usize, usize), b: (usize, usize), reversed: bool) -> Self {
-        let r = |(panel, edge)| vec![EdgeRef { panel, edge, backward: false }];
-        Self { name: name.into(), a: r(a), b: r(b), reversed, by_length: false }
+    pub fn simple(
+        name: impl Into<String>,
+        a: (usize, usize),
+        b: (usize, usize),
+        reversed: bool,
+    ) -> Self {
+        let r = |(panel, edge)| {
+            vec![EdgeRef {
+                panel,
+                edge,
+                backward: false,
+            }]
+        };
+        Self {
+            name: name.into(),
+            a: r(a),
+            b: r(b),
+            reversed,
+            by_length: false,
+        }
     }
 }
 
@@ -117,7 +153,11 @@ pub struct Pattern {
 impl Pattern {
     pub fn edge(&self, r: EdgeRef) -> &PatternEdge {
         let p = &self.panels[r.panel];
-        if r.edge < p.edges.len() { &p.edges[r.edge] } else { &p.inner[r.edge - p.edges.len()] }
+        if r.edge < p.edges.len() {
+            &p.edges[r.edge]
+        } else {
+            &p.inner[r.edge - p.edges.len()]
+        }
     }
 
     pub fn chain_length(&self, chain: &[EdgeRef]) -> f32 {
@@ -159,9 +199,13 @@ pub fn dist_to_segment(p: Vec2, a: Vec2, b: Vec2) -> f32 {
 
 pub fn dist_to_polygon(p: Vec2, poly: &[Vec2]) -> f32 {
     let n = poly.len();
-    (0..n).map(|i| dist_to_segment(p, poly[i], poly[(i + 1) % n])).fold(f32::MAX, f32::min)
+    (0..n)
+        .map(|i| dist_to_segment(p, poly[i], poly[(i + 1) % n]))
+        .fold(f32::MAX, f32::min)
 }
 
 pub fn dist_to_polyline(p: Vec2, line: &[Vec2]) -> f32 {
-    line.windows(2).map(|w| dist_to_segment(p, w[0], w[1])).fold(f32::MAX, f32::min)
+    line.windows(2)
+        .map(|w| dist_to_segment(p, w[0], w[1]))
+        .fold(f32::MAX, f32::min)
 }

@@ -10,7 +10,10 @@ use crate::{
     sim::{Collider, Solver},
 };
 
-pub const SHADER: &str = concat!(include_str!("../shaders/sdf.wgsl"), include_str!("../shaders/metrics.wgsl"));
+pub const SHADER: &str = concat!(
+    include_str!("../shaders/sdf.wgsl"),
+    include_str!("../shaders/metrics.wgsl")
+);
 const WG: u32 = 64;
 
 #[derive(Debug, Clone, Copy, Default, Serialize)]
@@ -111,29 +114,64 @@ impl GpuMetrics {
             label: Some("metrics"),
             layout: &reduce_vertices.get_bind_group_layout(0),
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: params.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: solver.pos.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: solver.vel.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: partials.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 5, resource: solver.sdf_buf.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: params.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: solver.pos.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: solver.vel.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: partials.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: solver.sdf_buf.as_entire_binding(),
+                },
             ],
         });
         let partials_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("metrics-partials"),
             layout: &reduce_partials.get_bind_group_layout(0),
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: params.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: partials.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: result.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: params.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: partials.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: result.as_entire_binding(),
+                },
             ],
         });
-        Self { reduce_vertices, reduce_partials, vertices_bg, partials_bg, result, readback, groups }
+        Self {
+            reduce_vertices,
+            reduce_partials,
+            vertices_bg,
+            partials_bg,
+            result,
+            readback,
+            groups,
+        }
     }
 
     /// Encode the reduction and the 16-byte copy into the readback buffer.
     pub fn encode(&self, encoder: &mut wgpu::CommandEncoder) {
         {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("metrics"), timestamp_writes: None });
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("metrics"),
+                timestamp_writes: None,
+            });
             pass.set_pipeline(&self.reduce_vertices);
             pass.set_bind_group(0, &self.vertices_bg, &[]);
             pass.dispatch_workgroups(self.groups, 1, 1);
@@ -148,7 +186,12 @@ impl GpuMetrics {
     pub async fn read(&self, device: &wgpu::Device) -> FrameMetrics {
         let v: Vec<[f32; 4]> = gpu_async::read_buffer(device, &self.readback).await;
         let r = v[0];
-        FrameMetrics { kinetic_energy: r[0], max_speed: r[1], min_collider_dist: r[2], non_finite: r[3] as u32 }
+        FrameMetrics {
+            kinetic_energy: r[0],
+            max_speed: r[1],
+            min_collider_dist: r[2],
+            non_finite: r[3] as u32,
+        }
     }
 }
 
@@ -168,7 +211,14 @@ pub struct RestDetector {
 
 impl RestDetector {
     pub fn new(vrms_threshold: f32, window: u32, free_mass: f32) -> Self {
-        Self { vrms_threshold, window, free_mass, streak_start: None, earliest_frame: 0, rest_frame: None }
+        Self {
+            vrms_threshold,
+            window,
+            free_mass,
+            streak_start: None,
+            earliest_frame: 0,
+            rest_frame: None,
+        }
     }
 
     pub fn vrms(&self, m: &FrameMetrics) -> f32 {

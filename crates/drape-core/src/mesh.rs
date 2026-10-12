@@ -54,14 +54,23 @@ impl ClothMesh {
         }
         let pos = rest.clone();
         let pinned = vec![false; pos.len()];
-        Self { rest, pos, tris, pinned }
+        Self {
+            rest,
+            pos,
+            tris,
+            pinned,
+        }
     }
 
     /// Lumped vertex masses from rest triangle areas. `density` in kg/m².
     pub fn masses(&self, density: f32) -> Vec<f32> {
         let mut m = vec![0.0; self.n_verts()];
         for t in &self.tris {
-            let a = tri_area(self.rest[t[0] as usize], self.rest[t[1] as usize], self.rest[t[2] as usize]);
+            let a = tri_area(
+                self.rest[t[0] as usize],
+                self.rest[t[1] as usize],
+                self.rest[t[2] as usize],
+            );
             for &v in t {
                 m[v as usize] += density * a / 3.0;
             }
@@ -85,7 +94,13 @@ impl ClothMesh {
                 map.entry((a.min(b), a.max(b))).or_default().push(o);
             }
         }
-        let mut edges: Vec<Edge> = map.into_iter().map(|((a, b), opposite)| Edge { v: [a, b], opposite }).collect();
+        let mut edges: Vec<Edge> = map
+            .into_iter()
+            .map(|((a, b), opposite)| Edge {
+                v: [a, b],
+                opposite,
+            })
+            .collect();
         edges.sort_by_key(|e| e.v); // deterministic order -> deterministic colouring
         edges
     }
@@ -125,7 +140,10 @@ impl ClothMesh {
 
     pub fn mean_edge_length(&self) -> f32 {
         let e = self.edges();
-        e.iter().map(|e| (self.rest[e.v[0] as usize] - self.rest[e.v[1] as usize]).length()).sum::<f32>() / e.len() as f32
+        e.iter()
+            .map(|e| (self.rest[e.v[0] as usize] - self.rest[e.v[1] as usize]).length())
+            .sum::<f32>()
+            / e.len() as f32
     }
 }
 

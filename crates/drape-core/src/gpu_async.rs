@@ -16,7 +16,10 @@ struct Shared<T> {
 
 /// Minimal one-shot channel: the sender is a `FnOnce(T)` suitable for wgpu callbacks.
 fn oneshot<T: Send + 'static>() -> (impl FnOnce(T) + Send + 'static, Receiver<T>) {
-    let shared = Arc::new(Mutex::new(Shared { value: None, waker: None }));
+    let shared = Arc::new(Mutex::new(Shared {
+        value: None,
+        waker: None,
+    }));
     let s = shared.clone();
     let send = move |v: T| {
         let mut g = s.lock().unwrap();
@@ -46,13 +49,18 @@ impl<T> Future for Receiver<T> {
 
 fn block_native(device: &wgpu::Device) {
     #[cfg(not(target_arch = "wasm32"))]
-    device.poll(wgpu::PollType::wait_indefinitely()).expect("device poll");
+    device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .expect("device poll");
     #[cfg(target_arch = "wasm32")]
     let _ = device;
 }
 
 /// Map a buffer slice for reading.
-pub async fn map_read(device: &wgpu::Device, slice: &wgpu::BufferSlice<'_>) -> Result<(), wgpu::BufferAsyncError> {
+pub async fn map_read(
+    device: &wgpu::Device,
+    slice: &wgpu::BufferSlice<'_>,
+) -> Result<(), wgpu::BufferAsyncError> {
     let (send, recv) = oneshot();
     slice.map_async(wgpu::MapMode::Read, send);
     block_native(device);

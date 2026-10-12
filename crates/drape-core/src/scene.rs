@@ -64,7 +64,15 @@ impl Default for SheetScene {
     /// above a 30 cm sphere: the near half hangs from the pins onto the sphere, the far half
     /// drapes over it.
     fn default() -> Self {
-        Self { grid: 100, size: 1.0, height: 1.0, sphere_center: [0.0, 0.68, 0.0], sphere_radius: 0.3, pin_spacing: 0.9, pins: true }
+        Self {
+            grid: 100,
+            size: 1.0,
+            height: 1.0,
+            sphere_center: [0.0, 0.68, 0.0],
+            sphere_radius: 0.3,
+            pin_spacing: 0.9,
+            pins: true,
+        }
     }
 }
 
@@ -117,7 +125,12 @@ pub fn uv_sphere(center: Vec3, r: f32, rings: u32, segs: u32) -> RenderMesh {
     let w = segs + 1;
     for i in 0..rings {
         for j in 0..segs {
-            let (a, b, c, d) = (i * w + j, i * w + j + 1, (i + 1) * w + j, (i + 1) * w + j + 1);
+            let (a, b, c, d) = (
+                i * w + j,
+                i * w + j + 1,
+                (i + 1) * w + j,
+                (i + 1) * w + j + 1,
+            );
             idx.extend_from_slice(&[a, b, c, b, d, c]);
         }
     }

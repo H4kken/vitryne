@@ -34,14 +34,30 @@ pub struct MeshedPattern {
 fn distribute(lengths: &[f32], n: usize) -> Vec<usize> {
     let total: f32 = lengths.iter().sum();
     let n = n.max(lengths.len());
-    let exact: Vec<f32> = lengths.iter().map(|l| l / total.max(1e-12) * n as f32).collect();
+    let exact: Vec<f32> = lengths
+        .iter()
+        .map(|l| l / total.max(1e-12) * n as f32)
+        .collect();
     let mut out: Vec<usize> = exact.iter().map(|x| (x.floor() as usize).max(1)).collect();
     while out.iter().sum::<usize>() < n {
-        let k = (0..out.len()).max_by(|&i, &j| (exact[i] - out[i] as f32).partial_cmp(&(exact[j] - out[j] as f32)).unwrap()).unwrap();
+        let k = (0..out.len())
+            .max_by(|&i, &j| {
+                (exact[i] - out[i] as f32)
+                    .partial_cmp(&(exact[j] - out[j] as f32))
+                    .unwrap()
+            })
+            .unwrap();
         out[k] += 1;
     }
     while out.iter().sum::<usize>() > n {
-        let k = (0..out.len()).filter(|&i| out[i] > 1).min_by(|&i, &j| (exact[i] - out[i] as f32).partial_cmp(&(exact[j] - out[j] as f32)).unwrap()).unwrap();
+        let k = (0..out.len())
+            .filter(|&i| out[i] > 1)
+            .min_by(|&i, &j| {
+                (exact[i] - out[i] as f32)
+                    .partial_cmp(&(exact[j] - out[j] as f32))
+                    .unwrap()
+            })
+            .unwrap();
         out[k] -= 1;
     }
     out
@@ -53,12 +69,23 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
     let mut segs: Vec<Vec<usize>> = pat
         .panels
         .iter()
-        .map(|p| p.edges.iter().chain(p.inner.iter()).map(|e| n_of(e.length())).collect())
+        .map(|p| {
+            p.edges
+                .iter()
+                .chain(p.inner.iter())
+                .map(|e| n_of(e.length()))
+                .collect()
+        })
         .collect();
     let mut owner: HashMap<(usize, usize), (String, usize)> = HashMap::new();
     let mut assign = |r: EdgeRef, n: usize, seam: &str, segs: &mut Vec<Vec<usize>>| {
         if let Some((other, m)) = owner.get(&(r.panel, r.edge)) {
-            assert!(*m == n, "edge {}/{} is in seams {other} ({m} segments) and {seam} ({n})", pat.panels[r.panel].name, r.edge);
+            assert!(
+                *m == n,
+                "edge {}/{} is in seams {other} ({m} segments) and {seam} ({n})",
+                pat.panels[r.panel].name,
+                r.edge
+            );
         }
         owner.insert((r.panel, r.edge), (seam.to_string(), n));
         segs[r.panel][r.edge] = n;
@@ -66,11 +93,20 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
     for s in &pat.seams {
         let (la, lb) = (pat.chain_length(&s.a), pat.chain_length(&s.b));
         if (la - lb).abs() / la.max(lb) > 0.10 {
-            log::warn!("seam {}: lengths differ by more than 10% ({:.3} vs {:.3} m)", s.name, la, lb);
+            log::warn!(
+                "seam {}: lengths differ by more than 10% ({:.3} vs {:.3} m)",
+                s.name,
+                la,
+                lb
+            );
         }
         if s.a.len() == s.b.len() && !s.by_length {
             // Reversed: a's first edge meets b's last.
-            let b_in_order: Vec<EdgeRef> = if s.reversed { s.b.iter().rev().copied().collect() } else { s.b.clone() };
+            let b_in_order: Vec<EdgeRef> = if s.reversed {
+                s.b.iter().rev().copied().collect()
+            } else {
+                s.b.clone()
+            };
             for (&ra, &rb) in s.a.iter().zip(&b_in_order) {
                 let n = n_of(pat.edge(ra).length().max(pat.edge(rb).length()));
                 assign(ra, n, &s.name, &mut segs);
@@ -107,14 +143,22 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
         }
         let nb = boundary.len() as u32;
         for (ei, ev) in edge_local.iter_mut().enumerate() {
-            let next_corner = if ei + 1 < panel.edges.len() { edge_local_start(&segs[pi], ei + 1) } else { 0 };
+            let next_corner = if ei + 1 < panel.edges.len() {
+                edge_local_start(&segs[pi], ei + 1)
+            } else {
+                0
+            };
             ev.push(next_corner % nb);
         }
 
         // Internal lines: resampled, deduplicated against the boundary (an end may sit on a
         // boundary corner) and each other.
         let mut points = boundary.clone();
-        let mut key_of: HashMap<(u32, u32), u32> = points.iter().enumerate().map(|(k, p)| ((p.x.to_bits(), p.y.to_bits()), k as u32)).collect();
+        let mut key_of: HashMap<(u32, u32), u32> = points
+            .iter()
+            .enumerate()
+            .map(|(k, p)| ((p.x.to_bits(), p.y.to_bits()), k as u32))
+            .collect();
         let mut inner_local: Vec<Vec<u32>> = Vec::new();
         let mut inner_pts: Vec<Vec<Vec2>> = Vec::new();
         for (k, e) in panel.inner.iter().enumerate() {
@@ -122,10 +166,12 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
             let ids = pts
                 .iter()
                 .map(|p| {
-                    *key_of.entry((p.x.to_bits(), p.y.to_bits())).or_insert_with(|| {
-                        points.push(*p);
-                        points.len() as u32 - 1
-                    })
+                    *key_of
+                        .entry((p.x.to_bits(), p.y.to_bits()))
+                        .or_insert_with(|| {
+                            points.push(*p);
+                            points.len() as u32 - 1
+                        })
                 })
                 .collect();
             inner_local.push(ids);
@@ -146,7 +192,10 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
             let mut x = lo.x + if row % 2 == 1 { h * 0.5 } else { 0.0 };
             while x < hi.x {
                 let p = Vec2::new(x, y);
-                if point_in_polygon(p, &outline) && dist_to_polygon(p, &outline) > 0.6 * h && inner_pts.iter().all(|l| dist_to_polyline(p, l) > 0.6 * h) {
+                if point_in_polygon(p, &outline)
+                    && dist_to_polygon(p, &outline) > 0.6 * h
+                    && inner_pts.iter().all(|l| dist_to_polyline(p, l) > 0.6 * h)
+                {
                     points.push(p);
                 }
                 x += h;
@@ -156,12 +205,21 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
         }
 
         // Constrained Delaunay.
-        let mut cdt: ConstrainedDelaunayTriangulation<Point2<f64>> = ConstrainedDelaunayTriangulation::new();
+        let mut cdt: ConstrainedDelaunayTriangulation<Point2<f64>> =
+            ConstrainedDelaunayTriangulation::new();
         let mut handles = Vec::with_capacity(points.len());
         for p in &points {
-            handles.push(cdt.insert(Point2::new(p.x as f64, p.y as f64)).expect("cdt insert"));
+            handles.push(
+                cdt.insert(Point2::new(p.x as f64, p.y as f64))
+                    .expect("cdt insert"),
+            );
         }
-        assert_eq!(cdt.num_vertices(), points.len(), "{}: duplicate points", panel.name);
+        assert_eq!(
+            cdt.num_vertices(),
+            points.len(),
+            "{}: duplicate points",
+            panel.name
+        );
         // spade numbers vertices in insertion order; keep our own map to be safe.
         let mut local_of = vec![u32::MAX; points.len()];
         for (k, hnd) in handles.iter().enumerate() {
@@ -179,7 +237,11 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
         let mut local_tris = Vec::new();
         for f in cdt.inner_faces() {
             let v = f.vertices().map(|v| local_of[v.fix().index()]);
-            let (a, b, cc) = (points[v[0] as usize], points[v[1] as usize], points[v[2] as usize]);
+            let (a, b, cc) = (
+                points[v[0] as usize],
+                points[v[1] as usize],
+                points[v[2] as usize],
+            );
             // Zero-area triangles along straight boundary runs have their centroid on the
             // boundary, where the inside test is ambiguous: drop them by area first.
             if (b - a).perp_dot(cc - a).abs() < 1e-3 * h * h {
@@ -193,7 +255,11 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
             }
             local_tris.push(v);
         }
-        assert!(used[..nb as usize].iter().all(|&u| u), "{}: boundary vertex left without triangles", panel.name);
+        assert!(
+            used[..nb as usize].iter().all(|&u| u),
+            "{}: boundary vertex left without triangles",
+            panel.name
+        );
         // Drop unused interior points (none expected), compacting indices.
         let mut remap = vec![u32::MAX; points.len()];
         for (k, p) in points.iter().enumerate() {
@@ -208,9 +274,19 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
             // Ensure counter-clockwise winding in pattern space.
             let [a, b, c] = t.map(|k| remap[k as usize]);
             let (pa, pb, pc) = (uv[a as usize], uv[b as usize], uv[c as usize]);
-            if (pb - pa).perp_dot(pc - pa) >= 0.0 { tris.push([a, b, c]) } else { tris.push([a, c, b]) }
+            if (pb - pa).perp_dot(pc - pa) >= 0.0 {
+                tris.push([a, b, c])
+            } else {
+                tris.push([a, c, b])
+            }
         }
-        edge_vertices.push(edge_local.into_iter().chain(inner_local).map(|ev| ev.into_iter().map(|k| remap[k as usize]).collect()).collect());
+        edge_vertices.push(
+            edge_local
+                .into_iter()
+                .chain(inner_local)
+                .map(|ev| ev.into_iter().map(|k| remap[k as usize]).collect())
+                .collect(),
+        );
         panel_vertices.push(base..rest.len() as u32);
         panel_tris.push(tri_start..tris.len());
     }
@@ -243,7 +319,20 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
 
     let pos = rest.clone();
     let pinned = vec![false; rest.len()];
-    MeshedPattern { mesh: ClothMesh { rest, pos, tris, pinned }, panel_vertices, uv, edge_vertices, sew_pairs, seam_pairs, panel_tris }
+    MeshedPattern {
+        mesh: ClothMesh {
+            rest,
+            pos,
+            tris,
+            pinned,
+        },
+        panel_vertices,
+        uv,
+        edge_vertices,
+        sew_pairs,
+        seam_pairs,
+        panel_tris,
+    }
 }
 
 fn edge_local_start(segs: &[usize], ei: usize) -> u32 {
