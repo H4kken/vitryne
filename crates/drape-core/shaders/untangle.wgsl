@@ -5,7 +5,11 @@
 // per-pair GPU work. Shared by native and web, no float atomics (corrections are fixed-point
 // i32 atomicAdd plus a count, as the spike-1 plan has it).
 //
-// Every `untangle_every` substeps:
+// Full detection every `untangle_check_every` substeps (gated = 0), and every `untangle_every`
+// in between a gated one (gated = 1) that only tests triangles with a vertex flagged by the last
+// detection: around known crossings, so its cost follows the size of the tangle (nearly nothing
+// when there is none). As a contour shrinks, the newly crossing triangles share a vertex with
+// the old ones, so they are still tested. New crossings elsewhere wait for the next full pass.
 //   ut_count, hg_scan_local, hg_scan_blocks, ut_scatter: counting sort of the triangles by the
 //               hash cell of their centroid (hashgrid.wgsl, appended). Cell size = 2 x the
 //               largest triangle reach (centroid to vertex) supported, so two triangles that
@@ -37,6 +41,10 @@ struct UtParams {
     step: f32,        // displacement per application for a unit gradient ratio (m)
     max_ratio: f32,   // clamp on |(g.e)/(n.e)| (edges almost parallel to T)
     max_reach: f32,   // largest centroid-to-vertex distance the hash supports (m)
+    gated: u32,       // 1 = only triangles touching a flagged vertex (see above)
+    _p0: u32,
+    _p1: u32,
+    _p2: u32,
 };
 
 @group(0) @binding(0) var<uniform> S: UtParams;
@@ -168,6 +176,11 @@ fn touch(v: vec3<u32>) {
     atomicAdd(&acc[4u * n + v.z], 1);
 }
 
+fn flagged(v: vec3<u32>) -> bool {
+    let o = 5u * S.n_verts;
+    return atomicLoad(&acc[o + v.x]) != 0 || atomicLoad(&acc[o + v.y]) != 0 || atomicLoad(&acc[o + v.z]) != 0;
+}
+
 fn shares_vertex(a: vec3<u32>, b: vec3<u32>) -> bool {
     return any(a == b.xxx) || any(a == b.yyy) || any(a == b.zzz);
 }
@@ -183,6 +196,10 @@ fn ut_detect(@builtin(global_invocation_id) gid: vec3<u32>) {
     let vt = tris[3u * t].xyz;
     let wt = tris[3u * t + 1u].xyz;
     let ot = tris[3u * t + 2u].xyz;
+    // Gated: each pair with at least one flagged triangle is tested once, by the flagged one
+    // (by the lower index if both are).
+    let gated = S.gated != 0u;
+    if (gated && !flagged(vt)) { return; }
     let a0 = pos[vt.x].xyz;
     let a1 = pos[vt.y].xyz;
     let a2 = pos[vt.z].xyz;
@@ -208,12 +225,13 @@ fn ut_detect(@builtin(global_invocation_id) gid: vec3<u32>) {
                 for (; k < b; k = k + 1u) {
                     let cu = tsorted[k];
                     let u = bitcast<u32>(cu.w);
-                    if (u <= t) { continue; }
+                    if (u == t || (!gated && u < t)) { continue; }
                     let dc = cu.xyz - ct.xyz;
                     if (dot(dc, dc) >= reach * reach) { continue; }
                     let wu = tris[3u * u + 1u].xyz;
                     if (shares_vertex(wt, wu)) { continue; }
                     let vu = tris[3u * u].xyz;
+                    if (gated && u < t && flagged(vu)) { continue; }
                     let ou = tris[3u * u + 2u].xyz;
                     // Bitwise |, not ||: every crossing edge must add its correction.
                     var hit = edge_vs_tri(vt.x, vt.y, vt.z, ot.x, vu);

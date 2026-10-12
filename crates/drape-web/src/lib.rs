@@ -23,9 +23,10 @@ pub fn init() {
 }
 
 /// Scene options as JSON, all optional: `{"self_collision": bool, "self_rebuild": u32,
-/// "pins": bool, "contact_max_accel": f32, "untangle_every": u32, "untangle_step": f32}` (the
-/// same switches as the native `--self-collision`, `--self-rebuild`, `--no-pins`,
-/// `--contact-max-accel`, `--untangle-every`, `--untangle-step`). The garment scene also takes
+/// "pins": bool, "contact_max_accel": f32, "untangle_every": u32, "untangle_check_every": u32,
+/// "untangle_step": f32}` (the same switches as the native `--self-collision`, `--self-rebuild`,
+/// `--no-pins`, `--contact-max-accel`, `--untangle-every`, `--untangle-check-every`,
+/// `--untangle-step`). The garment scene also takes
 /// `"garment_toml"` and `"garment_dxf"` (file contents).
 fn parse_opts(opts: &str) -> Result<serde_json::Value, JsValue> {
     if opts.trim().is_empty() {
@@ -52,6 +53,9 @@ fn build_scene(scene: &str, res: f32, substeps: u32, opts: &str, obj: &str, sdf:
     }
     if let Some(k) = o["untangle_every"].as_u64() {
         sim.untangle_every = k as u32;
+    }
+    if let Some(k) = o["untangle_check_every"].as_u64() {
+        sim.untangle_check_every = k as u32;
     }
     if let Some(a) = o["untangle_step"].as_f64() {
         sim.untangle_step_edges = a as f32;

@@ -408,6 +408,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
                     let (gpu_pairs_last, tangled_vertices_last) = u.last_detection(device, queue).await;
                     Some(crate::untangle::UntangleInfo {
                         every: sim.untangle_every,
+                        check_every: sim.untangle_check_every,
                         step_mm: u.step * 1000.0,
                         cell_mm: u.cell * 1000.0,
                         table_size: u.table_size,

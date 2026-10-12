@@ -15,8 +15,10 @@ pub const SHADER: &str = concat!(include_str!("../shaders/untangle.wgsl"), inclu
 
 /// Kernels in dispatch order, all run every `untangle_every` substeps.
 pub const ENTRY_POINTS: [&str; 6] = ["ut_count", "hg_scan_local", "hg_scan_blocks", "ut_scatter", "ut_detect", "ut_apply"];
-/// Phase labels (profiling, attribution), in `ENTRY_POINTS` order.
+/// Phase labels (profiling, attribution), in `ENTRY_POINTS` order: the full detection, and the
+/// gated one (only triangles touching a vertex flagged by the last detection).
 pub const PHASES: [&str; 6] = ["ut_count", "ut_scan_local", "ut_scan_blocks", "ut_scatter", "ut_detect", "ut_apply"];
+pub const PHASES_GATED: [&str; 6] = ["utg_count", "utg_scan_local", "utg_scan_blocks", "utg_scatter", "utg_detect", "utg_apply"];
 /// The hash supports triangles stretched to this many times the 99th-percentile rest reach
 /// (centroid to vertex). Larger ones can miss a crossing; the CPU count would still see it.
 /// Sizing by the largest triangle instead made the cell 3.4x the mean edge on the hoodie (one
@@ -36,6 +38,8 @@ struct UtParams {
     step: f32,
     max_ratio: f32,
     max_reach: f32,
+    gated: u32,
+    _p: [u32; 3],
 }
 
 /// Per triangle, 3 rows: vertices, welded ids, and for edge k = (v_k, v_k+1) the third vertex
@@ -89,7 +93,8 @@ pub struct Untangle {
     n_verts: u32,
     /// Correction accumulator; [5n, 6n) are the tangled flags (bound by self-collision).
     pub acc: wgpu::Buffer,
-    pub bind_group: wgpu::BindGroup,
+    /// Full detection, gated detection: the same buffers, `gated` differs in the params.
+    pub bind_groups: [wgpu::BindGroup; 2],
     pub pipelines: Vec<wgpu::ComputePipeline>,
     /// Workgroups per kernel, in `ENTRY_POINTS` order.
     pub groups: [u32; 6],
@@ -105,11 +110,13 @@ impl Untangle {
         let cell = 2.0 * max_reach;
         let table_size = (2 * n_tris).next_power_of_two().max(256);
         let n_blocks = table_size / 256;
-        let p = UtParams { n_tris, table_size, n_blocks, inv_cell: 1.0 / cell, n_verts: n, step, max_ratio, max_reach };
-        let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("untangle-params"),
-            contents: bytemuck::bytes_of(&p),
-            usage: wgpu::BufferUsages::UNIFORM,
+        let p = UtParams { n_tris, table_size, n_blocks, inv_cell: 1.0 / cell, n_verts: n, step, max_ratio, max_reach, gated: 0, _p: [0; 3] };
+        let params = [0, 1].map(|gated| {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("untangle-params"),
+                contents: bytemuck::bytes_of(&UtParams { gated, ..p }),
+                usage: wgpu::BufferUsages::UNIFORM,
+            })
         });
         let weld = weld_map(mesh.n_verts(), cons);
         let rows = triangle_rows(mesh, &weld);
@@ -154,9 +161,11 @@ impl Untangle {
                 entry(7, rw),
             ],
         });
-        let bufs = [&params, pos, prev, &cell_count, &cell_start, &tsorted, &tri_buf, &acc];
-        let entries: Vec<_> = bufs.iter().enumerate().map(|(k, b)| wgpu::BindGroupEntry { binding: k as u32, resource: b.as_entire_binding() }).collect();
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("untangle"), layout: &bgl, entries: &entries });
+        let bind_groups = params.each_ref().map(|params| {
+            let bufs = [params, pos, prev, &cell_count, &cell_start, &tsorted, &tri_buf, &acc];
+            let entries: Vec<_> = bufs.iter().enumerate().map(|(k, b)| wgpu::BindGroupEntry { binding: k as u32, resource: b.as_entire_binding() }).collect();
+            device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("untangle"), layout: &bgl, entries: &entries })
+        });
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("untangle.wgsl"),
             source: wgpu::ShaderSource::Wgsl(SHADER.into()),
@@ -181,7 +190,7 @@ impl Untangle {
             .collect();
         let tg = n_tris.div_ceil(crate::sim::WG);
         let vg = n.div_ceil(crate::sim::WG);
-        Self { n_tris, step, cell, table_size, buffer_bytes, n_verts: n, acc, bind_group, pipelines, groups: [tg, n_blocks, 1, tg, tg, vg] }
+        Self { n_tris, step, cell, table_size, buffer_bytes, n_verts: n, acc, bind_groups, pipelines, groups: [tg, n_blocks, 1, tg, tg, vg] }
     }
 
     /// Benchmark-only readback: intersecting triangle pairs found by the last detection (pairs
@@ -205,6 +214,7 @@ impl Untangle {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct UntangleInfo {
     pub every: u32,
+    pub check_every: u32,
     pub step_mm: f32,
     pub cell_mm: f32,
     pub table_size: u32,

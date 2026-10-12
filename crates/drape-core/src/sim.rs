@@ -123,10 +123,14 @@ pub struct SimConfig {
     pub self_margin_radii: f32,
     /// Separation speed a repulsion push may create, m/s (beyond it the push is inelastic).
     pub self_max_push_speed: f32,
-    /// S4 untangling (intersection contour minimization), with self-collision on: detect
-    /// intersecting triangle pairs and move them back through each other every this many
-    /// substeps (0 = off, the S3 behaviour).
+    /// S4 untangling (intersection contour minimization), with self-collision on: while any
+    /// crossing is known, re-detect around it and move the layers back through each other
+    /// every this many substeps (0 = untangling off, the S3 behaviour).
     pub untangle_every: u32,
+    /// Full detection over the whole mesh every this many substeps, which finds new crossings
+    /// (default 20 = once per frame). The `untangle_every` passes only test triangles that touch
+    /// a vertex flagged by the last detection, so their cost follows the size of the tangle.
+    pub untangle_check_every: u32,
     /// Untangling displacement per application for a unit contour-gradient ratio, in mean rest
     /// edge lengths.
     pub untangle_step_edges: f32,
@@ -160,6 +164,7 @@ impl Default for SimConfig {
             self_margin_radii: 0.5,
             self_max_push_speed: 1.0,
             untangle_every: 4,
+            untangle_check_every: 20,
             untangle_step_edges: 0.1,
             untangle_max_ratio: 1.0,
             untangle_skip_repulsion: true,
@@ -259,8 +264,9 @@ enum Pipe {
     Sim(Kernel),
     /// Index into the self-collision kernels (own pipeline layout and bind group).
     SelfCol(usize),
-    /// Index into the untangling kernels (own pipeline layout and bind group).
-    Untangle(usize),
+    /// Index into the untangling kernels (own pipeline layout), and whether it's the gated
+    /// variant (only around known crossings) or the full detection.
+    Untangle(usize, bool),
 }
 
 struct Dispatch {
@@ -290,8 +296,8 @@ pub struct Solver {
     state_bg: wgpu::BindGroup,
     cons_bg: wgpu::BindGroup,
     pipelines: Vec<wgpu::ComputePipeline>,
-    /// (label, dispatches, run every this many substeps).
-    phases: Vec<(&'static str, Vec<Dispatch>, u32)>,
+    /// (label, dispatches, (every, offset)): runs in substeps s with s % every == offset.
+    phases: Vec<(&'static str, Vec<Dispatch>, (u32, u32))>,
     init_pos: Vec<[f32; 4]>,
     pub self_collision: Option<SelfCollision>,
     pub untangle: Option<Untangle>,
@@ -518,27 +524,42 @@ impl Solver {
         };
         let untangle = (cfg.self_collision && cfg.untangle_every > 0)
             .then(|| Untangle::new(device, mesh, cons, &pos, &prev, cfg.untangle_step_edges * mesh.mean_edge_length(), cfg.untangle_max_ratio));
+        // The full detection must run at least as often as the gated one, or crossings it would
+        // find are never looked for.
+        assert!(untangle.is_none() || cfg.untangle_check_every > 0, "untangle_check_every must be > 0");
         let self_collision = cfg.self_collision.then(|| {
             let r = cfg.self_radius_edges * mesh.mean_edge_length();
             let rq = r * (1.0 + cfg.self_margin_radii);
             let flags = untangle.as_ref().filter(|_| cfg.untangle_skip_repulsion).map(|u| &u.acc);
             SelfCollision::new(device, mesh, cons, &pos, &prev, r, rq, r * cfg.self_exclude_radii, cfg.self_friction, cfg.self_max_push_speed * h, flags)
         });
-        // One phase per kernel, so profiling mode times each: (label, dispatches, every k substeps).
+        // One phase per kernel, so profiling mode times each: (label, dispatches, (every, offset)).
         let rebuild = cfg.self_rebuild_every.max(1);
         let self_kernel = |k: usize| {
             let d = self_collision.as_ref().map(|sc| vec![Dispatch { pipe: Pipe::SelfCol(k), range_offset: 0, groups: sc.groups[k] }]).unwrap_or_default();
-            (crate::selfcol::PHASES[k], d, if k < crate::selfcol::REBUILD_KERNELS { rebuild } else { 1 })
+            (crate::selfcol::PHASES[k], d, (if k < crate::selfcol::REBUILD_KERNELS { rebuild } else { 1 }, 0))
         };
-        let untangle_kernel = |k: usize| {
-            let d = untangle.as_ref().map(|u| vec![Dispatch { pipe: Pipe::Untangle(k), range_offset: 0, groups: u.groups[k] }]).unwrap_or_default();
-            (crate::untangle::PHASES[k], d, cfg.untangle_every.max(1))
+        // Full detection at offset 0; the gated passes halfway between, so with the defaults they
+        // never land on a full one (substeps 2, 6, 10, 14, 18 of 20).
+        let check = cfg.untangle_check_every.max(1);
+        let gated_every = cfg.untangle_every.max(1);
+        let untangle_kernel = |k: usize, gated: bool| {
+            let d = untangle
+                .as_ref()
+                .filter(|_| !gated || gated_every < check)
+                .map(|u| vec![Dispatch { pipe: Pipe::Untangle(k, gated), range_offset: 0, groups: u.groups[k] }])
+                .unwrap_or_default();
+            if gated {
+                (crate::untangle::PHASES_GATED[k], d, (gated_every, gated_every / 2))
+            } else {
+                (crate::untangle::PHASES[k], d, (check, 0))
+            }
         };
         let phases = vec![
-            ("predict", per_vertex(Kernel::Predict), 1),
-            ("stretch", colored(Kernel::Stretch, &cons.stretch.ranges, 0), 1),
-            ("sew", colored(Kernel::Sew, &sew_ranges, ns), 1),
-            ("bend", colored(Kernel::Bend, &cons.bend.ranges, ns + nsew), 1),
+            ("predict", per_vertex(Kernel::Predict), (1, 0)),
+            ("stretch", colored(Kernel::Stretch, &cons.stretch.ranges, 0), (1, 0)),
+            ("sew", colored(Kernel::Sew, &sew_ranges, ns), (1, 0)),
+            ("bend", colored(Kernel::Bend, &cons.bend.ranges, ns + nsew), (1, 0)),
             // Hash rebuild before the body contact, repulsion after it. With the repulsion
             // first, the body pushed layers back into each other and the two fought every
             // substep (drag test: 44 frames over 5 m/s across 6 seeds vs 27 this way, and no
@@ -554,18 +575,24 @@ impl Solver {
                     Collider::Sphere(_) => Kernel::CollideSphere,
                     Collider::Sdf(_) => Kernel::CollideSdf,
                 }),
-                1,
+                (1, 0),
             ),
             self_kernel(5),
             self_kernel(6),
             // Untangling last, on the positions every other pass has corrected (S4).
-            untangle_kernel(0),
-            untangle_kernel(1),
-            untangle_kernel(2),
-            untangle_kernel(3),
-            untangle_kernel(4),
-            untangle_kernel(5),
-            ("update", per_vertex(Kernel::Update), 1),
+            untangle_kernel(0, false),
+            untangle_kernel(1, false),
+            untangle_kernel(2, false),
+            untangle_kernel(3, false),
+            untangle_kernel(4, false),
+            untangle_kernel(5, false),
+            untangle_kernel(0, true),
+            untangle_kernel(1, true),
+            untangle_kernel(2, true),
+            untangle_kernel(3, true),
+            untangle_kernel(4, true),
+            untangle_kernel(5, true),
+            ("update", per_vertex(Kernel::Update), (1, 0)),
         ];
         let phases = phases.into_iter().filter(|(_, d, _)| !d.is_empty()).collect();
 
@@ -671,17 +698,23 @@ impl Solver {
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&p));
     }
 
+    /// Phases that run in substep `s`.
+    fn due(&self, s: u32) -> impl Iterator<Item = &(&'static str, Vec<Dispatch>, (u32, u32))> {
+        self.phases.iter().filter(move |p| s % p.2.0 == p.2.1)
+    }
+
     pub fn dispatches_per_frame(&self) -> u32 {
-        (0..self.cfg.substeps).map(|s| self.phases.iter().filter(|p| s % p.2 == 0).map(|p| p.1.len() as u32).sum::<u32>()).sum()
+        (0..self.cfg.substeps).map(|s| self.due(s).map(|p| p.1.len() as u32).sum::<u32>()).sum()
     }
 
     /// Passes encoded per frame in profiling mode (one per phase per substep).
     pub fn profiled_passes_per_frame(&self) -> u32 {
-        (0..self.cfg.substeps).map(|s| self.phases.iter().filter(|p| s % p.2 == 0).count() as u32).sum()
+        (0..self.cfg.substeps).map(|s| self.due(s).count() as u32).sum()
     }
 
     /// `bound`: which group 0 is currently set (0 = none, 1 = solver state, 2 = self-collision,
-    /// 3 = untangling; the last two have their own layouts), so it is only rebound when switching.
+    /// 3 / 4 = untangling full / gated; the last three have their own layouts), so it is only
+    /// rebound when switching.
     fn run(&self, pass: &mut wgpu::ComputePass<'_>, ds: &[Dispatch], bound: &mut u8) {
         for d in ds {
             match d.pipe {
@@ -701,12 +734,13 @@ impl Solver {
                         *bound = 2;
                     }
                 }
-                Pipe::Untangle(k) => {
+                Pipe::Untangle(k, gated) => {
                     let u = self.untangle.as_ref().unwrap();
                     pass.set_pipeline(&u.pipelines[k]);
-                    if *bound != 3 {
-                        pass.set_bind_group(0, &u.bind_group, &[]);
-                        *bound = 3;
+                    let b = 3 + gated as u8;
+                    if *bound != b {
+                        pass.set_bind_group(0, &u.bind_groups[gated as usize], &[]);
+                        *bound = b;
                     }
                 }
             }
@@ -720,7 +754,7 @@ impl Solver {
         match timer {
             Some(timer) if timer.enabled() => {
                 for s in 0..self.cfg.substeps {
-                    for (label, ds, _) in self.phases.iter().filter(|p| s % p.2 == 0) {
+                    for (label, ds, _) in self.due(s) {
                         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                             label: Some(label),
                             timestamp_writes: timer.compute_pass_writes(label),
@@ -732,7 +766,7 @@ impl Solver {
             _ => {
                 let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("sim-frame"), timestamp_writes: None });
                 for s in 0..self.cfg.substeps {
-                    for (_, ds, _) in self.phases.iter().filter(|p| s % p.2 == 0) {
+                    for (_, ds, _) in self.due(s) {
                         self.run(&mut pass, ds, &mut 0);
                     }
                 }
@@ -747,8 +781,8 @@ impl Solver {
     }
 
     pub fn encode_phase(&self, encoder: &mut wgpu::CommandEncoder, substep: u32, phase: usize) -> bool {
-        let (_, ds, every) = &self.phases[phase];
-        if substep % every != 0 {
+        let (_, ds, (every, offset)) = &self.phases[phase];
+        if substep % every != *offset {
             return false;
         }
         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("replay"), timestamp_writes: None });

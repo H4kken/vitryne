@@ -255,6 +255,9 @@ impl SceneArgs {
         if let Some(v) = take_value(args, "--untangle-every") {
             a.sim.untangle_every = v.parse().expect("--untangle-every");
         }
+        if let Some(v) = take_value(args, "--untangle-check-every") {
+            a.sim.untangle_check_every = v.parse().expect("--untangle-check-every");
+        }
         if let Some(v) = num(args, "--untangle-step") {
             a.sim.untangle_step_edges = v;
         }
