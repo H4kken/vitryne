@@ -7,6 +7,7 @@ pub mod bench;
 pub mod body;
 pub mod constraints;
 pub mod dragbench;
+pub mod engine;
 pub mod gpu;
 pub mod gpu_async;
 pub mod longrange;

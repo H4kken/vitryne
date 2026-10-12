@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Scenes shared by the native viewer, the bench and the web build. A scene is built into a
-//! `Built`: everything the solver, renderer and bench need, independent of where it came from.
-
-use std::sync::Arc;
+//! The sheet test scene (a pinned cloth over a sphere), as a garment description, and the mesh
+//! a collider is drawn with. Garments from patterns come from `drape-assets`.
 
 use glam::Vec3;
 use serde::Serialize;
 
 use crate::{
-    body::BodyQuery,
-    constraints::{Constraints, Material},
+    constraints::Material,
+    engine::{GarmentDesc, SdfParams},
     mesh::ClothMesh,
-    sim::{self, Collider, SimConfig},
+    sim::SimSettings,
 };
 
 /// Static mesh drawn for the collider (sphere or avatar).
@@ -20,25 +18,6 @@ pub struct RenderMesh {
     pub pos: Vec<Vec3>,
     pub nrm: Vec<Vec3>,
     pub idx: Vec<u32>,
-}
-
-pub struct Built {
-    pub name: String,
-    /// Scene parameters, copied verbatim into bench reports.
-    pub description: serde_json::Value,
-    pub mesh: ClothMesh,
-    pub constraints: Constraints,
-    pub material: Material,
-    pub collider: Collider,
-    pub collider_mesh: RenderMesh,
-    pub sim: SimConfig,
-    /// Exact signed distance to the body, for the bench's penetration check (CPU, readback).
-    pub body: Option<Arc<BodyQuery>>,
-    /// Orbit camera target and distance for this scene.
-    pub camera: (Vec3, f32),
-    /// Named seams (sewing vertex pairs) and named vertex groups (panels), for diagnostics.
-    pub seams: Vec<(String, Vec<(u32, u32)>)>,
-    pub groups: Vec<(String, std::ops::Range<u32>)>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -78,7 +57,8 @@ impl Default for SheetScene {
 }
 
 impl SheetScene {
-    pub fn build(&self, sim: SimConfig) -> Built {
+    /// The sheet as a garment: no sewing, pinned at two corners, cotton.
+    pub fn garment(&self) -> GarmentDesc {
         let mut mesh = ClothMesh::grid(self.grid, self.size, self.height);
         let n = self.grid;
         if self.pins {
@@ -88,27 +68,29 @@ impl SheetScene {
             mesh.pinned[0] = true; // (-x, -z)
             mesh.pinned[(n - 1) as usize] = true; // (+x, -z)
         }
-        let material = Material::cotton();
-        let constraints = Constraints::build(&mesh, &material);
-        let c = Vec3::from(self.sphere_center);
-        Built {
+        GarmentDesc {
             name: "sheet".into(),
             description: serde_json::to_value(self).unwrap(),
             mesh,
-            constraints,
-            material,
-            collider: sim::sphere(c, self.sphere_radius),
-            collider_mesh: uv_sphere(c, self.sphere_radius, 48, 96),
-            sim,
-            body: None,
-            camera: (Vec3::new(0.0, 0.6, 0.0), 2.6),
+            sew_pairs: Vec::new(),
             seams: Vec::new(),
             groups: Vec::new(),
+            schedule: None,
+            sdf: SdfParams::default(),
+            camera: (Vec3::new(0.0, 0.6, 0.0), 2.6),
         }
     }
 
-    pub fn config() -> SimConfig {
-        SimConfig::default()
+    pub fn fabric(&self) -> Material {
+        Material::cotton()
+    }
+
+    pub fn sphere(&self) -> (Vec3, f32) {
+        (Vec3::from(self.sphere_center), self.sphere_radius)
+    }
+
+    pub fn config() -> SimSettings {
+        SimSettings::default()
     }
 }
 

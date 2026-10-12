@@ -6,11 +6,10 @@ use serde::Serialize;
 use web_time::Instant;
 
 use crate::{
-    gpu::Gpu,
-    metrics::{FrameMetrics, GpuMetrics, RestDetector},
-    scene::Built,
+    engine::{Body, Simulation},
+    metrics::{FrameMetrics, RestDetector},
     selfcheck::{self, SelfIntersections},
-    sim::{SimConfig, Solver},
+    sim::SimSettings,
     timer::{self, GpuTimer, PassTime},
 };
 
@@ -20,8 +19,6 @@ pub struct BenchConfig {
     pub frames: u32,
     /// Extra back-to-back frames for the pipelined throughput number.
     pub pipelined_frames: u32,
-    pub rest_vrms: f32,
-    pub rest_window: u32,
     /// Include the final positions (f32 xyz, little endian, base64) for cross-target shape
     /// comparison (tools/bench/compare.py).
     pub record_positions: bool,
@@ -32,8 +29,6 @@ impl Default for BenchConfig {
         Self {
             frames: 600,
             pipelined_frames: 300,
-            rest_vrms: 0.005,
-            rest_window: 30,
             record_positions: false,
         }
     }
@@ -118,7 +113,7 @@ pub struct BenchResult {
     pub adapter: crate::gpu::AdapterReport,
     pub config: BenchConfig,
     pub scene_params: serde_json::Value,
-    pub sim: SimConfig,
+    pub sim: SimSettings,
     pub mesh: MeshInfo,
     /// Wall time per frame, submit -> GPU done, one frame at a time (no overlap). Conservative.
     pub frame_ms_serial: Stats,
@@ -191,15 +186,15 @@ pub struct SelfCollisionInfo {
 }
 
 /// Exact signed distance of every vertex to the body (CPU, BVH). Benchmark-only.
-pub fn penetration_check(built: &Built, pos: &[Vec3]) -> Option<Penetration> {
-    built.body.as_ref().map(|body| {
+pub fn penetration_check(body: &Body, thickness: f32, pos: &[Vec3]) -> Option<Penetration> {
+    body.query.as_ref().map(|body_query| {
         let band = 0.05;
         let mut min_d = f32::MAX;
         let mut worst = None;
         let (mut inside, mut within) = (0, 0);
         let mut sdf_err: Option<f32> = None;
         for (i, p) in pos.iter().enumerate() {
-            let Some(d) = body.signed_distance(*p, band) else {
+            let Some(d) = body_query.signed_distance(*p, band) else {
                 continue;
             };
             if d < min_d {
@@ -207,8 +202,8 @@ pub fn penetration_check(built: &Built, pos: &[Vec3]) -> Option<Penetration> {
                 worst = Some((i as u32, p.to_array()));
             }
             inside += (d < 0.0) as usize;
-            within += (d < built.sim.thickness) as usize;
-            if let crate::sim::Collider::Sdf(sdf) = &built.collider {
+            within += (d < thickness) as usize;
+            if let crate::sim::Collider::Sdf(sdf) = &body.collider {
                 let e = (sdf.sample(*p) - d).abs();
                 if d.abs() < sdf.band * 0.9 {
                     sdf_err = Some(sdf_err.unwrap_or(0.0).max(e));
@@ -243,45 +238,42 @@ async fn read_vec4(
     crate::gpu_async::read_buffer(device, &rb).await
 }
 
-pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
+/// Runs the benchmark on a fresh simulation (frame 0): `cfg.frames` serial frames, then
+/// `cfg.pipelined_frames` back to back.
+pub async fn run(simulation: &Simulation, cfg: BenchConfig) -> BenchResult {
+    let gpu = simulation.gpu_handle();
     let (device, queue) = (&gpu.device, &gpu.queue);
-    let sim = built.sim;
-    let solver = Solver::new(
+    let garment = simulation.garment().clone();
+    let body = simulation.body().clone();
+    let sim = *simulation.settings();
+    let mut timer = GpuTimer::new(
         device,
-        &built.mesh,
-        &built.constraints,
-        built.material.density,
-        sim,
-        built.collider.clone(),
+        queue,
+        simulation.solver().profiled_passes_per_frame(),
     );
-    let metrics = GpuMetrics::new(device, &solver);
-    let mut timer = GpuTimer::new(device, queue, solver.profiled_passes_per_frame());
-    let mut rest = RestDetector::new(
-        cfg.rest_vrms,
-        cfg.rest_window,
-        Solver::total_free_mass(&built.mesh, built.material.density),
-    );
+    let mut rest = RestDetector::new(sim.rest_vrms, sim.rest_window, simulation.free_mass());
     let ramps_end_frame = (sim.schedule.end_s() / sim.frame_dt).ceil() as u32;
     rest.earliest_frame = ramps_end_frame;
 
-    let c = &built.constraints;
+    let c = &garment.constraints;
     let mesh = MeshInfo {
-        vertices: built.mesh.n_verts(),
-        triangles: built.mesh.tris.len(),
-        mean_edge_mm: built.mesh.mean_edge_length() * 1000.0,
+        vertices: garment.mesh().n_verts(),
+        triangles: garment.mesh().tris.len(),
+        mean_edge_mm: garment.mesh().mean_edge_length() * 1000.0,
         stretch_constraints: c.stretch.items.len(),
         stretch_colors: c.stretch.n_colors(),
         bend_constraints: c.bend.items.len(),
         bend_colors: c.bend.n_colors(),
         sew_constraints: c.sew.items.len(),
         sew_colors: c.sew.n_colors(),
-        dispatches_per_frame: solver.dispatches_per_frame(),
+        dispatches_per_frame: simulation.solver().dispatches_per_frame(),
         largest_storage_binding_bytes: [
-            built.mesh.n_verts() as u64 * 16,
+            garment.mesh().n_verts() as u64 * 16,
             (c.stretch.items.len() + c.sew.items.len()) as u64 * 16,
             c.bend.items.len() as u64 * 48,
-            solver.sdf_buf.size(),
-            solver
+            simulation.solver().sdf_buf.size(),
+            simulation
+                .solver()
                 .self_collision
                 .as_ref()
                 .map_or(0, |sc| sc.buffer_bytes),
@@ -289,11 +281,12 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         .into_iter()
         .max()
         .unwrap(),
-        total_sim_buffer_bytes: built.mesh.n_verts() as u64 * 48
+        total_sim_buffer_bytes: garment.mesh().n_verts() as u64 * 48
             + (c.stretch.items.len() + c.sew.items.len()) as u64 * 16
             + c.bend.items.len() as u64 * 48
-            + solver.sdf_buf.size()
-            + solver
+            + simulation.solver().sdf_buf.size()
+            + simulation
+                .solver()
                 .self_collision
                 .as_ref()
                 .map_or(0, |sc| sc.buffer_bytes),
@@ -301,14 +294,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
     log::info!("bench mesh: {mesh:?}");
 
     // Warm-up: pipeline creation and first-use costs must not land in frame 0.
-    {
-        let mut enc = device.create_command_encoder(&Default::default());
-        solver.prepare_frame(queue, 0);
-        solver.encode_frame(&mut enc, None);
-        queue.submit([enc.finish()]);
-        crate::gpu_async::work_done(device, queue).await;
-        solver.reset(queue);
-    }
+    simulation.warm_up().await;
 
     let mut frame_ms = Vec::with_capacity(cfg.frames as usize);
     let mut max_speed = 0.0f32;
@@ -325,13 +311,12 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
     for f in 0..cfg.frames {
         // Sim only, timed on its own.
         let t0 = Instant::now();
-        solver.prepare_frame(queue, f);
         let mut enc = device.create_command_encoder(&Default::default());
         timer.begin_frame();
-        solver.encode_frame(&mut enc, Some(&mut timer));
+        simulation.encode_step(&mut enc, Some(&mut timer));
         timer.resolve(&mut enc);
         queue.submit([enc.finish()]);
-        crate::gpu_async::work_done(device, queue).await;
+        simulation.wait().await;
         frame_ms.push(t0.elapsed().as_secs_f64() * 1000.0);
 
         // Every 5th frame: odd and even frames alike, since some phases (S4's full untangling
@@ -343,10 +328,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         }
 
         // Sampled metrics (every frame in the bench), outside the timed region.
-        let mut enc = device.create_command_encoder(&Default::default());
-        metrics.encode(&mut enc);
-        queue.submit([enc.finish()]);
-        let m = metrics.read(device).await;
+        let m = simulation.sample().await;
         if m.non_finite > 0 {
             non_finite_frames += 1;
         }
@@ -373,9 +355,16 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
     }
 
     // Benchmark-only readbacks of whole buffers, once.
-    let vel = read_vec4(device, queue, &solver.vel, solver.n_verts).await;
+    let vel = read_vec4(
+        device,
+        queue,
+        &simulation.solver().vel,
+        simulation.n_verts(),
+    )
+    .await;
     let group_of = |v: u32| {
-        built
+        garment
+            .desc
             .groups
             .iter()
             .find(|(_, r)| r.contains(&v))
@@ -396,29 +385,35 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
     // vertices (which pass keeps them moving at rest), then restores the state.
     #[cfg(not(target_arch = "wasm32"))]
     if std::env::var("DRAPE_DEBUG_ATTRIB").is_ok() {
-        let a = crate::attrib::Attrib::new(device, &solver);
+        let a = crate::attrib::Attrib::new(device, simulation.solver());
         let mut enc = device.create_command_encoder(&Default::default());
-        a.snapshot(&mut enc, &solver);
+        a.snapshot(&mut enc, simulation.solver());
         queue.submit([enc.finish()]);
-        solver.prepare_frame(queue, cfg.frames);
+        simulation.solver().prepare_frame(queue, cfg.frames);
         let watch: Vec<usize> = final_fastest_vertices
             .iter()
             .map(|v: &(u32, f32, String)| v.0 as usize)
             .collect();
-        let sdf = match &built.collider {
+        let sdf = match &body.collider {
             crate::sim::Collider::Sdf(s) => Some(s.as_ref()),
             _ => None,
         };
-        a.replay(device, queue, &solver, sdf, &watch, "rest").await;
+        a.replay(device, queue, simulation.solver(), sdf, &watch, "rest")
+            .await;
         let mut enc = device.create_command_encoder(&Default::default());
-        a.restore(&mut enc, &solver);
+        a.restore(&mut enc, simulation.solver());
         queue.submit([enc.finish()]);
     }
-    let pos: Vec<Vec3> = read_vec4(device, queue, &solver.pos, solver.n_verts)
-        .await
-        .iter()
-        .map(|p| Vec3::new(p[0], p[1], p[2]))
-        .collect();
+    let pos: Vec<Vec3> = read_vec4(
+        device,
+        queue,
+        &simulation.solver().pos,
+        simulation.n_verts(),
+    )
+    .await
+    .iter()
+    .map(|p| Vec3::new(p[0], p[1], p[2]))
+    .collect();
     let stretch_strain = {
         let mut e: Vec<f32> = c
             .stretch
@@ -461,7 +456,8 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
             .fold(0.0f32, f32::max)
             * 1000.0
     });
-    let seam_gaps_mm = built
+    let seam_gaps_mm = garment
+        .desc
         .seams
         .iter()
         .map(|(name, pairs)| {
@@ -481,36 +477,37 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
             )
         })
         .collect();
-    let penetration = penetration_check(built, &pos);
+    let penetration = penetration_check(&body, sim.thickness, &pos);
 
     // Pipelined throughput: queue frames back to back, wait once. Continues from the rested
     // state with the end-of-schedule parameters.
     let t0 = Instant::now();
-    for k in 0..cfg.pipelined_frames {
-        solver.prepare_frame(queue, cfg.frames + k);
-        let mut enc = device.create_command_encoder(&Default::default());
-        solver.encode_frame(&mut enc, None);
-        queue.submit([enc.finish()]);
-    }
-    crate::gpu_async::work_done(device, queue).await;
+    simulation.step(cfg.pipelined_frames);
+    simulation.wait().await;
     let frame_ms_pipelined =
         t0.elapsed().as_secs_f64() * 1000.0 / cfg.pipelined_frames.max(1) as f64;
 
-    let pos_after: Vec<Vec3> = read_vec4(device, queue, &solver.pos, solver.n_verts)
-        .await
-        .iter()
-        .map(|p| Vec3::new(p[0], p[1], p[2]))
-        .collect();
-    let weld = selfcheck::weld_map(built.mesh.n_verts(), c);
-    let self_intersections_initial = selfcheck::check(&built.mesh, &weld, &built.mesh.pos, None);
-    let self_intersections_final = selfcheck::check(&built.mesh, &weld, &pos, None);
+    let pos_after: Vec<Vec3> = read_vec4(
+        device,
+        queue,
+        &simulation.solver().pos,
+        simulation.n_verts(),
+    )
+    .await
+    .iter()
+    .map(|p| Vec3::new(p[0], p[1], p[2]))
+    .collect();
+    let weld = selfcheck::weld_map(garment.mesh().n_verts(), c);
+    let self_intersections_initial =
+        selfcheck::check(garment.mesh(), &weld, &garment.mesh().pos, None);
+    let self_intersections_final = selfcheck::check(garment.mesh(), &weld, &pos, None);
     let self_intersections_after_pipelined = selfcheck::check(
-        &built.mesh,
+        garment.mesh(),
         &weld,
         &pos_after,
         Some(&self_intersections_final),
     );
-    let self_collision = match &solver.self_collision {
+    let self_collision = match &simulation.solver().self_collision {
         Some(sc) => Some(SelfCollisionInfo {
             radius_mm: sc.radius * 1000.0,
             excluded_pairs: sc.excluded_pairs,
@@ -519,7 +516,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
             query_radius_mm: sc.query_radius * 1000.0,
             rebuild_every: sim.self_rebuild_every,
             check: sc.verify(device, queue).await,
-            untangle: match &solver.untangle {
+            untangle: match &simulation.solver().untangle {
                 Some(u) => {
                     let (gpu_pairs_last, tangled_vertices_last) =
                         u.last_detection(device, queue).await;
@@ -551,10 +548,10 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         } else {
             "native"
         },
-        scene: built.name.clone(),
+        scene: garment.desc.name.clone(),
         gpu_timestamps: timer.enabled(),
         adapter: gpu.report.clone(),
-        scene_params: built.description.clone(),
+        scene_params: garment.desc.description.clone(),
         sim,
         mesh,
         frame_ms_serial: Stats::of(&frame_ms),
@@ -577,7 +574,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         max_seam_gap_mm,
         stretch_strain,
         most_stretched,
-        strain: crate::strain::report(built, &pos),
+        strain: crate::strain::report(&garment, &body, sim.thickness, &pos),
         seam_gaps_mm,
         gpu_phase_ms: phase_sum,
         final_fastest_vertices,

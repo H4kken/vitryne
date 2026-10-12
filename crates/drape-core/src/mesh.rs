@@ -139,6 +139,19 @@ impl ClothMesh {
         adj
     }
 
+    /// Area-weighted vertex normals of the surface at `pos`.
+    pub fn vertex_normals(&self, pos: &[Vec3]) -> Vec<Vec3> {
+        let mut n = vec![Vec3::ZERO; self.n_verts()];
+        for t in &self.tris {
+            let f = (pos[t[1] as usize] - pos[t[0] as usize])
+                .cross(pos[t[2] as usize] - pos[t[0] as usize]);
+            for &v in t {
+                n[v as usize] += f;
+            }
+        }
+        n.iter().map(|v| v.normalize_or_zero()).collect()
+    }
+
     pub fn mean_edge_length(&self) -> f32 {
         let e = self.edges();
         e.iter()

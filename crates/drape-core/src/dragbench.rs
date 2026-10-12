@@ -10,11 +10,9 @@ use web_time::Instant;
 
 use crate::{
     bench::{Penetration, Stats, penetration_check},
-    gpu::Gpu,
-    metrics::GpuMetrics,
-    scene::Built,
+    engine::Simulation,
     selfcheck::{self, SelfIntersections},
-    sim::{DRAG_RADIUS, DragPatch, SimConfig, Solver},
+    sim::{DragPatch, SimSettings},
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -69,7 +67,7 @@ pub struct DragResult {
     pub scene: String,
     pub adapter: crate::gpu::AdapterReport,
     pub config: DragBenchConfig,
-    pub sim: SimConfig,
+    pub sim: SimSettings,
     pub vertices: usize,
     pub frames: u32,
     pub episodes: Vec<DragEpisode>,
@@ -130,44 +128,38 @@ impl Rng {
     }
 }
 
-pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
+/// Drapes to rest, then runs the scripted random drags, on a fresh simulation (frame 0).
+pub async fn run(simulation: &Simulation, cfg: DragBenchConfig) -> DragResult {
+    let gpu = simulation.gpu_handle();
     let (device, queue) = (&gpu.device, &gpu.queue);
-    let sim = built.sim;
-    let solver = Solver::new(
-        device,
-        &built.mesh,
-        &built.constraints,
-        built.material.density,
-        sim,
-        built.collider.clone(),
-    );
-    let metrics = GpuMetrics::new(device, &solver);
-    let free: Vec<u32> = (0..built.mesh.n_verts() as u32)
-        .filter(|&i| !built.mesh.pinned[i as usize])
+    let garment = simulation.garment().clone();
+    let body = simulation.body().clone();
+    let sim = *simulation.settings();
+    let free: Vec<u32> = (0..garment.mesh().n_verts() as u32)
+        .filter(|&i| !garment.mesh().pinned[i as usize])
         .collect();
-    let adj = built.mesh.neighbors();
-    let weld = selfcheck::weld_map(built.mesh.n_verts(), &built.constraints);
+    let adj = simulation.adjacency().to_vec();
+    let weld = simulation.weld().to_vec();
     let mut rng = Rng(cfg.seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
     let fps = 1.0 / sim.frame_dt;
 
     let mut frame = 0u32;
-    let step = |frame: u32| {
-        solver.prepare_frame(queue, frame);
+    let step = |simulation: &Simulation| {
         let mut enc = device.create_command_encoder(&Default::default());
-        solver.encode_frame(&mut enc, None);
-        metrics.encode(&mut enc);
+        simulation.encode_step(&mut enc, None);
+        simulation.encode_sample(&mut enc);
         queue.submit([enc.finish()]);
     };
 
     // Settle: drape to rest, undisturbed. Metrics read only at the end.
     let settle_frames = (cfg.settle_s * fps) as u32;
     for _ in 0..settle_frames {
-        step(frame);
+        step(simulation);
         frame += 1;
     }
-    crate::gpu_async::work_done(device, queue).await;
+    simulation.wait().await;
     let seam_gap = |pos: &[Vec3]| {
-        let c = &built.constraints;
+        let c = &garment.constraints;
         (!c.sew.items.is_empty()).then(|| {
             c.sew
                 .items
@@ -177,9 +169,9 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 * 1000.0
         })
     };
-    let rest_pos = solver.read_positions(device, queue).await;
+    let rest_pos = simulation.read_positions().await;
     let max_seam_gap_mm_before = seam_gap(&rest_pos);
-    let strain_before = crate::strain::report(built, &rest_pos).all;
+    let strain_before = crate::strain::report(&garment, &body, sim.thickness, &rest_pos).all;
 
     let drag_frames = (cfg.drag_s * fps) as u32;
     let end = frame + drag_frames;
@@ -190,13 +182,13 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
     #[cfg(not(target_arch = "wasm32"))]
     let attrib = std::env::var("DRAPE_DEBUG_ATTRIB")
         .is_ok()
-        .then(|| crate::attrib::Attrib::new(device, &solver));
+        .then(|| crate::attrib::Attrib::new(device, simulation.solver()));
     let (mut run_over_5ms, mut max_consecutive_frames_over_5ms) = (0u32, 0u32);
     let (mut frames_over_5ms, mut max_vertices_over_5ms, mut max_vertices_over_2ms_at_spike) =
         (0u32, 0usize, 0usize);
     while frame < end {
         // One episode: pull, hold, release, pause.
-        let pos = solver.read_positions(device, queue).await;
+        let pos = simulation.read_positions().await;
         let vertex = free[(rng.next() % free.len() as u64) as usize];
         let dir = loop {
             let d = Vec3::new(
@@ -214,9 +206,10 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
         let hold_frames = ((0.2 + rng.f() * 0.6) * fps) as u32;
         let pause_frames = (0.4 * fps) as u32;
         let p0 = pos[vertex as usize];
-        let patch = DragPatch::grab(&adj, &pos, vertex, DRAG_RADIUS);
-        solver.begin_drag(queue, &patch);
-        let group = built
+        let patch = DragPatch::grab(&adj, &pos, vertex, sim.drag_radius);
+        simulation.grab_patch(&patch, p0);
+        let group = garment
+            .desc
             .groups
             .iter()
             .find(|(_, r)| r.contains(&vertex))
@@ -235,13 +228,14 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
             self_intersections_at_start: 0,
             strain_at_hold_end: None,
         };
-        let si = selfcheck::check(&built.mesh, &weld, &pos, None);
+        let si = selfcheck::check(garment.mesh(), &weld, &pos, None);
         ep.self_intersections_at_start = si.pairs;
         #[cfg(not(target_arch = "wasm32"))]
         if si.pairs > 0 && std::env::var("DRAPE_DEBUG_SELF").is_ok() {
             let g = |t: u32| {
-                let v = built.mesh.tris[t as usize][0];
-                built
+                let v = garment.mesh().tris[t as usize][0];
+                garment
+                    .desc
                     .groups
                     .iter()
                     .find(|(_, r)| r.contains(&v))
@@ -257,12 +251,12 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 .last()
                 .map(|e: &DragEpisode| (e.vertex, e.group.clone(), e.offset));
             // Pinched against the body? Body distance of the intersecting triangles' vertices.
-            if let crate::sim::Collider::Sdf(sdf) = &built.collider {
+            if let crate::sim::Collider::Sdf(sdf) = &body.collider {
                 let mut d: Vec<f32> = si
                     .pair_set
                     .iter()
                     .flat_map(|&(a, b)| [a, b])
-                    .flat_map(|t| built.mesh.tris[t as usize])
+                    .flat_map(|t| garment.mesh().tris[t as usize])
                     .map(|v| sdf.sample(pos[v as usize]) * 1000.0)
                     .collect();
                 d.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -288,25 +282,21 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
             }
             if k < pull_frames + hold_frames {
                 let u = ((k + 1) as f32 / pull_frames as f32).min(1.0);
-                solver.set_drag_target(p0 + offset * u);
+                simulation.set_target(p0 + offset * u);
             } else {
-                solver.end_drag();
+                simulation.release();
             }
             let t0 = Instant::now();
-            solver.prepare_frame(queue, frame);
             let mut enc = device.create_command_encoder(&Default::default());
             #[cfg(not(target_arch = "wasm32"))]
             if let Some(a) = &attrib {
-                a.snapshot(&mut enc, &solver);
+                a.snapshot(&mut enc, simulation.solver());
             }
-            solver.encode_frame(&mut enc, None);
+            simulation.encode_step(&mut enc, None);
             queue.submit([enc.finish()]);
-            crate::gpu_async::work_done(device, queue).await;
+            simulation.wait().await;
             frame_ms.push(t0.elapsed().as_secs_f64() * 1000.0);
-            let mut enc = device.create_command_encoder(&Default::default());
-            metrics.encode(&mut enc);
-            queue.submit([enc.finish()]);
-            let m = metrics.read(device).await;
+            let m = simulation.sample().await;
             non_finite_frames += (m.non_finite > 0) as u32;
             if m.max_speed > max_speed {
                 max_speed = m.max_speed;
@@ -325,12 +315,18 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 frames_over_5ms += 1;
                 let rb = device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("vel-readback"),
-                    size: solver.n_verts as u64 * 16,
+                    size: simulation.n_verts() as u64 * 16,
                     usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
                     mapped_at_creation: false,
                 });
                 let mut e = device.create_command_encoder(&Default::default());
-                e.copy_buffer_to_buffer(&solver.vel, 0, &rb, 0, solver.n_verts as u64 * 16);
+                e.copy_buffer_to_buffer(
+                    &simulation.solver().vel,
+                    0,
+                    &rb,
+                    0,
+                    simulation.n_verts() as u64 * 16,
+                );
                 queue.submit([e.finish()]);
                 let v: Vec<[f32; 4]> = crate::gpu_async::read_buffer(device, &rb).await;
                 let sp = |t: f32| {
@@ -340,19 +336,20 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 };
                 #[cfg(not(target_arch = "wasm32"))]
                 if std::env::var("DRAPE_DEBUG_SPIKE").is_ok() {
-                    let p = solver.read_positions(device, queue).await;
+                    let p = simulation.read_positions().await;
                     let (fi, fv) = v
                         .iter()
                         .enumerate()
                         .map(|(i, v)| (i, Vec3::new(v[0], v[1], v[2]).length()))
                         .fold((0, 0.0), |a, b| if b.1 > a.1 { b } else { a });
-                    let g = built
+                    let g = garment
+                        .desc
                         .groups
                         .iter()
                         .find(|(_, r)| r.contains(&(fi as u32)))
                         .map(|(n, _)| n.as_str())
                         .unwrap_or("");
-                    let body = match &built.collider {
+                    let body = match &body.collider {
                         crate::sim::Collider::Sdf(sdf) => sdf.sample(p[fi]) * 1000.0,
                         _ => 0.0,
                     };
@@ -366,10 +363,10 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                         })
                         .count();
                     let in_patch = patch.vertices.iter().any(|(pv, _)| *pv as usize == fi);
-                    if let Some(sc) = &solver.self_collision {
+                    if let Some(sc) = &simulation.solver().self_collision {
                         let ex = crate::selfcol::exclusion_lists(
-                            &built.mesh,
-                            &built.constraints,
+                            garment.mesh(),
+                            &garment.constraints,
                             sc.radius * sim.self_exclude_radii,
                         );
                         let (a, b) = (ex[fi] as usize, ex[fi + 1] as usize);
@@ -403,11 +400,12 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                         .collect();
                     w.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
                     let watch: Vec<usize> = w.iter().map(|x| x.0).collect();
-                    let sdf = match &built.collider {
+                    let sdf = match &body.collider {
                         crate::sim::Collider::Sdf(s) => Some(s.as_ref()),
                         _ => None,
                     };
-                    let g = built
+                    let g = garment
+                        .desc
                         .groups
                         .iter()
                         .find(|(_, r)| r.contains(&(watch[0] as u32)))
@@ -422,7 +420,8 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                         episodes.len(),
                         k < pull_frames + hold_frames
                     );
-                    a.replay(device, queue, &solver, sdf, &watch, &tag).await;
+                    a.replay(device, queue, simulation.solver(), sdf, &watch, &tag)
+                        .await;
                 }
                 let n5 = sp(5.0);
                 if n5 > max_vertices_over_5ms {
@@ -438,16 +437,22 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 == Some(episodes.len())
                 && m.max_speed > 1.5
             {
-                let p = solver.read_positions(device, queue).await;
+                let p = simulation.read_positions().await;
                 let prevp: Vec<[f32; 4]> = {
                     let rb = device.create_buffer(&wgpu::BufferDescriptor {
                         label: None,
-                        size: solver.n_verts as u64 * 16,
+                        size: simulation.n_verts() as u64 * 16,
                         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
                         mapped_at_creation: false,
                     });
                     let mut e = device.create_command_encoder(&Default::default());
-                    e.copy_buffer_to_buffer(&solver.vel, 0, &rb, 0, solver.n_verts as u64 * 16);
+                    e.copy_buffer_to_buffer(
+                        &simulation.solver().vel,
+                        0,
+                        &rb,
+                        0,
+                        simulation.n_verts() as u64 * 16,
+                    );
                     queue.submit([e.finish()]);
                     crate::gpu_async::read_buffer(device, &rb).await
                 };
@@ -472,14 +477,16 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                     &over[..over.len().min(8)],
                     over2
                 );
-                let g = built
+                let g = garment
+                    .desc
                     .groups
                     .iter()
                     .find(|(_, r)| r.contains(&(fi as u32)))
                     .map(|(n, _)| n.as_str())
                     .unwrap_or("");
                 let in_patch = patch.vertices.iter().any(|(v, _)| *v as usize == fi);
-                let seam = built
+                let seam = garment
+                    .desc
                     .seams
                     .iter()
                     .find(|(_, ps)| {
@@ -492,42 +499,46 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                     episodes.len(),
                     p[fi],
                     (p[fi] - Vec3::from(patch.center)).length(),
-                    built.mesh.neighbors()[fi].len() < 6
+                    garment.mesh().neighbors()[fi].len() < 6
                 );
             }
             frame += 1;
             if k + 1 == pull_frames + hold_frames {
-                let p = solver.read_positions(device, queue).await;
+                let p = simulation.read_positions().await;
                 ep.strain_at_hold_end = Some(crate::strain::StrainStats::of(
-                    crate::strain::edge_strains(built, &p),
+                    crate::strain::edge_strains(&garment, &p),
                 ));
             }
         }
         episodes.push(ep);
     }
-    solver.end_drag();
+    simulation.release();
 
     // Settle 3 s, then the exact checks.
     for _ in 0..(2.0 * fps) as u32 {
-        step(frame);
+        step(simulation);
         frame += 1;
     }
     let self_intersections_after_2s = selfcheck::check(
-        &built.mesh,
+        garment.mesh(),
         &weld,
-        &solver.read_positions(device, queue).await,
+        &simulation.read_positions().await,
         None,
     );
     for _ in 0..(1.0 * fps) as u32 {
-        step(frame);
+        step(simulation);
         frame += 1;
     }
-    let pos = solver.read_positions(device, queue).await;
-    let self_intersections_after =
-        selfcheck::check(&built.mesh, &weld, &pos, Some(&self_intersections_after_2s));
+    let pos = simulation.read_positions().await;
+    let self_intersections_after = selfcheck::check(
+        garment.mesh(),
+        &weld,
+        &pos,
+        Some(&self_intersections_after_2s),
+    );
     let max_seam_gap_mm_after = seam_gap(&pos);
-    let penetration_after = penetration_check(built, &pos);
-    let strain_after = crate::strain::report(built, &pos).all;
+    let penetration_after = penetration_check(&body, sim.thickness, &pos);
+    let strain_after = crate::strain::report(&garment, &body, sim.thickness, &pos).all;
     let hold: Vec<crate::strain::StrainStats> = episodes
         .iter()
         .filter_map(|e| e.strain_at_hold_end)
@@ -551,10 +562,10 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
         } else {
             "native"
         },
-        scene: built.name.clone(),
+        scene: garment.desc.name.clone(),
         adapter: gpu.report.clone(),
         sim,
-        vertices: built.mesh.n_verts(),
+        vertices: garment.mesh().n_verts(),
         frames: frame,
         max_speed,
         max_speed_frame,

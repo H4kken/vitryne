@@ -31,15 +31,16 @@
 use std::sync::Arc;
 
 use drape_assets::{
-    garment::Garment,
+    garment::Garment as DxfGarment,
     tshirt::{self, SdfParams, TshirtParams},
 };
 use drape_core::{
     body::{BodyMesh, BodyQuery, Sdf},
+    engine::{Avatar, Body, BodyOptions, Engine, Garment, SdfSource, Simulation},
     gpu,
     render::{self, OrbitCamera, Renderer},
-    scene::{Built, SheetScene},
-    sim::{DRAG_RADIUS, DragPatch, Solver},
+    scene::SheetScene,
+    sim::{DragPatch, SimSettings},
     timer::GpuTimer,
     triangle::TriangleRenderer,
 };
@@ -66,21 +67,22 @@ fn main() {
         pollster::block_on(gpu::Gpu::new(&instance, None, opts)).expect("gpu init")
     };
     match args.first().map(String::as_str).unwrap_or("view") {
-        "view" => run_viewer(opts, scene_args.build()),
+        "view" => run_viewer(opts, scene_args.build(), scene_args.sim),
         "info" => println!(
             "{}",
             serde_json::to_string_pretty(&headless_gpu().report).unwrap()
         ),
         "bench" => {
-            let g = headless_gpu();
+            let engine = Engine::new(headless_gpu());
             let mut cfg = drape_core::bench::BenchConfig::default();
             if let Some(v) = take_value(&mut args, "--frames") {
                 cfg.frames = v.parse().expect("--frames");
             }
             cfg.record_positions = take_flag(&mut args, "--record-positions");
             let out = take_value(&mut args, "--out");
-            let built = scene_args.build();
-            let r = pollster::block_on(drape_core::bench::run(&g, &built, cfg));
+            let scene = scene_args.build();
+            let sim = engine.simulate(&scene.garment, &scene.body, &scene_args.sim);
+            let r = pollster::block_on(drape_core::bench::run(&sim, cfg));
             let json = serde_json::to_string_pretty(&r).unwrap();
             if let Some(path) = out {
                 std::fs::write(&path, &json).expect("write --out");
@@ -88,7 +90,7 @@ fn main() {
             println!("{json}");
         }
         "bench-drag" => {
-            let g = headless_gpu();
+            let engine = Engine::new(headless_gpu());
             let mut cfg = drape_core::dragbench::DragBenchConfig::default();
             if let Some(v) = take_value(&mut args, "--drag-seconds") {
                 cfg.drag_s = v.parse().expect("--drag-seconds");
@@ -103,8 +105,9 @@ fn main() {
                 cfg.min_pull_s = v.parse().expect("--min-pull");
             }
             let out = take_value(&mut args, "--out");
-            let built = scene_args.build();
-            let r = pollster::block_on(drape_core::dragbench::run(&g, &built, cfg));
+            let scene = scene_args.build();
+            let sim = engine.simulate(&scene.garment, &scene.body, &scene_args.sim);
+            let r = pollster::block_on(drape_core::dragbench::run(&sim, cfg));
             let json = serde_json::to_string_pretty(&r).unwrap();
             if let Some(path) = out {
                 std::fs::write(&path, &json).expect("write --out");
@@ -136,7 +139,7 @@ fn main() {
                 let Ok(toml) = std::fs::read_to_string(src.join("garment.toml")) else {
                     continue;
                 };
-                let g = Garment::load_file(src.join("garment.toml").to_str().unwrap())
+                let g = DxfGarment::load_file(src.join("garment.toml").to_str().unwrap())
                     .unwrap_or_else(|e| panic!("{e}"));
                 let gname = src.file_name().unwrap().to_str().unwrap();
                 let out = format!("{dir}/garments/{gname}");
@@ -161,7 +164,15 @@ fn main() {
                     .map(|x| x.parse::<f32>().expect("--cam"))
                     .collect::<Vec<_>>()
             });
-            render_frames(&headless_gpu(), &scene_args.build(), &at, &dir, cam);
+            let engine = Engine::new(headless_gpu());
+            render_frames(
+                &engine,
+                &scene_args.build(),
+                &scene_args.sim,
+                &at,
+                &dir,
+                cam,
+            );
         }
         "garment-svg" => {
             let out = args.get(1).cloned().unwrap_or_else(|| "garment.svg".into());
@@ -203,7 +214,7 @@ struct SceneArgs {
     sheet: SheetScene,
     tshirt: TshirtParams,
     sdf: SdfParams,
-    sim: drape_core::sim::SimConfig,
+    sim: drape_core::sim::SimSettings,
     garment: Option<String>,
     verts: u32,
     edge: Option<f32>,
@@ -347,54 +358,51 @@ impl SceneArgs {
         a
     }
 
-    fn build(&self) -> Built {
-        match self.kind.as_str() {
-            "sheet" => self.sheet.build(self.sim),
+    /// Loads the scene: the garment (meshed and placed) and the body it falls on. CPU only.
+    fn build(&self) -> Scene {
+        let load = |e: String| -> ! { panic!("{e}") };
+        let read_obj =
+            || std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
+        let (desc, fabric, body) = match self.kind.as_str() {
+            "sheet" => (
+                self.sheet.garment(),
+                self.sheet.fabric(),
+                Body::sphere(self.sheet.sphere().0, self.sheet.sphere().1),
+            ),
             "tshirt" => {
-                let t0 = std::time::Instant::now();
-                let obj =
-                    std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
-                let body = std::sync::Arc::new(BodyQuery::new(
-                    BodyMesh::from_obj(&obj).expect("parse body obj"),
-                ));
-                log::info!(
-                    "body: {} verts, {} tris, BVH in {:.0} ms",
-                    body.mesh.pos.len(),
-                    body.mesh.tris.len(),
-                    t0.elapsed().as_secs_f64() * 1000.0
-                );
-                let sdf = std::sync::Arc::new(load_or_bake_sdf(&obj, &body, &self.sdf));
-                tshirt::build(&self.tshirt, body, sdf, self.sim)
+                let desc = tshirt::build(&self.tshirt);
+                let body = load_body_cached(&read_obj(), &self.sdf);
+                (desc, tshirt::fabric(), body)
             }
             "garment" => {
                 let g = self.garment();
                 let edge = self.garment_edge(&g);
-                let obj =
-                    std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
-                let body = std::sync::Arc::new(BodyQuery::new(
-                    BodyMesh::from_obj(&obj).expect("parse body obj"),
-                ));
                 let mut sdf_params = g.sdf_params();
                 if self.sdf.cell != SdfParams::default().cell {
                     sdf_params.cell = self.sdf.cell;
                 }
-                let sdf = std::sync::Arc::new(load_or_bake_sdf(&obj, &body, &sdf_params));
-                g.build(edge, body, sdf, self.sim)
-                    .unwrap_or_else(|e| panic!("{e}"))
+                let desc = g.build(edge).unwrap_or_else(|e| load(e));
+                let body = load_body_cached(&read_obj(), &sdf_params);
+                (desc, g.fabric(), body)
             }
             other => panic!("unknown --scene {other} (sheet | tshirt | garment)"),
+        };
+        let garment = Garment::load(&desc, &fabric).unwrap_or_else(|e| load(e));
+        Scene {
+            garment: Arc::new(garment),
+            body: Arc::new(body),
         }
     }
 
-    fn garment(&self) -> Garment {
+    fn garment(&self) -> DxfGarment {
         let path = self
             .garment
             .as_deref()
             .expect("--garment path/garment.toml");
-        Garment::load_file(path).unwrap_or_else(|e| panic!("{e}"))
+        DxfGarment::load_file(path).unwrap_or_else(|e| panic!("{e}"))
     }
 
-    fn garment_edge(&self, g: &Garment) -> f32 {
+    fn garment_edge(&self, g: &DxfGarment) -> f32 {
         self.edge.unwrap_or_else(|| {
             g.edge_for_vertices(self.verts)
                 .unwrap_or_else(|e| panic!("{e}"))
@@ -430,6 +438,51 @@ fn load_or_bake_sdf(obj: &str, body: &BodyQuery, p: &SdfParams) -> Sdf {
     let _ = std::fs::create_dir_all("target/sdf-cache");
     let _ = std::fs::write(&path, sdf.to_bytes());
     sdf
+}
+
+/// The avatar with its SDF, from the cache under target/ when it has been baked before.
+fn load_body_cached(obj: &str, p: &SdfParams) -> Body {
+    let t0 = std::time::Instant::now();
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in obj.bytes().chain(serde_json::to_string(p).unwrap().bytes()) {
+        h = (h ^ b as u64).wrapping_mul(0x100000001b3);
+    }
+    let path = format!("target/sdf-cache/{h:016x}.bin");
+    let avatar = Avatar {
+        name: "makehuman".into(),
+        obj: obj.to_string(),
+    };
+    let cached = std::fs::read(&path)
+        .ok()
+        .filter(|b| Sdf::from_bytes(b).is_some());
+    let from_cache = cached.is_some();
+    let opts = BodyOptions {
+        sdf: match cached {
+            Some(bytes) => SdfSource::Bytes(bytes),
+            None => SdfSource::Bake(p.clone()),
+        },
+    };
+    let body = Body::load(&avatar, &opts).unwrap_or_else(|e| panic!("{e}"));
+    if !from_cache {
+        let _ = std::fs::create_dir_all("target/sdf-cache");
+        let _ = std::fs::write(&path, body.sdf().expect("avatar SDF").to_bytes());
+    }
+    log::info!(
+        "body + SDF {} in {:.2} s",
+        if from_cache {
+            format!("loaded {path}")
+        } else {
+            "baked".into()
+        },
+        t0.elapsed().as_secs_f64()
+    );
+    body
+}
+
+/// What a scene is made of, ready to simulate.
+struct Scene {
+    garment: Arc<Garment>,
+    body: Arc<Body>,
 }
 
 fn pattern_svg(out: &str, edge: f32) {
@@ -543,25 +596,27 @@ fn write_png(path: &str, w: u32, h: u32, rgba: &[u8]) {
     enc.write_header().unwrap().write_image_data(rgba).unwrap();
 }
 
-fn render_frames(g: &gpu::Gpu, built: &Built, at: &[u32], dir: &str, cam: Option<Vec<f32>>) {
+fn render_frames(
+    engine: &Engine,
+    scene: &Scene,
+    settings: &SimSettings,
+    at: &[u32],
+    dir: &str,
+    cam: Option<Vec<f32>>,
+) {
     std::fs::create_dir_all(dir).unwrap();
-    let solver = Solver::new(
-        &g.device,
-        &built.mesh,
-        &built.constraints,
-        built.material.density,
-        built.sim,
-        built.collider.clone(),
-    );
+    let g = engine.gpu();
+    let sim = engine.simulate(&scene.garment, &scene.body, settings);
     let off = Offscreen::new(&g.device, 1024, 768);
     let mut renderer = Renderer::new(
         &g.device,
         Offscreen::FORMAT,
-        &built.mesh,
-        &solver,
-        &built.collider_mesh,
+        scene.garment.mesh(),
+        sim.solver(),
+        &scene.body.render,
     );
-    let mut camera = OrbitCamera::looking_at(built.camera.0, built.camera.1);
+    let (cam_target, cam_distance) = scene.garment.desc.camera;
+    let mut camera = OrbitCamera::looking_at(cam_target, cam_distance);
     if let Some(c) = cam {
         camera.yaw = c[0];
         camera.pitch = c[1];
@@ -584,10 +639,7 @@ fn render_frames(g: &gpu::Gpu, built: &Built, at: &[u32], dir: &str, cam: Option
             write_png(&path, off.w, off.h, &px);
             println!("wrote {path}");
         }
-        solver.prepare_frame(&g.queue, f);
-        let mut enc = g.device.create_command_encoder(&Default::default());
-        solver.encode_frame(&mut enc, None);
-        g.queue.submit([enc.finish()]);
+        sim.step(1);
     }
 }
 
@@ -619,7 +671,8 @@ fn snapshot(g: &gpu::Gpu, out: &str) {
 struct Viewer {
     instance: wgpu::Instance,
     opts: gpu::GpuOptions,
-    built: Built,
+    scene: Scene,
+    settings: SimSettings,
     state: Option<ViewerState>,
 }
 
@@ -627,18 +680,16 @@ struct ViewerState {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
-    gpu: gpu::Gpu,
-    solver: Solver,
+    engine: Engine,
+    sim: Simulation,
     renderer: Renderer,
     camera: OrbitCamera,
     dragging: bool,
     /// Anchor point of the grabbed patch (drag plane passes through it).
     pulling: Option<glam::Vec3>,
-    adj: Vec<Vec<u32>>,
     last_cursor: Option<(f64, f64)>,
     paused: bool,
     fast: bool,
-    sim_frame: u32,
     frames: u32,
     fps_t0: std::time::Instant,
 }
@@ -651,12 +702,13 @@ impl ViewerState {
     }
 }
 
-fn run_viewer(opts: gpu::GpuOptions, built: Built) {
+fn run_viewer(opts: gpu::GpuOptions, scene: Scene, settings: SimSettings) {
     let event_loop = EventLoop::new().expect("event loop");
     let mut app = Viewer {
         instance: gpu::create_instance(),
         opts,
-        built,
+        scene,
+        settings,
         state: None,
     };
     event_loop.run_app(&mut app).expect("run");
@@ -682,45 +734,37 @@ impl ApplicationHandler for Viewer {
             .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
             .expect("surface unsupported by adapter");
         surface.configure(&gpu.device, &config);
-        let built = &self.built;
-        let solver = Solver::new(
-            &gpu.device,
-            &built.mesh,
-            &built.constraints,
-            built.material.density,
-            built.sim,
-            built.collider.clone(),
-        );
+        let engine = Engine::new(gpu);
+        let sim = engine.simulate(&self.scene.garment, &self.scene.body, &self.settings);
         let renderer = Renderer::new(
-            &gpu.device,
+            &engine.gpu().device,
             config.format,
-            &built.mesh,
-            &solver,
-            &built.collider_mesh,
+            self.scene.garment.mesh(),
+            sim.solver(),
+            &self.scene.body.render,
         );
         log::info!(
             "scene: {} verts, {} stretch colours, {} bend colours, {} dispatches/frame",
-            built.mesh.n_verts(),
-            built.constraints.stretch.n_colors(),
-            built.constraints.bend.n_colors(),
-            solver.dispatches_per_frame()
+            self.scene.garment.mesh().n_verts(),
+            self.scene.garment.constraints.stretch.n_colors(),
+            self.scene.garment.constraints.bend.n_colors(),
+            sim.solver().dispatches_per_frame()
         );
+        let (cam_target, cam_distance) = self.scene.garment.desc.camera;
         window.request_redraw();
         self.state = Some(ViewerState {
             window,
             surface,
             config,
-            gpu,
-            solver,
+            engine,
+            sim,
             renderer,
-            camera: OrbitCamera::looking_at(built.camera.0, built.camera.1),
+            camera: OrbitCamera::looking_at(cam_target, cam_distance),
             dragging: false,
             pulling: None,
-            adj: built.mesh.neighbors(),
             last_cursor: None,
             paused: false,
             fast: false,
-            sim_frame: 0,
             frames: 0,
             fps_t0: std::time::Instant::now(),
         });
@@ -733,7 +777,7 @@ impl ApplicationHandler for Viewer {
             WindowEvent::Resized(size) => {
                 s.config.width = size.width.max(1);
                 s.config.height = size.height.max(1);
-                s.surface.configure(&s.gpu.device, &s.config);
+                s.surface.configure(&s.engine.gpu().device, &s.config);
             }
             WindowEvent::MouseInput {
                 state,
@@ -744,13 +788,15 @@ impl ApplicationHandler for Viewer {
                     // Pick on the CPU from a one-off position readback (not per frame).
                     if let Some((x, y)) = s.last_cursor {
                         let (o, d) = s.mouse_ray(x, y);
-                        let pos = pollster::block_on(
-                            s.solver.read_positions(&s.gpu.device, &s.gpu.queue),
-                        );
+                        let pos = pollster::block_on(s.sim.read_positions());
                         if let Some(v) = render::pick(&pos, o, d, 0.015) {
-                            let patch = DragPatch::grab(&s.adj, &pos, v, DRAG_RADIUS);
-                            s.solver.begin_drag(&s.gpu.queue, &patch);
-                            s.solver.set_drag_target(pos[v as usize]);
+                            let patch = DragPatch::grab(
+                                s.sim.adjacency(),
+                                &pos,
+                                v,
+                                s.sim.settings().drag_radius,
+                            );
+                            s.sim.grab_patch(&patch, pos[v as usize]);
                             s.pulling = Some(pos[v as usize]);
                         }
                     }
@@ -758,7 +804,7 @@ impl ApplicationHandler for Viewer {
                 } else {
                     s.dragging = false;
                     s.pulling = None;
-                    s.solver.end_drag();
+                    s.sim.release();
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
@@ -768,8 +814,8 @@ impl ApplicationHandler for Viewer {
                 }
                 if let Some(anchor) = s.pulling {
                     let (o, d) = s.mouse_ray(position.x, position.y);
-                    s.solver
-                        .set_drag_target(render::drag_target(&s.camera, o, d, anchor));
+                    s.sim
+                        .set_target(render::drag_target(&s.camera, o, d, anchor));
                 }
                 s.last_cursor = Some((position.x, position.y));
             }
@@ -785,54 +831,48 @@ impl ApplicationHandler for Viewer {
                     Key::Named(NamedKey::Space) => s.paused = !s.paused,
                     Key::Character(c) if c.eq_ignore_ascii_case("f") => s.fast = !s.fast,
                     Key::Character(c) if c.eq_ignore_ascii_case("r") => {
-                        s.solver.reset(&s.gpu.queue);
-                        s.sim_frame = 0;
+                        s.sim.reset();
                     }
                     _ => {}
                 }
             }
             WindowEvent::RedrawRequested => {
+                let gpu = s.engine.gpu_handle();
                 let frame = match s.surface.get_current_texture() {
                     wgpu::CurrentSurfaceTexture::Success(f)
                     | wgpu::CurrentSurfaceTexture::Suboptimal(f) => f,
                     _ => {
-                        s.surface.configure(&s.gpu.device, &s.config);
+                        s.surface.configure(&gpu.device, &s.config);
                         s.window.request_redraw();
                         return;
                     }
                 };
                 let view = frame.texture.create_view(&Default::default());
-                let mut enc = s.gpu.device.create_command_encoder(&Default::default());
+                let mut enc = gpu.device.create_command_encoder(&Default::default());
                 if !s.paused {
-                    // Each sim frame gets its own encoder: params are written per sim frame,
+                    // Each sim frame gets its own submit: params are written per sim frame,
                     // and queue writes apply at submit, not at their position in an encoder.
-                    for _ in 0..if s.fast { 7 } else { 0 } {
-                        s.solver.prepare_frame(&s.gpu.queue, s.sim_frame);
-                        let mut e = s.gpu.device.create_command_encoder(&Default::default());
-                        s.solver.encode_frame(&mut e, None);
-                        s.gpu.queue.submit([e.finish()]);
-                        s.sim_frame += 1;
+                    if s.fast {
+                        s.sim.step(7);
                     }
-                    s.solver.prepare_frame(&s.gpu.queue, s.sim_frame);
-                    s.solver.encode_frame(&mut enc, None);
-                    s.sim_frame += 1;
+                    s.sim.encode_step(&mut enc, None);
                 }
                 s.renderer.draw(
-                    &s.gpu.device,
-                    &s.gpu.queue,
+                    &gpu.device,
+                    &gpu.queue,
                     &mut enc,
                     &view,
                     s.config.width,
                     s.config.height,
                     &s.camera,
                 );
-                s.gpu.queue.submit([enc.finish()]);
-                s.gpu.queue.present(frame);
+                gpu.queue.submit([enc.finish()]);
+                gpu.queue.present(frame);
                 s.frames += 1;
                 let dt = s.fps_t0.elapsed().as_secs_f64();
                 if dt >= 1.0 {
                     let fps = s.frames as f64 / dt;
-                    let t = s.sim_frame as f32 * s.solver.cfg.frame_dt;
+                    let t = s.sim.time();
                     s.window.set_title(&format!(
                         "drape-spike (native) — {fps:.0} fps, sim t = {t:.1} s{}",
                         if s.fast { ", FAST" } else { "" }

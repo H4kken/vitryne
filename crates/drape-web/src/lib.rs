@@ -6,13 +6,15 @@
 use std::sync::Arc;
 
 use drape_assets::{
-    garment::Garment,
+    garment::Garment as DxfGarment,
     tshirt::{self, SdfParams, TshirtParams},
 };
 use drape_core::{
-    body::{BodyMesh, BodyQuery, Sdf},
+    body::{BodyMesh, BodyQuery},
+    engine::{Avatar, Body, BodyOptions, Engine, Garment, SdfSource},
     gpu,
-    scene::{Built, SheetScene},
+    scene::SheetScene,
+    sim::SimSettings,
 };
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
@@ -36,6 +38,14 @@ fn parse_opts(opts: &str) -> Result<serde_json::Value, JsValue> {
     serde_json::from_str(opts).map_err(|e| format!("options: {e}").into())
 }
 
+/// A scene ready to simulate, and what loading it cost.
+struct Scene {
+    garment: Arc<Garment>,
+    body: Arc<Body>,
+    settings: SimSettings,
+    load: serde_json::Value,
+}
+
 /// Scene by name. `res`: sheet = vertices per side, tshirt = target edge length (m),
 /// garment = target vertex count. The T-shirt and garments need the body OBJ; the SDF is baked
 /// here when `sdf` is empty (garment: its own box from the toml).
@@ -46,64 +56,75 @@ fn build_scene(
     opts: &str,
     obj: &str,
     sdf: &[u8],
-) -> Result<(Built, serde_json::Value), JsValue> {
+) -> Result<Scene, JsValue> {
     let o = parse_opts(opts)?;
-    let mut sim = SheetScene::config();
+    let mut settings = SheetScene::config();
     if substeps > 0 {
-        sim.substeps = substeps;
+        settings.substeps = substeps;
     }
-    sim.self_collision = o["self_collision"].as_bool().unwrap_or(false);
+    settings.self_collision = o["self_collision"].as_bool().unwrap_or(false);
     if let Some(k) = o["self_rebuild"].as_u64() {
-        sim.self_rebuild_every = k as u32;
+        settings.self_rebuild_every = k as u32;
     }
     if let Some(a) = o["contact_max_accel"].as_f64() {
-        sim.contact_max_accel = a as f32;
+        settings.contact_max_accel = a as f32;
     }
     if let Some(k) = o["untangle_every"].as_u64() {
-        sim.untangle_every = k as u32;
+        settings.untangle_every = k as u32;
     }
     if let Some(k) = o["untangle_check_every"].as_u64() {
-        sim.untangle_check_every = k as u32;
+        settings.untangle_check_every = k as u32;
     }
     if let Some(a) = o["untangle_step"].as_f64() {
-        sim.untangle_step_edges = a as f32;
+        settings.untangle_step_edges = a as f32;
     }
-    match scene {
+    let avatar_body = |params: SdfParams| -> Result<(Body, serde_json::Value), JsValue> {
+        let t0 = Instant::now();
+        let source = if sdf.is_empty() {
+            SdfSource::Bake(params)
+        } else {
+            SdfSource::Bytes(sdf.to_vec())
+        };
+        let body = Body::load(
+            &Avatar {
+                name: "avatar".into(),
+                obj: obj.to_string(),
+            },
+            &BodyOptions { sdf: source },
+        )?;
+        let load = serde_json::json!({
+            "body_sdf_ms": t0.elapsed().as_secs_f64() * 1000.0,
+            "sdf_source": if sdf.is_empty() { "baked in wasm" } else { "fetched" },
+            "sdf_bytes": body.sdf().map_or(0, |s| s.bytes()),
+        });
+        log::info!("assets: {load}");
+        Ok((body, load))
+    };
+    let (desc, fabric, body, load) = match scene {
         "sheet" => {
-            let pins = o["pins"].as_bool().unwrap_or(true);
-            Ok((
-                SheetScene {
-                    grid: res as u32,
-                    pins,
-                    ..Default::default()
-                }
-                .build(sim),
+            let sheet = SheetScene {
+                grid: res as u32,
+                pins: o["pins"].as_bool().unwrap_or(true),
+                ..Default::default()
+            };
+            let (c, r) = sheet.sphere();
+            (
+                sheet.garment(),
+                sheet.fabric(),
+                Body::sphere(c, r),
                 serde_json::json!({}),
-            ))
+            )
         }
         "tshirt" => {
-            let t0 = Instant::now();
-            let body = Arc::new(BodyQuery::new(
-                BodyMesh::from_obj(obj).map_err(|e| format!("body obj: {e}"))?,
-            ));
-            let bvh_ms = t0.elapsed().as_secs_f64() * 1000.0;
-            let t1 = Instant::now();
-            let (sdf, source) = if sdf.is_empty() {
-                (SdfParams::default().bake(&body), "baked in wasm")
-            } else {
-                (Sdf::from_bytes(sdf).ok_or("bad SDF file")?, "fetched")
-            };
-            let sdf_ms = t1.elapsed().as_secs_f64() * 1000.0;
-            let load = serde_json::json!({ "bvh_ms": bvh_ms, "sdf_ms": sdf_ms, "sdf_source": source, "sdf_bytes": sdf.bytes() });
-            log::info!("tshirt assets: {load}");
             let params = TshirtParams {
                 edge: res,
                 ..Default::default()
             };
-            Ok((tshirt::build(&params, body, Arc::new(sdf), sim), load))
+            let (body, load) = avatar_body(SdfParams::default())?;
+            (tshirt::build(&params), tshirt::fabric(), body, load)
         }
         "garment" => {
-            let g = Garment::load(
+            let g = DxfGarment::load(
                 o["garment_toml"].as_str().unwrap_or(""),
                 o["garment_dxf"].as_str().unwrap_or(""),
             )
@@ -111,21 +132,18 @@ fn build_scene(
             let edge = g
                 .edge_for_vertices(res as u32)
                 .map_err(|e| format!("garment: {e}"))?;
-            let body = Arc::new(BodyQuery::new(
-                BodyMesh::from_obj(obj).map_err(|e| format!("body obj: {e}"))?,
-            ));
-            let sdf = if sdf.is_empty() {
-                g.sdf_params().bake(&body)
-            } else {
-                Sdf::from_bytes(sdf).ok_or("bad SDF file")?
-            };
-            let built = g
-                .build(edge, body, Arc::new(sdf), sim)
-                .map_err(|e| format!("garment: {e}"))?;
-            Ok((built, serde_json::json!({})))
+            let (body, load) = avatar_body(g.sdf_params())?;
+            let desc = g.build(edge).map_err(|e| format!("garment: {e}"))?;
+            (desc, g.fabric(), body, load)
         }
-        other => Err(format!("unknown scene {other}").into()),
-    }
+        other => return Err(format!("unknown scene {other}").into()),
+    };
+    Ok(Scene {
+        garment: Arc::new(Garment::load(&desc, &fabric)?),
+        body: Arc::new(body),
+        settings,
+        load,
+    })
 }
 
 async fn headless_gpu(gpu_timestamps: bool) -> Result<gpu::Gpu, JsValue> {
@@ -148,17 +166,18 @@ pub async fn run_bench(
     obj: String,
     sdf: Vec<u8>,
 ) -> Result<String, JsValue> {
-    let g = headless_gpu(gpu_timestamps).await?;
-    let (built, load) = build_scene(&scene, res, substeps, &opts, &obj, &sdf)?;
+    let engine = Engine::new(headless_gpu(gpu_timestamps).await?);
+    let sc = build_scene(&scene, res, substeps, &opts, &obj, &sdf)?;
+    let sim = engine.simulate(&sc.garment, &sc.body, &sc.settings);
     let cfg = drape_core::bench::BenchConfig {
         frames,
         record_positions,
         ..Default::default()
     };
-    let r = drape_core::bench::run(&g, &built, cfg).await;
-    g.device.destroy();
+    let r = drape_core::bench::run(&sim, cfg).await;
+    engine.gpu().device.destroy();
     let mut v = serde_json::to_value(&r).map_err(|e| e.to_string())?;
-    v["asset_load"] = load;
+    v["asset_load"] = sc.load;
     Ok(v.to_string())
 }
 
@@ -176,8 +195,9 @@ pub async fn run_drag_bench(
     obj: String,
     sdf: Vec<u8>,
 ) -> Result<String, JsValue> {
-    let g = headless_gpu(false).await?;
-    let (built, _) = build_scene(&scene, res, 0, &opts, &obj, &sdf)?;
+    let engine = Engine::new(headless_gpu(false).await?);
+    let sc = build_scene(&scene, res, 0, &opts, &obj, &sdf)?;
+    let sim = engine.simulate(&sc.garment, &sc.body, &sc.settings);
     let cfg = drape_core::dragbench::DragBenchConfig {
         seed: seed as u64,
         drag_s,
@@ -185,8 +205,8 @@ pub async fn run_drag_bench(
         min_pull_s,
         ..Default::default()
     };
-    let r = drape_core::dragbench::run(&g, &built, cfg).await;
-    g.device.destroy();
+    let r = drape_core::dragbench::run(&sim, cfg).await;
+    engine.gpu().device.destroy();
     serde_json::to_string(&r).map_err(|e| e.to_string().into())
 }
 

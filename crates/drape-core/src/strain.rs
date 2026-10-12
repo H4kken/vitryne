@@ -6,7 +6,10 @@
 use glam::Vec3;
 use serde::Serialize;
 
-use crate::{scene::Built, sim::Collider};
+use crate::{
+    engine::{Body, Garment},
+    sim::Collider,
+};
 
 /// Distribution of edge strain over a set of edges (fractions, not percent).
 #[derive(Debug, Clone, Copy, Default, Serialize)]
@@ -68,8 +71,8 @@ pub const SEAM_RINGS: usize = 2;
 pub const CONTACT_MARGIN: f32 = 0.001;
 
 /// Per-edge strain of the stretch constraints (sewing excluded), in constraint order.
-pub fn edge_strains(built: &Built, pos: &[Vec3]) -> Vec<f32> {
-    built
+pub fn edge_strains(garment: &Garment, pos: &[Vec3]) -> Vec<f32> {
+    garment
         .constraints
         .stretch
         .items
@@ -85,12 +88,12 @@ pub fn edge_strains(built: &Built, pos: &[Vec3]) -> Vec<f32> {
 }
 
 /// Vertices within `rings` edges of a sewn vertex.
-fn near_seam(built: &Built, rings: usize) -> Vec<bool> {
-    let n = built.mesh.n_verts();
-    let adj = built.mesh.neighbors();
+fn near_seam(garment: &Garment, rings: usize) -> Vec<bool> {
+    let n = garment.mesh().n_verts();
+    let adj = garment.mesh().neighbors();
     let mut mark = vec![false; n];
     let mut front: Vec<u32> = Vec::new();
-    for s in &built.constraints.sew.items {
+    for s in &garment.constraints.sew.items {
         for v in [s.i, s.j] {
             if !mark[v as usize] {
                 mark[v as usize] = true;
@@ -113,16 +116,16 @@ fn near_seam(built: &Built, rings: usize) -> Vec<bool> {
     mark
 }
 
-pub fn report(built: &Built, pos: &[Vec3]) -> StrainReport {
-    let e = edge_strains(built, pos);
+pub fn report(garment: &Garment, body: &Body, thickness: f32, pos: &[Vec3]) -> StrainReport {
+    let e = edge_strains(garment, pos);
     #[cfg(not(target_arch = "wasm32"))]
     if let Ok(path) = std::env::var("DRAPE_STRAIN_DUMP") {
         // Debug: one line per edge: strain, midpoint, body distance, vertex indices.
-        let sdf = match &built.collider {
+        let sdf = match &body.collider {
             Collider::Sdf(s) => Some(s),
             _ => None,
         };
-        let lines: Vec<String> = built
+        let lines: Vec<String> = garment
             .constraints
             .stretch
             .items
@@ -135,7 +138,7 @@ pub fn report(built: &Built, pos: &[Vec3]) -> StrainReport {
             })
             .collect();
         std::fs::write(&path, lines.join("\n")).ok();
-        let sew: Vec<String> = built
+        let sew: Vec<String> = garment
             .constraints
             .sew
             .items
@@ -143,32 +146,32 @@ pub fn report(built: &Built, pos: &[Vec3]) -> StrainReport {
             .map(|s| format!("{} {}", s.i, s.j))
             .collect();
         std::fs::write(format!("{path}.sew"), sew.join("\n")).ok();
-        let rest: Vec<String> = built
-            .mesh
+        let rest: Vec<String> = garment
+            .mesh()
             .rest
             .iter()
             .zip(pos)
             .map(|(r, p)| format!("{} {} {} {} {}", r.x, r.y, p.x, p.y, p.z))
             .collect();
         std::fs::write(format!("{path}.verts"), rest.join("\n")).ok();
-        let tris: Vec<String> = built
-            .mesh
+        let tris: Vec<String> = garment
+            .mesh()
             .tris
             .iter()
             .map(|t| format!("{} {} {}", t[0], t[1], t[2]))
             .collect();
         std::fs::write(format!("{path}.tris"), tris.join("\n")).ok();
     }
-    let items = &built.constraints.stretch.items;
-    let seam = near_seam(built, SEAM_RINGS);
-    let contact: Vec<bool> = match &built.collider {
+    let items = &garment.constraints.stretch.items;
+    let seam = near_seam(garment, SEAM_RINGS);
+    let contact: Vec<bool> = match &body.collider {
         Collider::Sdf(sdf) => pos
             .iter()
-            .map(|p| sdf.sample(*p) < built.sim.thickness + CONTACT_MARGIN)
+            .map(|p| sdf.sample(*p) < thickness + CONTACT_MARGIN)
             .collect(),
         Collider::Sphere(s) => pos
             .iter()
-            .map(|p| (*p - s.truncate()).length() < s.w + built.sim.thickness + CONTACT_MARGIN)
+            .map(|p| (*p - s.truncate()).length() < s.w + thickness + CONTACT_MARGIN)
             .collect(),
     };
     let region = |k: usize| {
@@ -182,7 +185,8 @@ pub fn report(built: &Built, pos: &[Vec3]) -> StrainReport {
         }
     };
     let group_of = |v: u32| {
-        built
+        garment
+            .desc
             .groups
             .iter()
             .position(|(_, r)| r.contains(&v))
@@ -201,7 +205,8 @@ pub fn report(built: &Built, pos: &[Vec3]) -> StrainReport {
             (r, StrainStats::of(v))
         })
         .collect();
-    let by_group = built
+    let by_group = garment
+        .desc
         .groups
         .iter()
         .enumerate()
@@ -234,7 +239,8 @@ pub fn report(built: &Built, pos: &[Vec3]) -> StrainReport {
             Hotspot {
                 strain: e[k],
                 midpoint: ((pos[s.i as usize] + pos[s.j as usize]) * 0.5).to_array(),
-                group: built
+                group: garment
+                    .desc
                     .groups
                     .get(group_of(s.i))
                     .map(|g| g.0.clone())
@@ -248,11 +254,12 @@ pub fn report(built: &Built, pos: &[Vec3]) -> StrainReport {
         for w in vs.windows(2) {
             let (a, b) = (w[0] as usize, w[1] as usize);
             l += (pos[a] - pos[b]).length();
-            r += (built.mesh.rest[a] - built.mesh.rest[b]).length();
+            r += (garment.mesh().rest[a] - garment.mesh().rest[b]).length();
         }
         if r > 0.0 { l / r - 1.0 } else { 0.0 }
     };
-    let seam_lines = built
+    let seam_lines = garment
+        .desc
         .seams
         .iter()
         .map(|(name, pairs)| {

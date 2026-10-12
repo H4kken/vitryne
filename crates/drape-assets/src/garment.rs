@@ -23,12 +23,7 @@ use std::sync::Arc;
 use glam::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
-use drape_core::{
-    body::{BodyMesh, BodyQuery, Sdf},
-    constraints::{Constraints, Material},
-    scene::{Built, RenderMesh},
-    sim::{Collider, Schedule, SimConfig},
-};
+use drape_core::{constraints::Material, engine::GarmentDesc, sim::Schedule};
 
 use crate::{
     aama::{self, ImportReport, Piece},
@@ -752,30 +747,25 @@ impl Garment {
         self.spec.sdf.clone().unwrap_or_default()
     }
 
-    /// Builds the scene (`edge`: target triangle edge length, m).
-    pub fn build(
-        &self,
-        edge: f32,
-        body: Arc<BodyQuery>,
-        sdf: Arc<Sdf>,
-        mut sim: SimConfig,
-    ) -> Result<Built, String> {
-        let gp = self.pattern()?;
-        let pat = &gp.pattern;
-        let mut mp = mesh_pattern(pat, edge);
-        self.place(&mut mp, pat)?;
-        let material = self
-            .spec
+    /// The fabric from the sidecar, or the default cotton jersey.
+    pub fn fabric(&self) -> Material {
+        self.spec
             .material
             .map(|m| Material {
                 density: m.density,
                 stretch_k: m.stretch_k,
                 bend_kb: m.bend_kb,
             })
-            .unwrap_or_else(Material::cotton);
-        let mut constraints = Constraints::build(&mp.mesh, &material);
-        constraints.set_sewing(&mp.sew_pairs, mp.mesh.n_verts());
-        sim.schedule = self.spec.schedule.unwrap_or_else(tshirt_schedule);
+            .unwrap_or_else(Material::cotton)
+    }
+
+    /// Meshes and places the pieces (`edge`: target triangle edge length, m).
+    pub fn build(&self, edge: f32) -> Result<GarmentDesc, String> {
+        let gp = self.pattern()?;
+        let pat = &gp.pattern;
+        let mut mp = mesh_pattern(pat, edge);
+        self.place(&mut mp, pat)?;
+        let material = self.fabric();
 
         // Diagnostics: initial seam gaps, both pairing directions (a wrong `reverse` shows up
         // as the other direction being much shorter), and initial penetration.
@@ -814,12 +804,8 @@ impl Garment {
             .iter()
             .map(|&(i, j)| (pos[i as usize] - pos[j as usize]).length())
             .collect();
-        let inside = pos
-            .iter()
-            .filter(|p| sdf.sample(**p) < sim.thickness)
-            .count();
         log::info!(
-            "{}: {} verts, {} tris, {} panels, {} seams, {} sew pairs (initial gap max {:.0} mm, mean {:.0} mm), {} verts start inside thickness",
+            "{}: {} verts, {} tris, {} panels, {} seams, {} sew pairs (initial gap max {:.0} mm, mean {:.0} mm)",
             self.spec.name,
             mp.mesh.n_verts(),
             mp.mesh.tris.len(),
@@ -828,7 +814,6 @@ impl Garment {
             mp.sew_pairs.len(),
             gaps.iter().cloned().fold(0.0, f32::max) * 1000.0,
             gaps.iter().sum::<f32>() / gaps.len().max(1) as f32 * 1000.0,
-            inside
         );
 
         let groups = pat
@@ -837,32 +822,22 @@ impl Garment {
             .zip(&mp.panel_vertices)
             .map(|(p, r)| (p.name.clone(), r.clone()))
             .collect();
-        let bm: &BodyMesh = &body.mesh;
-        let collider_mesh = RenderMesh {
-            pos: bm.pos.clone(),
-            nrm: bm.vertex_normals(),
-            idx: bm.tris.iter().flatten().copied().collect(),
-        };
         let camera = self
             .spec
             .camera
             .map(|c| (Vec3::new(c[0], c[1], c[2]), c[3]))
             .unwrap_or((Vec3::new(0.0, 1.12, 0.03), 1.5));
-        Ok(Built {
+        Ok(GarmentDesc {
             name: self.spec.name.clone(),
             description: serde_json::json!({ "garment": self.spec.name, "edge": edge, "dxf": self.spec.dxf, "import": self.report,
-                "pieces": self.spec.piece, "material": { "density": material.density, "stretch_k": material.stretch_k, "bend_kb": material.bend_kb }, "seams": seam_info, "initial_inside_thickness": inside,
-                "sdf": { "cell": sdf.cell, "band": sdf.band, "dims": sdf.dims.to_array(), "bytes": sdf.bytes() } }),
+                "pieces": self.spec.piece, "material": { "density": material.density, "stretch_k": material.stretch_k, "bend_kb": material.bend_kb }, "seams": seam_info }),
             mesh: mp.mesh,
-            constraints,
-            material,
-            collider: Collider::Sdf(sdf),
-            collider_mesh,
-            sim,
-            body: Some(body),
-            camera,
+            sew_pairs: mp.sew_pairs,
             seams: mp.seam_pairs,
             groups,
+            schedule: Some(self.spec.schedule.unwrap_or_else(tshirt_schedule)),
+            sdf: self.sdf_params(),
+            camera,
         })
     }
 }

@@ -9,6 +9,7 @@
 use std::collections::HashMap;
 
 use glam::{UVec3, Vec3};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub struct BodyMesh {
@@ -587,5 +588,42 @@ mod tests {
         let back = Sdf::from_bytes(&sdf.to_bytes()).unwrap();
         assert_eq!(back.values, sdf.values);
         assert_eq!(back.dims, sdf.dims);
+    }
+}
+
+/// The region an SDF covers and its resolution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SdfParams {
+    pub cell: f32,
+    pub band: f32,
+    pub min: [f32; 3],
+    pub max: [f32; 3],
+}
+
+impl Default for SdfParams {
+    /// Everything the T-shirt can reach, including when dragged: hips and thighs, forearms.
+    /// Outside the box there is no collision, so the box must not clip the body anywhere the
+    /// cloth can go (an earlier box ending at y = 0.70 let dragged hems sink into the hips and
+    /// whip at the box boundary). The 12 cm band covers the whole torso interior, so even a deep
+    /// penetration has a gradient pointing out.
+    fn default() -> Self {
+        Self {
+            cell: 0.004,
+            band: 0.12,
+            min: [-0.55, 0.40, -0.25],
+            max: [0.55, 1.60, 0.35],
+        }
+    }
+}
+
+impl SdfParams {
+    pub fn bake(&self, q: &BodyQuery) -> Sdf {
+        Sdf::bake(
+            q,
+            Vec3::from(self.min),
+            Vec3::from(self.max),
+            self.cell,
+            self.band,
+        )
     }
 }

@@ -6,17 +6,10 @@
 //! Front and back are drawn as seen from the front, so their side/shoulder seams have the same
 //! direction. Sleeves: x across (+x = front half of the cap), y up from the hem to the cap top.
 
-use std::sync::Arc;
-
 use glam::{Vec2, Vec3};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-use drape_core::{
-    body::{BodyMesh, BodyQuery, Sdf},
-    constraints::{Constraints, Material},
-    scene::{Built, RenderMesh},
-    sim::{Collider, Schedule, SimConfig},
-};
+use drape_core::{constraints::Material, engine::GarmentDesc, sim::Schedule};
 
 use crate::{
     meshing::{MeshedPattern, mesh_pattern},
@@ -247,41 +240,7 @@ pub fn place(mp: &mut MeshedPattern, p: &TshirtParams) {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SdfParams {
-    pub cell: f32,
-    pub band: f32,
-    pub min: [f32; 3],
-    pub max: [f32; 3],
-}
-
-impl Default for SdfParams {
-    /// Everything the T-shirt can reach, including when dragged: hips and thighs, forearms.
-    /// Outside the box there is no collision, so the box must not clip the body anywhere the
-    /// cloth can go (an earlier box ending at y = 0.70 let dragged hems sink into the hips and
-    /// whip at the box boundary). The 12 cm band covers the whole torso interior, so even a deep
-    /// penetration has a gradient pointing out.
-    fn default() -> Self {
-        Self {
-            cell: 0.004,
-            band: 0.12,
-            min: [-0.55, 0.40, -0.25],
-            max: [0.55, 1.60, 0.35],
-        }
-    }
-}
-
-impl SdfParams {
-    pub fn bake(&self, q: &BodyQuery) -> Sdf {
-        Sdf::bake(
-            q,
-            Vec3::from(self.min),
-            Vec3::from(self.max),
-            self.cell,
-            self.band,
-        )
-    }
-}
+pub use drape_core::body::SdfParams;
 
 pub fn tshirt_schedule() -> Schedule {
     Schedule {
@@ -294,41 +253,21 @@ pub fn tshirt_schedule() -> Schedule {
     }
 }
 
-/// Builds the T-shirt scene. The SDF is passed in so callers can cache it (bake takes seconds).
-pub fn build(
-    params: &TshirtParams,
-    body: Arc<BodyQuery>,
-    sdf: Arc<Sdf>,
-    mut sim: SimConfig,
-) -> Built {
+/// The T-shirt's fabric (the spike-1 placeholder cotton jersey).
+pub fn fabric() -> Material {
+    Material::cotton()
+}
+
+/// Meshes and places the procedural T-shirt.
+pub fn build(params: &TshirtParams) -> GarmentDesc {
     let pat = pattern();
     let mut mp = mesh_pattern(&pat, params.edge);
     place(&mut mp, params);
-    let material = Material::cotton();
-    let mut constraints = Constraints::build(&mp.mesh, &material);
-    constraints.set_sewing(&mp.sew_pairs, mp.mesh.n_verts());
-    sim.schedule = tshirt_schedule();
-
-    // Diagnostics: seam lengths, initial seam gaps, initial penetration.
-    let gaps: Vec<f32> = mp
-        .sew_pairs
-        .iter()
-        .map(|&(i, j)| (mp.mesh.pos[i as usize] - mp.mesh.pos[j as usize]).length())
-        .collect();
-    let inside = mp
-        .mesh
-        .pos
-        .iter()
-        .filter(|p| sdf.sample(**p) < sim.thickness)
-        .count();
     log::info!(
-        "tshirt: {} verts, {} tris, {} sew pairs (initial gap max {:.0} mm, mean {:.0} mm), {} verts start inside thickness",
+        "tshirt: {} verts, {} tris, {} sew pairs",
         mp.mesh.n_verts(),
         mp.mesh.tris.len(),
         mp.sew_pairs.len(),
-        gaps.iter().cloned().fold(0.0, f32::max) * 1000.0,
-        gaps.iter().sum::<f32>() / gaps.len() as f32 * 1000.0,
-        inside
     );
 
     let names = ["front", "back", "sleeve_r", "sleeve_l"];
@@ -338,27 +277,16 @@ pub fn build(
         .enumerate()
         .map(|(i, r)| (names[i].to_string(), r.clone()))
         .collect();
-    let seams = mp.seam_pairs.clone();
-    let bm: &BodyMesh = &body.mesh;
-    let collider_mesh = RenderMesh {
-        pos: bm.pos.clone(),
-        nrm: bm.vertex_normals(),
-        idx: bm.tris.iter().flatten().copied().collect(),
-    };
-    Built {
+    GarmentDesc {
         name: "tshirt".into(),
-        description: serde_json::json!({ "tshirt": params, "pattern_panels": pat.panels.len(), "seams": pat.seams.len(),
-            "initial_inside_thickness": inside, "sdf": { "cell": sdf.cell, "band": sdf.band, "dims": sdf.dims.to_array(), "bytes": sdf.bytes() } }),
+        description: serde_json::json!({ "tshirt": params, "pattern_panels": pat.panels.len(), "seams": pat.seams.len() }),
         mesh: mp.mesh,
-        constraints,
-        material,
-        collider: Collider::Sdf(sdf),
-        collider_mesh,
-        sim,
-        body: Some(body),
-        camera: (Vec3::new(0.0, 1.12, 0.03), 1.5),
-        seams,
+        sew_pairs: mp.sew_pairs,
+        seams: mp.seam_pairs,
         groups,
+        schedule: Some(tshirt_schedule()),
+        sdf: SdfParams::default(),
+        camera: (Vec3::new(0.0, 1.12, 0.03), 1.5),
     }
 }
 

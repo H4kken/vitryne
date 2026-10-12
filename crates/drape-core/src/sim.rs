@@ -91,10 +91,22 @@ pub const WG: u32 = 64;
 /// Dynamic uniform offsets must be multiples of `min_uniform_buffer_offset_alignment` (256 by default).
 const RANGE_STRIDE: u64 = 256;
 
-#[derive(Debug, Clone, Copy, Serialize)]
-pub struct SimConfig {
+/// Every tunable of the solver, with documented defaults (`SimSettings::default()` is the
+/// canonical set behind every number in PROGRESS.md; the regression suite records them). A
+/// project stores the fields it overrides; the rest take their defaults (`serde(default)`).
+///
+/// What isn't here, on purpose: the fabric (`constraints::Material`, per garment), the sewing and
+/// gravity ramp (`Schedule`, per garment, `GarmentDesc::schedule`), the avatar and its SDF
+/// (`Body`), and buffer layouts (`DRAG_MAX_VERTICES`, `selfcol::MAX_NEIGHBORS`), which are
+/// structural.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SimSettings {
+    /// Substeps per frame; the step is `frame_dt / substeps` (small steps, Macklin et al. 2019).
     pub substeps: u32,
+    /// Seconds per frame.
     pub frame_dt: f32,
+    /// Gravity, m/s².
     pub gravity: [f32; 3],
     /// Linear velocity damping, 1/s.
     pub damping: f32,
@@ -176,10 +188,29 @@ pub struct SimConfig {
     pub long_range_damping: f32,
     /// Strain allowed at long range before the constraint acts (0 = inextensible).
     pub long_range_slack: f32,
+    /// "At rest": RMS speed of the free vertices below this, m/s, for `rest_window` frames
+    /// (and after the sewing and gravity ramps).
+    pub rest_vrms: f32,
+    /// Consecutive frames below `rest_vrms` that make a rest.
+    pub rest_window: u32,
+    /// Mouse drag: total stiffness of the spring that holds the grabbed patch (N/m), shared by
+    /// its vertices (per-vertex compliance = n / k). A fixed force scale independent of mesh
+    /// resolution: 1 cm of lag pulls with 1 N, about the shirt's weight. (A per-vertex
+    /// compliance looked soft but is effectively rigid for 5-10 mg vertices, and rammed cloth
+    /// through the body at 100+ N.)
+    pub drag_stiffness: f32,
+    /// Mouse drag: radius of the grabbed patch, m (graph-connected, at most `DRAG_MAX_VERTICES`).
+    pub drag_radius: f32,
+    /// Mouse drag: length of the soft release, frames (the spring fades out, x10 per frame).
+    pub drag_release_frames: u32,
+    /// Mouse drag: how far the hand target stays from the body surface, m, beyond the collision
+    /// thickness and the self-collision radius.
+    pub drag_surface_margin: f32,
+    /// Sewing and gravity ramp. A garment that brings its own (`GarmentDesc::schedule`) wins.
     pub schedule: Schedule,
 }
 
-impl Default for SimConfig {
+impl Default for SimSettings {
     fn default() -> Self {
         Self {
             substeps: 20,
@@ -215,6 +246,12 @@ impl Default for SimConfig {
             long_range_omega: 0.5,
             long_range_slack: 0.01,
             long_range_damping: 0.0,
+            rest_vrms: 0.005,
+            rest_window: 30,
+            drag_stiffness: 100.0,
+            drag_radius: 0.015,
+            drag_release_frames: 6,
+            drag_surface_margin: 0.005,
             schedule: Schedule::NONE,
         }
     }
@@ -245,16 +282,8 @@ struct Params {
     _p: [u32; 2],
 }
 
-/// Total stiffness of the drag spring (N/m), shared by the patch vertices (per-vertex compliance
-/// = n / k). A fixed total force scale, independent of mesh resolution: 1 cm of lag pulls with
-/// 1 N, about the shirt's weight. (A per-vertex compliance looked soft but is effectively rigid
-/// for 5-10 mg vertices, and rammed cloth through the body at 100+ N.)
-pub const DRAG_STIFFNESS: f32 = 100.0;
-/// Grab radius and size of the dragged patch.
-pub const DRAG_RADIUS: f32 = 0.015;
+/// Capacity of the dragged patch (a buffer size, not a tunable).
 pub const DRAG_MAX_VERTICES: usize = 32;
-/// Soft release length, frames.
-pub const RELEASE_FRAMES: u32 = 6;
 
 /// A grabbed patch: vertices and their offsets from the patch centre at grab time.
 #[derive(Debug, Clone, Serialize)]
@@ -339,7 +368,7 @@ struct Dispatch {
 }
 
 pub struct Solver {
-    pub cfg: SimConfig,
+    pub cfg: SimSettings,
     pub n_verts: u32,
     pub pos: wgpu::Buffer,
     pub prev: wgpu::Buffer,
@@ -417,7 +446,7 @@ impl Solver {
         mesh: &ClothMesh,
         cons: &Constraints,
         density: f32,
-        cfg: SimConfig,
+        cfg: SimSettings,
         collider: Collider,
     ) -> Self {
         let n = mesh.n_verts() as u32;
@@ -924,7 +953,8 @@ impl Solver {
         queue.write_buffer(&self.drag_buf, 0, bytemuck::cast_slice(&data));
         self.drag
             .set(Some((data.len() as u32, Vec3::from(patch.center))));
-        self.drag_compliance.set(data.len() as f32 / DRAG_STIFFNESS);
+        self.drag_compliance
+            .set(data.len() as f32 / self.cfg.drag_stiffness);
         self.releasing.set(0);
     }
 
@@ -938,8 +968,9 @@ impl Solver {
             return;
         };
         // With self-collision, leave room for one more layer between the hand and the body.
-        let margin =
-            self.cfg.thickness + 0.005 + self.self_collision.as_ref().map_or(0.0, |sc| sc.radius);
+        let margin = self.cfg.thickness
+            + self.cfg.drag_surface_margin
+            + self.self_collision.as_ref().map_or(0.0, |sc| sc.radius);
         let outside = |p: Vec3| match &self.collider {
             Collider::Sdf(sdf) => sdf.sample(p) >= margin,
             Collider::Sphere(s) => (p - s.truncate()).length() >= s.w + margin,
@@ -964,7 +995,7 @@ impl Solver {
     /// Let go: the attachment fades out over `RELEASE_FRAMES` (compliance ×10 per frame).
     pub fn end_drag(&self) {
         if self.drag.get().is_some() && self.releasing.get() == 0 {
-            self.releasing.set(RELEASE_FRAMES);
+            self.releasing.set(self.cfg.drag_release_frames.max(1));
         }
     }
 
@@ -994,7 +1025,8 @@ impl Solver {
             p.drag_target[3] = self.drag_compliance.get();
             let r = self.releasing.get();
             if r > 0 {
-                p.drag_target[3] *= 10f32.powi((RELEASE_FRAMES - r + 1) as i32);
+                p.drag_target[3] *=
+                    10f32.powi((self.cfg.drag_release_frames.max(1) - r + 1) as i32);
                 if r == 1 {
                     self.drag.set(None);
                 }
