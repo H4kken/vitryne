@@ -137,3 +137,57 @@ blocks the loop.
   - **Drape:** native 3.67 ms, Chrome 3.78 ms per frame (1.03×), the same rest frame (231), and a
     shape difference of 0.09 / 0.37 / 0.52 mm (mean / p95 / max).
   - **Drag, seed 1:** stable on both targets; max speed 6.67 vs 6.77 m/s.
+
+---
+
+## M1 — Low-end hardware check ⚠️ accepted on a qualitative check; no Windows/Firefox numbers (2026-10-12)
+
+**Done-when:** "the four browser × machine results are in PROGRESS.md", with a stop if Windows is
+more than 2× slower than the M2.
+- ✅ **Windows (Chrome) and Firefox (Windows), AMD Radeon Pro 580X 8 GB:** the bench suite and
+  the viewer run, and behave the same as on the Mac (your check). GPU load about 45%, little
+  memory. Loading is slow, because the 130 MB of body and garment data came from the Mac
+  through the tunnel.
+- ❌ **No numbers from those runs.** The suite page didn't register its results with the Mac.
+  The upload path through the tunnel was tested afterwards and works, so the likely cause is that
+  the runs weren't started from the suite link (`?suite=m1&post=1`); not investigated further.
+- ⏸ **Not tested:** a laptop with **integrated** graphics (the plan's low-end target; the 580X
+  is a dedicated card), and Firefox on the Mac.
+- **The 2× stop rule couldn't be applied** without Windows numbers. **Your call:** M1 is accepted
+  on the qualitative result, and the low-end laptop stays open. Until it's measured, the MVP's
+  defaults stay at the 10k-vertex level measured on the M2.
+
+### What was added
+- **"Run M1 suite" on `bench.html`** (or `bench.html?suite=m1&post=1&dir=m1`): one click runs the
+  empty sheet at 100 and 10k vertices (dispatch overhead), the three garments at 10k and 20k
+  vertices with self-collision, and a 60 s drag test (T-shirt 10k, seed 1). With `post=1` it
+  sends the JSON to the dev server after every step (`bench-out/m1/<browser>-<os>.json`), so a
+  crash keeps the partial results. The report now includes the adapter info the browser exposes.
+- **A clearer message when WebGPU is missing**, naming the browsers and the Firefox setting.
+- **`TUNNEL=1 npm run dev`** lets the dev server answer on `*.trycloudflare.com` (with hot reload
+  off), so another machine can reach it over https through a Cloudflare quick tunnel
+  (`cloudflared tunnel --url http://localhost:5173`). WebGPU needs https or localhost, so opening
+  the Mac's dev server by LAN address doesn't work.
+
+### Reference numbers: the M1 suite in Chrome 150 on the M2 (headless, 80 s for the whole suite)
+
+| Scene | Vertices | Self-coll | ms/frame | Rest frame | Wall to rest | Max pen | Max seam gap |
+|---|---|---|---|---|---|---|---|
+| Sheet (dispatch overhead) | 100 | off | 1.01 | — | — | — | — |
+| Sheet | 10,000 | off | 1.57 | 403 | 0.63 s | — | — |
+| T-shirt | 10,163 | K = 4 | 3.82 | 231 | 0.88 s | 0.00 mm | 2.0 mm |
+| T-shirt | 20,216 | K = 4 | 6.83 | 292 | 1.99 s | 0.00 mm | 3.5 mm |
+| Trousers | 10,243 | K = 4 | 4.35 | 302 | 1.32 s | 0.00 mm | 1.6 mm |
+| Trousers | 20,354 | K = 4 | 7.42 | 613 | **4.55 s** | 0.00 mm | 4.4 mm |
+| Hoodie | 10,241 | K = 4 | 4.56 | none | — | 0.00 mm | 14.2 mm |
+| Hoodie | 20,394 | K = 4 | 8.02 | none | — | 0.00 mm | 13.3 mm |
+
+Drag test, T-shirt 10k, seed 1: stable, max 6.77 m/s, 2 frames ≥ 5 m/s, 0 NaN, 0.00 mm
+penetration after. Chrome reports the adapter as `apple` / `metal-3`, nothing more.
+
+- **Trousers at 20k take 4.55 s to rest, over the 3 s drape target.** The spike already measured
+  3.66 s in Chrome in S3, and S4's untangling pass (+1.2–1.7 ms/frame) now adds to it.
+  M2 must not make this worse; it may make it better, since the slow rest comes from the waist
+  stretching over the hips.
+- These are the numbers a future Windows, Firefox or integrated-GPU run will be compared with:
+  `python3 tools/bench/compare.py <mac.json> <other.json>`.
