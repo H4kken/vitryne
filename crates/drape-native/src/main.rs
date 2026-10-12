@@ -301,6 +301,43 @@ impl SceneArgs {
         if let Some(v) = num(args, "--untangle-max-ratio") {
             a.sim.untangle_max_ratio = v;
         }
+        if let Some(v) = num(args, "--gravity-scale") {
+            a.sim.gravity = a.sim.gravity.map(|g| g * v);
+        }
+        if let Some(v) = take_value(args, "--long-range") {
+            // Comma-separated spans in edges, e.g. 4,16,64 ("0" = off).
+            a.sim.long_range_spans = [0.0; 4];
+            for (k, x) in v.split(',').take(4).enumerate() {
+                a.sim.long_range_spans[k] = x.parse().expect("--long-range");
+            }
+        }
+        if let Some(v) = take_value(args, "--long-range-cross") {
+            a.sim.long_range_cross_spans = [0.0; 4];
+            for (k, x) in v.split(',').take(4).enumerate() {
+                a.sim.long_range_cross_spans[k] = x.parse().expect("--long-range-cross");
+            }
+        }
+        if let Some(v) = take_value(args, "--long-range-iterations") {
+            a.sim.long_range_iterations = v.parse().expect("--long-range-iterations");
+        }
+        if let Some(v) = take_value(args, "--long-range-every") {
+            a.sim.long_range_every = v.parse().expect("--long-range-every");
+        }
+        if let Some(v) = num(args, "--long-range-omega") {
+            a.sim.long_range_omega = v;
+        }
+        if let Some(v) = take_value(args, "--long-range-slot") {
+            a.sim.long_range_slot = v.parse().expect("--long-range-slot");
+        }
+        if let Some(v) = num(args, "--strain-limit") {
+            a.sim.strain_limit = v;
+        }
+        if let Some(v) = num(args, "--long-range-damping") {
+            a.sim.long_range_damping = v;
+        }
+        if let Some(v) = num(args, "--long-range-slack") {
+            a.sim.long_range_slack = v;
+        }
         if take_flag(args, "--untangle-keep-repulsion") {
             a.sim.untangle_skip_repulsion = false;
         }

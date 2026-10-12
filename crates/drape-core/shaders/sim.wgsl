@@ -18,14 +18,14 @@ struct Params {
     sew_compliance: f32,    // ramped from soft to stiff while sewing
     sew_max_step: f32,      // max sewing correction per vertex per substep (m)
     sdf_band: f32,
-    stretch_damping: f32,   // XPBD constraint damping beta (s), Macklin et al. 2016 eq. 26
+    stretch_damping: f32,   // Rayleigh beta (s): gamma = beta / h, Macklin et al. 2016 eq. 26
     drag_target: vec4<f32>, // xyz = where the grabbed patch's centre is pulled, w = compliance
     drag_count: u32,        // vertices in the grabbed patch, 0 = no drag
     contact_max_step: f32,  // max collision push-out per substep (m)
     air_drag: f32,          // quadratic air drag k = 0.5 rho Cd / areal density (1/m)
     contact_dv_max: f32,    // S3 velocity filter: max speed gain per substep in body contact (m/s), 0 = off
     contact_vfriction: f32, // S3: velocity-level Coulomb coefficient in body contact, 0 = off
-    _p3: u32,
+    strain_limit: f32,      // M2: max edge strain after the contact pass (Provot 1995), 0 = off
     _p4: u32,
     _p5: u32,
 };
@@ -98,9 +98,32 @@ fn solve_stretch(@builtin(global_invocation_id) gid: vec3<u32>) {
     let alpha = c.compliance / (dt * dt);
     let n = d / len;
     // Damping: resist the relative velocity along the edge this substep (internal friction).
-    let gamma = alpha * P.stretch_damping / dt;
+    // Stiffness-proportional: damping coefficient beta * k, so gamma = alpha~ * (h^2 beta k) / h
+    // = beta / h (Macklin et al. 2016 eq. 26, beta~ = h^2 * damping coefficient).
+    let gamma = P.stretch_damping / dt;
     let rel = dot(n, (pi.xyz - prev[c.i].xyz) - (pj.xyz - prev[c.j].xyz));
     let dl = (-(len - c.rest) - gamma * rel) / ((1.0 + gamma) * w + alpha);
+    pos[c.i] = vec4<f32>(pi.xyz + (pi.w * dl) * n, pi.w);
+    pos[c.j] = vec4<f32>(pj.xyz - (pj.w * dl) * n, pj.w);
+}
+
+// M2 strain limiting (Provot 1995, "Deformation constraints in a mass-spring model to describe
+// rigid cloth behavior", Graphics Interface): after the body contact, every edge longer than
+// (1 + strain_limit) x rest is shortened to that length. One Gauss-Seidel sweep, per colour.
+@compute @workgroup_size(64)
+fn limit_stretch(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x >= R.count) { return; }
+    let c = stretch[R.offset + gid.x];
+    let pi = pos[c.i];
+    let pj = pos[c.j];
+    let w = pi.w + pj.w;
+    if (w == 0.0) { return; }
+    let d = pi.xyz - pj.xyz;
+    let len = length(d);
+    let lim = c.rest * (1.0 + P.strain_limit);
+    if (len <= lim) { return; }
+    let dl = (lim - len) / w;
+    let n = d / len;
     pos[c.i] = vec4<f32>(pi.xyz + (pi.w * dl) * n, pi.w);
     pos[c.j] = vec4<f32>(pj.xyz - (pj.w * dl) * n, pj.w);
 }

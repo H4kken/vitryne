@@ -152,6 +152,8 @@ pub struct BenchResult {
     pub stretch_strain: (f32, f32, f32),
     /// The 5 most stretched edges: (strain, midpoint, group).
     pub most_stretched: Vec<(f32, [f32; 3], String)>,
+    /// M2: the full edge-strain distribution at the end of the serial run, by region and panel.
+    pub strain: crate::strain::StrainReport,
     /// Per named seam: (name, max gap mm, mean gap mm, position of the max along the seam
     /// as 0..1 from its first edge's start) at the end.
     pub seam_gaps_mm: Vec<(String, f32, f32, f32)>,
@@ -380,7 +382,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
             .map(|(n, _)| n.clone())
             .unwrap_or_default()
     };
-    let final_fastest_vertices = {
+    let final_fastest_vertices: Vec<(u32, f32, String)> = {
         let mut s: Vec<(u32, f32)> = vel
             .iter()
             .enumerate()
@@ -390,6 +392,28 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         s.truncate(10);
         s.into_iter().map(|(i, v)| (i, v, group_of(i))).collect()
     };
+    // Debug: DRAPE_DEBUG_ATTRIB=1 replays one more frame phase by phase for the fastest
+    // vertices (which pass keeps them moving at rest), then restores the state.
+    #[cfg(not(target_arch = "wasm32"))]
+    if std::env::var("DRAPE_DEBUG_ATTRIB").is_ok() {
+        let a = crate::attrib::Attrib::new(device, &solver);
+        let mut enc = device.create_command_encoder(&Default::default());
+        a.snapshot(&mut enc, &solver);
+        queue.submit([enc.finish()]);
+        solver.prepare_frame(queue, cfg.frames);
+        let watch: Vec<usize> = final_fastest_vertices
+            .iter()
+            .map(|v: &(u32, f32, String)| v.0 as usize)
+            .collect();
+        let sdf = match &built.collider {
+            crate::sim::Collider::Sdf(s) => Some(s.as_ref()),
+            _ => None,
+        };
+        a.replay(device, queue, &solver, sdf, &watch, "rest").await;
+        let mut enc = device.create_command_encoder(&Default::default());
+        a.restore(&mut enc, &solver);
+        queue.submit([enc.finish()]);
+    }
     let pos: Vec<Vec3> = read_vec4(device, queue, &solver.pos, solver.n_verts)
         .await
         .iter()
@@ -553,6 +577,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         max_seam_gap_mm,
         stretch_strain,
         most_stretched,
+        strain: crate::strain::report(built, &pos),
         seam_gaps_mm,
         gpu_phase_ms: phase_sum,
         final_fastest_vertices,

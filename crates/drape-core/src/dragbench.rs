@@ -59,6 +59,8 @@ pub struct DragEpisode {
     /// Self-intersecting triangle pairs when the episode starts (after the previous one's
     /// pause), CPU check on the readback used for picking.
     pub self_intersections_at_start: usize,
+    /// M2: edge strain over the whole garment at the end of the hold (the hand still pulling).
+    pub strain_at_hold_end: Option<crate::strain::StrainStats>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -101,6 +103,14 @@ pub struct DragResult {
     /// pairs present at both.
     pub self_intersections_after_2s: SelfIntersections,
     pub self_intersections_after: SelfIntersections,
+    /// M2: edge strain at rest before the first drag, and 3 s after the last one.
+    pub strain_before: crate::strain::StrainStats,
+    pub strain_after: crate::strain::StrainStats,
+    /// M2: over the episodes, at the end of each hold: median and max of the p99 strain, and
+    /// the max strain of any edge.
+    pub strain_hold_p99_median: f32,
+    pub strain_hold_p99_max: f32,
+    pub strain_hold_max: f32,
     /// Sim-only serial frame time during the drag phase, ms.
     pub frame_ms_serial: Stats,
 }
@@ -167,7 +177,9 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 * 1000.0
         })
     };
-    let max_seam_gap_mm_before = seam_gap(&solver.read_positions(device, queue).await);
+    let rest_pos = solver.read_positions(device, queue).await;
+    let max_seam_gap_mm_before = seam_gap(&rest_pos);
+    let strain_before = crate::strain::report(built, &rest_pos).all;
 
     let drag_frames = (cfg.drag_s * fps) as u32;
     let end = frame + drag_frames;
@@ -221,6 +233,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
             group: group.to_string(),
             patch_vertices: patch.vertices.len(),
             self_intersections_at_start: 0,
+            strain_at_hold_end: None,
         };
         let si = selfcheck::check(&built.mesh, &weld, &pos, None);
         ep.self_intersections_at_start = si.pairs;
@@ -483,6 +496,12 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 );
             }
             frame += 1;
+            if k + 1 == pull_frames + hold_frames {
+                let p = solver.read_positions(device, queue).await;
+                ep.strain_at_hold_end = Some(crate::strain::StrainStats::of(
+                    crate::strain::edge_strains(built, &p),
+                ));
+            }
         }
         episodes.push(ep);
     }
@@ -508,6 +527,13 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
         selfcheck::check(&built.mesh, &weld, &pos, Some(&self_intersections_after_2s));
     let max_seam_gap_mm_after = seam_gap(&pos);
     let penetration_after = penetration_check(built, &pos);
+    let strain_after = crate::strain::report(built, &pos).all;
+    let hold: Vec<crate::strain::StrainStats> = episodes
+        .iter()
+        .filter_map(|e| e.strain_at_hold_end)
+        .collect();
+    let mut hold_p99: Vec<f32> = hold.iter().map(|s| s.p99).collect();
+    hold_p99.sort_by(f32::total_cmp);
     let stable = non_finite_frames == 0
         && max_speed < 20.0
         && max_consecutive_frames_over_5ms <= 3
@@ -544,6 +570,11 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
         stable,
         max_seam_gap_mm_after,
         frame_ms_serial: Stats::of(&frame_ms),
+        strain_before,
+        strain_after,
+        strain_hold_p99_median: hold_p99.get(hold_p99.len() / 2).copied().unwrap_or(0.0),
+        strain_hold_p99_max: hold_p99.last().copied().unwrap_or(0.0),
+        strain_hold_max: hold.iter().map(|s| s.max).fold(0.0, f32::max),
         episodes_starting_intersected: episodes
             .iter()
             .filter(|e| e.self_intersections_at_start > 0)

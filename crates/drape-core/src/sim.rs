@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
 
 use crate::{
-    body::Sdf, constraints::Constraints, mesh::ClothMesh, selfcol::SelfCollision, timer::GpuTimer,
-    untangle::Untangle,
+    body::Sdf, constraints::Constraints, longrange::LongRangeGpu, mesh::ClothMesh,
+    selfcol::SelfCollision, timer::GpuTimer, untangle::Untangle,
 };
 
 pub const SHADER: &str = concat!(
@@ -101,8 +101,11 @@ pub struct SimConfig {
     /// Collision thickness, m.
     pub thickness: f32,
     pub friction: f32,
-    /// XPBD constraint damping on stretch (beta, s). Internal friction of the fabric: damps
-    /// stretching motion (snaps, whips) without slowing rigid motion like global damping does.
+    /// XPBD constraint damping on stretch (beta, s): stiffness-proportional (Rayleigh) damping,
+    /// damping coefficient = beta x stiffness, so gamma = beta / h in Macklin et al. 2016 eq. 26.
+    /// Internal friction of the fabric: damps stretching motion (snaps, whips) without slowing
+    /// rigid motion like global damping does. (Before M2 the shader used gamma = beta / (k h^3),
+    /// which made soft fabrics viscous and stretchy, more so with more substeps.)
     pub stretch_damping: f32,
     /// Quadratic air drag k = 0.5 rho_air C_d / areal density (1/m): 0.5 * 1.2 * 1.0 / 0.15 = 4
     /// for cotton jersey. Isotropic (no normals in the sim pass), so it overestimates drag on
@@ -151,6 +154,26 @@ pub struct SimConfig {
     pub untangle_max_ratio: f32,
     /// Self-collision repulsion skips pairs of vertices both flagged as tangled.
     pub untangle_skip_repulsion: bool,
+    /// M2 long-range stretch limits (longrange.rs): spans in mean rest edge lengths, 0 = unused.
+    /// All zero = off.
+    pub long_range_spans: [f32; 4],
+    /// The same across seams (total span, half on each side), 0 = unused.
+    pub long_range_cross_spans: [f32; 4],
+    /// Where in the substep: 0 = after stretch (before sewing), 1 = after the body contact,
+    /// 2 = before stretch.
+    pub long_range_slot: u32,
+    /// Jacobi iterations per application.
+    pub long_range_iterations: u32,
+    /// Run them every this many substeps (1 = every substep).
+    pub long_range_every: u32,
+    /// M2 strain limiting after the body contact (Provot 1995): max edge strain, 0 = off.
+    pub strain_limit: f32,
+    /// Jacobi relaxation factor for the averaged corrections.
+    pub long_range_omega: f32,
+    /// XPBD damping on the long-range constraints, beta in s (gamma = beta / h).
+    pub long_range_damping: f32,
+    /// Strain allowed at long range before the constraint acts (0 = inextensible).
+    pub long_range_slack: f32,
     pub schedule: Schedule,
 }
 
@@ -180,6 +203,15 @@ impl Default for SimConfig {
             untangle_step_edges: 0.1,
             untangle_max_ratio: 1.0,
             untangle_skip_repulsion: true,
+            long_range_spans: [0.0; 4],
+            long_range_cross_spans: [0.0; 4],
+            long_range_every: 1,
+            long_range_iterations: 1,
+            long_range_slot: 0,
+            strain_limit: 0.0,
+            long_range_omega: 1.0,
+            long_range_slack: 0.0,
+            long_range_damping: 0.0,
             schedule: Schedule::NONE,
         }
     }
@@ -206,7 +238,8 @@ struct Params {
     air_drag: f32,
     contact_dv_max: f32,
     contact_vfriction: f32,
-    _p: [u32; 3],
+    strain_limit: f32,
+    _p: [u32; 2],
 }
 
 /// Total stiffness of the drag spring (N/m), shared by the patch vertices (per-vertex compliance
@@ -270,9 +303,10 @@ enum Kernel {
     CollideSphere = 4,
     CollideSdf = 5,
     Update = 6,
+    LimitStretch = 7,
 }
 
-const ENTRY_POINTS: [&str; 7] = [
+const ENTRY_POINTS: [&str; 8] = [
     "predict",
     "solve_stretch",
     "solve_sew",
@@ -280,6 +314,7 @@ const ENTRY_POINTS: [&str; 7] = [
     "collide_sphere",
     "collide_sdf",
     "update_velocity",
+    "limit_stretch",
 ];
 
 #[derive(Clone, Copy)]
@@ -290,6 +325,8 @@ enum Pipe {
     /// Index into the untangling kernels (own pipeline layout), and whether it's the gated
     /// variant (only around known crossings) or the full detection.
     Untangle(usize, bool),
+    /// Index into the long-range kernels (own pipeline layout, M2).
+    LongRange(usize),
 }
 
 struct Dispatch {
@@ -327,6 +364,7 @@ pub struct Solver {
     init_pos: Vec<[f32; 4]>,
     pub self_collision: Option<SelfCollision>,
     pub untangle: Option<Untangle>,
+    pub long_range: Option<LongRangeGpu>,
 }
 
 fn storage_entry(binding: u32, read_only: bool) -> wgpu::BindGroupLayoutEntry {
@@ -425,7 +463,8 @@ impl Solver {
             air_drag: cfg.air_drag,
             contact_dv_max: cfg.contact_max_accel * h,
             contact_vfriction: cfg.contact_vfriction,
-            _p: [0; 3],
+            strain_limit: cfg.strain_limit,
+            _p: [0; 2],
         };
         let sdf_data: Vec<f32> = match &collider {
             Collider::Sphere(s) => {
@@ -653,6 +692,54 @@ impl Solver {
                 flags,
             )
         });
+        let used = |s: &[f32; 4]| s.iter().copied().filter(|&s| s > 0.0).collect::<Vec<f32>>();
+        let (spans, cross) = (
+            used(&cfg.long_range_spans),
+            used(&cfg.long_range_cross_spans),
+        );
+        let long_range = (!spans.is_empty() || !cross.is_empty()).then(|| {
+            let sew: Vec<(u32, u32)> = cons.sew.items.iter().map(|s| (s.i, s.j)).collect();
+            let (lr, info) = crate::longrange::build(mesh, &sew, &spans, &cross);
+            log::info!(
+                "long range: spans {spans:?} edges, {:?} pairs; across seams {cross:?}, {:?} pairs; {} skipped (outside the panel), {:.0} ms",
+                info.pairs,
+                info.cross_pairs,
+                info.skipped_outside,
+                info.build_ms
+            );
+            LongRangeGpu::new(
+                device,
+                &lr,
+                info,
+                &pos,
+                &prev,
+                cfg.long_range_omega,
+                cfg.long_range_slack,
+                cfg.long_range_damping / h,
+            )
+        });
+        let lr_kernel = |k: usize| {
+            let d = long_range
+                .as_ref()
+                .map(|l| {
+                    (0..cfg.long_range_iterations.max(1))
+                        .flat_map(|_| {
+                            [0, 1].map(|kk| Dispatch {
+                                pipe: Pipe::LongRange(kk),
+                                range_offset: 0,
+                                groups: l.groups,
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .filter(|_| k == 0)
+                .unwrap_or_default();
+            (
+                crate::longrange::PHASES[k],
+                d,
+                (cfg.long_range_every.max(1), 0),
+            )
+        };
         // One phase per kernel, so profiling mode times each: (label, dispatches, (every, offset)).
         let rebuild = cfg.self_rebuild_every.max(1);
         let self_kernel = |k: usize| {
@@ -707,11 +794,31 @@ impl Solver {
         };
         let phases = vec![
             ("predict", per_vertex(Kernel::Predict), (1, 0)),
+            if cfg.long_range_slot == 2 {
+                lr_kernel(0)
+            } else {
+                ("lr_gather", vec![], (1, 0))
+            },
+            if cfg.long_range_slot == 2 {
+                lr_kernel(1)
+            } else {
+                ("lr_apply", vec![], (1, 0))
+            },
             (
                 "stretch",
                 colored(Kernel::Stretch, &cons.stretch.ranges, 0),
                 (1, 0),
             ),
+            if cfg.long_range_slot == 0 {
+                lr_kernel(0)
+            } else {
+                ("lr_gather", vec![], (1, 0))
+            },
+            if cfg.long_range_slot == 0 {
+                lr_kernel(1)
+            } else {
+                ("lr_apply", vec![], (1, 0))
+            },
             ("sew", colored(Kernel::Sew, &sew_ranges, ns), (1, 0)),
             (
                 "bend",
@@ -733,6 +840,25 @@ impl Solver {
                     Collider::Sphere(_) => Kernel::CollideSphere,
                     Collider::Sdf(_) => Kernel::CollideSdf,
                 }),
+                (1, 0),
+            ),
+            if cfg.long_range_slot == 1 {
+                lr_kernel(0)
+            } else {
+                ("lr_gather", vec![], (1, 0))
+            },
+            if cfg.long_range_slot == 1 {
+                lr_kernel(1)
+            } else {
+                ("lr_apply", vec![], (1, 0))
+            },
+            (
+                "strain_limit",
+                if cfg.strain_limit > 0.0 {
+                    colored(Kernel::LimitStretch, &cons.stretch.ranges, 0)
+                } else {
+                    Vec::new()
+                },
                 (1, 0),
             ),
             self_kernel(5),
@@ -779,6 +905,7 @@ impl Solver {
             init_pos,
             self_collision,
             untangle,
+            long_range,
         }
     }
 
@@ -853,6 +980,9 @@ impl Solver {
         p.gravity_dt[2] *= g;
         p.sew_compliance = sch.sew_compliance(t);
         p.sew_max_step = sch.sew_step_limit(t);
+        if let Some(l) = &self.long_range {
+            l.set_cross(queue, t >= sch.sew_ramp_s);
+        }
         if let Some((n, t)) = self.drag.get() {
             p.drag_count = n;
             p.drag_target[..3].copy_from_slice(&t.to_array());
@@ -901,7 +1031,7 @@ impl Solver {
     }
 
     /// `bound`: which group 0 is currently set (0 = none, 1 = solver state, 2 = self-collision,
-    /// 3 / 4 = untangling full / gated; the last three have their own layouts), so it is only
+    /// 3 / 4 = untangling full / gated, 5 = long range; the last four have their own layouts), so it is only
     /// rebound when switching.
     fn run(&self, pass: &mut wgpu::ComputePass<'_>, ds: &[Dispatch], bound: &mut u8) {
         for d in ds {
@@ -920,6 +1050,14 @@ impl Solver {
                     if *bound != 2 {
                         pass.set_bind_group(0, &sc.bind_group, &[]);
                         *bound = 2;
+                    }
+                }
+                Pipe::LongRange(k) => {
+                    let l = self.long_range.as_ref().unwrap();
+                    pass.set_pipeline(&l.pipelines[k]);
+                    if *bound != 5 {
+                        pass.set_bind_group(0, &l.bind_group, &[]);
+                        *bound = 5;
                     }
                 }
                 Pipe::Untangle(k, gated) => {

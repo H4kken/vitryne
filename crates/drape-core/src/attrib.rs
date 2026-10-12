@@ -41,6 +41,12 @@ impl Attrib {
         }
     }
 
+    pub fn restore(&self, enc: &mut wgpu::CommandEncoder, solver: &Solver) {
+        for (s, d) in self.snap.iter().zip(Self::bufs(solver)) {
+            enc.copy_buffer_to_buffer(s, 0, d, 0, s.size());
+        }
+    }
+
     async fn read(device: &wgpu::Device, queue: &wgpu::Queue, b: &wgpu::Buffer) -> Vec<Vec3> {
         let rb = device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
@@ -121,7 +127,7 @@ impl Attrib {
                 }
             }
             let c0 = contrib[ph][0];
-            if c0.length() > 0.05 || peak[ph].0 > 0.5 {
+            if c0.length() > 0.01 || peak[ph].0 > 0.05 {
                 eprintln!(
                     "   {l:>14}: fastest {:+.2} along v, {:+.2} along body n | mean over set {:+.2} along v, {:+.2} along n | peak |dv| {:.2} at s{} (body {:.1} mm)",
                     c0.dot(vel[watch[0]].normalize_or_zero()),
