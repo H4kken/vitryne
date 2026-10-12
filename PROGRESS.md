@@ -39,6 +39,13 @@ cargo run -p drape-native --release -- bench --scene garment --garment assets/ga
 cargo run -p drape-native --release -- garment-svg out.svg --garment assets/garments/hoodie/garment.toml   # landmark numbers, seams
 python3 bench/s2/summary.py bench/s2/native/*.json --seams
 cd tools/patterns && npm install && ./export-all.sh       # regenerate the DXFs from FreeSewing
+# spike 2, S3: drag test on the garments (contact velocity filter on by default; --contact-max-accel 0 = S2 behaviour)
+bench/s3/one.sh tshirt 10000 1 out.json                       # one run, one summary line (stable = S3 criterion)
+bench/s3/run.sh bench/s3/final/native                          # 3 garments x {10k, 20k} x seeds 1-6
+PORT=5173 bench/s3/chrome.sh bench/s3/final/chrome "tshirt trousers hoodie" 10000 "1 2 3 4 5 6"   # same in headless Chrome
+python3 bench/s3/final_table.py                                # the S3 table
+#   web: bench.html garment select (or &garment=tshirt|trousers|hoodie, res = vertex count), &cap=A
+DRAPE_DEBUG_ATTRIB=1 bench/s3/one.sh tshirt 10000 1 out.json   # per-phase attribution of every spike frame -> out.log
 ```
 
 ## Measurement modes
@@ -638,11 +645,106 @@ Raw JSON: [bench/s2/native/](bench/s2/native/). Native Metal, Apple M2, canonica
 - **Real damage still fails:** cloth left inside the body, or seams torn open.
 - **Same speed reporting:** the bench still reports frames ≥ 5 m/s and the max speed, so the numbers stay comparable with spike 1 and S2.
 
+## S3 — Crease-aware body contact ⚠️ speed criterion met everywhere; trousers fail penetration after drags (2026-10-12)
+
+**Done-when (as changed in the criterion commit above):** "the drag-test criterion (no instability) holds on the harsh drag test for all three garments, natively and in Chrome."
+- ✅ **No instability anywhere:** no NaN, nothing ≥ 20 m/s, no run of more than 3 frames ≥ 5 m/s, and no seam torn open. That holds in all 72 runs (3 garments × {10k, 20k} × 6 seeds × {native, Chrome}).
+- ❌ **Trousers: body penetration after the test is over 2 mm in 7 of 24 runs** (2.1–3.5 mm), natively and in Chrome. The thigh crease is still where cloth gets pushed in under drag load (−5 to −7 mm during drags). That's what candidate 2 (triangle-level contact) is for, and you chose to defer it: the goal for now is a working engine.
+- **T-shirt and hoodie:** 0.00 mm penetration after every run.
+
+Raw JSON: [bench/s3/](bench/s3/)
+- `baseline/`: S2 setup, filter off;
+- `c1_*/`: candidate 1 variants;
+- `final/native`, `final/chrome`: the drag matrix with the new defaults;
+- `final/drape`: drape runs.
+
+Scripts: `one.sh`, `run.sh`, `sweep.sh`, `chrome.sh`, `final_table.py`. Native Metal on the Apple M2, Chrome 150, canonical mode (`Features::empty()`, `Limits::default()`), 20 substeps, self-collision on with K = 4.
+
+### What works
+- **Spike attribution** ([attrib.rs](crates/drape-core/src/attrib.rs); native debug only, `DRAPE_DEBUG_ATTRIB=1`): each drag frame is snapshotted (pos/prev/vel). On a frame with a vertex ≥ 5 m/s, the snapshot is restored and the frame replayed one phase at a time. The replay relies on the solver being bit-reproducible (M4). It prints each phase's share of the spiking vertices' velocity, along their velocity and along the body normal. It's what separated the two spike causes below.
+- **Candidate 1, contact velocity filter** ([sim.wgsl](crates/drape-core/shaders/sim.wgsl), `contact_max_accel`, **on by default at 30 m/s²**):
+  - **How:** the contact pass records how far it moved each vertex along the normal (`vel.w`). `update_velocity` then caps that vertex's **speed gain** to 30 m/s² × h per substep (0.025 m/s at 20 substeps).
+  - **Effect:** contact can still stop a vertex at once, but can't launch it.
+  - **Off switch:** `--contact-max-accel 0` (web `&cap=0`) is the S2 behaviour, bit for bit.
+  - **Also tried:** velocity-level Coulomb friction with the contact's normal impulse (Bridson, Fedkiw & Anderson 2002, sec. 7.2), `--contact-vfriction`. It was worse (new 13–14 m/s outliers), so it's off and kept only as a switch.
+- **Garments in the browser:**
+  - `npm run assets` exports each garment's toml, DXF and its own SDF box (32–50 MB);
+  - `bench.html` has a garment select, a drape mode and a drag mode;
+  - wasm has a `garment` scene, and `run_drag_bench` takes a scene.
+- **Hoodie sleeve placement** ([garment.rs](crates/drape-assets/src/garment.rs)), the S2 failure:
+  - **`bentarm_l/r` frame:** follows the arm's centreline through the elbow, as a Catmull-Rom curve through points traced on the mesh;
+  - **`tube = ease`:** sizes the sleeve radius from the pattern width, so the open edges meet under the arm;
+  - **result:** the sleeves now go round the arms, the underarm seams close (1.8 mm), and drape intersections drop from 35 to 8.
+
+  The avatar morph target you plan will widen the arm–torso gap; this placement is kept alongside it.
+- **The drag bench reports the S3 criterion:** `max_consecutive_frames_over_5ms`, `max_seam_gap_mm_before` and `stable`.
+
+### Numbers: 60 s harsh random-drag test, new defaults
+
+| Garment | Target | Stable (S3 criterion) | Frames ≥ 5 m/s (of 6 × 3,600) | Longest run | Max speed (m/s) | NaN | Max penetration after (mm) | Max seam widening (mm) | Persistent self-isect after (sum) | ms/frame |
+|---|---|---|---|---|---|---|---|---|---|---|
+| tshirt 10k | native | 6/6 ✅ | 10 | 1 | 7.4 | 0 | 0.00 | 3.6 | 295 | 4.21 |
+| tshirt 10k | chrome | 6/6 ✅ | 10 | 1 | 7.6 | 0 | 0.00 | 3.6 | 257 | 6.50 |
+| tshirt 20k | native | 6/6 ✅ | 19 | 3 | 11.8 | 0 | 0.00 | 3.0 | 0 | 7.12 |
+| tshirt 20k | chrome | 6/6 ✅ | 20 | 3 | 11.8 | 0 | 0.00 | 3.0 | 0 | 9.94 |
+| trousers 10k | native | 6/6 ✅ | 7 | 2 | 6.3 | 0 | 1.17 | 1.7 | 0 | 5.32 |
+| trousers 10k | chrome | 4/6 ❌ seeds 1, 2 | 8 | 2 | 7.0 | 0 | 2.40 | 1.8 | 49 | 6.87 |
+| trousers 20k | native | 3/6 ❌ seeds 1, 3, 6 | 6 | 1 | 7.4 | 0 | 3.52 | 3.2 | 30 | 7.49 |
+| trousers 20k | chrome | 4/6 ❌ seeds 1, 6 | 4 | 1 | 7.1 | 0 | 3.07 | 3.4 | 73 | 8.78 |
+| hoodie 10k | native | 6/6 ✅ | 7 | 2 | 7.4 | 0 | 0.00 | 0.8 | 603 | 6.38 |
+| hoodie 10k | chrome | 6/6 ✅ | 7 | 2 | 7.3 | 0 | 0.00 | 1.6 | 559 | 7.86 |
+| hoodie 20k | native | 6/6 ✅ | 6 | 1 | 7.8 | 0 | 0.00 | 4.8 | 730 | 9.52 |
+| hoodie 20k | chrome | 6/6 ✅ | 8 | 1 | 10.2 | 0 | 0.02 | 4.8 | 863 | 9.25 |
+
+- **ms/frame here isn't a native-vs-Chrome comparison:** the two matrices ran at the same time on one GPU.
+- **Persistent self-intersections:** the T-shirt's (seeds 1 and 6) and the hoodie's are the armpit pinch and the hood junction. That's S4's job, not part of the S3 criterion.
+- **Chrome reproduces native closely:** spike counts and max speeds match seed by seed within a frame or two. It isn't exact, as in M4 (self-collision amplifies shader-compiler rounding). That's why the failing trousers seeds differ between targets.
+
+**Before → after the filter** (all garments, 10k + 20k, native, 6 seeds each): frames ≥ 5 m/s **140 → 55**, worst speed **30.4 → 11.8 m/s**. Per garment:
+
+| | Baseline frames ≥ 5 / max v | Filter |
+|---|---|---|
+| T-shirt 10k / 20k | 15 / 17.4 · 19 / 12.0 | 10 / 7.4 · 19 / 11.8 |
+| Trousers 10k / 20k | 30 / 10.2 · 43 / 8.3 | 7 / 6.3 · 6 / 7.4 |
+| Hoodie 10k / 20k | 17 / 9.3 · 16 / 30.4 | 7 / 7.4 · 6 / 7.8 |
+
+The baseline penetration after drags was worse for the trousers too: 2.04 mm at 10k and 3.40 mm at 20k.
+
+### Numbers: drape with the new defaults (900 frames, pipelined)
+
+| Garment | Vertices | Native ms · rest frame · wall | Chrome ms · rest frame · wall | Penetration | Max seam gap |
+|---|---|---|---|---|---|
+| T-shirt | 10,163 | 4.39 · 231 · 1.01 s | 3.54 · 231 · 0.82 s | 0.00 | 2.0 |
+| T-shirt | 20,216 | 6.24 · 292 · 1.82 s | 5.27 · 292 · 1.54 s | 0.00 | 3.5 |
+| Trousers | 10,243 | 3.36 · 302 · 1.02 s | 3.24 · 302 · 0.98 s | 0.00 | 1.6 |
+| Trousers | 20,354 | 5.52 · 547 · 3.02 s | 6.62 · 553 · **3.66 s ❌** | 0.00 | 4.3 |
+| Hoodie | 10,241 | 3.42 · no rest ❌ | 3.20 · no rest ❌ | 0.00 | 14.2 |
+| Hoodie | 20,394 | 6.15 · no rest ❌ | 6.08 · no rest ❌ | 0.00 | 13.3 |
+
+- **The filter delays the trousers' rest at 20k by 37 frames** (510 → 547). Alone on the GPU, that's 2.46 s → 2.64 s natively, under 3 s. The 3.02 s above ran while Chrome was benchmarking. **In Chrome the 20k trousers take 3.66 s: over the 3 s limit.** This is the first Chrome number for that case.
+- **The hoodie never comes to rest with self-collision on.** Without it, it rests at frame 252. See finding 4.
+
+### Findings
+1. **Two causes of speed spikes, separated by attribution** (12 baseline runs, 68 spike frames):
+   - **Crease fights, about 60%:** stretch pulls a vertex 5–20 mm into the body every substep, and contact projects it back out along the SDF normal, not back along the pull. The summed per-phase contributions are huge and opposite (±100–600 m/s per frame). The sideways leftover becomes 5–17 m/s. Almost all trousers spikes are this (thigh crease), and so are the worst T-shirt ones (sleeve at the armpit).
+   - **Free-cloth snaps, about 40%:** 1–98 vertices, 8–120 mm from the body, stretch-driven, mostly in the middle of a pull.
+2. **The filter removes every crease fight.** In the runs traced with it on, every remaining spike frame is a free-cloth snap. Neither friction 0 nor 40 substeps changes the snaps. That led to the criterion change (see "S3 — criterion change").
+3. **The filter doesn't stop cloth being pushed into the crease under load.** Speed is capped, not position: the trousers still sit 5–7 mm inside the thigh crease during hard drags, and some of it stays (up to 3.5 mm). Candidate 2 (or the morph-target pose) is the fix; deferred.
+4. **Hoodie: the back-neck junction tucks into a crossing while the seams close.** The hood sides, the centre strip and the back neckline all meet there. Repulsion then holds the crossed layers apart forever: the vertices jitter at whatever speed the elastic push allows (0.32 m/s at the default 1 m/s, 0.10 m/s at 0.1), so the drape never meets the rest rule (vrms 0.0064 vs 0.005). The seam lengths match (hood neck 167 vs 160 mm, centre 55 vs 59 mm), so the sidecar is right. That's S4 (untangling) or junction merging ("Later").
+5. **Process note:** the hoodie baseline was rerun with the new placement (the first runs had the broken S2 sleeves). The T-shirt and trousers baseline rows come from the pre-S3 binary; with the filter off, the S3 binary reproduces them bit for bit (checked on T-shirt seed 1).
+
+### Open problems / notes
+- **Trousers penetration after drags** (2.1–3.5 mm in 7 of 24 runs): candidate 2 or the morph target.
+- **Trousers 20k drape in Chrome:** 3.66 s, over 3 s.
+- **Hoodie rest:** the junction crossing (S4).
+- **Firefox and Windows:** still unmeasured (S1).
+- **The free-cloth snaps are still there:** 5–12 m/s for one frame. Whether part of each is the solver's over-stretch (1 iteration per substep) is open, for S5.
+
 ## Later
 - Better damping than global velocity damping (e.g. damping only along constraints, or in the solver itself), so the drape rests faster without slowing free fall.
 - Cut dispatch count if the browser overhead is high: fewer colours, or merging stretch and bend into one coloured pass.
 - Merge seam vertices once they meet, especially at junctions like the underarm.
 - Triangle-level penetration check (body vertices against cloth triangles), not just cloth vertices.
 - A sleeve cap shaped for the A-pose (pattern fit; out of scope for the spike).
-- Better crease contact (see M3): velocity filter at contacts, or triangle-level body contact.
+- Better crease contact (see M3): the velocity filter is in (S3); triangle-level body contact is deferred (S3).
 - Smaller SDF download (i16 quantisation, adaptive grid) for production.

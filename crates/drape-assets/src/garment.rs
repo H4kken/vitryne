@@ -112,6 +112,11 @@ pub struct Place {
     pub like: Option<String>,
     #[serde(default)]
     pub lift: f32,
+    /// Tube placement (long sleeves): below the piece's widest row the radius follows the
+    /// pattern, `tube` x width / 2 pi (> 1 leaves a gap, so the open edges meet the short way,
+    /// under the arm); above it, it rises linearly to `radius` at the top edge.
+    #[serde(default)]
+    pub tube: Option<f32>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -148,18 +153,71 @@ impl Runs {
 }
 
 /// A body frame: origin, axis (towards the top of the pieces), and the angle-0 direction.
-#[derive(Debug, Clone, Copy)]
+/// A bent frame also has a centreline below the origin (dense samples, see `bent`).
+#[derive(Debug, Clone)]
 struct Frame {
     o: Vec3,
     a: Vec3,
     e0: Vec3,
+    path: Option<Arc<Vec<PathSample>>>,
 }
+
+/// One sample of a bent frame's centreline, every `PATH_STEP` along it from the origin.
+#[derive(Debug, Clone, Copy)]
+struct PathSample {
+    c: Vec3,
+    /// Axis (towards the origin) and angle-0 direction, parallel-transported along the path.
+    a: Vec3,
+    e0: Vec3,
+}
+
+const PATH_STEP: f32 = 0.005;
 
 impl Frame {
     fn new(o: Vec3, a: Vec3, up_hint: Vec3) -> Self {
         let a = a.normalize();
         let e0 = (up_hint - up_hint.dot(a) * a).normalize();
-        Self { o, a, e0 }
+        Self { o, a, e0, path: None }
+    }
+
+    /// A frame whose axis follows `pts` (first = origin) below the origin, as a Catmull-Rom
+    /// curve, and continues straight past the last point; straight above the origin.
+    fn bent(pts: &[Vec3], up_hint: Vec3) -> Self {
+        let mut f = Self::new(pts[0], pts[0] - pts[1], up_hint);
+        let p = |i: isize| pts[i.clamp(0, pts.len() as isize - 1) as usize];
+        let mut dense = vec![pts[0]];
+        for i in 0..pts.len() as isize - 1 {
+            let (p0, p1, p2, p3) = (p(i - 1), p(i), p(i + 1), p(i + 2));
+            for k in 1..=20 {
+                let t = k as f32 / 20.0;
+                let (t2, t3) = (t * t, t * t * t);
+                dense.push(0.5 * (2.0 * p1 + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t3));
+            }
+        }
+        let tail = (pts[pts.len() - 1] - pts[pts.len() - 2]).normalize();
+        dense.push(pts[pts.len() - 1] + tail * 0.3);
+        // Resample at PATH_STEP by arc length, transporting e0 (project the previous e0 onto
+        // the new normal plane; turns are gentle, so this is close to parallel transport).
+        let mut out = vec![PathSample { c: f.o, a: f.a, e0: f.e0 }];
+        let (mut seg, mut u, mut left) = (0usize, 0.0f32, PATH_STEP);
+        while seg + 1 < dense.len() {
+            let (a, b) = (dense[seg], dense[seg + 1]);
+            let l = a.distance(b);
+            if (1.0 - u) * l >= left {
+                u += left / l;
+                left = PATH_STEP;
+                let c = a.lerp(b, u);
+                let ax = (a - b).normalize();
+                let pe = out.last().unwrap().e0;
+                out.push(PathSample { c, a: ax, e0: (pe - pe.dot(ax) * ax).normalize() });
+            } else {
+                left -= (1.0 - u) * l;
+                seg += 1;
+                u = 0.0;
+            }
+        }
+        f.path = Some(Arc::new(out));
+        f
     }
 
     /// Measured on the MakeHuman base mesh (assets/body/README.md, measurements.json).
@@ -174,18 +232,35 @@ impl Frame {
             // Long sleeves: from the shoulder joint towards the wrist (the forearm bends forward
             // in this A-pose); the arm centreline stays within 6.3 cm of this axis.
             "longarm_l" | "longarm_r" => Self::new(Vec3::new(0.182 * side, 1.36, 0.006), -Vec3::new(0.543 * side, -0.753, 0.373), Vec3::Y),
+            // The arm's centreline, bent at the elbow: shoulder joint, then centroids of slices
+            // perpendicular to the arm (traced on the mesh, S3), to the wrist.
+            "bentarm_l" | "bentarm_r" => Self::bent(
+                &[[0.182, 1.36, 0.006], [0.297, 1.179, 0.012], [0.335, 1.143, 0.048], [0.366, 1.113, 0.090], [0.428, 1.058, 0.177]]
+                    .map(|[x, y, z]| Vec3::new(x * side, y, z)),
+                Vec3::Y,
+            ),
             // Vertical axis through the head (slice centres at y = 1.54-1.58).
             "head" => Self::new(Vec3::new(0.0, 0.0, 0.055), Vec3::Y, Vec3::Z),
             // Left-right axis through the head centre: a strip wraps over the top of the head
             // (angle 0 = top, positive towards the face).
             "head_over" => Self::new(Vec3::new(0.0, 1.50, 0.055), Vec3::X, Vec3::Y),
-            other => return Err(format!("unknown frame {other} (torso | arm_l | arm_r | longarm_l | longarm_r | leg_l | leg_r | head | head_over)")),
+            other => return Err(format!("unknown frame {other} (torso | arm_l | arm_r | longarm_l | longarm_r | bentarm_l | bentarm_r | leg_l | leg_r | head | head_over)")),
         })
     }
 
     fn place(&self, angle: f32, radius: f32, along: f32) -> Vec3 {
-        let e1 = self.a.cross(self.e0);
-        self.o + along * self.a + radius * (angle.cos() * self.e0 + angle.sin() * e1)
+        let (c, a, e0) = match &self.path {
+            Some(path) if along < 0.0 => {
+                let x = -along / PATH_STEP;
+                let k = (x.floor() as usize).min(path.len() - 2);
+                let u = (x - k as f32).min(1.0);
+                let (s0, s1) = (path[k], path[k + 1]);
+                (s0.c.lerp(s1.c, u), s0.a.lerp(s1.a, u).normalize(), s0.e0.lerp(s1.e0, u).normalize())
+            }
+            _ => (self.o + along * self.a, self.a, self.e0),
+        };
+        let e1 = a.cross(e0);
+        c + radius * (angle.cos() * e0 + angle.sin() * e1)
     }
 }
 
@@ -433,6 +508,8 @@ impl Garment {
             radius: f32,
             top: f32,
             anchor: Vec2,
+            /// Tube radius by pattern y (lo, step, radii); None = constant `radius`.
+            tube: Option<(f32, f32, Vec<f32>)>,
         }
         let mut resolved: Vec<Resolved> = Vec::new();
         for (pi, ps) in self.spec.piece.iter().enumerate() {
@@ -444,11 +521,12 @@ impl Garment {
                     let k = self.spec.piece.iter().position(|p| &p.name == other).filter(|&k| k < pi).ok_or_else(|| format!("{}: like = {other}: must name an earlier piece", ps.name))?;
                     let base = &resolved[k];
                     Resolved {
-                        frame: base.frame,
+                        frame: base.frame.clone(),
                         angle: ps.place.angle.map(f32::to_radians).unwrap_or(base.angle),
                         radius: base.radius + ps.place.lift,
                         top: base.top,
                         anchor: base.anchor,
+                        tube: base.tube.clone(),
                     }
                 }
                 None => {
@@ -459,15 +537,27 @@ impl Garment {
                         radius: need(ps.place.radius, "radius")? + ps.place.lift,
                         top: need(ps.place.top, "top")?,
                         anchor: own_anchor,
+                        tube: ps.place.tube.map(|ease| {
+                            let radius = ps.place.radius.unwrap_or(0.0) + ps.place.lift;
+                            tube_profile(&outline, lo.y, hi.y, ease, radius)
+                        }),
                     }
                 }
             };
             for v in mp.panel_vertices[pi].clone() {
                 let q = mp.uv[v as usize] - r.anchor;
-                mp.mesh.pos[v as usize] = r.frame.place(r.angle + q.x / r.radius, r.radius, r.top + q.y);
+                let radius = match &r.tube {
+                    Some((lo, step, radii)) => {
+                        let x = ((mp.uv[v as usize].y - lo) / step).clamp(0.0, (radii.len() - 1) as f32);
+                        let k = (x.floor() as usize).min(radii.len() - 2);
+                        radii[k] + (radii[k + 1] - radii[k]) * (x - k as f32)
+                    }
+                    None => r.radius,
+                };
+                mp.mesh.pos[v as usize] = r.frame.place(r.angle + q.x / radius, radius, r.top + q.y);
             }
             // Render-only: front faces point away from the axis (mirrored pieces flip winding).
-            let f = r.frame;
+            let f = r.frame.clone();
             let score: f32 = mp.mesh.tris[mp.panel_tris[pi].clone()]
                 .iter()
                 .map(|t| {
@@ -554,4 +644,33 @@ impl Garment {
             groups,
         })
     }
+}
+
+/// Tube radius along a piece (see `Place::tube`): `ease` x width / 2 pi below the widest row,
+/// then linear up to `top_radius` at the top edge. Returns (lo y, step, radius per step).
+fn tube_profile(outline: &[Vec2], lo: f32, hi: f32, ease: f32, top_radius: f32) -> (f32, f32, Vec<f32>) {
+    let n = 200;
+    let step = (hi - lo) / n as f32;
+    let width = |y: f32| {
+        let xs: Vec<f32> = (0..outline.len())
+            .filter_map(|i| {
+                let (a, b) = (outline[i], outline[(i + 1) % outline.len()]);
+                ((a.y - y) * (b.y - y) < 0.0).then(|| a.x + (y - a.y) / (b.y - a.y) * (b.x - a.x))
+            })
+            .collect();
+        xs.iter().cloned().fold(f32::MIN, f32::max) - xs.iter().cloned().fold(f32::MAX, f32::min)
+    };
+    let w: Vec<f32> = (0..=n).map(|k| width(lo + (k as f32 + 0.5).min(n as f32 - 0.5) * step).max(0.0)).collect();
+    let widest = (0..=n).max_by(|&i, &j| w[i].total_cmp(&w[j])).unwrap();
+    let r_wide = ease * w[widest] / std::f32::consts::TAU;
+    let radii = (0..=n)
+        .map(|k| {
+            if k <= widest {
+                ease * w[k] / std::f32::consts::TAU
+            } else {
+                r_wide + (top_radius - r_wide) * (k - widest) as f32 / (n - widest) as f32
+            }
+        })
+        .collect();
+    (lo, step, radii)
 }

@@ -28,12 +28,12 @@ place = { frame = "torso", angle = 180, radius = 0.20, top = 1.46 }
 name = "sleeve_r"
 dxf = "sleeve"
 mirror = true
-place = { frame = "longarm_r", angle = 0, radius = 0.11, top = 0.10 }
+place = { frame = "bentarm_r", angle = 0, radius = 0.11, top = 0.10, tube = 1.15 }
 
 [[piece]]
 name = "sleeve_l"
 dxf = "sleeve"
-place = { frame = "longarm_l", angle = 0, radius = 0.11, top = 0.10 }
+place = { frame = "bentarm_l", angle = 0, radius = 0.11, top = 0.10, tube = 1.15 }
 
 [[piece]]
 name = "pocket"

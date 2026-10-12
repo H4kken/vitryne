@@ -99,6 +99,13 @@ pub struct SimConfig {
     /// Max collision push-out per vertex per substep, m. Default: uncapped (capping it let
     /// cloth sink into the body under load, see PROGRESS M3).
     pub contact_max_step: f32,
+    /// S3 contact velocity filter: max speed gain of a vertex in body contact, m/s² (0 = off,
+    /// the spike-1 / S2 behaviour). Default 30 m/s² = 0.025 m/s per substep at 20 substeps:
+    /// contact can stop a vertex at once but not launch it (crease fights, PROGRESS S3).
+    pub contact_max_accel: f32,
+    /// S3: velocity-level Coulomb friction in body contact, with the contact's normal impulse
+    /// (0 = off; the position-level friction above always applies).
+    pub contact_vfriction: f32,
     /// Cloth-cloth vertex repulsion (M4), every substep.
     pub self_collision: bool,
     /// Repulsion distance as a multiple of the mean rest edge length. Point-point contact only
@@ -130,6 +137,8 @@ impl Default for SimConfig {
             friction: 0.3,
             stretch_damping: 1e-5,
             contact_max_step: 1.0,
+            contact_max_accel: 30.0,
+            contact_vfriction: 0.0,
             air_drag: 4.0,
             self_collision: false,
             self_radius_edges: 0.75,
@@ -162,7 +171,9 @@ struct Params {
     drag_count: u32,
     contact_max_step: f32,
     air_drag: f32,
-    _p1: u32,
+    contact_dv_max: f32,
+    contact_vfriction: f32,
+    _p: [u32; 3],
 }
 
 /// Total stiffness of the drag spring (N/m), shared by the patch vertices (per-vertex compliance
@@ -350,7 +361,9 @@ impl Solver {
             drag_count: 0,
             contact_max_step: cfg.contact_max_step,
             air_drag: cfg.air_drag,
-            _p1: 0,
+            contact_dv_max: cfg.contact_max_accel * h,
+            contact_vfriction: cfg.contact_vfriction,
+            _p: [0; 3],
         };
         let sdf_data: Vec<f32> = match &collider {
             Collider::Sphere(s) => {
@@ -685,6 +698,22 @@ impl Solver {
                 }
             }
         }
+    }
+
+    /// Debug replay (S3 spike attribution): phase labels, and one phase of one substep in its
+    /// own pass. Returns false if that phase doesn't run in that substep.
+    pub fn phase_labels(&self) -> Vec<&'static str> {
+        self.phases.iter().map(|p| p.0).collect()
+    }
+
+    pub fn encode_phase(&self, encoder: &mut wgpu::CommandEncoder, substep: u32, phase: usize) -> bool {
+        let (_, ds, every) = &self.phases[phase];
+        if substep % every != 0 {
+            return false;
+        }
+        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("replay"), timestamp_writes: None });
+        self.run(&mut pass, ds, &mut 0);
+        true
     }
 
     /// Benchmark/picking readback of all positions (not used per frame by the solver).

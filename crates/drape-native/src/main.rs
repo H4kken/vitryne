@@ -112,6 +112,20 @@ fn main() {
             let name = format!("{dir}/sdf_{}mm.bin", (scene_args.sdf.cell * 1000.0).round() as u32);
             std::fs::write(&name, sdf.to_bytes()).unwrap();
             println!("wrote {dir}/makehuman_body_m.obj and {name} ({:.1} MB)", sdf.bytes() as f64 / 1e6);
+            // Garments (S3): toml + DXF, and an SDF baked over each garment's own box.
+            for e in std::fs::read_dir("assets/garments").expect("assets/garments") {
+                let src = e.unwrap().path();
+                let Ok(toml) = std::fs::read_to_string(src.join("garment.toml")) else { continue };
+                let g = Garment::load_file(src.join("garment.toml").to_str().unwrap()).unwrap_or_else(|e| panic!("{e}"));
+                let gname = src.file_name().unwrap().to_str().unwrap();
+                let out = format!("{dir}/garments/{gname}");
+                std::fs::create_dir_all(&out).unwrap();
+                std::fs::write(format!("{out}/garment.toml"), &toml).unwrap();
+                std::fs::copy(src.join(&g.spec.dxf), format!("{out}/garment.dxf")).unwrap();
+                let gsdf = load_or_bake_sdf(&obj, &body, &g.sdf_params());
+                std::fs::write(format!("{out}/sdf.bin"), gsdf.to_bytes()).unwrap();
+                println!("wrote {out}/ (sdf {:.1} MB)", gsdf.bytes() as f64 / 1e6);
+            }
         }
         "frames" => {
             let at: Vec<u32> = take_value(&mut args, "--at")
@@ -209,6 +223,12 @@ impl SceneArgs {
         }
         if let Some(v) = num(args, "--contact-max-step") {
             a.sim.contact_max_step = v;
+        }
+        if let Some(v) = num(args, "--contact-max-accel") {
+            a.sim.contact_max_accel = v;
+        }
+        if let Some(v) = num(args, "--contact-vfriction") {
+            a.sim.contact_vfriction = v;
         }
         if take_flag(args, "--no-pins") {
             a.sheet.pins = false;

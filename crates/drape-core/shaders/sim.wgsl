@@ -22,7 +22,11 @@ struct Params {
     drag_count: u32,        // vertices in the grabbed patch, 0 = no drag
     contact_max_step: f32,  // max collision push-out per substep (m)
     air_drag: f32,          // quadratic air drag k = 0.5 rho Cd / areal density (1/m)
-    _p2: u32,
+    contact_dv_max: f32,    // S3 velocity filter: max speed gain per substep in body contact (m/s), 0 = off
+    contact_vfriction: f32, // S3: velocity-level Coulomb coefficient in body contact, 0 = off
+    _p3: u32,
+    _p4: u32,
+    _p5: u32,
 };
 
 // One entry per colour, selected with a dynamic uniform offset (no push constants: hard rule 1).
@@ -164,9 +168,14 @@ fn contact(i: u32, p: vec4<f32>, n: vec3<f32>, depth_in: f32) {
     // substep becomes a 7 m/s kick). Tangential motion (after friction) is untouched.
     let pv = prev[i];
     let vn = dot(x - pv.xyz, n);
+    var shift = 0.0;
     if (vn > 0.0) {
         prev[i] = vec4<f32>(pv.xyz + n * vn, pv.w);
+        shift = vn;
     }
+    // For the velocity filter in update_velocity: how far contact moved the vertex along n this
+    // substep (push-out + the removed outward velocity), i.e. the normal impulse / (m / h).
+    vel[i].w = depth + shift;
 }
 
 // Mouse drag: zero-length XPBD attachments of a small patch (picked vertex + connected
@@ -223,5 +232,38 @@ fn update_velocity(@builtin(global_invocation_id) gid: vec3<u32>) {
         vel[i] = vec4<f32>(0.0);
         return;
     }
-    vel[i] = vec4<f32>((p.xyz - prev[i].xyz) / P.gravity_dt.w, 0.0);
+    let h = P.gravity_dt.w;
+    var v = (p.xyz - prev[i].xyz) / h;
+    // S3 contact velocity filter, for vertices the body contact moved this substep (w > 0).
+    // In a crease, stretch pulls a vertex into the body and the projection pushes it back out
+    // along n, not back along the pull; the sideways remainder becomes velocity every substep.
+    let c = vel[i].w;
+    if (c > 0.0) {
+        if (P.contact_vfriction > 0.0) {
+            // Coulomb friction on the velocity, with the normal impulse the contact applied
+            // this substep (Bridson, Fedkiw & Anderson 2002, "Robust treatment of collisions,
+            // contact and friction for cloth animation", sec. 7.2).
+            let s = sdf_eval(p.xyz, P.sdf_origin, P.sdf_dims, P.sdf_band);
+            let gl = length(s.yzw);
+            if (gl > 1e-6) {
+                let n = s.yzw / gl;
+                let vn = dot(v, n);
+                let vt = v - vn * n;
+                let lt = length(vt);
+                if (lt > 0.0) {
+                    v = vn * n + vt * max(0.0, 1.0 - P.contact_vfriction * (c / h) / lt);
+                }
+            }
+        }
+        if (P.contact_dv_max > 0.0) {
+            // Contact may stop a vertex at once, but not speed it up by more than dv_max per
+            // substep: what the body does is push back, not launch.
+            let s0 = length(vel[i].xyz);
+            let s1 = length(v);
+            if (s1 > s0 + P.contact_dv_max) {
+                v = v * ((s0 + P.contact_dv_max) / s1);
+            }
+        }
+    }
+    vel[i] = vec4<f32>(v, 0.0);
 }

@@ -75,6 +75,13 @@ pub struct DragResult {
     pub frames_over_5ms: u32,
     pub max_vertices_over_5ms: usize,
     pub max_vertices_over_2ms_at_spike: usize,
+    /// Longest run of consecutive frames with a vertex >= 5 m/s (S3 criterion: at most 3).
+    pub max_consecutive_frames_over_5ms: u32,
+    /// Max seam gap at rest, before the first drag, mm (S3 criterion: after <= before + 5).
+    pub max_seam_gap_mm_before: Option<f32>,
+    /// The S3 drag-test criterion (SPIKE2_PLAN.md): no NaN, nothing >= 20 m/s, no run of more
+    /// than 3 frames >= 5 m/s, and after the test < 2 mm penetration and no seam torn open.
+    pub stable: bool,
     /// GPU-sampled min collider distance over the whole drag phase, mm (negative = inside).
     pub min_collider_dist_mm: f32,
     /// Exact penetration after the last drag and a 3 s settle.
@@ -133,6 +140,11 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
         frame += 1;
     }
     crate::gpu_async::work_done(device, queue).await;
+    let seam_gap = |pos: &[Vec3]| {
+        let c = &built.constraints;
+        (!c.sew.items.is_empty()).then(|| c.sew.items.iter().map(|s| (pos[s.i as usize] - pos[s.j as usize]).length()).fold(0.0f32, f32::max) * 1000.0)
+    };
+    let max_seam_gap_mm_before = seam_gap(&solver.read_positions(device, queue).await);
 
     let drag_frames = (cfg.drag_s * fps) as u32;
     let end = frame + drag_frames;
@@ -140,6 +152,9 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
     let mut min_dist = f32::MAX;
     let mut frame_ms = Vec::new();
     let mut episodes = Vec::new();
+    #[cfg(not(target_arch = "wasm32"))]
+    let attrib = std::env::var("DRAPE_DEBUG_ATTRIB").is_ok().then(|| crate::attrib::Attrib::new(device, &solver));
+    let (mut run_over_5ms, mut max_consecutive_frames_over_5ms) = (0u32, 0u32);
     let (mut frames_over_5ms, mut max_vertices_over_5ms, mut max_vertices_over_2ms_at_spike) = (0u32, 0usize, 0usize);
     while frame < end {
         // One episode: pull, hold, release, pause.
@@ -207,6 +222,10 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
             let t0 = Instant::now();
             solver.prepare_frame(queue, frame);
             let mut enc = device.create_command_encoder(&Default::default());
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(a) = &attrib {
+                a.snapshot(&mut enc, &solver);
+            }
             solver.encode_frame(&mut enc, None);
             queue.submit([enc.finish()]);
             crate::gpu_async::work_done(device, queue).await;
@@ -223,6 +242,8 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
             ep.max_speed = ep.max_speed.max(m.max_speed);
             min_dist = min_dist.min(m.min_collider_dist);
             ep.min_collider_dist_mm = ep.min_collider_dist_mm.min(m.min_collider_dist * 1000.0);
+            run_over_5ms = if m.max_speed >= 5.0 { run_over_5ms + 1 } else { 0 };
+            max_consecutive_frames_over_5ms = max_consecutive_frames_over_5ms.max(run_over_5ms);
             if m.max_speed >= 5.0 {
                 frames_over_5ms += 1;
                 let rb = device.create_buffer(&wgpu::BufferDescriptor {
@@ -251,6 +272,17 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                         eprintln!("   within query radius (j, mm, excluded): {near:?}");
                     }
                     eprintln!("spike ep {} k={k}: v{fi} {g} {fv:.1} m/s, body {body:.1} mm, {close} non-adjacent verts within 7 mm, in_patch {in_patch}, n>5 {}", episodes.len(), sp(5.0));
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Some(a) = &attrib {
+                    let mut w: Vec<(usize, f32)> = v.iter().enumerate().map(|(i, v)| (i, Vec3::new(v[0], v[1], v[2]).length())).filter(|x| x.1 >= 5.0).collect();
+                    w.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+                    let watch: Vec<usize> = w.iter().map(|x| x.0).collect();
+                    let sdf = match &built.collider { crate::sim::Collider::Sdf(s) => Some(s.as_ref()), _ => None };
+                    let g = built.groups.iter().find(|(_, r)| r.contains(&(watch[0] as u32))).map(|(n, _)| n.as_str()).unwrap_or("");
+                    let in_patch = patch.vertices.iter().any(|(pv, _)| *pv as usize == watch[0]);
+                    let tag = format!("ep {} k={k} frame {frame} {g} in_patch={in_patch} drag={}", episodes.len(), k < pull_frames + hold_frames);
+                    a.replay(device, queue, &solver, sdf, &watch, &tag).await;
                 }
                 let n5 = sp(5.0);
                 if n5 > max_vertices_over_5ms {
@@ -297,9 +329,16 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
     }
     let pos = solver.read_positions(device, queue).await;
     let self_intersections_after = selfcheck::check(&built.mesh, &weld, &pos, Some(&self_intersections_after_2s));
-    let c = &built.constraints;
-    let max_seam_gap_mm_after =
-        (!c.sew.items.is_empty()).then(|| c.sew.items.iter().map(|s| (pos[s.i as usize] - pos[s.j as usize]).length()).fold(0.0f32, f32::max) * 1000.0);
+    let max_seam_gap_mm_after = seam_gap(&pos);
+    let penetration_after = penetration_check(built, &pos);
+    let stable = non_finite_frames == 0
+        && max_speed < 20.0
+        && max_consecutive_frames_over_5ms <= 3
+        && penetration_after.as_ref().is_none_or(|p| p.max_penetration_mm < 2.0)
+        && match (max_seam_gap_mm_before, max_seam_gap_mm_after) {
+            (Some(b), Some(a)) => a <= b + 5.0,
+            _ => true,
+        };
 
     DragResult {
         target: if cfg!(target_arch = "wasm32") { "web" } else { "native" },
@@ -316,7 +355,10 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
         max_vertices_over_5ms,
         max_vertices_over_2ms_at_spike,
         min_collider_dist_mm: min_dist * 1000.0,
-        penetration_after: penetration_check(built, &pos),
+        penetration_after,
+        max_consecutive_frames_over_5ms,
+        max_seam_gap_mm_before,
+        stable,
         max_seam_gap_mm_after,
         frame_ms_serial: Stats::of(&frame_ms),
         episodes_starting_intersected: episodes.iter().filter(|e| e.self_intersections_at_start > 0).count(),

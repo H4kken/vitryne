@@ -1,5 +1,7 @@
 //! Drape spike core: GPU device setup, solver, metrics.
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod attrib;
 pub mod bench;
 pub mod body;
 pub mod constraints;

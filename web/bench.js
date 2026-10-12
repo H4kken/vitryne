@@ -1,5 +1,5 @@
 import init, { run_bench, run_drag_bench, bake_sdf_ms } from './pkg/drape_web.js';
-import { loadTshirtAssets } from './assets.js';
+import { loadGarmentAssets, loadTshirtAssets } from './assets.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -31,11 +31,14 @@ const DRAPE_COLS = [
   ['persistent', (r) => r.self_intersections_after_pipelined?.persistent_pairs],
 ];
 const DRAG_COLS = [
+  ['scene', (r) => r.scene],
   ['vertices', (r) => r.vertices],
   ['seed', (r) => r.config.seed],
   ['episodes', (r) => r.episodes.length],
   ['max v', (r) => f2(r.max_speed)],
   ['frames >5 m/s', (r) => r.frames_over_5ms],
+  ['longest run >5', (r) => r.max_consecutive_frames_over_5ms],
+  ['stable (S3)', (r) => (r.stable ? 'yes' : 'NO')],
   ['verts >5 m/s', (r) => r.max_vertices_over_5ms],
   ['NaN frames', (r) => r.non_finite_frames],
   ['pen after mm', (r) => f2(r.penetration_after?.max_penetration_mm)],
@@ -64,11 +67,19 @@ async function run() {
     const res = nums($('res').value);
     const substeps = nums($('substeps').value, (x) => parseInt(x, 10));
     const frames = parseInt($('frames').value, 10);
-    if (mode !== 'sheet' && !assets) {
+    const garment = mode === 'tshirt' || mode === 'drag' ? $('garment').value : '';
+    if (mode !== 'sheet' && (!assets || (assets.garment ?? '') !== garment)) {
       status.textContent = 'loading body + SDF…';
-      assets = await loadTshirtAssets(q);
+      assets = garment ? await loadGarmentAssets(garment) : await loadTshirtAssets(q);
     }
-    const opts = JSON.stringify({ self_collision: $('selfc').checked, pins: !$('nopins').checked, ...($('rebuild').value ? { self_rebuild: parseInt($('rebuild').value, 10) } : {}) });
+    const scene = garment ? 'garment' : 'tshirt';
+    const opts = JSON.stringify({
+      self_collision: $('selfc').checked,
+      pins: !$('nopins').checked,
+      ...($('rebuild').value ? { self_rebuild: parseInt($('rebuild').value, 10) } : {}),
+      ...($('cap').value ? { contact_max_accel: parseFloat($('cap').value) } : {}),
+      ...(garment ? { garment_toml: assets.toml, garment_dxf: assets.dxf } : {}),
+    });
     const obj = assets?.obj ?? '';
     const sdf = assets?.sdf ?? new Uint8Array();
     if (mode === 'bake') {
@@ -81,7 +92,7 @@ async function run() {
         status.textContent = `drag test edge ${r}, seed ${seed}…`;
         report('progress', status.textContent);
         await tick();
-        results.push(JSON.parse(await run_drag_bench(r, seed, 60, maxOff, minPull, opts, obj, sdf)));
+        results.push(JSON.parse(await run_drag_bench(scene, r, seed, 60, maxOff, minPull, opts, obj, sdf)));
         renderTable(DRAG_COLS);
       }
     } else {
@@ -89,7 +100,8 @@ async function run() {
         status.textContent = `${mode} res ${r}, ${ss} substeps, ${frames} frames…`;
         report('progress', status.textContent);
         await tick();
-        results.push(JSON.parse(await run_bench(mode, r, ss, frames, $('ts').checked, $('record').checked, opts, mode === 'tshirt' ? obj : '', mode === 'tshirt' ? sdf : new Uint8Array())));
+        const sc = mode === 'tshirt' ? scene : mode;
+        results.push(JSON.parse(await run_bench(sc, r, ss, frames, $('ts').checked, $('record').checked, opts, mode === 'tshirt' ? obj : '', mode === 'tshirt' ? sdf : new Uint8Array())));
         renderTable(DRAPE_COLS);
       }
     }
@@ -124,10 +136,11 @@ await init();
 status.textContent = 'ready' + (self.crossOriginIsolated ? '' : ' (not cross-origin isolated: coarse timers)');
 
 // Automation: ?auto=1&mode=tshirt|drag|sheet|bake&res=..&substeps=..&frames=..&seeds=..&gentle=1&ts=1&record=0
-// &sc=1 (self-collision) &rebuild=k &nopins=1
+// &sc=1 (self-collision) &rebuild=k &nopins=1 &garment=tshirt|trousers|hoodie (res = vertex count)
+// &cap=A (contact accel cap, m/s²)
 // &post=1&name=X also sends the JSON to the dev server (saved as bench/browser-check/X.json).
 if (q.has('mode')) { $('mode').value = q.get('mode'); $('mode').onchange(); }
-for (const k of ['res', 'substeps', 'frames', 'seeds', 'rebuild']) if (q.has(k)) $(k).value = q.get(k);
+for (const k of ['res', 'substeps', 'frames', 'seeds', 'rebuild', 'garment', 'cap']) if (q.has(k)) $(k).value = q.get(k);
 if (q.get('sc') === '1') $('selfc').checked = true;
 if (q.get('nopins') === '1') $('nopins').checked = true;
 if (q.get('ts') === '1') $('ts').checked = true;

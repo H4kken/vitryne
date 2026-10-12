@@ -38,6 +38,13 @@
     <label><input id="selfc" type="checkbox" /> self-collision</label>
     <label>rebuild every <input id="rebuild" type="text" value="" style="width:40px" title="self-collision: rebuild hash + neighbour lists every k substeps (empty = default)" /></label>
     <label><input id="nopins" type="checkbox" title="sheet mode" /> sheet unpinned (drop)</label>
+    <label>garment <select id="garment" title="drape/drag modes: a DXF-AAMA garment instead of the spike-1 T-shirt; res = target vertex count">
+      <option value="" selected>— (spike-1 T-shirt)</option>
+      <option value="tshirt">tshirt (Teagan)</option>
+      <option value="trousers">trousers (Titan)</option>
+      <option value="hoodie">hoodie (Hugo)</option>
+    </select></label>
+    <label>contact accel cap <input id="cap" type="text" value="" style="width:40px" title="S3 contact velocity filter, m/s² (empty = default 30, 0 = off)" /></label>
   </div>
   <p>
     <button id="run">Run</button>
