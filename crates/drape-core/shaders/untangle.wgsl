@@ -185,10 +185,14 @@ fn shares_vertex(a: vec3<u32>, b: vec3<u32>) -> bool {
     return any(a == b.xxx) || any(a == b.yyy) || any(a == b.zzz);
 }
 
-// One thread per sorted slot; candidates from the 3x3x3 cells as in selfcol.wgsl sc_query.
+// Nine threads per sorted slot, one per (y, z) row of the 3x3x3 cells (as in selfcol.wgsl
+// sc_query, which loops over the rows in one thread). One thread per triangle was latency-bound:
+// in the gated pass a few flagged triangles each walked their whole neighbourhood serially
+// and cost as much as the full pass (PROGRESS S4).
 @compute @workgroup_size(64)
 fn ut_detect(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let s = gid.x;
+    let s = gid.x / 9u;
+    let row = gid.x % 9u;
     let nt = S.n_tris;
     if (s >= nt) { return; }
     let ct = tsorted[s];
@@ -207,8 +211,10 @@ fn ut_detect(@builtin(global_invocation_id) gid: vec3<u32>) {
     let reach = reach_t + S.max_reach;
     let c0 = cell_of(ct.xyz);
     let mask = S.table_size - 1u;
-    for (var dz = -1; dz <= 1; dz = dz + 1) {
-        for (var dy = -1; dy <= 1; dy = dy + 1) {
+    let dz = i32(row / 3u) - 1;
+    let dy = i32(row % 3u) - 1;
+    {
+        {
             let h0 = hash(c0 + vec3<i32>(-1, dy, dz));
             let h2 = (h0 + 2u) & mask;
             var a_0 = cell_begin(h0);

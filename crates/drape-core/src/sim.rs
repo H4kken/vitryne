@@ -128,7 +128,7 @@ pub struct SimConfig {
     /// every this many substeps (0 = untangling off, the S3 behaviour).
     pub untangle_every: u32,
     /// Full detection over the whole mesh every this many substeps, which finds new crossings
-    /// (default 20 = once per frame). The `untangle_every` passes only test triangles that touch
+    /// (default 40 = every 2 frames at 20 substeps; 20 cost 1.4-1.9 ms per frame at 10k). The `untangle_every` passes only test triangles that touch
     /// a vertex flagged by the last detection, so their cost follows the size of the tangle.
     pub untangle_check_every: u32,
     /// Untangling displacement per application for a unit contour-gradient ratio, in mean rest
@@ -164,7 +164,7 @@ impl Default for SimConfig {
             self_margin_radii: 0.5,
             self_max_push_speed: 1.0,
             untangle_every: 4,
-            untangle_check_every: 20,
+            untangle_check_every: 40,
             untangle_step_edges: 0.1,
             untangle_max_ratio: 1.0,
             untangle_skip_repulsion: true,
@@ -296,8 +296,11 @@ pub struct Solver {
     state_bg: wgpu::BindGroup,
     cons_bg: wgpu::BindGroup,
     pipelines: Vec<wgpu::ComputePipeline>,
-    /// (label, dispatches, (every, offset)): runs in substeps s with s % every == offset.
+    /// (label, dispatches, (every, offset)): runs in substeps s with s % every == offset, s
+    /// counted from frame 0 (so a phase can run less often than once per frame).
     phases: Vec<(&'static str, Vec<Dispatch>, (u32, u32))>,
+    /// Frame of the last `prepare_frame`, for the phase schedule.
+    frame: std::cell::Cell<u32>,
     init_pos: Vec<[f32; 4]>,
     pub self_collision: Option<SelfCollision>,
     pub untangle: Option<Untangle>,
@@ -540,7 +543,7 @@ impl Solver {
             (crate::selfcol::PHASES[k], d, (if k < crate::selfcol::REBUILD_KERNELS { rebuild } else { 1 }, 0))
         };
         // Full detection at offset 0; the gated passes halfway between, so with the defaults they
-        // never land on a full one (substeps 2, 6, 10, 14, 18 of 20).
+        // never land on a full one (substeps 2, 6, 10, ... of each 40).
         let check = cfg.untangle_check_every.max(1);
         let gated_every = cfg.untangle_every.max(1);
         let untangle_kernel = |k: usize, gated: bool| {
@@ -614,6 +617,7 @@ impl Solver {
             cons_bg,
             pipelines,
             phases,
+            frame: std::cell::Cell::new(0),
             init_pos,
             self_collision,
             untangle,
@@ -673,6 +677,7 @@ impl Solver {
     /// Write this frame's parameters (ramped gravity and sewing compliance, drag). Call before
     /// `encode_frame`; a 128-byte upload, not a readback.
     pub fn prepare_frame(&self, queue: &wgpu::Queue, frame: u32) {
+        self.frame.set(frame);
         let t = frame as f32 * self.cfg.frame_dt;
         let sch = &self.cfg.schedule;
         let mut p = self.base_params;
@@ -698,18 +703,27 @@ impl Solver {
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&p));
     }
 
-    /// Phases that run in substep `s`.
+    /// Phases that run in substep `s` of `frame`.
+    fn due_in(&self, frame: u32, s: u32) -> impl Iterator<Item = &(&'static str, Vec<Dispatch>, (u32, u32))> {
+        let g = frame.wrapping_mul(self.cfg.substeps).wrapping_add(s);
+        self.phases.iter().filter(move |p| g % p.2.0 == p.2.1)
+    }
+
+    /// Phases that run in substep `s` of the frame set by the last `prepare_frame`.
     fn due(&self, s: u32) -> impl Iterator<Item = &(&'static str, Vec<Dispatch>, (u32, u32))> {
-        self.phases.iter().filter(move |p| s % p.2.0 == p.2.1)
+        self.due_in(self.frame.get(), s)
     }
 
+    /// In frame 0, which has every phase that runs less than once per frame (all start at
+    /// substep 0), so it's the largest frame.
     pub fn dispatches_per_frame(&self) -> u32 {
-        (0..self.cfg.substeps).map(|s| self.due(s).map(|p| p.1.len() as u32).sum::<u32>()).sum()
+        (0..self.cfg.substeps).map(|s| self.due_in(0, s).map(|p| p.1.len() as u32).sum::<u32>()).sum()
     }
 
-    /// Passes encoded per frame in profiling mode (one per phase per substep).
+    /// Passes encoded per frame in profiling mode (one per phase per substep), in the largest
+    /// frame (frame 0).
     pub fn profiled_passes_per_frame(&self) -> u32 {
-        (0..self.cfg.substeps).map(|s| self.due(s).count() as u32).sum()
+        (0..self.cfg.substeps).map(|s| self.due_in(0, s).count() as u32).sum()
     }
 
     /// `bound`: which group 0 is currently set (0 = none, 1 = solver state, 2 = self-collision,
@@ -782,7 +796,7 @@ impl Solver {
 
     pub fn encode_phase(&self, encoder: &mut wgpu::CommandEncoder, substep: u32, phase: usize) -> bool {
         let (_, ds, (every, offset)) = &self.phases[phase];
-        if substep % every != *offset {
+        if (self.frame.get() * self.cfg.substeps + substep) % every != *offset {
             return false;
         }
         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("replay"), timestamp_writes: None });

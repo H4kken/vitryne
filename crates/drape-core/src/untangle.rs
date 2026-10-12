@@ -22,8 +22,9 @@ pub const PHASES_GATED: [&str; 6] = ["utg_count", "utg_scan_local", "utg_scan_bl
 /// The hash supports triangles stretched to this many times the 99th-percentile rest reach
 /// (centroid to vertex). Larger ones can miss a crossing; the CPU count would still see it.
 /// Sizing by the largest triangle instead made the cell 3.4x the mean edge on the hoodie (one
-/// outlier) and the detection cost 12 ms per frame.
-pub const REACH_STRETCH: f32 = 1.5;
+/// outlier) and the detection cost 12 ms per frame; 1.5 cost 1.4-1.9 ms per full pass at 10k.
+/// The candidate count goes with the cell squared (cloth is a surface).
+pub const REACH_STRETCH: f32 = 1.2;
 
 const NONE: u32 = u32::MAX;
 
@@ -190,7 +191,7 @@ impl Untangle {
             .collect();
         let tg = n_tris.div_ceil(crate::sim::WG);
         let vg = n.div_ceil(crate::sim::WG);
-        Self { n_tris, step, cell, table_size, buffer_bytes, n_verts: n, acc, bind_groups, pipelines, groups: [tg, n_blocks, 1, tg, tg, vg] }
+        Self { n_tris, step, cell, table_size, buffer_bytes, n_verts: n, acc, bind_groups, pipelines, groups: [tg, n_blocks, 1, tg, (9 * n_tris).div_ceil(crate::sim::WG), vg] }
     }
 
     /// Benchmark-only readback: intersecting triangle pairs found by the last detection (pairs

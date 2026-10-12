@@ -294,15 +294,11 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         crate::gpu_async::work_done(device, queue).await;
         frame_ms.push(t0.elapsed().as_secs_f64() * 1000.0);
 
-        if timer.enabled() && f % 10 == 0 {
-            let t = timer::sum_by_label(&timer.read(device).await);
-            if phase_sum.is_empty() {
-                phase_sum = t;
-            } else {
-                for (a, b) in phase_sum.iter_mut().zip(&t) {
-                    a.ms += b.ms;
-                }
-            }
+        // Every 5th frame: odd and even frames alike, since some phases (S4's full untangling
+        // check) run every other frame. Merged by label, as not every frame has every phase.
+        if timer.enabled() && f % 5 == 0 {
+            phase_sum.extend(timer.read(device).await);
+            phase_sum = timer::sum_by_label(&phase_sum);
             phase_samples += 1;
         }
 

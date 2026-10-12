@@ -743,25 +743,26 @@ The baseline penetration after drags was worse for the trousers too: 2.04 mm at 
 - **Firefox and Windows:** still unmeasured (S1).
 - **The free-cloth snaps are still there:** 5–12 m/s for one frame. Whether part of each is the solver's over-stretch (1 iteration per substep) is open, for S5.
 
-## S4 — Untangling pass 🚧 works on the T-shirt tangle, still ~2× cost while tangled; full matrix not run (2026-10-12)
+## S4 — Untangling pass 🚧 works on the T-shirt tangle, +1.2–1.7 ms/frame at 10k; full matrix not run (2026-10-12)
 
 **Done-when:** "0 persistent intersections after rest and after every drag run, for all three garments, on every target."
 - ✅ **T-shirt 10k, drag seed 6** (the worst S3 tangle, 289 persistent pairs): **0**, with the run still stable.
 - ❌ **Hoodie neck junction:** 8 persistent pairs, unchanged. You chose to leave it for now.
 - ⏸ **Full matrix** (3 garments × {10k, 20k} × 6 seeds, native + Chrome): not run, your call. So the done-when is unverified.
 
-Raw JSON: [bench/s4/smoke/](bench/s4/smoke/) (first version) and [bench/s4/fix/](bench/s4/fix/) (with the cost fix). Native Metal, Apple M2, canonical mode, 20 substeps, self-collision on with K = 4. All runs alone on the GPU.
+Raw JSON: [bench/s4/smoke/](bench/s4/smoke/) (first version), [bench/s4/fix/](bench/s4/fix/) (cost fix 1) and [bench/s4/fix2/](bench/s4/fix2/) (cost fix 2, current defaults). Native Metal, Apple M2, canonical mode, 20 substeps, self-collision on with K = 4. All runs alone on the GPU.
 
 ### What works
 - **Untangling** ([untangle.wgsl](crates/drape-core/shaders/untangle.wgsl), [untangle.rs](crates/drape-core/src/untangle.rs)): intersection contour minimization, after Volino & Magnenat-Thalmann 2006. Same goal as Baraff, Witkin & Kass 2003, but local: no flood fill of the region inside a contour, so it's plain per-pair GPU work.
   - **Detect:** the triangles are hashed by centroid with the M4 counting sort. The two scan kernels moved into a shared [hashgrid.wgsl](crates/drape-core/shaders/hashgrid.wgsl), unchanged. Then exact edge–triangle tests, skipping pairs that share a vertex directly or through a seam (as [selfcheck.rs](crates/drape-core/src/selfcheck.rs) does).
-  - **Hash cell:** 2 × 1.5 × the 99th-percentile rest reach (centroid to vertex), i.e. triangles stretched up to 50% past p99 are always found. The first version used the largest triangle: a 31 mm cell on the hoodie because of one outlier.
+  - **Hash cell:** 2 × 1.2 × the 99th-percentile rest reach (centroid to vertex), i.e. triangles stretched up to 20% past p99 are always found: 15.5 mm on the T-shirt, 19.4 mm on the hoodie (2 of its triangles exceed that reach already at rest). History: the largest triangle (31 mm on the hoodie, one outlier), then 1.5 × p99.
+  - **Threads:** 9 per triangle, one per (y, z) row of its 3×3×3 cells.
   - **Correct:** each edge crossing a triangle is a point of the contour. Within each triangle bordering the edge, the contour runs along the line where the two planes meet; seams are welded, so a seam edge has both sides. That gives the gradient of the contour length for moving the edge along the other triangle's normal. Edge and triangle move apart along it, half each.
   - **Accumulation:** fixed-point `atomicAdd` plus a count, averaged per vertex, as the spike-1 plan describes. `prev` moves with `pos`, so the correction adds no velocity.
   - **Agreement with the CPU count:** the GPU finds the same pairs (hoodie: 8 on the GPU, 8 on the CPU).
 - **Repulsion skip:** self-collision ignores pairs of vertices both flagged at the last detection. Otherwise the repulsion holds the crossed layers on the wrong sides (M4 finding 6). Off with `--untangle-keep-repulsion`.
 - **Schedule (the cost fix):**
-  - **Full detection** every `--untangle-check-every` substeps (default 20 = once per frame). This finds new crossings.
+  - **Full detection** every `--untangle-check-every` substeps (default 40 = every 2 frames). This finds new crossings. Substeps are counted from frame 0 (set by `prepare_frame`), so a phase can now run less than once per frame.
   - **Gated detection** in between, every `--untangle-every` substeps (default 4). The hash is rebuilt, but only triangles with a flagged vertex are tested. As a contour shrinks, the newly crossing triangles share a vertex with the old ones, so they're still covered.
 - **Switches:** on by default with self-collision (your call). `--untangle-every 0` (web `&ut=0`) is the S3 behaviour **bit for bit** (checked on the T-shirt 10k drape: same rest frame, speeds and gaps to the last digit). Also `--untangle-step` (default 0.1 × mean edge), `--untangle-max-ratio`, and the web options `untangle_every`, `untangle_check_every`, `untangle_step`.
 - **Limits:** the self-collision layout now uses all 8 storage buffers allowed by default (the 8th holds the untangling flags). `Features::empty()` and `Limits::default()` still hold.
@@ -769,34 +770,43 @@ Raw JSON: [bench/s4/smoke/](bench/s4/smoke/) (first version) and [bench/s4/fix/]
 
 ### Numbers (native, 10k, ms/frame; "off" = `--untangle-every 0`, rerun alone on the GPU)
 
-| Run | Off | First version (every 4 substeps, full) | Cost fix | Persistent pairs: off → on |
-|---|---|---|---|---|
-| T-shirt drag seed 6 (60 s) | 3.67 | 12.40 | **7.28** | **289 → 0** |
-| T-shirt drape (no crossing) | 2.63 | — | **4.70** | 0 → 0 (rest frame 231, 1.09 s wall) |
-| Hoodie drape (junction crossing) | 3.09 | 15.29 | **7.11** | 8 → 8 |
+- **First version:** full detection every 4 substeps.
+- **Fix 1:** full detection once per frame, gated passes in between.
+- **Fix 2 (current defaults):** full detection every 2 frames, cell 1.2 × p99 instead of 1.5 ×, 9 threads per triangle.
 
-- **Seed 6 with the fix:** stable, max speed 5.81 m/s, 1 frame ≥ 5 m/s, 0.00 mm penetration, seams 2.0 → 4.2 mm (within the 5 mm limit). The tangle appears in episode 17 (315 pairs) and is gone from episode 29 on; the first version took until episode 40.
+| Run | Off | First version | Fix 1 | **Fix 2** | Persistent pairs: off → on |
+|---|---|---|---|---|---|
+| T-shirt drag seed 6 (60 s) | 3.67 | 12.40 | 7.28 | **5.12** (+1.45) | **289 → 0** |
+| T-shirt drape (no crossing) | 2.63 | — | 4.70 | **3.87** (+1.24) | 0 → 0 |
+| Hoodie drape (junction crossing) | 3.09 | 15.29 | 7.11 | **4.82** (+1.73) | 8 → 8 |
+
+- **Seed 6, fix 2:** stable, max speed 5.80 m/s, 1 frame ≥ 5 m/s, 0.00 mm penetration, seams 2.0 → 4.2 mm (within the 5 mm limit). The tangle appears in episode 17 (320 pairs) and is gone from episode 30 on (fix 1: 29, first version: 40).
+- **T-shirt drape, fix 2:** rest frame 231, as with untangling off; 0.89 s wall.
 - **S3's drag ms/frame was 4.61** for this seed, but it ran while Chrome was benchmarking on the same GPU. The 3.67 here is the fair baseline.
 
-**GPU time by kernel (profiling mode, ms per frame):**
+**GPU time by kernel (profiling mode, ms per frame; one pass per kernel, so small kernels include per-pass overhead):**
 
-| | full: hash (4 kernels) | **full: detect** | full: apply | gated: hash | **gated: detect** | gated: apply |
-|---|---|---|---|---|---|---|
-| T-shirt drape, no crossing | 0.06 | **1.40** | 0.01 | 0.30 | 0.23 | 0.06 |
-| Hoodie drape, 8 pairs | 0.06 | **1.91** | 0.01 | 0.30 | **1.92** | 0.07 |
+| | full: hash (4 kernels) | **full: detect** | full: apply | gated: hash | **gated: detect** | gated: apply | untangling total |
+|---|---|---|---|---|---|---|---|
+| T-shirt, fix 1 | 0.06 | **1.40** | 0.01 | 0.30 | 0.23 | 0.06 | 2.06 |
+| T-shirt, fix 2 | 0.03 | **0.57** | 0.01 | 0.30 | 0.25 | 0.05 | **1.21** |
+| Hoodie, fix 1 | 0.06 | **1.91** | 0.01 | 0.30 | **1.92** | 0.07 | 4.27 |
+| Hoodie, fix 2 | 0.03 | **0.72** | 0.01 | 0.30 | **0.70** | 0.05 | **1.81** |
+
+Fix-1 profiles sampled every 10th frame; fix 2 samples every 5th and merges by label (some phases now skip odd frames).
 
 ### Findings
 1. **The method works on the case it targets.** The pinch tangle of seed 6 (sleeve crossing itself at the armpit) is undone in about 12 episodes, without making the run unstable. Gradient, sign handling and seam welding hold up on a real case.
-2. **The full detection is the steady cost: 1.4–1.9 ms per frame at 10k,** about +80% of a drape frame. The cell is 19–24 mm (2–2.7× the mean edge), so each triangle tests a few hundred candidates.
-3. **The gated pass is cheap only when there's no tangle.** With 13 flagged vertices on the hoodie it costs as much as the full pass. A handful of threads each walk their whole neighbourhood serially, so it's latency-bound: the slowest thread, not the work, sets the time.
-4. **The hoodie junction doesn't move.** It's flagged and gets corrections every pass, yet it stays crossed. That fits the suspicion that the way the hood, centre strip and back neckline are sewn at that point forces the crossing; not investigated (your call).
+2. **The full detection was the steady cost:** 1.4–1.9 ms per frame at 10k with fix 1, about +80% of a drape frame. Halving its rate and shrinking the cell (about 0.64× the candidates) brought it to 0.57–0.72 ms.
+3. **The gated pass was latency-bound.** With 13 flagged vertices on the hoodie it cost as much as the full pass: a handful of threads each walked their whole neighbourhood serially, so the slowest thread set the time. With 9 threads per triangle it fell from 1.92 to 0.70 ms.
+4. **What's left with no tangle** (T-shirt) is mostly fixed overhead: about 0.3 ms for 4 gated hash rebuilds and 0.25 ms of gated detect threads that exit at once. Both could be skipped when nothing is flagged.
+5. **The hoodie junction doesn't move.** It's flagged and gets corrections every pass, yet it stays crossed. That fits the suspicion that the way the hood, centre strip and back neckline are sewn at that point forces the crossing; not investigated (your call).
 
 ### Open problems / notes
-- **Cost.** Options, roughly by effort:
-  - a full check every 2 frames (`--untangle-check-every 40`);
-  - a tighter cell (1.2 × p99 instead of 1.5×);
-  - split the gated work over more threads (one per candidate cell instead of one per triangle);
+- **Cost, still about +1.2–1.7 ms per frame at 10k** (+35–55%). Next options:
+  - skip the gated passes when nothing is flagged (indirect dispatch, core WebGPU);
   - insert triangles into every cell their bounding box overlaps, with a cell about the size of a triangle (about 10× fewer candidates).
+- **Not checked:** whether the smaller cell misses crossings on stretched triangles. The CPU count agrees on the runs above (0 persistent on seed 6, 8 on the hoodie), but the matrix would be the real check.
 - **Hoodie junction:** left as is.
 - **Not measured:** 20k, trousers, the other seeds, Chrome and Firefox. The browser build compiles (wasm32 checked); `bench.html` and the viewer take `&ut=N`.
 
