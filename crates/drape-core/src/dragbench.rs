@@ -79,7 +79,7 @@ pub struct DragResult {
     pub max_consecutive_frames_over_5ms: u32,
     /// Max seam gap at rest, before the first drag, mm (S3 criterion: after <= before + 5).
     pub max_seam_gap_mm_before: Option<f32>,
-    /// The S3 drag-test criterion (SPIKE2_PLAN.md): no NaN, nothing >= 20 m/s, no run of more
+    /// The S3 drag-test criterion (docs/history/SPIKE2_PLAN.md): no NaN, nothing >= 20 m/s, no run of more
     /// than 3 frames >= 5 m/s, and after the test < 2 mm penetration and no seam torn open.
     pub stable: bool,
     /// GPU-sampled min collider distance over the whole drag phase, mm (negative = inside).

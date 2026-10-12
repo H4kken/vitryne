@@ -188,7 +188,7 @@ fn shares_vertex(a: vec3<u32>, b: vec3<u32>) -> bool {
 // Nine threads per sorted slot, one per (y, z) row of the 3x3x3 cells (as in selfcol.wgsl
 // sc_query, which loops over the rows in one thread). One thread per triangle was latency-bound:
 // in the gated pass a few flagged triangles each walked their whole neighbourhood serially
-// and cost as much as the full pass (PROGRESS S4).
+// and cost as much as the full pass (docs/history/PROGRESS.md S4).
 @compute @workgroup_size(64)
 fn ut_detect(@builtin(global_invocation_id) gid: vec3<u32>) {
     let s = gid.x / 9u;

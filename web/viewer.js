@@ -3,7 +3,7 @@ import { loadTshirtAssets } from './assets.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
-// With &post=1, progress and errors also go to the dev server (bench/<dir>/<name>.log.json), so
+// With &post=1, progress and errors also go to the dev server (bench-out/<dir>/<name>.log.json), so
 // browsers we can't automate (Safari) still tell us what happened.
 const report = (kind, text) => q.get('post') === '1' && fetch(`/__bench-result?dir=${q.get('dir') ?? 'browser-check'}&name=${encodeURIComponent((q.get('name') ?? 'browser') + '.log')}`, { method: 'POST', body: JSON.stringify({ kind, text, t: performance.now(), ua: navigator.userAgent }) }).catch(() => {});
 window.addEventListener('error', (e) => report('error', String(e.message)));

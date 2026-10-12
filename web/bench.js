@@ -3,7 +3,7 @@ import { loadGarmentAssets, loadTshirtAssets } from './assets.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
-// With &post=1, progress and errors also go to the dev server (bench/<dir>/<name>.log.json), so
+// With &post=1, progress and errors also go to the dev server (bench-out/<dir>/<name>.log.json), so
 // browsers we can't automate (Safari) still tell us what happened.
 const report = (kind, text) => q.get('post') === '1' && fetch(`/__bench-result?dir=${q.get('dir') ?? 'browser-check'}&name=${encodeURIComponent((q.get('name') ?? 'browser') + '.log')}`, { method: 'POST', body: JSON.stringify({ kind, text, t: performance.now(), ua: navigator.userAgent }) }).catch(() => {});
 window.addEventListener('error', (e) => report('error', String(e.message)));
@@ -139,7 +139,7 @@ status.textContent = 'ready' + (self.crossOriginIsolated ? '' : ' (not cross-ori
 // Automation: ?auto=1&mode=tshirt|drag|sheet|bake&res=..&substeps=..&frames=..&seeds=..&gentle=1&ts=1&record=0
 // &sc=1 (self-collision) &rebuild=k &nopins=1 &garment=tshirt|trousers|hoodie (res = vertex count)
 // &cap=A (contact accel cap, m/s²) &ut=N (untangle every N substeps, 0 = off)
-// &post=1&name=X also sends the JSON to the dev server (saved as bench/browser-check/X.json).
+// &post=1&name=X also sends the JSON to the dev server (saved as bench-out/browser-check/X.json).
 if (q.has('mode')) { $('mode').value = q.get('mode'); $('mode').onchange(); }
 for (const k of ['res', 'substeps', 'frames', 'seeds', 'rebuild', 'garment', 'cap', 'ut']) if (q.has(k)) $(k).value = q.get(k);
 if (q.get('sc') === '1') $('selfc').checked = true;

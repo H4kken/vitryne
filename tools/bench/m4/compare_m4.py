@@ -1,14 +1,14 @@
 """M4 native vs browser with self-collision: drape performance + shape parity + intersections,
 and the drag test per seed.
-usage: python3 bench/m4/compare_m4.py bench/m4/browser/chrome_*.json bench/m4/browser/safari_*.json
-Native runs: bench/m4/native/*.json (scripted in PROGRESS M4)."""
+usage: python3 tools/bench/m4/compare_m4.py bench-out/m4/browser/chrome_*.json bench-out/m4/browser/safari_*.json
+Native runs: bench-out/m4/native/*.json (scripted in docs/history/PROGRESS.md M4)."""
 import base64
 import json
 import os
 import struct
 import sys
 
-N = 'bench/m4/native'
+N = 'bench-out/m4/native'
 
 
 def positions(r):

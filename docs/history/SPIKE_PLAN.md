@@ -1,5 +1,7 @@
 # WebGPU Garment Drape Spike — Plan for Claude Code
 
+> **Archive.** This is the `drape-spike` plan as it stood at the end of the spikes (2026-10-12), kept for its history and numbers. Paths in it are the spike's: the analysis scripts now live in `tools/bench/`, and the raw benchmark output (`bench/…`) was left out of this repository's history to keep it small. Current progress is in [../../PROGRESS.md](../../PROGRESS.md).
+
 ## Goal
 
 Find out, in about 2 weeks, whether garment-grade cloth simulation can run **in the browser on WebGPU** at usable speed, using **one Rust + wgpu codebase** that also runs natively.

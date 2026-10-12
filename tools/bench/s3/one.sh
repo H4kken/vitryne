@@ -1,5 +1,5 @@
 #!/bin/bash
-# bench/s3/one.sh <garment> <verts> <seed> <out.json> [extra flags]: one drag run, one summary line.
+# tools/bench/s3/one.sh <garment> <verts> <seed> <out.json> [extra flags]: one drag run, one summary line.
 # DRAPE_BIN overrides the binary (default target/release/drape).
 g=$1 v=$2 s=$3 out=$4; shift 4
 ${DRAPE_BIN:-target/release/drape} bench-drag --scene garment --garment assets/garments/$g/garment.toml \

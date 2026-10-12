@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S3 drag-test summary: python3 bench/s3/summary.py <dir> [<dir2> to compare]"""
+"""S3 drag-test summary: python3 tools/bench/s3/summary.py <dir> [<dir2> to compare]"""
 import json, sys, glob, os, collections
 
 def load(d):

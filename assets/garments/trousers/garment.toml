@@ -5,7 +5,7 @@ name = "trousers-titan"
 dxf = "trousers.dxf"
 
 # Woven (twill) placeholder: a jersey (the default, 1e4 N/m) is too soft to hold trousers up on
-# the hips; they stretch over them and slide off (PROGRESS S2). Not calibrated.
+# the hips; they stretch over them and slide off (docs/history/PROGRESS.md S2). Not calibrated.
 [material]
 density = 0.25
 stretch_k = 1.0e6

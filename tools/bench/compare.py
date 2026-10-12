@@ -1,7 +1,7 @@
 """Side-by-side native vs browser bench results.
-usage: python3 bench/compare.py <browser.json> [<browser2.json> ...]
+usage: python3 tools/bench/compare.py <browser.json> [<browser2.json> ...]
 Browser files are what bench.html outputs ({runs: [...]}); native results are matched from
-bench/m1/grid{N}.json (20 substeps) or bench/m1/grid100_ss{S}.json by vertex count + substeps."""
+bench-out/m1/grid{N}.json (20 substeps) or bench-out/m1/grid100_ss{S}.json by vertex count + substeps."""
 import glob
 import json
 import sys
@@ -15,7 +15,7 @@ def scene_of(r):
 
 
 native = {}
-for p in glob.glob('bench/m1/*.json') + glob.glob('bench/m2/*.json'):
+for p in glob.glob('bench-out/m1/*.json') + glob.glob('bench-out/m2/*.json'):
     r = json.load(open(p))
     if r['gpu_timestamps'] or scene_of(r).get('pin_spacing', 0.9) != 0.9 or sim_of(r)['damping'] != 1.0:
         continue

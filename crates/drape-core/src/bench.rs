@@ -22,7 +22,7 @@ pub struct BenchConfig {
     pub rest_vrms: f32,
     pub rest_window: u32,
     /// Include the final positions (f32 xyz, little endian, base64) for cross-target shape
-    /// comparison (bench/compare.py).
+    /// comparison (tools/bench/compare.py).
     pub record_positions: bool,
 }
 

@@ -1,5 +1,5 @@
 // Headless check against real Chrome with its GPU: loads a page, waits for #status, saves a screenshot.
-// usage: node tools/chrome-check.mjs <url> <screenshot.png> [timeoutMs] [report-out.json]
+// usage: node tools/bench/chrome-check.mjs <url> <screenshot.png> [timeoutMs] [report-out.json]
 // Waits until #status starts with 'ok' or 'error', then prints #report (parsed if JSON).
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""S3 final drag table: python3 bench/s3/final_table.py (reads bench/s3/final/{native,chrome})."""
+"""S3 final drag table: python3 tools/bench/s3/final_table.py (reads bench-out/s3/final/{native,chrome})."""
 import json, glob
 print("| Garment | Target | Stable (S3 criterion) | Frames ≥ 5 m/s (of 6 × 3,600) | Longest run | Max speed (m/s) | NaN | Max penetration after (mm) | Max seam widening (mm) | Persistent self-isect after (sum) | ms/frame |")
 print("|---|---|---|---|---|---|---|---|---|---|---|")
 for g in ["tshirt_10k", "tshirt_20k", "trousers_10k", "trousers_20k", "hoodie_10k", "hoodie_20k"]:
     for t in ["native", "chrome"]:
-        js = [json.load(open(f)) for f in sorted(glob.glob(f"bench/s3/final/{t}/{g}_s*.json"))]
+        js = [json.load(open(f)) for f in sorted(glob.glob(f"bench-out/s3/final/{t}/{g}_s*.json"))]
         if not js: continue
         bad = [j["config"]["seed"] for j in js if not j["stable"]]
         print(f"| {g.replace('_', ' ')} | {t} | {len(js) - len(bad)}/{len(js)}{' ❌ seeds ' + ', '.join(map(str, bad)) if bad else ' ✅'} | {sum(j['frames_over_5ms'] for j in js)} | "

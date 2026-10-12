@@ -1,12 +1,12 @@
-"""M5: build the REPORT.md tables from bench/m5/native/*.json and bench/m5/chrome/*.json.
-usage: python3 bench/m5/tables.py > /tmp/tables.md"""
+"""M5: build the spike REPORT tables (docs/history/REPORT.md) from bench-out/m5/native/*.json and bench-out/m5/chrome/*.json.
+usage: python3 tools/bench/m5/tables.py > /tmp/tables.md"""
 import base64
 import glob
 import json
 import os
 import struct
 
-N, C = 'bench/m5/native', 'bench/m5/chrome'
+N, C = 'bench-out/m5/native', 'bench-out/m5/chrome'
 SIZES = ['0.0122', '0.00864', '0.0061', '0.00432']
 f2 = lambda x, d=2: '—' if x is None else f'{x:.{d}f}'
 

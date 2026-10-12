@@ -97,11 +97,11 @@ pub struct SimConfig {
     /// motion within the cloth plane.
     pub air_drag: f32,
     /// Max collision push-out per vertex per substep, m. Default: uncapped (capping it let
-    /// cloth sink into the body under load, see PROGRESS M3).
+    /// cloth sink into the body under load, see docs/history/PROGRESS.md M3).
     pub contact_max_step: f32,
     /// S3 contact velocity filter: max speed gain of a vertex in body contact, m/s² (0 = off,
     /// the spike-1 / S2 behaviour). Default 30 m/s² = 0.025 m/s per substep at 20 substeps:
-    /// contact can stop a vertex at once but not launch it (crease fights, PROGRESS S3).
+    /// contact can stop a vertex at once but not launch it (crease fights, docs/history/PROGRESS.md S3).
     pub contact_max_accel: f32,
     /// S3: velocity-level Coulomb friction in body contact, with the contact's normal impulse
     /// (0 = off; the position-level friction above always applies).
@@ -566,7 +566,7 @@ impl Solver {
             // Hash rebuild before the body contact, repulsion after it. With the repulsion
             // first, the body pushed layers back into each other and the two fought every
             // substep (drag test: 44 frames over 5 m/s across 6 seeds vs 27 this way, and no
-            // body penetration either way; PROGRESS M4).
+            // body penetration either way; docs/history/PROGRESS.md M4).
             self_kernel(0),
             self_kernel(1),
             self_kernel(2),

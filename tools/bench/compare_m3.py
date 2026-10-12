@@ -1,6 +1,6 @@
 """Native vs browser for the T-shirt (M3): performance side by side, plus shape parity.
-usage: python3 bench/compare_m3.py bench/m3/chrome_tshirt.json [bench/m3/safari_tshirt.json ...]
-Native runs: bench/m3/tshirt_native_{5k,10k,20k,40k}.json (made with --record-positions).
+usage: python3 tools/bench/compare_m3.py bench-out/m3/chrome_tshirt.json [bench-out/m3/safari_tshirt.json ...]
+Native runs: bench-out/m3/tshirt_native_{5k,10k,20k,40k}.json (made with --record-positions).
 Shape parity: per-vertex distance between the native and browser positions after the same
 number of frames (both runs record final positions)."""
 import base64
@@ -17,7 +17,7 @@ def positions(r):
 
 
 native = {}
-for p in glob.glob('bench/m3/tshirt_native_*.json'):
+for p in glob.glob('bench-out/m3/tshirt_native_*.json'):
     r = json.load(open(p))
     native[r['mesh']['vertices']] = r
 

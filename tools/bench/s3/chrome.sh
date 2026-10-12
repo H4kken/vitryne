@@ -1,10 +1,10 @@
 #!/bin/bash
-# bench/s3/chrome.sh <out-dir> <garments> <verts> <seeds>: drag test in headless Chrome, one seed per page.
+# tools/bench/s3/chrome.sh <out-dir> <garments> <verts> <seeds>: drag test in headless Chrome, one seed per page.
 # Needs the dev server (cd web && npm run dev; PORT overrides 5173) and `npm run assets`.
 out=$1 gs=$2 v=$3 seeds=$4; mkdir -p "$out"
 for g in $gs; do for s in $seeds; do
   f="$out/${g}_$((v/1000))k_s$s.json"
-  node web/tools/chrome-check.mjs "http://localhost:${PORT:-5173}/bench.html?auto=1&mode=drag&garment=$g&res=$v&seeds=$s&sc=1&rebuild=4" /dev/null 1200000 "$f.tmp" > /dev/null 2>&1
+  node tools/bench/chrome-check.mjs "http://localhost:${PORT:-5173}/bench.html?auto=1&mode=drag&garment=$g&res=$v&seeds=$s&sc=1&rebuild=4" /dev/null 1200000 "$f.tmp" > /dev/null 2>&1
   python3 - "$f.tmp" "$f" <<'PY'
 import json, sys
 try:

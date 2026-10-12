@@ -9,8 +9,8 @@ const isolation = {
   'Cross-Origin-Embedder-Policy': 'require-corp',
 };
 
-// Dev only: bench.html?post=1&name=X POSTs its JSON here, saved to bench/browser-check/X.json
-// (or bench/<dir>/X.json with &dir=).
+// Dev only: bench.html?post=1&name=X POSTs its JSON here, saved to bench-out/browser-check/X.json
+// (or bench-out/<dir>/X.json with &dir=).
 // Lets a browser we can't automate (Safari without remote automation) hand results back.
 const benchSink = {
   name: 'bench-sink',
@@ -20,7 +20,7 @@ const benchSink = {
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
-        const dir = resolve(import.meta.dirname, '../bench', (new URL(req.url, 'http://x').searchParams.get('dir') || 'browser-check').replace(/[^a-z0-9_-]/gi, ''));
+        const dir = resolve(import.meta.dirname, '../bench-out', (new URL(req.url, 'http://x').searchParams.get('dir') || 'browser-check').replace(/[^a-z0-9_-]/gi, ''));
         mkdirSync(dir, { recursive: true });
         writeFileSync(resolve(dir, `${name}.json`), body);
         res.end('ok');
