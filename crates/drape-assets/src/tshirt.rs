@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use glam::{Vec2, Vec3};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use drape_core::{
     body::{BodyMesh, BodyQuery, Sdf},
@@ -59,15 +59,15 @@ fn mirror(pts: &[Vec2]) -> Vec<Vec2> {
 }
 
 fn body_panel(name: &'static str, neck_y: f32) -> Panel {
-    let e = |name, pts: Vec<Vec2>| PatternEdge { name, pts };
+    let e = PatternEdge::new;
     let arm_r = bezier(Vec2::new(CHEST, UNDERARM_Y), Vec2::new(0.19, 0.44), SHOULDER, 12);
     let neck_r = bezier(NECK, Vec2::new(0.07, neck_y), Vec2::new(0.0, neck_y), 10);
     // Neck runs right to left across the top: right half reversed, then the mirrored half.
     let mut neck: Vec<Vec2> = neck_r.clone();
     neck.extend(mirror(&neck_r).into_iter().skip(1));
-    Panel {
+    Panel::new(
         name,
-        edges: vec![
+        vec![
             e("hem", vec![Vec2::new(-HEM, 0.0), Vec2::new(HEM, 0.0)]),
             e("side_r", vec![Vec2::new(HEM, 0.0), Vec2::new(CHEST, UNDERARM_Y)]),
             e("arm_r", arm_r.clone()),
@@ -77,30 +77,30 @@ fn body_panel(name: &'static str, neck_y: f32) -> Panel {
             e("arm_l", mirror(&arm_r)),
             e("side_l", vec![Vec2::new(-CHEST, UNDERARM_Y), Vec2::new(-HEM, 0.0)]),
         ],
-    }
+    )
 }
 
 fn sleeve(name: &'static str) -> Panel {
-    let e = |name, pts: Vec<Vec2>| PatternEdge { name, pts };
+    let e = PatternEdge::new;
     let cap_p = bezier(SLEEVE_UNDER, Vec2::new(0.10, CAP_TOP_Y), Vec2::new(0.0, CAP_TOP_Y), 12);
     let cap_m: Vec<Vec2> = mirror(&cap_p);
-    Panel {
+    Panel::new(
         name,
-        edges: vec![
+        vec![
             e("hem", vec![Vec2::new(-SLEEVE_HEM, 0.0), Vec2::new(SLEEVE_HEM, 0.0)]),
             e("under_p", vec![Vec2::new(SLEEVE_HEM, 0.0), SLEEVE_UNDER]),
             e("cap_p", cap_p),
             e("cap_m", cap_m),
             e("under_m", vec![Vec2::new(-SLEEVE_UNDER.x, SLEEVE_UNDER.y), Vec2::new(-SLEEVE_HEM, 0.0)]),
         ],
-    }
+    )
 }
 
 pub fn pattern() -> Pattern {
     let panels = vec![body_panel("front", FRONT_NECK_Y), body_panel("back", BACK_NECK_Y), sleeve("sleeve_r"), sleeve("sleeve_l")];
     let (front, back, sr, sl) = (0, 1, 2, 3);
     let ed = |p: usize, n: &str| (p, panels[p].edge(n));
-    let seam = |name, a, b, reversed| Seam { name, a, b, reversed };
+    let seam = Seam::simple;
     let seams = vec![
         seam("side_r", ed(front, "side_r"), ed(back, "side_r"), false),
         seam("side_l", ed(front, "side_l"), ed(back, "side_l"), false),
@@ -184,7 +184,7 @@ pub fn place(mp: &mut MeshedPattern, p: &TshirtParams) {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SdfParams {
     pub cell: f32,
     pub band: f32,
@@ -244,12 +244,12 @@ pub fn build(params: &TshirtParams, body: Arc<BodyQuery>, sdf: Arc<Sdf>, mut sim
     );
 
     let names = ["front", "back", "sleeve_r", "sleeve_l"];
-    let groups = mp.panel_vertices.iter().enumerate().map(|(i, r)| (names[i], r.clone())).collect();
+    let groups = mp.panel_vertices.iter().enumerate().map(|(i, r)| (names[i].to_string(), r.clone())).collect();
     let seams = mp.seam_pairs.clone();
     let bm: &BodyMesh = &body.mesh;
     let collider_mesh = RenderMesh { pos: bm.pos.clone(), nrm: bm.vertex_normals(), idx: bm.tris.iter().flatten().copied().collect() };
     Built {
-        name: "tshirt",
+        name: "tshirt".into(),
         description: serde_json::json!({ "tshirt": params, "pattern_panels": pat.panels.len(), "seams": pat.seams.len(),
             "initial_inside_thickness": inside, "sdf": { "cell": sdf.cell, "band": sdf.band, "dims": sdf.dims.to_array(), "bytes": sdf.bytes() } }),
         mesh: mp.mesh,

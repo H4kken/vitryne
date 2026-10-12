@@ -22,7 +22,7 @@ pub struct RenderMesh {
 }
 
 pub struct Built {
-    pub name: &'static str,
+    pub name: String,
     /// Scene parameters, copied verbatim into bench reports.
     pub description: serde_json::Value,
     pub mesh: ClothMesh,
@@ -36,8 +36,8 @@ pub struct Built {
     /// Orbit camera target and distance for this scene.
     pub camera: (Vec3, f32),
     /// Named seams (sewing vertex pairs) and named vertex groups (panels), for diagnostics.
-    pub seams: Vec<(&'static str, Vec<(u32, u32)>)>,
-    pub groups: Vec<(&'static str, std::ops::Range<u32>)>,
+    pub seams: Vec<(String, Vec<(u32, u32)>)>,
+    pub groups: Vec<(String, std::ops::Range<u32>)>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -83,7 +83,7 @@ impl SheetScene {
         let constraints = Constraints::build(&mesh, &material);
         let c = Vec3::from(self.sphere_center);
         Built {
-            name: "sheet",
+            name: "sheet".into(),
             description: serde_json::to_value(self).unwrap(),
             mesh,
             constraints,

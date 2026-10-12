@@ -15,8 +15,12 @@
 //!
 //!   drape pattern-svg <out.svg> [--edge E]
 //!                           meshed T-shirt pattern with seams, for inspection
+//!   drape garment-svg <out.svg> --garment G [--edge E | --verts N]
+//!                           meshed DXF-AAMA garment with landmark numbers and seams
 //!
-//! Scene: --scene sheet|tshirt (default sheet).
+//! Scene: --scene sheet|tshirt|garment (default sheet).
+//!   garment: --garment path/garment.toml, --verts N (target vertex count, default 10000) or
+//!            --edge E; the SDF box comes from the toml
 //!   sheet:  --grid N (vertices per side), --pin-spacing F, --no-sphere
 //!   tshirt: --edge E (target edge length, m; 0.00864 ≈ 10k verts), --sdf-cell C (m)
 //! Sim (any scene): --substeps S, --damping D, --friction MU, --stretch-damping BETA (s),
@@ -25,7 +29,10 @@
 
 use std::sync::Arc;
 
-use drape_assets::tshirt::{self, SdfParams, TshirtParams};
+use drape_assets::{
+    garment::Garment,
+    tshirt::{self, SdfParams, TshirtParams},
+};
 use drape_core::{
     body::{BodyMesh, BodyQuery, Sdf},
     gpu,
@@ -117,6 +124,16 @@ fn main() {
             let cam = take_value(&mut args, "--cam").map(|v| v.split(',').map(|x| x.parse::<f32>().expect("--cam")).collect::<Vec<_>>());
             render_frames(&headless_gpu(), &scene_args.build(), &at, &dir, cam);
         }
+        "garment-svg" => {
+            let out = args.get(1).cloned().unwrap_or_else(|| "garment.svg".into());
+            let g = scene_args.garment();
+            let edge = scene_args.garment_edge(&g);
+            let gp = g.pattern().unwrap_or_else(|e| panic!("{e}"));
+            let mp = drape_assets::meshing::mesh_pattern(&gp.pattern, edge);
+            let title = format!("{} (edge {:.1} mm)", g.spec.name, edge * 1000.0);
+            std::fs::write(&out, drape_assets::preview::pattern_svg(&gp.pattern, &mp, &gp.labels, &title)).expect("write svg");
+            println!("wrote {out}: {} vertices; import: {}", mp.mesh.n_verts(), serde_json::to_string(&g.report).unwrap());
+        }
         "pattern-svg" => {
             let out = args.get(1).cloned().unwrap_or_else(|| "pattern.svg".into());
             pattern_svg(&out, scene_args.tshirt.edge);
@@ -138,6 +155,9 @@ struct SceneArgs {
     tshirt: TshirtParams,
     sdf: SdfParams,
     sim: drape_core::sim::SimConfig,
+    garment: Option<String>,
+    verts: u32,
+    edge: Option<f32>,
 }
 
 impl SceneArgs {
@@ -148,7 +168,13 @@ impl SceneArgs {
             tshirt: TshirtParams::default(),
             sdf: SdfParams::default(),
             sim: SheetScene::config(),
+            garment: take_value(args, "--garment"),
+            verts: 10000,
+            edge: None,
         };
+        if let Some(v) = take_value(args, "--verts") {
+            a.verts = v.parse().expect("--verts");
+        }
         let num = |args: &mut Vec<String>, flag: &str| take_value(args, flag).map(|v| v.parse::<f32>().unwrap_or_else(|_| panic!("{flag}")));
         if let Some(v) = take_value(args, "--grid") {
             a.sheet.grid = v.parse().expect("--grid");
@@ -161,6 +187,7 @@ impl SceneArgs {
         }
         if let Some(v) = num(args, "--edge") {
             a.tshirt.edge = v;
+            a.edge = Some(v);
         }
         if let Some(v) = num(args, "--sdf-cell") {
             a.sdf.cell = v;
@@ -219,8 +246,29 @@ impl SceneArgs {
                 let sdf = std::sync::Arc::new(load_or_bake_sdf(&obj, &body, &self.sdf));
                 tshirt::build(&self.tshirt, body, sdf, self.sim)
             }
-            other => panic!("unknown --scene {other} (sheet | tshirt)"),
+            "garment" => {
+                let g = self.garment();
+                let edge = self.garment_edge(&g);
+                let obj = std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
+                let body = std::sync::Arc::new(BodyQuery::new(BodyMesh::from_obj(&obj).expect("parse body obj")));
+                let mut sdf_params = g.sdf_params();
+                if self.sdf.cell != SdfParams::default().cell {
+                    sdf_params.cell = self.sdf.cell;
+                }
+                let sdf = std::sync::Arc::new(load_or_bake_sdf(&obj, &body, &sdf_params));
+                g.build(edge, body, sdf, self.sim).unwrap_or_else(|e| panic!("{e}"))
+            }
+            other => panic!("unknown --scene {other} (sheet | tshirt | garment)"),
         }
+    }
+
+    fn garment(&self) -> Garment {
+        let path = self.garment.as_deref().expect("--garment path/garment.toml");
+        Garment::load_file(path).unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    fn garment_edge(&self, g: &Garment) -> f32 {
+        self.edge.unwrap_or_else(|| g.edge_for_vertices(self.verts).unwrap_or_else(|e| panic!("{e}")))
     }
 }
 
@@ -257,30 +305,7 @@ fn load_or_bake_sdf(obj: &str, body: &BodyQuery, p: &SdfParams) -> Sdf {
 fn pattern_svg(out: &str, edge: f32) {
     let pat = tshirt::pattern();
     let mp = drape_assets::meshing::mesh_pattern(&pat, edge);
-    let scale = 1000.0; // 1 px per mm
-    let offsets = [(320.0, 720.0), (920.0, 720.0), (320.0, 960.0), (920.0, 960.0)];
-    let mut svg = String::from("<svg xmlns='http://www.w3.org/2000/svg' width='1450' height='1000' style='background:#fff'>\n");
-    let at = |pi: usize, v: u32| {
-        let q = mp.uv[v as usize];
-        (offsets[pi].0 + q.x * scale, offsets[pi].1 - q.y * scale)
-    };
-    let panel_of = |v: u32| mp.panel_vertices.iter().position(|r| r.contains(&v)).unwrap();
-    for t in &mp.mesh.tris {
-        let pi = panel_of(t[0]);
-        let p: Vec<String> = t.iter().map(|&v| at(pi, v)).map(|(x, y)| format!("{x:.1},{y:.1}")).collect();
-        svg += &format!("<polygon points='{}' fill='#f3d7cf' stroke='#a66' stroke-width='0.3'/>\n", p.join(" "));
-    }
-    let colors = ["#06c", "#0a6", "#c60", "#90c", "#c03", "#088", "#660", "#36f", "#f39", "#393"];
-    for (si, s) in pat.seams.iter().enumerate() {
-        for (pi, ei) in [s.a, s.b] {
-            let pts: Vec<String> = mp.edge_vertices[pi][ei].iter().map(|&v| at(pi, v)).map(|(x, y)| format!("{x:.1},{y:.1}")).collect();
-            svg += &format!("<polyline points='{}' fill='none' stroke='{}' stroke-width='3'/>\n", pts.join(" "), colors[si % colors.len()]);
-        }
-        let (x, y) = at(s.a.0, mp.edge_vertices[s.a.0][s.a.1][0]);
-        svg += &format!("<text x='{x:.0}' y='{y:.0}' font-size='11' fill='{}'>{}</text>\n", colors[si % colors.len()], s.name);
-    }
-    svg += &format!("<text x='10' y='20' font-size='14'>{} vertices, {} triangles, edge {:.1} mm</text>\n</svg>\n", mp.mesh.n_verts(), mp.mesh.tris.len(), edge * 1000.0);
-    std::fs::write(out, svg).expect("write svg");
+    std::fs::write(out, drape_assets::preview::pattern_svg(&pat, &mp, &[], &format!("procedural T-shirt, edge {:.1} mm", edge * 1000.0))).expect("write svg");
     println!("wrote {out}: {} vertices", mp.mesh.n_verts());
 }
 

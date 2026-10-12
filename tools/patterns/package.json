@@ -1,0 +1,14 @@
+{
+  "name": "drape-patterns",
+  "private": true,
+  "type": "module",
+  "description": "Drafts the spike-2 test garments with FreeSewing (MIT) and writes DXF-AAMA",
+  "dependencies": {
+    "@freesewing/config": "4.10.2",
+    "@freesewing/core": "4.10.2",
+    "@freesewing/hugo": "4.10.2",
+    "@freesewing/plugin-transform": "4.10.2",
+    "@freesewing/teagan": "4.10.2",
+    "@freesewing/titan": "4.10.2"
+  }
+}

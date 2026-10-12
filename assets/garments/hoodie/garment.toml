@@ -1,0 +1,174 @@
+# Hoodie: FreeSewing Hugo (MIT) — raglan sleeves, three-part hood, kangaroo pocket — drafted at
+# the avatar's measurements, exported as DXF-AAMA by tools/patterns/export-all.sh.
+# Not used here: the rib waistband, cuffs and neck binding (rib knit, folded double), and the
+# pocket facing.
+name = "hoodie-hugo"
+dxf = "hoodie.dxf"
+
+# Hips to the top of the head (the hood).
+[sdf]
+cell = 0.004
+band = 0.12
+min = [-0.55, 0.60, -0.25]
+max = [0.55, 1.72, 0.35]
+
+[[piece]]
+name = "front"
+dxf = "front"
+place = { frame = "torso", angle = 0, radius = 0.20, top = 1.42 }
+
+[[piece]]
+name = "back"
+dxf = "back"
+place = { frame = "torso", angle = 180, radius = 0.20, top = 1.46 }
+
+# Hugo's front notch is on the sleeve's -x side (Teagan's is on +x), so here the right
+# sleeve is the mirrored one.
+[[piece]]
+name = "sleeve_r"
+dxf = "sleeve"
+mirror = true
+place = { frame = "longarm_r", angle = 0, radius = 0.11, top = 0.10 }
+
+[[piece]]
+name = "sleeve_l"
+dxf = "sleeve"
+place = { frame = "longarm_l", angle = 0, radius = 0.11, top = 0.10 }
+
+[[piece]]
+name = "pocket"
+dxf = "pocket"
+place = { like = "front", lift = 0.012 }
+
+# The hood starts up, around the head: sides on a cylinder round the head, the centre strip
+# wrapped over the top from the back of the neck to the forehead.
+[[piece]]
+name = "hood_r"
+dxf = "hoodSide"
+place = { frame = "head", angle = -90, radius = 0.13, top = 1.71 }
+
+[[piece]]
+name = "hood_l"
+dxf = "hoodSide"
+mirror = true
+place = { frame = "head", angle = 90, radius = 0.13, top = 1.71 }
+
+[[piece]]
+name = "hood_centre"
+dxf = "hoodCenter"
+place = { frame = "head_over", angle = 0, radius = 0.15, top = 0.028 }
+
+# Landmarks (drape garment-svg):
+#   front 0 centre hem, 1 pocket line end, 2 hem corner, 3 underarm, 4 raglan notch, 5 neck
+#     point, 6 centre neck, 7..10 the same on -x, 11 pocket line end on -x; internal line L0 is
+#     the pocket outline: 0 hem +x, 1 corner, (curved hand opening), 2 top +x, 3 top -x, 4, 5.
+#   back 0 centre hem, 1 hem corner, 2 underarm, 3 notch, 4 neck point, 5 centre neck, 6..9.
+#   sleeve 0 top back corner, 1 shoulder notch, 2 top front corner, 3 front notch, 4 underarm
+#     (front), 5 cuff (front), 6 cuff (back), 7 underarm (back), 8 back notch.
+#   pocket 0 centre bottom, 1 bottom corner, 2 side corner, (opening), 3 top corner, 4 centre
+#     top, 5..7 the same on -x.
+#   hoodSide 0 neck at centre front, 1 face opening top, (crown seam), 2 neck at centre back,
+#     3 shoulder notch, 4 centre-front notch.
+#   hoodCenter 0-1 back-neck end, 1-2 long edge (-X side, back to front), 2-3 forehead end,
+#     3-0 long edge (+X side, front to back).
+
+[[seam]]
+name = "side_r"
+a = "front:9-10"
+b = "back:1-2"
+reverse = true
+
+[[seam]]
+name = "side_l"
+a = "front:2-3"
+b = "back:8-9"
+reverse = true
+
+[[seam]]
+name = "raglan_front_r"
+a = "sleeve_r:2-4"
+b = "front:7-9"
+
+[[seam]]
+name = "raglan_back_r"
+a = "sleeve_r:7-0"
+b = "back:2-4"
+
+[[seam]]
+name = "raglan_front_l"
+a = "sleeve_l:2-4"
+b = "front:3-5"
+reverse = true
+
+[[seam]]
+name = "raglan_back_l"
+a = "sleeve_l:7-0"
+b = "back:6-8"
+reverse = true
+
+[[seam]]
+name = "underarm_r"
+a = "sleeve_r:4-5"
+b = "sleeve_r:6-7"
+reverse = true
+
+[[seam]]
+name = "underarm_l"
+a = "sleeve_l:4-5"
+b = "sleeve_l:6-7"
+reverse = true
+
+# Kangaroo pocket on the front: top to the placement line, bottom into the hem, the short
+# slanted sides to the line's ends; the curved hand openings stay open.
+[[seam]]
+name = "pocket_top"
+a = "pocket:3-5"
+b = "front:L0:2-3"
+
+[[seam]]
+name = "pocket_bottom"
+a = "pocket:7-1"
+b = "front:11-1"
+
+[[seam]]
+name = "pocket_side_r"
+a = "pocket:1-2"
+b = "front:L0:0-1"
+
+[[seam]]
+name = "pocket_side_l"
+a = "pocket:6-7"
+b = "front:L0:4-5"
+
+# Hood: crown seams to the centre strip; neck edges to the neckline, centre front to centre
+# back across front, raglan sleeve top and back; the strip's end closes the back neck.
+[[seam]]
+name = "crown_r"
+a = "hood_r:1-2"
+b = "hood_centre:1-2"
+reverse = true
+by_length = true
+
+[[seam]]
+name = "crown_l"
+a = "hood_l:1-2"
+b = "hood_centre:3-0"
+by_length = true
+
+[[seam]]
+name = "hood_neck_r"
+a = "!hood_r:2-0"
+b = ["front:6-7", "!sleeve_r:0-2", "back:4-4+0.5"]
+by_length = true
+
+[[seam]]
+name = "hood_neck_l"
+a = "hood_l:2-0"
+b = ["back:5+0.5-6", "sleeve_l:0-2", "front:5-6"]
+by_length = true
+
+[[seam]]
+name = "hood_neck_centre"
+a = "hood_centre:0-1"
+b = ["back:4+0.5-5", "back:5-5+0.5"]
+by_length = true

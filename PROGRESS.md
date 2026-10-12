@@ -34,6 +34,11 @@ python3 bench/compare.py bench/browser-check/chrome-grids.json     # native vs b
 cargo run -p drape-native --release -- bench --scene sheet --no-pins --self-collision --out bench/m4/native/drop-sc-k1.json
 #   web: viewer checkbox "self-collision" (C), scene "Sheet 10k dropped"; bench.html checkbox, or &sc=1&rebuild=K&nopins=1
 python3 bench/m4/compare_m4.py bench/m4/browser/chrome_tshirt_sc_k1.json   # native vs browser, M4
+# spike 2, S2: DXF-AAMA garments (assets/garments/<g>/garment.toml; g = tshirt | trousers | hoodie)
+cargo run -p drape-native --release -- bench --scene garment --garment assets/garments/tshirt/garment.toml --verts 10000 --self-collision --self-rebuild 4
+cargo run -p drape-native --release -- garment-svg out.svg --garment assets/garments/hoodie/garment.toml   # landmark numbers, seams
+python3 bench/s2/summary.py bench/s2/native/*.json --seams
+cd tools/patterns && npm install && ./export-all.sh       # regenerate the DXFs from FreeSewing
 ```
 
 ## Measurement modes
@@ -517,6 +522,103 @@ Raw JSON: [bench/m4/native/](bench/m4/native/) and [bench/m4/browser/](bench/m4/
 - **NaN:** 0 in 24 drag runs.
 - **Raw < 5 m/s limit:** broken in 21 of 24 drag runs, each for 1–7 frames of 3,600. Natively it's 20 of 24, so the failure isn't browser-specific.
 - **Decision rule, read literally:** the "drape passes, self-collision fails" branch. The report's recommendation: client-side simulation is viable for single-layer garments on Apple Silicon, after Windows/Firefox confirmation and a crease-contact fix, which a server would need too.
+
+---
+
+# Spike 2
+
+## S2 — Real patterns and a test set ⚠️ 2 of 3 drape; hoodie sleeves fail (2026-10-12)
+
+**Done-when:** "all three drape on the avatar; record the numbers, including failures."
+- ✅ **T-shirt** (FreeSewing Teagan) at 10k and 20k.
+- ✅ **Trousers** (FreeSewing Titan) at 10k. At 20k they hold only with self-collision on; with it off they slide off the hips (see findings).
+- ❌ **Hoodie** (FreeSewing Hugo): the hood (up, on the head), kangaroo pocket, body and raglan seams all sew and hold. **The long sleeves don't go round the arms:** they close beside the arm and hang there. The cause is initial placement, not the solver. You chose to skip the fix for now.
+
+Raw JSON: [bench/s2/native/](bench/s2/native/). Native Metal, Apple M2, canonical mode (`Features::empty()`, `Limits::default()`), 20 substeps, 900 frames. Browser runs are for later milestones.
+
+![rest at 10k, self-collision on](docs/s2/rest-10k.png)
+
+### What works
+- **Patterns:** you didn't have patterns ready, so I drafted three open designs with FreeSewing 4.10.2 (all MIT; licence and notice in [assets/garments/](assets/garments/README.md)). They're drafted at the avatar's own measurements: [tools/patterns/measure.py](tools/patterns/measure.py) slices the mesh and reports FreeSewing's measurement set → [assets/body/measurements.json](assets/body/measurements.json).
+- **DXF-AAMA export** ([tools/patterns/export-aama.mjs](tools/patterns/export-aama.mjs)): FreeSewing core → R12 DXF, one BLOCK per piece; layers 1 boundary, 2 turn points, 4 notches (slits), 6 mirror line, 7 grain, 8 internal lines, plus "Piece Name:" and "Quantity:" text. It writes what a CAD system would. **Caveat:** the importer has only been run on DXFs from this exporter and on hand-written unit-test files, never on a Seamly2D or Gerber export. One of your files would close that gap.
+- **DXF-AAMA import** ([dxf.rs](crates/drape-assets/src/dxf.rs), [aama.rs](crates/drape-assets/src/aama.rs)):
+  - **Reads:** POLYLINE/VERTEX, LWPOLYLINE, LINE, POINT, TEXT, BLOCK/INSERT and `$INSUNITS`.
+  - **Skips without failing:** other entities (ARC, MTEXT, SPLINE …) and other layers, counted in an import report. Arc bulges become chords.
+  - **Boundary:** the sew line (layer 14) is used if present, otherwise the cut line (layer 1).
+  - **Corners:** if layer 2 is missing, they're detected by angle.
+  - **Cut-on-fold pieces:** unfolded about the mirror line, together with their notches and internal lines. A mirror line that doesn't run along the outline is a warning, and that piece stays folded.
+  - **Tests:** 6 unit tests.
+- **`garment.toml` sidecar** ([garment.rs](crates/drape-assets/src/garment.rs)): piece instances (mirrored for left/right), initial placement and seams. Seams are referenced by **landmarks**, i.e. turn points, notches, fold ends and internal-line ends, numbered in boundary order:
+  - `"front:3-5"` is a boundary run; `!` reverses a run;
+  - a list of runs is one chain, which may span pieces (the hood neckline runs across the front, the raglan sleeve top and the back);
+  - `"front:L0:2-3"` is an internal line (the pocket placement);
+  - `"3+0.5"` is a point halfway between two landmarks (Teagan's sleeve cap has no shoulder notch).
+  - `drape garment-svg` draws the numbers.
+  - **Pairing:** chains with equal edge counts pair edge by edge, so notches meet; otherwise, or with `by_length`, they pair by length.
+  - **Direction check:** every seam logs its initial gap for both directions. A wrong `reverse` shows up as the flipped direction being much shorter, which caught one mistake in the hoodie.
+- **Placement:**
+  - **Frames:** each piece is wrapped on a cylinder around a body frame measured on the avatar: torso, arms, long arms, legs, head, and over the head.
+  - **Anchoring:** `like = "front"` places a piece in another piece's pattern coordinates (the pocket sits on the front, lifted 12 mm).
+  - **Other options:** per garment, a `[material]` and an `[sdf]` box.
+- **Meshing:** internal lines are meshed as constrained edges, so a pocket can be sewn onto a panel.
+- **Bench:** new **edge strain** report (mean, p99, max, and where the worst edges are).
+- **Fix, also for spike 1:** reversed seams paired edge by edge used to match a's first edge with b's first edge. The procedural T-shirt never hit it, because all its seams are single edges.
+
+### Numbers (native, Apple M2, 20 substeps; SC = self-collision, rebuilt every 4th substep)
+
+| Garment | Vertices | SC | ms/frame | Rest frame | **Wall time to rest** | Max v (m/s) | NaN | **Max penetration (mm)** | Max seam gap (mm) | Self-isect end / **persistent** | Edge strain mean / p99 / max |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| T-shirt | 10,163 | off | 1.80 | 230 | **0.41 s** | 2.72 | 0 | **0.00** | 2.0 | 0 / **0** | 5.3 / 33 / 105 % |
+| T-shirt | 10,163 | on | 2.74 | 230 | **0.63 s** | 2.73 | 0 | **0.00** | 2.0 | 0 / **0** | 5.3 / 33 / 105 % |
+| T-shirt | 20,216 | off | 2.73 | 291 | **0.79 s** | 2.26 | 0 | **0.00** | 3.4 | 0 / **0** | 11.5 / 64 / 229 % |
+| T-shirt | 20,216 | on | 4.67 | 292 | **1.36 s** | 2.26 | 0 | **0.00** | 3.4 | 0 / **0** | 11.5 / 64 / 229 % |
+| Trousers | 10,243 | off | 2.02 | 255 | **0.52 s** | 2.71 | 0 | **0.00** | 1.6 | 0 / **0** | 1.8 / 18 / 58 % |
+| Trousers | 10,243 | on | 3.10 | 327 | **1.02 s** | 4.48 | 0 | **0.00** | 1.6 | 0 / **0** | 1.8 / 18 / 58 % |
+| Trousers | 20,354 | off | 2.74 | 333* | — slid off | 2.33 | 0 | 0.00 | 4.3 | 2826 / **2789** | 1.9 / 22 / 115 % |
+| Trousers | 20,354 | on | 5.01 | 510 | **2.56 s** | 3.50 | 0 | **0.00** | 4.3 | 0 / **0** | 3.3 / 23 / 115 % |
+| Trousers, 40 substeps | 20,354 | on | 10.38 | 259 | 2.69 s | 4.16 | 0 | 0.00 | 0.8 | 0 / 0 | 1.0 / 10 / 29 % |
+| Hoodie ❌ sleeves | 10,241 | off | 1.91 | 327* | — | 3.13 | 0 | 0.00 | 22.8 | 841 / **838** | 3.5 / 27 / 868 % |
+| Hoodie ❌ sleeves | 10,241 | on | 3.02 | none | — | 3.20 | 0 | 0.00 | 22.1 | 35 / **35** | 3.5 / 28 / 833 % |
+| Hoodie ❌ sleeves | 20,394 | off | 2.93 | 361* | — | 4.51 | 0 | 0.00 | 79.1 | 1097 / **1092** | 6.1 / 33 / 1325 % |
+| Hoodie ❌ sleeves | 20,394 | on | 5.00 | none | — | 4.38 | 0 | 0.00 | 79.4 | 53 / **53** | 6.3 / 35 / 1361 % |
+
+\* The rest rule fired, but not on a correct drape: the 20k trousers come to rest in a pile at the ankles, and the hoodie rests with its sleeves hanging.
+
+**Against the S2 pass criteria, native only** (the plan measures in the browser; that comes later):
+- **Drape < 3 s:** ✅ for T-shirt and trousers. The worst is the trousers at 20k with SC: 2.56 s, the closest to the limit.
+- **Penetration < 2 mm:** ✅ 0.00 mm everywhere.
+- **0 persistent self-intersections:** ✅ for T-shirt and trousers with SC on. ❌ for the hoodie.
+- **No NaN:** 0 in every run.
+
+### Findings
+1. **The cloth is much more stretched at rest than spike 1 showed; it just wasn't measured.**
+   - **New garments:** the T-shirt at rest has a mean edge strain of 5% (10k) and 12% (20k), and a p99 of 33% / 64%.
+   - **Spike-1 T-shirt:** the procedural T-shirt has the same: 4 / 29% at 10k and 10 / 50% at 20k ([procedural_tshirt_*.json](bench/s2/native/)).
+   - **Where:** the worst edges are at the shoulder seam near the neck, where the whole shirt hangs.
+   - **Cause:** with 1 constraint iteration per substep, tension doesn't travel far through the mesh. Doubling the vertex count roughly doubles the strain.
+   - **Why it matters:** a real cotton T-shirt stretches a few percent at most. This is the plan's "quality regression" baseline for S5 (fewer substeps × more iterations), and it suggests S5 matters for quality, not just speed.
+2. **Trousers have to be held up by the hips, and the solver struggles to do that.**
+   - **Jersey:** with the spike-1 placeholder (1e4 N/m), the waist ring stretches over the hips (720 mm → 929 mm, +29%) and the trousers slide to the floor at every resolution and substep count. The stiffer the constraint relative to the step, the more the real softness shows. Physically, jersey trousers without elastic do fall.
+   - **Twill:** I gave the trousers a woven placeholder in their `garment.toml` (0.25 kg/m², 1e6 N/m, 2e-5 N·m). That's a fabric class, not calibration.
+   - **At 20k:** even twill slides off with SC off. Body contact projects the waist ring outward every substep, and one stretch iteration can't pull it back in. That's the same contact-beats-constraints mechanism as the spike-1 creases.
+   - **What holds it:** SC on (2.56 s) or 40 substeps (p99 strain 10%, 2.69 s, 10.4 ms/frame).
+   - **Not a criterion change:** I haven't changed any default substep count. The 20 / 40 substeps comparison is in the table.
+3. **Initial placement is a large share of the work for real patterns.** Two failures in this milestone came from placement, not the solver:
+   - **Teagan sleeves:** on a 10 cm cylinder the underarm edges started 20 cm apart and tangled (69 persistent intersections). Wrapped at 6 cm: 0.
+   - **Hugo sleeves:** they're 59 cm long and taper to a 155 mm cuff, and this avatar's forearm bends forward. No straight-axis, constant-radius cylinder puts the arm inside the tube, so the sleeve seam closes beside or through the arm (strain up to 13× on a few armpit edges). A centreline-following, width-sized tube would fix it; it's skipped for now at your request.
+4. **The armpit is again where things go wrong:** the hoodie's sleeve junction, and its strain and intersections, sit at x ≈ ±0.21, y ≈ 1.28. That's the same crease as spike 1's M3/M4 failures.
+5. **Pattern fit choices:**
+   - **Titan's length:** by default it reaches the floor, and the scene has no floor, so it's drafted at ankle length (`lengthBonus` −6%).
+   - **Hugo:** without its rib waistband it's cropped at the waist.
+   - **Hood:** placed up, on the head (the SDF box now reaches y = 1.72).
+
+### Open problems / notes
+- Hoodie sleeves (finding 3), skipped for now.
+- The importer hasn't seen a real Seamly2D / Gerber AAMA file yet (see "What works").
+- No floor collider: hems and dropped garments fall through y = 0. The penetration check covers the body only.
+- About 150–900 vertices start within the collision thickness (trousers at the hips, hoodie at the arm roots). They're pushed out in the first frames with no visible effect, but a closer placement would be cleaner.
+- Not run in a browser yet: the web build compiles (wasm32 checked), but `bench.html` can't load garments yet. That's needed for the S3 Chrome runs.
+- Self-collision is still K = 4 throughout; the drag test hasn't been run on the new garments yet (that's S3's test).
 
 ## Later
 - Better damping than global velocity damping (e.g. damping only along constraints, or in the solver itself), so the drape rests faster without slowing free fall.

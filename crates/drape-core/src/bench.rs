@@ -99,7 +99,7 @@ pub struct Penetration {
 #[derive(Debug, Clone, Serialize)]
 pub struct BenchResult {
     pub target: &'static str,
-    pub scene: &'static str,
+    pub scene: String,
     pub gpu_timestamps: bool,
     pub adapter: crate::gpu::AdapterReport,
     pub config: BenchConfig,
@@ -134,14 +134,18 @@ pub struct BenchResult {
     pub penetration: Option<Penetration>,
     /// Max distance between sewn vertex pairs at the end, mm (seam gap).
     pub max_seam_gap_mm: Option<f32>,
+    /// Edge strain at the end of the serial run, (length - rest) / rest: mean, p99, max.
+    pub stretch_strain: (f32, f32, f32),
+    /// The 5 most stretched edges: (strain, midpoint, group).
+    pub most_stretched: Vec<(f32, [f32; 3], String)>,
     /// Per named seam: (name, max gap mm, mean gap mm, position of the max along the seam
     /// as 0..1 from its first edge's start) at the end.
-    pub seam_gaps_mm: Vec<(&'static str, f32, f32, f32)>,
+    pub seam_gaps_mm: Vec<(String, f32, f32, f32)>,
     /// Profiling mode only: GPU ms per frame by phase, averaged over sampled frames.
     pub gpu_phase_ms: Vec<PassTime>,
     /// After the serial run: the 10 fastest vertices as (index, speed m/s, group), to locate
     /// jitter hotspots.
-    pub final_fastest_vertices: Vec<(u32, f32, &'static str)>,
+    pub final_fastest_vertices: Vec<(u32, f32, String)>,
     /// Every 10th frame: (frame, vrms m/s, max speed m/s, min collider dist m), for plotting.
     pub trace: Vec<(u32, f32, f32, f32)>,
     /// Final positions at the end of the serial run (see `BenchConfig::record_positions`).
@@ -332,7 +336,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
 
     // Benchmark-only readbacks of whole buffers, once.
     let vel = read_vec4(device, queue, &solver.vel, solver.n_verts).await;
-    let group_of = |v: u32| built.groups.iter().find(|(_, r)| r.contains(&v)).map(|(n, _)| *n).unwrap_or("");
+    let group_of = |v: u32| built.groups.iter().find(|(_, r)| r.contains(&v)).map(|(n, _)| n.clone()).unwrap_or_default();
     let final_fastest_vertices = {
         let mut s: Vec<(u32, f32)> = vel.iter().enumerate().map(|(i, v)| (i as u32, Vec3::new(v[0], v[1], v[2]).length())).collect();
         s.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
@@ -340,6 +344,24 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         s.into_iter().map(|(i, v)| (i, v, group_of(i))).collect()
     };
     let pos: Vec<Vec3> = read_vec4(device, queue, &solver.pos, solver.n_verts).await.iter().map(|p| Vec3::new(p[0], p[1], p[2])).collect();
+    let stretch_strain = {
+        let mut e: Vec<f32> = c.stretch.items.iter().filter(|s| s.rest > 0.0).map(|s| (pos[s.i as usize] - pos[s.j as usize]).length() / s.rest - 1.0).collect();
+        e.sort_by(f32::total_cmp);
+        let n = e.len().max(1);
+        (e.iter().sum::<f32>() / n as f32, e.get(n * 99 / 100).copied().unwrap_or(0.0), e.last().copied().unwrap_or(0.0))
+    };
+    let most_stretched = {
+        let mut e: Vec<(f32, [f32; 3], String)> = c
+            .stretch
+            .items
+            .iter()
+            .filter(|s| s.rest > 0.0)
+            .map(|s| ((pos[s.i as usize] - pos[s.j as usize]).length() / s.rest - 1.0, ((pos[s.i as usize] + pos[s.j as usize]) * 0.5).to_array(), group_of(s.i)))
+            .collect();
+        e.sort_by(|a, b| b.0.total_cmp(&a.0));
+        e.truncate(5);
+        e
+    };
     let max_seam_gap_mm = (!c.sew.items.is_empty())
         .then(|| c.sew.items.iter().map(|s| (pos[s.i as usize] - pos[s.j as usize]).length()).fold(0.0f32, f32::max) * 1000.0);
     let seam_gaps_mm = built
@@ -348,7 +370,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         .map(|(name, pairs)| {
             let g: Vec<f32> = pairs.iter().map(|&(i, j)| (pos[i as usize] - pos[j as usize]).length() * 1000.0).collect();
             let (kmax, max) = g.iter().enumerate().fold((0, 0.0f32), |a, (k, &v)| if v > a.1 { (k, v) } else { a });
-            (*name, max, g.iter().sum::<f32>() / g.len().max(1) as f32, kmax as f32 / (g.len().max(2) - 1) as f32)
+            (name.clone(), max, g.iter().sum::<f32>() / g.len().max(1) as f32, kmax as f32 / (g.len().max(2) - 1) as f32)
         })
         .collect();
     let penetration = penetration_check(built, &pos);
@@ -390,7 +412,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
     let dt = sim.frame_dt as f64;
     BenchResult {
         target: if cfg!(target_arch = "wasm32") { "web" } else { "native" },
-        scene: built.name,
+        scene: built.name.clone(),
         gpu_timestamps: timer.enabled(),
         adapter: gpu.report.clone(),
         scene_params: built.description.clone(),
@@ -414,6 +436,8 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
         min_collider_dist_mm_final: last.min_collider_dist * 1000.0,
         penetration,
         max_seam_gap_mm,
+        stretch_strain,
+        most_stretched,
         seam_gaps_mm,
         gpu_phase_ms: phase_sum,
         final_fastest_vertices,

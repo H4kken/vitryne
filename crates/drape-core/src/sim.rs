@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use glam::{Vec3, Vec4};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
 
 use crate::{body::Sdf, constraints::Constraints, mesh::ClothMesh, selfcol::SelfCollision, timer::GpuTimer};
@@ -21,7 +21,7 @@ pub enum Collider {
 }
 
 /// Time-dependent parameters, evaluated on the CPU and written to the uniform each frame.
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Schedule {
     /// Sewing compliance goes log-linearly from start to end over `sew_ramp_s`.
     pub sew_compliance_start: f32,

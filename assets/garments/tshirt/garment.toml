@@ -1,0 +1,89 @@
+# T-shirt: FreeSewing Teagan (MIT), drafted at the avatar's measurements, exported as DXF-AAMA
+# by tools/patterns/export-aama.mjs. Front and back are cut on the fold (unfolded on import).
+name = "tshirt-teagan"
+dxf = "tshirt.dxf"
+
+[[piece]]
+name = "front"
+dxf = "front"
+place = { frame = "torso", angle = 0, radius = 0.20, top = 1.44 }
+
+[[piece]]
+name = "back"
+dxf = "back"
+place = { frame = "torso", angle = 180, radius = 0.20, top = 1.44 }
+
+[[piece]]
+name = "sleeve_r"
+dxf = "sleeve"
+place = { frame = "arm_r", angle = 0, radius = 0.06, top = -0.04 }
+
+[[piece]]
+name = "sleeve_l"
+dxf = "sleeve"
+mirror = true
+place = { frame = "arm_l", angle = 0, radius = 0.06, top = -0.04 }
+
+# Landmarks (drape garment-svg): front/back 0 centre hem, 1 hem +x, 2 underarm +x, 3 armhole
+# notch +x, 4 shoulder tip +x, 5 neck side +x, 6 centre neck, 7..11 the same on -x.
+# Front is drawn from the front (+x = wearer's left), back from behind (+x = wearer's right).
+# Sleeve: 0 hem -x, 1 hem +x, 2 underarm (front side), 3 front notch, 4 back notch, 5 underarm
+# (back side); its cap top has no notch, so the shoulder point is 3+0.5.
+
+[[seam]]
+name = "side_r"
+a = "front:10-11"
+b = "back:1-2"
+reverse = true
+
+[[seam]]
+name = "side_l"
+a = "front:1-2"
+b = "back:10-11"
+reverse = true
+
+[[seam]]
+name = "shoulder_r"
+a = "front:7-8"
+b = "back:4-5"
+reverse = true
+
+[[seam]]
+name = "shoulder_l"
+a = "front:4-5"
+b = "back:7-8"
+reverse = true
+
+[[seam]]
+name = "armhole_front_r"
+a = "sleeve_r:2-3+0.5"
+b = "front:8-10"
+reverse = true
+
+[[seam]]
+name = "armhole_back_r"
+a = "sleeve_r:3+0.5-5"
+b = "back:2-4"
+reverse = true
+
+[[seam]]
+name = "armhole_front_l"
+a = "sleeve_l:2-3+0.5"
+b = "front:2-4"
+
+[[seam]]
+name = "armhole_back_l"
+a = "sleeve_l:3+0.5-5"
+b = "back:8-10"
+
+[[seam]]
+name = "underarm_r"
+a = "sleeve_r:1-2"
+b = "sleeve_r:5-0"
+reverse = true
+
+[[seam]]
+name = "underarm_l"
+a = "sleeve_l:1-2"
+b = "sleeve_l:5-0"
+reverse = true

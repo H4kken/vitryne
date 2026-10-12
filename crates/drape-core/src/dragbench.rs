@@ -47,7 +47,7 @@ pub struct DragEpisode {
     /// GPU-sampled min collider distance during this episode, mm.
     pub min_collider_dist_mm: f32,
     /// Group (panel) of the dragged vertex.
-    pub group: &'static str,
+    pub group: String,
     pub patch_vertices: usize,
     /// Self-intersecting triangle pairs when the episode starts (after the previous one's
     /// pause), CPU check on the readback used for picking.
@@ -57,7 +57,7 @@ pub struct DragEpisode {
 #[derive(Debug, Clone, Serialize)]
 pub struct DragResult {
     pub target: &'static str,
-    pub scene: &'static str,
+    pub scene: String,
     pub adapter: crate::gpu::AdapterReport,
     pub config: DragBenchConfig,
     pub sim: SimConfig,
@@ -159,7 +159,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
         let p0 = pos[vertex as usize];
         let patch = DragPatch::grab(&adj, &pos, vertex, DRAG_RADIUS);
         solver.begin_drag(queue, &patch);
-        let group = built.groups.iter().find(|(_, r)| r.contains(&vertex)).map(|(n, _)| *n).unwrap_or("");
+        let group = built.groups.iter().find(|(_, r)| r.contains(&vertex)).map(|(n, _)| n.as_str()).unwrap_or("");
         let mut ep = DragEpisode {
             start_frame: frame,
             vertex,
@@ -168,7 +168,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
             hold_frames,
             max_speed: 0.0,
             min_collider_dist_mm: f32::MAX,
-            group,
+            group: group.to_string(),
             patch_vertices: patch.vertices.len(),
             self_intersections_at_start: 0,
         };
@@ -178,14 +178,14 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
         if si.pairs > 0 && std::env::var("DRAPE_DEBUG_SELF").is_ok() {
             let g = |t: u32| {
                 let v = built.mesh.tris[t as usize][0];
-                built.groups.iter().find(|(_, r)| r.contains(&v)).map(|(n, _)| *n).unwrap_or("")
+                built.groups.iter().find(|(_, r)| r.contains(&v)).map(|(n, _)| n.as_str()).unwrap_or("")
             };
             let mut by: std::collections::BTreeMap<(&str, &str), usize> = Default::default();
             for &(a, b) in &si.pair_set {
                 let (ga, gb) = (g(a), g(b));
                 *by.entry((ga.min(gb), ga.max(gb))).or_default() += 1;
             }
-            let prev = episodes.last().map(|e: &DragEpisode| (e.vertex, e.group, e.offset));
+            let prev = episodes.last().map(|e: &DragEpisode| (e.vertex, e.group.clone(), e.offset));
             // Pinched against the body? Body distance of the intersecting triangles' vertices.
             if let crate::sim::Collider::Sdf(sdf) = &built.collider {
                 let mut d: Vec<f32> = si.pair_set.iter().flat_map(|&(a, b)| [a, b]).flat_map(|t| built.mesh.tris[t as usize]).map(|v| sdf.sample(pos[v as usize]) * 1000.0).collect();
@@ -240,7 +240,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 if std::env::var("DRAPE_DEBUG_SPIKE").is_ok() {
                     let p = solver.read_positions(device, queue).await;
                     let (fi, fv) = v.iter().enumerate().map(|(i, v)| (i, Vec3::new(v[0], v[1], v[2]).length())).fold((0, 0.0), |a, b| if b.1 > a.1 { b } else { a });
-                    let g = built.groups.iter().find(|(_, r)| r.contains(&(fi as u32))).map(|(n, _)| *n).unwrap_or("");
+                    let g = built.groups.iter().find(|(_, r)| r.contains(&(fi as u32))).map(|(n, _)| n.as_str()).unwrap_or("");
                     let body = match &built.collider { crate::sim::Collider::Sdf(sdf) => sdf.sample(p[fi]) * 1000.0, _ => 0.0 };
                     let close = p.iter().enumerate().filter(|(j, q)| *j != fi && (**q - p[fi]).length() < 0.007 && !adj[fi].contains(&(*j as u32))).count();
                     let in_patch = patch.vertices.iter().any(|(pv, _)| *pv as usize == fi);
@@ -273,9 +273,9 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
                 let over: Vec<usize> = prevp.iter().enumerate().filter(|(_, v)| Vec3::new(v[0], v[1], v[2]).length() > 5.0).map(|(i, _)| i).collect();
                 let over2 = prevp.iter().filter(|v| Vec3::new(v[0], v[1], v[2]).length() > 2.0).count();
                 eprintln!("  >5 m/s: {} verts {:?}; >2 m/s: {} verts", over.len(), &over[..over.len().min(8)], over2);
-                let g = built.groups.iter().find(|(_, r)| r.contains(&(fi as u32))).map(|(n, _)| *n).unwrap_or("");
+                let g = built.groups.iter().find(|(_, r)| r.contains(&(fi as u32))).map(|(n, _)| n.as_str()).unwrap_or("");
                 let in_patch = patch.vertices.iter().any(|(v, _)| *v as usize == fi);
-                let seam = built.seams.iter().find(|(_, ps)| ps.iter().any(|&(a, b)| a as usize == fi || b as usize == fi)).map(|(n, _)| *n);
+                let seam = built.seams.iter().find(|(_, ps)| ps.iter().any(|&(a, b)| a as usize == fi || b as usize == fi)).map(|(n, _)| n.as_str());
                 eprintln!("ep {} k={k} frame {frame}: fastest v{fi} ({g}, in_patch={in_patch}, seam={seam:?}) {fv:.2} m/s at {:?}, dist to patch {:.3} m, edge? {}",
                     episodes.len(), p[fi], (p[fi] - Vec3::from(patch.center)).length(), built.mesh.neighbors()[fi].len() < 6);
             }
@@ -303,7 +303,7 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: DragBenchConfig) -> DragResult {
 
     DragResult {
         target: if cfg!(target_arch = "wasm32") { "web" } else { "native" },
-        scene: built.name,
+        scene: built.name.clone(),
         adapter: gpu.report.clone(),
         sim,
         vertices: built.mesh.n_verts(),

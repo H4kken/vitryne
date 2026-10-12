@@ -1,0 +1,79 @@
+# Straight trousers: FreeSewing Titan (trouser block, MIT), drafted at the avatar's measurements,
+# exported as DXF-AAMA by tools/patterns/export-all.sh (ankle length: lengthBonus -6%).
+# Front and back are cut twice (left/right).
+name = "trousers-titan"
+dxf = "trousers.dxf"
+
+# Woven (twill) placeholder: a jersey (the default, 1e4 N/m) is too soft to hold trousers up on
+# the hips; they stretch over them and slide off (PROGRESS S2). Not calibrated.
+[material]
+density = 0.25
+stretch_k = 1.0e6
+bend_kb = 2.0e-5
+
+# Hips to ankles; the T-shirt box stops at y = 0.40.
+[sdf]
+cell = 0.004
+band = 0.12
+min = [-0.40, 0.0, -0.22]
+max = [0.40, 1.25, 0.28]
+
+[[piece]]
+name = "front_r"
+dxf = "front"
+place = { frame = "leg_r", angle = 0, radius = 0.12, top = 1.12 }
+
+[[piece]]
+name = "back_r"
+dxf = "back"
+place = { frame = "leg_r", angle = 180, radius = 0.12, top = 1.12 }
+
+[[piece]]
+name = "front_l"
+dxf = "front"
+mirror = true
+place = { frame = "leg_l", angle = 0, radius = 0.12, top = 1.12 }
+
+[[piece]]
+name = "back_l"
+dxf = "back"
+mirror = true
+place = { frame = "leg_l", angle = 180, radius = 0.12, top = 1.12 }
+
+# Landmarks (drape garment-svg): front 0 side waist, 1 outer hem, 2 inner hem, 3 crotch fork,
+# 4 centre-front waist; back 0 crotch fork, 1 inner hem, 2 outer hem, 3 side waist, 4 centre-
+# back waist. Mirrored instances keep the numbers, so the left leg's seams read the same.
+
+[[seam]]
+name = "outseam_r"
+a = "front_r:0-1"
+b = "back_r:2-3"
+reverse = true
+
+[[seam]]
+name = "inseam_r"
+a = "front_r:2-3"
+b = "back_r:0-1"
+reverse = true
+
+[[seam]]
+name = "outseam_l"
+a = "front_l:0-1"
+b = "back_l:2-3"
+reverse = true
+
+[[seam]]
+name = "inseam_l"
+a = "front_l:2-3"
+b = "back_l:0-1"
+reverse = true
+
+[[seam]]
+name = "centre_front"
+a = "front_r:3-4"
+b = "front_l:3-4"
+
+[[seam]]
+name = "centre_back"
+a = "back_r:4-0"
+b = "back_l:4-0"
