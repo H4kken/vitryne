@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Constraint construction and graph colouring (hard rule 4: no float atomics, so the
 //! stretch/bend passes are Gauss-Seidel per colour with no write conflicts inside a colour).
 

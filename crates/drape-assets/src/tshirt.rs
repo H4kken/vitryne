@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Procedural T-shirt sized for the MakeHuman base body (assets/body/README.md has the
 //! measurements), its initial placement around the avatar, and the scene build.
 //!

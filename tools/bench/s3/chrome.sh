@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # tools/bench/s3/chrome.sh <out-dir> <garments> <verts> <seeds>: drag test in headless Chrome, one seed per page.
 # Needs the dev server (cd web && npm run dev; PORT overrides 5173) and `npm run assets`.
 out=$1 gs=$2 v=$3 seeds=$4; mkdir -p "$out"

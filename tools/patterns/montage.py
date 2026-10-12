@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Side-by-side montage of PNGs, scaled to a common height, with captions.
 usage: python3 tools/patterns/montage.py out.png height a.png[:caption] b.png[:caption] ..."""
 import sys

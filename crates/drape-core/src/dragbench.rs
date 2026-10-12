@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Stability test from the plan: "60 s of simulation, random drags: no NaN, no explosion
 //! (max vertex speed < 5 m/s)". The cloth first drapes to rest, then a scripted sequence of
 //! random drags runs. The script is a fixed-seed RNG, so native and every browser replay the

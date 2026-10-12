@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Drafts a FreeSewing design (MIT) at the avatar's measurements and writes it as a DXF-AAMA
 // (ASTM D6673) file, the way a CAD pattern system would export it:
 //   one BLOCK per piece, inserted side by side in ENTITIES, R12 entities only;

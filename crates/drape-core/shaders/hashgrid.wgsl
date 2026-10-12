@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Spatial hash by counting sort (M4), shared by self-collision (vertices) and untangling
 // (triangle centroids, S4). Appended to each module, which declares:

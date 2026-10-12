@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Extract the 'body' group of the MakeHuman base mesh (hm08) and convert it to metres with
 feet at y = 0, triangulating its quads.
 usage: python3 convert.py base.obj makehuman_body_m.obj

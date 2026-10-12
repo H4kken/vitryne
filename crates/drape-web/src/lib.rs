@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! wasm entry points. The same drape-core and drape-assets as native; WebGPU backend only (no
 //! WebGL fallback). Builds natively too (only the canvas viewer is wasm-only), so
 //! `cargo test --workspace` and rust-analyzer check it.

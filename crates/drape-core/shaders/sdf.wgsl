@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared SDF sampling, prepended to sim.wgsl and metrics.wgsl (one source for every target).
 // The including shader declares `sdf_values: array<f32>` (grid values at cell corners, x fastest).
 // No float filtering on 3D textures in core WebGPU, so trilinear is done by hand.

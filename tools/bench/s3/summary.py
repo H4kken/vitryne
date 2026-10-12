@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """S3 drag-test summary: python3 tools/bench/s3/summary.py <dir> [<dir2> to compare]"""
 import json, sys, glob, os, collections
 

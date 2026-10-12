@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Collision body on the CPU: triangle mesh, BVH, exact signed distance, and the SDF bake
 //! uploaded to the GPU. The exact distance is also the benchmark's penetration check.
 //!

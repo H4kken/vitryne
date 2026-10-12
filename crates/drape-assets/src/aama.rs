@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! DXF-AAMA (ASTM D6673) pattern pieces. Each piece is a BLOCK; what matters is on these
 //! layers (the standard's layer table):
 //!   1  boundary (cut line, closed polyline), and "Piece Name:" / "Quantity:" text

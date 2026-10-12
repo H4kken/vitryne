@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # tools/bench/s3/one.sh <garment> <verts> <seed> <out.json> [extra flags]: one drag run, one summary line.
 # DRAPE_BIN overrides the binary (default target/release/drape).
 g=$1 v=$2 s=$3 out=$4; shift 4

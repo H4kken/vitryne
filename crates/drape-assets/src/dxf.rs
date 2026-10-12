@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Minimal ASCII DXF reader: enough for DXF-AAMA pattern files (R12 or later). Reads the
 //! header's units, every BLOCK with its entities, and the INSERTs that place them. Entities it
 //! doesn't need (ARC, CIRCLE, SPLINE, MTEXT, HATCH, ...) are skipped and counted, never an error.

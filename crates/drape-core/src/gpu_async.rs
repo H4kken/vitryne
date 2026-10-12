@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Waiting on the GPU from code that runs on both targets.
 //! Native: `device.poll` blocks until done. Web: the browser resolves the callback and
 //! the future wakes up; `device.poll` is a no-op there.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tape-measure the test avatar in FreeSewing's terms (mm), by slicing the mesh.
 
 Circumferences are convex-hull perimeters of a horizontal (or arm-perpendicular) slice: that's

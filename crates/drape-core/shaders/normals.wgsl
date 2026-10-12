@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Per-vertex normals by gathering incident triangles (CSR), so no float atomics are needed.
 
 struct NParams {

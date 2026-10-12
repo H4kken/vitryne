@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! A garment from a DXF-AAMA pattern plus a `garment.toml` sidecar. DXF carries the pieces;
 //! the sidecar says which pieces are cut (and mirrored), where each one starts around the
 //! avatar, and which landmark runs are sewn together (DXF has no sewing information).

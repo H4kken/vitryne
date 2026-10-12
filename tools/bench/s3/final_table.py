@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """S3 final drag table: python3 tools/bench/s3/final_table.py (reads bench-out/s3/final/{native,chrome})."""
 import json, glob
 print("| Garment | Target | Stable (S3 criterion) | Frames ≥ 5 m/s (of 6 × 3,600) | Longest run | Max speed (m/s) | NaN | Max penetration after (mm) | Max seam widening (mm) | Persistent self-isect after (sum) | ms/frame |")

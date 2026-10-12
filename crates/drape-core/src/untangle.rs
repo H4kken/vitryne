@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Untangling (spike 2, S4): intersection contour minimization (Volino & Magnenat-Thalmann
 //! 2006) on the GPU every `untangle_every` substeps (untangle.wgsl). Own pipeline layout, like
 //! self-collision. Its accumulator buffer also holds the per-vertex "tangled" flags that the

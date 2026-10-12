@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! SVG of a meshed pattern for inspection: triangles, seams colour-coded and named, and
 //! optional labelled points per panel (garment landmarks, for writing `garment.toml`).
 

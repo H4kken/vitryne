@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import json, sys
 for f in sys.argv[1:]:
     r = json.load(open(f))

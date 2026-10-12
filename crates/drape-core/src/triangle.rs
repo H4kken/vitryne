@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! M0 smoke test: draws one coloured triangle.
 
 pub const SHADER: &str = include_str!("../shaders/triangle.wgsl");

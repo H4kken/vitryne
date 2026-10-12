@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Minimal renderer: GPU-recomputed cloth normals, lit shading, an orbit camera, and the collider.
 
 use bytemuck::{Pod, Zeroable};

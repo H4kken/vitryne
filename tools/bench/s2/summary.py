@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """One line per drape bench JSON (spike 2, S2), plus the per-seam gaps of the worst seams.
 usage: python3 tools/bench/s2/summary.py file.json [...] [--seams]"""
 import json, sys

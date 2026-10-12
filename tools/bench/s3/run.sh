@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # S3 drag matrix: tools/bench/s3/run.sh <out-dir> [extra drape flags...]
 # Garments x {10k, 20k} x seeds 1-6, self-collision on, K = 4 (the S2 setup). Output: one line per run.
 set -e

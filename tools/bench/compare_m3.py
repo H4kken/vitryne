@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Native vs browser for the T-shirt (M3): performance side by side, plus shape parity.
 usage: python3 tools/bench/compare_m3.py bench-out/m3/chrome_tshirt.json [bench-out/m3/safari_tshirt.json ...]
 Native runs: bench-out/m3/tshirt_native_{5k,10k,20k,40k}.json (made with --record-positions).

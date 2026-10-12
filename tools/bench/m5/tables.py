@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """M5: build the spike REPORT tables (docs/history/REPORT.md) from bench-out/m5/native/*.json and bench-out/m5/chrome/*.json.
 usage: python3 tools/bench/m5/tables.py > /tmp/tables.md"""
 import base64

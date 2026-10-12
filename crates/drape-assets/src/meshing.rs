@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Pattern -> cloth mesh. Boundary edges are resampled at the target edge length (paired seam
 //! edges get the same segment count), the interior is filled with an equilateral lattice, and
 //! everything is triangulated with a constrained Delaunay triangulation (spade). The result is

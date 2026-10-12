@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Simple two-sided Lambert + ambient. No PBR, no textures (out of scope).
 
 struct Camera {

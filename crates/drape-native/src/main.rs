@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Native entry point.
 //!   drape [view]            winit viewer: drag on cloth = pull it, drag elsewhere = orbit,
 //!                           wheel = zoom, space = pause, R = reset,

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Cloth self-collision (M4): spatial hash by counting sort + vertex-vertex repulsion, on the
 //! GPU every substep (selfcol.wgsl). Own pipeline layout, so the solver's bind groups keep
 //! their storage-buffer count under the WebGPU default of 8 per stage (this one uses all 8).

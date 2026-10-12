@@ -1,0 +1,111 @@
+# Contributing to Vitryne
+
+Thanks for helping. This page covers the sign-off we need on every commit, how to build and run
+Vitryne, and the local check every change has to pass.
+
+## Sign your commits (DCO)
+
+Vitryne uses the [Developer Certificate of Origin](https://developercertificate.org/) (DCO 1.1)
+instead of a contributor licence agreement. By adding a `Signed-off-by` line to a commit, you
+certify that you wrote the change or otherwise have the right to submit it under the project's
+licence (AGPL-3.0-or-later).
+
+Sign off with `-s`:
+
+```sh
+git commit -s -m "Explain the change"
+```
+
+This adds `Signed-off-by: Your Name <you@example.com>`, using your `user.name` and `user.email`.
+Use your real name. Every commit in a pull request needs it. If you forgot, run
+`git commit --amend -s` for the last commit, or `git rebase --signoff <base>` for several.
+
+The commits imported from the spike (before the first signed-off commit) predate this rule.
+
+## Licence of contributions
+
+Code is AGPL-3.0-or-later. New source files start with an SPDX header, in that file type's
+comment syntax:
+
+```rust
+// SPDX-License-Identifier: AGPL-3.0-or-later
+```
+
+Assets keep their own licences, listed in [assets/LICENSES.md](assets/LICENSES.md). Add a row
+there when you add an asset.
+
+## Build and run
+
+**Prerequisites:**
+- Rust (stable; tested with 1.99), with the `clippy` and `rustfmt` components and the wasm target:
+  `rustup target add wasm32-unknown-unknown`
+- `wasm-bindgen-cli`, the exact version the crate pins:
+  `cargo install wasm-bindgen-cli --version 0.2.129`
+- Node 22 or newer, and Python 3 (for the scripts in `tools/`)
+- A GPU with Metal, Vulkan or DX12 for the native build, and a browser with WebGPU for the web
+  build
+
+**Native:**
+
+```sh
+cargo run -p drape-native --release -- bench --scene garment --garment assets/garments/tshirt/garment.toml --verts 10000
+cargo run -p drape-native --release -- view --scene garment --garment assets/garments/tshirt/garment.toml
+```
+
+The first run bakes the body SDF (about 1–2 s) and caches it in `target/sdf-cache/`.
+
+**Browser:**
+
+```sh
+cd web
+npm ci
+npm run dev        # builds the wasm, exports the assets, serves http://localhost:5173
+npm run build      # production build in web/dist
+```
+
+The page needs cross-origin isolation, so whatever serves it must send these headers (the dev
+server and `vite preview` already do):
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+The bench page is at `/bench.html`. Benchmark scripts are in [tools/bench/](tools/bench/), and
+their output goes to `bench-out/`, which git ignores.
+
+## The local check
+
+There's no CI. Run this before you push; it has to pass:
+
+```sh
+./check            # everything: about 1–2 minutes once the caches are warm
+./check --quick    # Rust only: fmt, clippy (native and wasm32), tests
+```
+
+It checks:
+- SPDX headers, and that no file over 1 MiB is committed outside Git LFS;
+- `cargo fmt --check`;
+- `cargo clippy -D warnings`, natively and for wasm32;
+- `cargo test`;
+- the wasm build and the production web bundle;
+- the web code (a syntax check for now; TypeScript typecheck and lint once the app lands);
+- the three sample drapes on your GPU (a smoke test for now; golden regression results later).
+
+## Rules for engine changes
+
+- **WebGPU core only.** Every target uses `Features::empty()` and `Limits::default()`, one set
+  of WGSL shaders, and only the WebGPU backend in wasm. The device setup asserts it.
+- **Engine and UI stay separate.** Engine crates have no UI code. The UI talks to the engine
+  only through its public API and the worker message protocol.
+- **Published methods only** in the solver. Cite the paper in a comment where it's implemented,
+  and in `docs/ALGORITHMS.md`.
+- **Don't loosen a quality criterion to make it pass.** If a target is wrong, change it in its
+  own commit, with the reasoning in `PROGRESS.md`, before the run it affects.
+
+## Large files
+
+- Generated data isn't committed: SDF bakes, benchmark output, build output.
+- Binary assets over 1 MiB go through [Git LFS](https://git-lfs.com/). The patterns are in
+  [.gitattributes](.gitattributes); run `git lfs install` once before adding one.
+- `./check` fails if a file over 1 MiB is committed outside LFS.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! CPU-side cloth mesh. `rest` holds the undeformed shape (for a garment: the flat 2D pattern),
 //! `pos` the initial placement. Rest lengths, bending weights and masses come from `rest`.
 

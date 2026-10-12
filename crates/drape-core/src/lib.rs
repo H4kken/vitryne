@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Drape spike core: GPU device setup, solver, metrics.
 
 #[cfg(not(target_arch = "wasm32"))]

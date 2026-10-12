@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // M0 smoke-test shader. Shared verbatim by native and web (hard rule 2).
 
 struct VsOut {

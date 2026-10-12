@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Headless benchmark. Async so the same code runs natively (pollster) and in wasm.
 
 use glam::Vec3;

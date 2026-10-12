@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! GPU XPBD solver. Everything per frame stays on the GPU (hard rule 5).
 
 use std::sync::Arc;

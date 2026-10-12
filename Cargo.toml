@@ -5,6 +5,7 @@ members = ["crates/drape-core", "crates/drape-assets", "crates/drape-native", "c
 [workspace.package]
 edition = "2024"
 version = "0.1.0"
+license = "AGPL-3.0-or-later"
 publish = false
 
 [workspace.dependencies]

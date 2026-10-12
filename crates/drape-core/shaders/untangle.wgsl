@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Untangling (spike 2, S4): intersection contour minimization, after Volino & Magnenat-Thalmann
 // 2006, "Resolving surface collisions through intersection contour minimization" (ACM TOG 25(3),
 // SIGGRAPH 2006). Same goal as Baraff, Witkin & Kass 2003, "Untangling cloth" (ACM TOG 22(3)),

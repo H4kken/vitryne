@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! 2D sewing patterns: panels bounded by named edges (polylines, metres), optional internal
 //! lines (open polylines inside a panel, e.g. a pocket placement line), and seams pairing chains
 //! of edges. The procedural T-shirt builds one in code; `garment` builds one from DXF-AAMA.

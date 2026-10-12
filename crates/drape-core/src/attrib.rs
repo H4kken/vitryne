@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Debug only (S3): which solver phase made a spike? `DRAPE_DEBUG_ATTRIB=1 drape bench-drag ...`
 //! snapshots pos/prev/vel before every drag frame; on a frame with a vertex >= 5 m/s it restores
 //! the snapshot and replays that frame one phase at a time, reading back after each phase.

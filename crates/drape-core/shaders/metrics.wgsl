@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // GPU reduction of per-frame metrics so the bench reads back 16 bytes, not the whole mesh.
 // result = (kinetic energy J, max speed m/s, min signed distance to the collider m, non-finite count)
 // Prepended at build time: sdf.wgsl (sdf_eval).

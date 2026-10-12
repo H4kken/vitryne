@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """M4 native vs browser with self-collision: drape performance + shape parity + intersections,
 and the drag test per seed.
 usage: python3 tools/bench/m4/compare_m4.py bench-out/m4/browser/chrome_*.json bench-out/m4/browser/safari_*.json

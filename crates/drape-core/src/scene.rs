@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Scenes shared by the native viewer, the bench and the web build. A scene is built into a
 //! `Built`: everything the solver, renderer and bench need, independent of where it came from.
 

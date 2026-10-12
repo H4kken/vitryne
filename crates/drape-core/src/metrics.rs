@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Benchmark metrics. The GPU reduces the mesh to 16 bytes, which is the only per-frame
 //! readback, and it only happens on the bench's sampled frames (hard rule 5).
 

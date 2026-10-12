@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Canvas viewer: the same Solver + Renderer as the native viewer, driven by requestAnimationFrame
 //! from JS. Picking reads positions back once per pointer-down (not per frame).
 

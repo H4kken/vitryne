@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // XPBD cloth, small steps (Macklin et al. 2019): one iteration per substep, so lambda starts at
 // zero every substep and never has to be stored. Shared by native and web (hard rule 2).
 //

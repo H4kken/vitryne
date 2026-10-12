@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Side-by-side native vs browser bench results.
 usage: python3 tools/bench/compare.py <browser.json> [<browser2.json> ...]
 Browser files are what bench.html outputs ({runs: [...]}); native results are matched from

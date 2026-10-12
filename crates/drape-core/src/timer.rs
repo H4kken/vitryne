@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Opt-in per-pass GPU timing (profiling mode only, see `GpuOptions::gpu_timestamps`).
 //!
 //! Uses only pass-level `timestamp_writes`, which is all core WebGPU offers, so the same
