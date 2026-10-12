@@ -30,7 +30,7 @@ impl Attrib {
         }
     }
 
-    fn bufs<'a>(solver: &'a Solver) -> [&'a wgpu::Buffer; 3] {
+    fn bufs(solver: &Solver) -> [&wgpu::Buffer; 3] {
         [&solver.pos, &solver.prev, &solver.vel]
     }
 

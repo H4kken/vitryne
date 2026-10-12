@@ -358,10 +358,10 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
             max_speed_frame = f;
         }
         rest.push(f, &m);
-        if let Some(r) = rest.rest_frame {
-            if f >= r {
-                max_after_rest = Some(max_after_rest.unwrap_or(0.0).max(m.max_speed));
-            }
+        if let Some(r) = rest.rest_frame
+            && f >= r
+        {
+            max_after_rest = Some(max_after_rest.unwrap_or(0.0).max(m.max_speed));
         }
         if f % 10 == 0 {
             trace.push((f, rest.vrms(&m), m.max_speed, m.min_collider_dist));

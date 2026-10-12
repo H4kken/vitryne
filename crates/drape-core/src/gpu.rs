@@ -90,10 +90,10 @@ pub struct LimitsSummary {
 impl From<&wgpu::Limits> for LimitsSummary {
     fn from(l: &wgpu::Limits) -> Self {
         Self {
-            max_storage_buffer_binding_size: l.max_storage_buffer_binding_size as u64,
+            max_storage_buffer_binding_size: l.max_storage_buffer_binding_size,
             max_buffer_size: l.max_buffer_size,
             max_storage_buffers_per_shader_stage: l.max_storage_buffers_per_shader_stage,
-            max_uniform_buffer_binding_size: l.max_uniform_buffer_binding_size as u64,
+            max_uniform_buffer_binding_size: l.max_uniform_buffer_binding_size,
             max_bind_groups: l.max_bind_groups,
             max_compute_workgroup_size_x: l.max_compute_workgroup_size_x,
             max_compute_invocations_per_workgroup: l.max_compute_invocations_per_workgroup,

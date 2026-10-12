@@ -370,11 +370,11 @@ fn load_or_bake_sdf(obj: &str, body: &BodyQuery, p: &SdfParams) -> Sdf {
         h = (h ^ b as u64).wrapping_mul(0x100000001b3);
     }
     let path = format!("target/sdf-cache/{h:016x}.bin");
-    if let Ok(bytes) = std::fs::read(&path) {
-        if let Some(sdf) = Sdf::from_bytes(&bytes) {
-            log::info!("SDF: loaded {path}");
-            return sdf;
-        }
+    if let Ok(bytes) = std::fs::read(&path)
+        && let Some(sdf) = Sdf::from_bytes(&bytes)
+    {
+        log::info!("SDF: loaded {path}");
+        return sdf;
     }
     let t0 = std::time::Instant::now();
     let sdf = p.bake(body);
@@ -563,7 +563,7 @@ fn snapshot(g: &gpu::Gpu, out: &str) {
     g.queue.submit([enc.finish()]);
     let data = off.read(&g.device);
     let mut ppm = format!("P6\n{w} {h}\n255\n").into_bytes();
-    for px in data.chunks_exact(4) {
+    for px in data.as_chunks::<4>().0 {
         ppm.extend_from_slice(&px[..3]);
     }
     std::fs::write(out, ppm).expect("write ppm");
