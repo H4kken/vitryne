@@ -7,3 +7,4 @@
 /.gstack
 /web/public/assets
 /bench-out
+__pycache__/

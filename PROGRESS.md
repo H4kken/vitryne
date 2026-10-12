@@ -60,11 +60,8 @@ There were no SDF bakes in history (the spike already git-ignored them).
 routes future large binaries (`.glb`, `.blend`, `.mp4`…) through LFS, and `./check` rejects any
 other tracked file over 1 MiB. SDFs are still baked at build time (`npm run assets`).
 
-**The raw spike data isn't lost:** it's still in the spike repo. The analysis scripts read it
-from `bench-out/` with the spike's layout. With it copied there, `tools/bench/m5/tables.py`
-reproduces [docs/history/m5-tables.md](docs/history/m5-tables.md) byte for byte, and
-`s3/final_table.py` reproduces the S3 table in the spike's PROGRESS. The other seven scripts run
-cleanly on the same data.
+**The raw spike data isn't lost:** it's still in the spike repo, and the new bench scripts read
+it (see "After review" below).
 
 ### What changed
 
@@ -120,3 +117,23 @@ blocks the loop.
   fills in Firefox and Windows.
 - **Unchanged from the spike, on purpose:** crate names (`drape-*`), the plain-JS `web/` viewer
   (until `app/` in M6), and the engine's known weaknesses (fabric stretch is M2).
+
+### After review (2026-10-12)
+
+- **Commit identity:** rewritten to `mathis.grimberg@protonmail.com` (see "Secret scan").
+- **Bench scripts collapsed.** The spike's per-milestone scripts (`compare.py`, `compare_m3.py`,
+  `m4/`, `m5/`, `s2/`, `s3/`: 13 files) are replaced by three general ones in `tools/bench/`:
+  - `run.sh`: the drape or drag benchmark over garments × sizes × seeds, natively or in
+    headless Chrome;
+  - `summary.py`: tables for any run JSON, with `--group` for per-garment drag totals;
+  - `compare.py`: two targets matched run by run, with shape parity.
+
+  `chrome-check.mjs` stays; `benchjson.py` is their shared loader. The spike-only table
+  generators are gone.
+
+  **Checked:** on the spike's raw data, `summary.py --group` reproduces the S3 final drag
+  table and `compare.py` the M3 native-vs-Chrome table, number for number. End to end on the
+  current build, T-shirt 10k:
+  - **Drape:** native 3.67 ms, Chrome 3.78 ms per frame (1.03×), the same rest frame (231), and a
+    shape difference of 0.09 / 0.37 / 0.52 mm (mean / p95 / max).
+  - **Drag, seed 1:** stable on both targets; max speed 6.67 vs 6.77 m/s.

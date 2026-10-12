@@ -1,6 +1,6 @@
 # WebGPU Garment Drape — Spike 2 Plan for Claude Code
 
-> **Archive.** This is the `drape-spike` plan as it stood at the end of the spikes (2026-10-12), kept for its history and numbers. Paths in it are the spike's: the analysis scripts now live in `tools/bench/`, and the raw benchmark output (`bench/…`) was left out of this repository's history to keep it small. Current progress is in [../../PROGRESS.md](../../PROGRESS.md).
+> **Archive.** This is the `drape-spike` plan as it stood at the end of the spikes (2026-10-12), kept for its history and numbers. Paths in it are the spike's: the spike's bench scripts were replaced by the general ones in `tools/bench/` (`run.sh`, `summary.py`, `compare.py`), and the raw benchmark output (`bench/…`) was left out of this repository's history to keep it small. Current progress is in [../../PROGRESS.md](../../PROGRESS.md).
 
 ## Context
 

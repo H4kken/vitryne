@@ -5,19 +5,36 @@ which git ignores.
 
 | Path | What it does |
 |---|---|
-| [check_drapes.py](check_drapes.py) | The drape smoke test that `./check` runs |
-| [bench/chrome-check.mjs](bench/chrome-check.mjs) | Drives the installed Chrome headless, with its GPU, over CDP: loads a page, waits for `#status`, saves a screenshot and the page's JSON report |
-| [bench/s3/one.sh](bench/s3/one.sh), [run.sh](bench/s3/run.sh), [sweep.sh](bench/s3/sweep.sh) | The 60 s random-drag test: one run, the garments × sizes × seeds matrix, or one garment over 6 seeds (native) |
-| [bench/s3/chrome.sh](bench/s3/chrome.sh) | The same drag test in headless Chrome (needs `npm run dev` in `web/`) |
-| [bench/compare.py](bench/compare.py), [compare_m3.py](bench/compare_m3.py), [m4/compare_m4.py](bench/m4/compare_m4.py) | Native vs browser tables (speed, rest frame, shape parity) |
-| [bench/m4/](bench/m4/), [s2/](bench/s2/), [s3/summary.py](bench/s3/summary.py) | One-line summaries of drape and drag JSON |
-| [bench/m5/tables.py](bench/m5/tables.py), [s3/final_table.py](bench/s3/final_table.py) | The spike report tables |
-| [patterns/](patterns/) | Measures the avatar and drafts the sample garments with FreeSewing into DXF-AAMA (`cd tools/patterns && npm install && ./export-all.sh`) |
+| [bench/run.sh](bench/run.sh) | Runs the drape or the 60 s random-drag benchmark over garments × sizes (× seeds), natively or in headless Chrome. One JSON per run, then a summary table. |
+| [bench/summary.py](bench/summary.py) | Markdown tables for any drape or drag JSON (files or directories). `--group` sums drag runs per target × garment × size. |
+| [bench/compare.py](bench/compare.py) | Two targets side by side, matched run by run: speed ratio, rest frame, penetration, self-intersections, final-shape difference, drag stability. |
+| [bench/chrome-check.mjs](bench/chrome-check.mjs) | Drives the installed Chrome headless with its GPU, over CDP: loads a page, waits for `#status`, saves a screenshot and the page's JSON report. `run.sh` uses it. |
+| [check_drapes.py](check_drapes.py) | The drape smoke test that `./check` runs. |
+| [patterns/](patterns/) | Measures the avatar and drafts the sample garments with FreeSewing into DXF-AAMA (`cd tools/patterns && npm install && ./export-all.sh`). |
 
-The scripts named after a spike milestone (m3, m4, m5, s2, s3) read their inputs from
-`bench-out/<milestone>/…`, with the same layout the spike used under `bench/`. For example, after
-copying the spike's raw data to `bench-out/`, `python3 tools/bench/m5/tables.py` reproduces
-[docs/history/m5-tables.md](../docs/history/m5-tables.md) exactly.
+## Examples
+
+```sh
+# Drape matrix, native: 3 garments x {10k, 20k}, self-collision on
+tools/bench/run.sh drape bench-out/drape/native
+
+# The same in Chrome (serve the page first: cd web && npm run dev)
+TARGET=chrome tools/bench/run.sh drape bench-out/drape/chrome
+python3 tools/bench/compare.py bench-out/drape/native bench-out/drape/chrome
+
+# Drag test, one garment, three seeds, with an extra engine flag
+GARMENTS=trousers VERTS=10000 SEEDS="1 2 3" tools/bench/run.sh drag bench-out/drag/trousers --untangle-every 0
+python3 tools/bench/summary.py bench-out/drag/trousers --group
+```
+
+`run.sh` reads its matrix from `GARMENTS`, `VERTS`, `SEEDS`, `SC` (self-collision, default on),
+`TARGET` (`native` or `chrome`), `PORT` and `QUERY` (extra `bench.html` parameters); the header
+of the script lists them. For a single run with every option, call the CLI directly:
+`target/release/drape bench …` or `bench-drag …` (flags in
+[crates/drape-native/src/main.rs](../crates/drape-native/src/main.rs)).
+
+**Other browsers:** open `/bench.html` in the browser, press Run, then Copy JSON, and save it
+to a file. `summary.py` and `compare.py` read that file as it is.
 
 **Profiling:** add `--gpu-timestamps` to any native `drape` command, or `?gpu-timestamps=1` to a
 web page URL, for per-pass GPU times. It's the only optional WebGPU feature Vitryne ever
