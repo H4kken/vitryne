@@ -252,6 +252,18 @@ impl SceneArgs {
         if let Some(v) = num(args, "--self-margin") {
             a.sim.self_margin_radii = v;
         }
+        if let Some(v) = take_value(args, "--untangle-every") {
+            a.sim.untangle_every = v.parse().expect("--untangle-every");
+        }
+        if let Some(v) = num(args, "--untangle-step") {
+            a.sim.untangle_step_edges = v;
+        }
+        if let Some(v) = num(args, "--untangle-max-ratio") {
+            a.sim.untangle_max_ratio = v;
+        }
+        if take_flag(args, "--untangle-keep-repulsion") {
+            a.sim.untangle_skip_repulsion = false;
+        }
         a
     }
 

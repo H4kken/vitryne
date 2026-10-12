@@ -30,7 +30,7 @@ function ndc(e) {
 // Scene value: "<scene>:<res>[:nopins]"; self-collision from the checkbox.
 async function load(sceneRes) {
   const [scene, res, extra] = sceneRes.split(':');
-  const opts = JSON.stringify({ self_collision: $('selfc').checked, pins: extra !== 'nopins', ...(q.has('rebuild') ? { self_rebuild: parseInt(q.get('rebuild'), 10) } : {}) });
+  const opts = JSON.stringify({ self_collision: $('selfc').checked, pins: extra !== 'nopins', ...(q.has('rebuild') ? { self_rebuild: parseInt(q.get('rebuild'), 10) } : {}), ...(q.has('ut') ? { untangle_every: parseInt(q.get('ut'), 10) } : {}) });
   status.textContent = `loading ${scene}…`;
   if (scene === 'tshirt' && !assets) assets = await loadTshirtAssets(q);
   fitCanvas();
@@ -109,7 +109,7 @@ function fail(e) {
   console.error(e);
 }
 
-// Automation: ?auto=1 [&scene=tshirt:0.00864] [&sc=1] [&rebuild=k] [&post=1&name=X]
+// Automation: ?auto=1 [&scene=tshirt:0.00864] [&sc=1] [&rebuild=k] [&ut=N] [&post=1&name=X]
 // Fast-drapes until sim t >= 6 s, then drags the cloth at the view centre in a circle for 3 s
 // at normal speed, measuring rAF fps and the sampled GPU frame cost, then reports.
 async function autoTest() {

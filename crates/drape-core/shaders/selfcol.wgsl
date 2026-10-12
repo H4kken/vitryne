@@ -2,13 +2,9 @@
 // with a counting sort. Shared by native and web (hard rule 2), no float atomics (hard rule 4):
 // the only atomics are u32 cell counters.
 //
-// Rebuild (every `self_rebuild_every` substeps):
-//   count:       cell_count[hash(cell(x_i))] += 1                          (atomic u32)
-//   scan_local:  exclusive scan of cell_count inside each 256-cell block -> cell_start[c],
-//                block totals -> cell_start[T + block]
-//   scan_blocks: exclusive scan of the block totals, in place (one workgroup)
-//   scatter:     slot = --cell_count[c] (counts return to zero: no clear pass), write the
-//                vertex into the cell-sorted copy
+// Rebuild (every `self_rebuild_every` substeps), hash kernels in hashgrid.wgsl (appended):
+//   count, scan_local, scan_blocks, scatter: counting sort of the vertices by hash cell, into
+//                the cell-sorted copy
 //   query:       per vertex, the non-excluded vertices within query_radius (= radius +
 //                margin, so the list stays valid until the next rebuild) -> neighbour list
 // Every substep:
@@ -28,7 +24,7 @@ struct SelfParams {
     query_radius: f32, // neighbour-list radius (m)
     max_neighbors: u32,
     max_elastic: f32,  // push per substep that may turn into velocity (m)
-    _p0: u32,
+    tangle_flags: u32, // 1 = skip pairs of vertices both flagged by untangling (S4)
     _p1: u32,
     _p2: u32,
 };
@@ -47,26 +43,11 @@ struct SelfParams {
 @group(0) @binding(6) var<storage, read> excl: array<u32>;
 // Neighbour lists: row i = [count found (may exceed max_neighbors), up to max_neighbors ids].
 @group(0) @binding(7) var<storage, read_write> nbr: array<u32>;
+// Untangling's accumulator (untangle.wgsl); [5n, 6n) = 1 for vertices of a triangle that was in
+// an intersecting pair at the last detection. A 1-element dummy when untangling is off.
+@group(0) @binding(8) var<storage, read> tangled: array<u32>;
 
-var<workgroup> tmp: array<u32, 256>;
-
-fn cell_of(p: vec3<f32>) -> vec3<i32> {
-    return vec3<i32>(floor(p * S.inv_cell));
-}
-
-// Linear in x: the cells (x-1, y, z), (x, y, z), (x+1, y, z) land in consecutive slots, so the
-// query reads one contiguous range per (y, z) row, 9 lookups instead of 27.
-fn hash(c: vec3<i32>) -> u32 {
-    let u = bitcast<vec3<u32>>(c);
-    return (((u.y * 19349663u) ^ (u.z * 83492791u)) + u.x) & (S.table_size - 1u);
-}
-
-fn cell_begin(h: u32) -> u32 {
-    return cell_start[h] + cell_start[S.table_size + (h >> 8u)];
-}
-
-fn cell_end(h: u32) -> u32 {
-    if (h + 1u < S.table_size) { return cell_begin(h + 1u); }
+fn hash_n_items() -> u32 {
     return S.n_verts;
 }
 
@@ -75,56 +56,6 @@ fn sc_count(@builtin(global_invocation_id) gid: vec3<u32>) {
     let i = gid.x;
     if (i >= S.n_verts) { return; }
     atomicAdd(&cell_count[hash(cell_of(pos[i].xyz))], 1u);
-}
-
-// Hillis-Steele inclusive scan of tmp[0..256) (all threads of the workgroup must call it).
-fn scan_tmp(l: u32) {
-    for (var off = 1u; off < 256u; off = off * 2u) {
-        var t = 0u;
-        if (l >= off) { t = tmp[l - off]; }
-        workgroupBarrier();
-        tmp[l] = tmp[l] + t;
-        workgroupBarrier();
-    }
-}
-
-@compute @workgroup_size(256)
-fn sc_scan_local(@builtin(local_invocation_id) lid: vec3<u32>, @builtin(workgroup_id) wid: vec3<u32>) {
-    let l = lid.x;
-    let c = wid.x * 256u + l;
-    let v = atomicLoad(&cell_count[c]);
-    tmp[l] = v;
-    workgroupBarrier();
-    scan_tmp(l);
-    cell_start[c] = tmp[l] - v;
-    if (l == 255u) {
-        cell_start[S.table_size + wid.x] = tmp[255];
-    }
-}
-
-// One workgroup; each thread scans a run of `per` consecutive blocks serially.
-@compute @workgroup_size(256)
-fn sc_scan_blocks(@builtin(local_invocation_id) lid: vec3<u32>) {
-    let l = lid.x;
-    let per = (S.n_blocks + 255u) / 256u;
-    let b0 = l * per;
-    var s = 0u;
-    for (var k = 0u; k < per; k = k + 1u) {
-        let b = b0 + k;
-        if (b < S.n_blocks) { s = s + cell_start[S.table_size + b]; }
-    }
-    tmp[l] = s;
-    workgroupBarrier();
-    scan_tmp(l);
-    var run = tmp[l] - s;
-    for (var k = 0u; k < per; k = k + 1u) {
-        let b = b0 + k;
-        if (b < S.n_blocks) {
-            let v = cell_start[S.table_size + b];
-            cell_start[S.table_size + b] = run;
-            run = run + v;
-        }
-    }
 }
 
 @compute @workgroup_size(64)
@@ -235,8 +166,12 @@ fn sc_collide(@builtin(global_invocation_id) gid: vec3<u32>) {
     var corr = vec3<i32>(0);
     var corr_v = vec3<i32>(0);
     var cnt = 0u;
+    let flagged = S.tangle_flags != 0u && tangled[5u * n + i] != 0u;
     for (var k = 0u; k < m; k = k + 1u) {
         let j = nbr[row + 1u + k];
+        // Both vertices at a crossing (S4): repulsion would hold the two layers on the wrong
+        // sides of each other; the untangling pass moves them back through instead.
+        if (flagged && tangled[5u * n + j] != 0u) { continue; }
         let q = sorted[n + j];
         let d = p.xyz - q.xyz;
         let d2 = dot(d, d);

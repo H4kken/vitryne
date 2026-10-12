@@ -7,7 +7,7 @@ use glam::{Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
 
-use crate::{body::Sdf, constraints::Constraints, mesh::ClothMesh, selfcol::SelfCollision, timer::GpuTimer};
+use crate::{body::Sdf, constraints::Constraints, mesh::ClothMesh, selfcol::SelfCollision, timer::GpuTimer, untangle::Untangle};
 
 pub const SHADER: &str = concat!(include_str!("../shaders/sdf.wgsl"), include_str!("../shaders/sim.wgsl"));
 
@@ -123,6 +123,18 @@ pub struct SimConfig {
     pub self_margin_radii: f32,
     /// Separation speed a repulsion push may create, m/s (beyond it the push is inelastic).
     pub self_max_push_speed: f32,
+    /// S4 untangling (intersection contour minimization), with self-collision on: detect
+    /// intersecting triangle pairs and move them back through each other every this many
+    /// substeps (0 = off, the S3 behaviour).
+    pub untangle_every: u32,
+    /// Untangling displacement per application for a unit contour-gradient ratio, in mean rest
+    /// edge lengths.
+    pub untangle_step_edges: f32,
+    /// Clamp on the gradient ratio |(g.e)/(n.e)| (large for edges almost parallel to the
+    /// other triangle).
+    pub untangle_max_ratio: f32,
+    /// Self-collision repulsion skips pairs of vertices both flagged as tangled.
+    pub untangle_skip_repulsion: bool,
     pub schedule: Schedule,
 }
 
@@ -147,6 +159,10 @@ impl Default for SimConfig {
             self_rebuild_every: 1,
             self_margin_radii: 0.5,
             self_max_push_speed: 1.0,
+            untangle_every: 4,
+            untangle_step_edges: 0.1,
+            untangle_max_ratio: 1.0,
+            untangle_skip_repulsion: true,
             schedule: Schedule::NONE,
         }
     }
@@ -243,6 +259,8 @@ enum Pipe {
     Sim(Kernel),
     /// Index into the self-collision kernels (own pipeline layout and bind group).
     SelfCol(usize),
+    /// Index into the untangling kernels (own pipeline layout and bind group).
+    Untangle(usize),
 }
 
 struct Dispatch {
@@ -276,6 +294,7 @@ pub struct Solver {
     phases: Vec<(&'static str, Vec<Dispatch>, u32)>,
     init_pos: Vec<[f32; 4]>,
     pub self_collision: Option<SelfCollision>,
+    pub untangle: Option<Untangle>,
 }
 
 fn storage_entry(binding: u32, read_only: bool) -> wgpu::BindGroupLayoutEntry {
@@ -497,46 +516,58 @@ impl Solver {
                 .filter(|d| d.groups > 0)
                 .collect()
         };
+        let untangle = (cfg.self_collision && cfg.untangle_every > 0)
+            .then(|| Untangle::new(device, mesh, cons, &pos, &prev, cfg.untangle_step_edges * mesh.mean_edge_length(), cfg.untangle_max_ratio));
         let self_collision = cfg.self_collision.then(|| {
             let r = cfg.self_radius_edges * mesh.mean_edge_length();
             let rq = r * (1.0 + cfg.self_margin_radii);
-            SelfCollision::new(device, mesh, cons, &pos, &prev, r, rq, r * cfg.self_exclude_radii, cfg.self_friction, cfg.self_max_push_speed * h)
+            let flags = untangle.as_ref().filter(|_| cfg.untangle_skip_repulsion).map(|u| &u.acc);
+            SelfCollision::new(device, mesh, cons, &pos, &prev, r, rq, r * cfg.self_exclude_radii, cfg.self_friction, cfg.self_max_push_speed * h, flags)
         });
-        // One phase per kernel, so profiling mode times each.
-        let self_kernel = |k: usize| -> Vec<Dispatch> {
-            self_collision.as_ref().map(|sc| vec![Dispatch { pipe: Pipe::SelfCol(k), range_offset: 0, groups: sc.groups[k] }]).unwrap_or_default()
+        // One phase per kernel, so profiling mode times each: (label, dispatches, every k substeps).
+        let rebuild = cfg.self_rebuild_every.max(1);
+        let self_kernel = |k: usize| {
+            let d = self_collision.as_ref().map(|sc| vec![Dispatch { pipe: Pipe::SelfCol(k), range_offset: 0, groups: sc.groups[k] }]).unwrap_or_default();
+            (crate::selfcol::PHASES[k], d, if k < crate::selfcol::REBUILD_KERNELS { rebuild } else { 1 })
+        };
+        let untangle_kernel = |k: usize| {
+            let d = untangle.as_ref().map(|u| vec![Dispatch { pipe: Pipe::Untangle(k), range_offset: 0, groups: u.groups[k] }]).unwrap_or_default();
+            (crate::untangle::PHASES[k], d, cfg.untangle_every.max(1))
         };
         let phases = vec![
-            ("predict", per_vertex(Kernel::Predict)),
-            ("stretch", colored(Kernel::Stretch, &cons.stretch.ranges, 0)),
-            ("sew", colored(Kernel::Sew, &sew_ranges, ns)),
-            ("bend", colored(Kernel::Bend, &cons.bend.ranges, ns + nsew)),
+            ("predict", per_vertex(Kernel::Predict), 1),
+            ("stretch", colored(Kernel::Stretch, &cons.stretch.ranges, 0), 1),
+            ("sew", colored(Kernel::Sew, &sew_ranges, ns), 1),
+            ("bend", colored(Kernel::Bend, &cons.bend.ranges, ns + nsew), 1),
             // Hash rebuild before the body contact, repulsion after it. With the repulsion
             // first, the body pushed layers back into each other and the two fought every
             // substep (drag test: 44 frames over 5 m/s across 6 seeds vs 27 this way, and no
             // body penetration either way; PROGRESS M4).
-            ("sc_count", self_kernel(0)),
-            ("sc_scan_local", self_kernel(1)),
-            ("sc_scan_blocks", self_kernel(2)),
-            ("sc_scatter", self_kernel(3)),
-            ("sc_query", self_kernel(4)),
+            self_kernel(0),
+            self_kernel(1),
+            self_kernel(2),
+            self_kernel(3),
+            self_kernel(4),
             (
                 "collide",
                 per_vertex(match collider {
                     Collider::Sphere(_) => Kernel::CollideSphere,
                     Collider::Sdf(_) => Kernel::CollideSdf,
                 }),
+                1,
             ),
-            ("sc_snapshot", self_kernel(5)),
-            ("sc_collide", self_kernel(6)),
-            ("update", per_vertex(Kernel::Update)),
+            self_kernel(5),
+            self_kernel(6),
+            // Untangling last, on the positions every other pass has corrected (S4).
+            untangle_kernel(0),
+            untangle_kernel(1),
+            untangle_kernel(2),
+            untangle_kernel(3),
+            untangle_kernel(4),
+            untangle_kernel(5),
+            ("update", per_vertex(Kernel::Update), 1),
         ];
-        let rebuild = cfg.self_rebuild_every.max(1);
-        let phases = phases
-            .into_iter()
-            .filter(|(_, d)| !d.is_empty())
-            .map(|(l, d)| (l, d, if crate::selfcol::ENTRY_POINTS[..crate::selfcol::REBUILD_KERNELS].contains(&l) { rebuild } else { 1 }))
-            .collect();
+        let phases = phases.into_iter().filter(|(_, d, _)| !d.is_empty()).collect();
 
         Self {
             cfg,
@@ -558,6 +589,7 @@ impl Solver {
             phases,
             init_pos,
             self_collision,
+            untangle,
         }
     }
 
@@ -649,7 +681,7 @@ impl Solver {
     }
 
     /// `bound`: which group 0 is currently set (0 = none, 1 = solver state, 2 = self-collision,
-    /// whose kernels have their own layout), so it is only rebound when switching.
+    /// 3 = untangling; the last two have their own layouts), so it is only rebound when switching.
     fn run(&self, pass: &mut wgpu::ComputePass<'_>, ds: &[Dispatch], bound: &mut u8) {
         for d in ds {
             match d.pipe {
@@ -667,6 +699,14 @@ impl Solver {
                     if *bound != 2 {
                         pass.set_bind_group(0, &sc.bind_group, &[]);
                         *bound = 2;
+                    }
+                }
+                Pipe::Untangle(k) => {
+                    let u = self.untangle.as_ref().unwrap();
+                    pass.set_pipeline(&u.pipelines[k]);
+                    if *bound != 3 {
+                        pass.set_bind_group(0, &u.bind_group, &[]);
+                        *bound = 3;
                     }
                 }
             }

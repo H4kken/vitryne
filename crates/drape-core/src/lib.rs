@@ -17,3 +17,4 @@ pub mod selfcheck;
 pub mod sim;
 pub mod timer;
 pub mod triangle;
+pub mod untangle;

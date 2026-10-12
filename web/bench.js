@@ -26,7 +26,7 @@ const DRAPE_COLS = [
   ['NaN frames', (r) => r.non_finite_frames],
   ['max pen mm', (r) => f2(r.penetration?.max_penetration_mm)],
   ['seam gap mm', (r) => f2(r.max_seam_gap_mm)],
-  ['self-coll', (r) => (r.self_collision ? `on, k=${r.self_collision.rebuild_every}` : 'off')],
+  ['self-coll', (r) => (r.self_collision ? `on, k=${r.self_collision.rebuild_every}${r.self_collision.untangle ? `, untangle ${r.self_collision.untangle.every}` : ''}` : 'off')],
   ['self-isect final', (r) => r.self_intersections_final?.pairs],
   ['persistent', (r) => r.self_intersections_after_pipelined?.persistent_pairs],
 ];
@@ -78,6 +78,7 @@ async function run() {
       pins: !$('nopins').checked,
       ...($('rebuild').value ? { self_rebuild: parseInt($('rebuild').value, 10) } : {}),
       ...($('cap').value ? { contact_max_accel: parseFloat($('cap').value) } : {}),
+      ...($('ut').value ? { untangle_every: parseInt($('ut').value, 10) } : {}),
       ...(garment ? { garment_toml: assets.toml, garment_dxf: assets.dxf } : {}),
     });
     const obj = assets?.obj ?? '';
@@ -137,10 +138,10 @@ status.textContent = 'ready' + (self.crossOriginIsolated ? '' : ' (not cross-ori
 
 // Automation: ?auto=1&mode=tshirt|drag|sheet|bake&res=..&substeps=..&frames=..&seeds=..&gentle=1&ts=1&record=0
 // &sc=1 (self-collision) &rebuild=k &nopins=1 &garment=tshirt|trousers|hoodie (res = vertex count)
-// &cap=A (contact accel cap, m/s²)
+// &cap=A (contact accel cap, m/s²) &ut=N (untangle every N substeps, 0 = off)
 // &post=1&name=X also sends the JSON to the dev server (saved as bench/browser-check/X.json).
 if (q.has('mode')) { $('mode').value = q.get('mode'); $('mode').onchange(); }
-for (const k of ['res', 'substeps', 'frames', 'seeds', 'rebuild', 'garment', 'cap']) if (q.has(k)) $(k).value = q.get(k);
+for (const k of ['res', 'substeps', 'frames', 'seeds', 'rebuild', 'garment', 'cap', 'ut']) if (q.has(k)) $(k).value = q.get(k);
 if (q.get('sc') === '1') $('selfc').checked = true;
 if (q.get('nopins') === '1') $('nopins').checked = true;
 if (q.get('ts') === '1') $('ts').checked = true;

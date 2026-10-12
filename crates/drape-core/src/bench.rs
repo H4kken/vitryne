@@ -170,6 +170,8 @@ pub struct SelfCollisionInfo {
     pub rebuild_every: u32,
     /// Counting-sort and neighbour-list check on the last rebuild (readback).
     pub check: crate::selfcol::SelfCheck,
+    /// S4 untangling, if on.
+    pub untangle: Option<crate::untangle::UntangleInfo>,
 }
 
 /// Exact signed distance of every vertex to the body (CPU, BVH). Benchmark-only.
@@ -401,6 +403,21 @@ pub async fn run(gpu: &Gpu, built: &Built, cfg: BenchConfig) -> BenchResult {
             query_radius_mm: sc.query_radius * 1000.0,
             rebuild_every: sim.self_rebuild_every,
             check: sc.verify(device, queue).await,
+            untangle: match &solver.untangle {
+                Some(u) => {
+                    let (gpu_pairs_last, tangled_vertices_last) = u.last_detection(device, queue).await;
+                    Some(crate::untangle::UntangleInfo {
+                        every: sim.untangle_every,
+                        step_mm: u.step * 1000.0,
+                        cell_mm: u.cell * 1000.0,
+                        table_size: u.table_size,
+                        buffer_bytes: u.buffer_bytes,
+                        gpu_pairs_last,
+                        tangled_vertices_last,
+                    })
+                }
+                None => None,
+            },
         }),
         None => None,
     };

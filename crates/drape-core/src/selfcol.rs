@@ -1,6 +1,6 @@
 //! Cloth self-collision (M4): spatial hash by counting sort + vertex-vertex repulsion, on the
 //! GPU every substep (selfcol.wgsl). Own pipeline layout, so the solver's bind groups keep
-//! their storage-buffer count under the WebGPU default of 8 per stage.
+//! their storage-buffer count under the WebGPU default of 8 per stage (this one uses all 8).
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
@@ -10,7 +10,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{constraints::Constraints, mesh::ClothMesh};
 
-pub const SHADER: &str = include_str!("../shaders/selfcol.wgsl");
+pub const SHADER: &str = concat!(include_str!("../shaders/selfcol.wgsl"), include_str!("../shaders/hashgrid.wgsl"));
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
@@ -24,12 +24,15 @@ struct SelfParams {
     query_radius: f32,
     max_neighbors: u32,
     max_elastic: f32,
-    _p: [u32; 3],
+    tangle_flags: u32,
+    _p: [u32; 2],
 }
 
 /// Kernels in dispatch order: the first `REBUILD_KERNELS` rebuild the hash and the neighbour
-/// lists, the rest run every substep.
-pub const ENTRY_POINTS: [&str; 7] = ["sc_count", "sc_scan_local", "sc_scan_blocks", "sc_scatter", "sc_query", "sc_snapshot", "sc_collide"];
+/// lists, the rest run every substep. The two scans are shared with untangling (hashgrid.wgsl).
+pub const ENTRY_POINTS: [&str; 7] = ["sc_count", "hg_scan_local", "hg_scan_blocks", "sc_scatter", "sc_query", "sc_snapshot", "sc_collide"];
+/// Phase labels (profiling, attribution), in `ENTRY_POINTS` order.
+pub const PHASES: [&str; 7] = ["sc_count", "sc_scan_local", "sc_scan_blocks", "sc_scatter", "sc_query", "sc_snapshot", "sc_collide"];
 pub const REBUILD_KERNELS: usize = 5;
 /// Neighbour-list capacity per vertex (a fold of 3-4 layers lists ~25 within the query radius).
 pub const MAX_NEIGHBORS: u32 = 32;
@@ -116,6 +119,7 @@ impl SelfCollision {
         exclude_dist: f32,
         friction: f32,
         max_elastic: f32,
+        tangled: Option<&wgpu::Buffer>,
     ) -> Self {
         let n = mesh.n_verts() as u32;
         let table_size = (2 * n).next_power_of_two().max(256);
@@ -130,7 +134,8 @@ impl SelfCollision {
             query_radius,
             max_neighbors: MAX_NEIGHBORS,
             max_elastic,
-            _p: [0; 3],
+            tangle_flags: tangled.is_some() as u32,
+            _p: [0; 2],
         };
         let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("self-params"),
@@ -169,6 +174,9 @@ impl SelfCollision {
             contents: bytemuck::cast_slice(&excl),
             usage: st,
         });
+        // Untangling's flags (S4), or a dummy the shader never reads.
+        let dummy = tangled.is_none().then(|| zeroed("self-tangled-dummy", 4));
+        let tangled = tangled.or(dummy.as_ref()).unwrap();
         let buffer_bytes = cell_count.size() + cell_start.size() + sorted.size() + excl_buf.size() + nbr.size();
 
         let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
@@ -189,6 +197,7 @@ impl SelfCollision {
                 entry(5, rw),
                 entry(6, wgpu::BufferBindingType::Storage { read_only: true }),
                 entry(7, rw),
+                entry(8, wgpu::BufferBindingType::Storage { read_only: true }),
             ],
         });
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -203,6 +212,7 @@ impl SelfCollision {
                 wgpu::BindGroupEntry { binding: 5, resource: sorted.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 6, resource: excl_buf.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 7, resource: nbr.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 8, resource: tangled.as_entire_binding() },
             ],
         });
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {

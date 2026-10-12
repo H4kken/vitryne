@@ -740,6 +740,26 @@ The baseline penetration after drags was worse for the trousers too: 2.04 mm at 
 - **Firefox and Windows:** still unmeasured (S1).
 - **The free-cloth snaps are still there:** 5–12 m/s for one frame. Whether part of each is the solver's over-stretch (1 iteration per substep) is open, for S5.
 
+## S4 — Untangling pass 🚧 in progress (2026-10-12)
+
+**Built:** intersection contour minimization (Volino & Magnenat-Thalmann 2006) on the GPU, [untangle.wgsl](crates/drape-core/shaders/untangle.wgsl) / [untangle.rs](crates/drape-core/src/untangle.rs).
+- **Detect:** triangle-centroid hash (the M4 counting sort, scans moved to the shared [hashgrid.wgsl](crates/drape-core/shaders/hashgrid.wgsl)), then exact edge–triangle tests, skipping pairs that share a vertex directly or through a seam.
+- **Correct:** each edge crossing a triangle is a contour point. The contour tangents come from the plane–plane lines in the edge's two adjacent triangles (welded across seams), which gives dL/dt along the other triangle's normal. Edge and triangle move apart along it (fixed-point `atomicAdd`, averaged per vertex, `prev` moved too, so no added velocity).
+- **Repulsion skip:** self-collision ignores pairs of vertices both flagged at a crossing, so layers can pass back through.
+- **Default:** on with self-collision, every 4 substeps, step 0.1 × mean edge. `--untangle-every 0` (web `&ut=0`) = S3. Also `--untangle-step`, `--untangle-max-ratio`, `--untangle-keep-repulsion`.
+
+**Smoke test** (native, M2; [bench/s4/smoke/](bench/s4/smoke/)):
+
+| Run | S3 | S4 |
+|---|---|---|
+| T-shirt 10k, drag seed 6: persistent self-isect | 289 | **0** (the tangle lasted ~20 episodes before clearing) |
+| same: stable / max v / penetration / seam widening | ✅ / 7.4 / 0.00 / — | ✅ / 7.8 m/s / 0.00 mm / 3.2 mm |
+| same: ms/frame | 4.61 | **12.40** ❌ |
+| Hoodie 10k drape: persistent pairs | 8 | **8** (GPU detection finds the same 8 pairs as the CPU count) |
+
+- **Cost:** the hash cell is 19 mm (2 × 1.5 × p99 rest reach) and detection runs 5× per frame. The hoodie drape ran at 15.3 ms/frame with the first sizing (largest triangle, 31 mm cell), since replaced by the p99.
+- **Hoodie junction:** left as it is for now (your call). Suspected to be a crossing forced by how the panels are sewn at the back neck, which no untangling can remove.
+
 ## Later
 - Better damping than global velocity damping (e.g. damping only along constraints, or in the solver itself), so the drape rests faster without slowing free fall.
 - Cut dispatch count if the browser overhead is high: fewer colours, or merging stretch and bend into one coloured pass.
