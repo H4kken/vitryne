@@ -1,0 +1,9 @@
+# Large binary assets go through Git LFS (CONTRIBUTING.md, "Large files"). ./check rejects any
+# other tracked file over 1 MiB. Generated data (SDF bakes, bench output) is not committed at all.
+*.glb   filter=lfs diff=lfs merge=lfs -text
+*.blend filter=lfs diff=lfs merge=lfs -text
+*.fbx   filter=lfs diff=lfs merge=lfs -text
+*.exr   filter=lfs diff=lfs merge=lfs -text
+*.hdr   filter=lfs diff=lfs merge=lfs -text
+*.mp4   filter=lfs diff=lfs merge=lfs -text
+*.webm  filter=lfs diff=lfs merge=lfs -text
