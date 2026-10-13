@@ -179,6 +179,52 @@ pub(crate) fn check(doc: &Document) -> Report {
                 .push(format!("project: avatar {} has no part", p.avatar));
         }
     }
+    // Physical ranges (the schemas say the same; checked here too, since a file edited by
+    // hand, or an editor's JSON, reaches the engine through this check only).
+    for f in &doc.fabrics {
+        let positive = [
+            ("density", f.density),
+            ("stretch.warp", f.stretch.warp),
+            ("stretch.weft", f.stretch.weft),
+            ("stretch.shear", f.stretch.shear),
+            ("bending.warp", f.bending.warp),
+            ("bending.weft", f.bending.weft),
+        ]
+        .into_iter()
+        .chain(f.bending.bias.map(|b| ("bending.bias", b)))
+        .chain(f.thickness.map(|t| ("thickness", t)));
+        for (k, v) in positive {
+            if !(v.is_finite() && v > 0.0) {
+                r.errors
+                    .push(format!("fabric {}: {k} must be above 0 (is {v})", f.name));
+            }
+        }
+        if !(f.friction.is_finite() && f.friction >= 0.0) {
+            r.errors.push(format!(
+                "fabric {}: friction must be 0 or more (is {})",
+                f.name, f.friction
+            ));
+        }
+    }
+    let low_res = |v: Option<u32>| v.is_some_and(|n| n < 100);
+    if low_res(
+        doc.project
+            .as_ref()
+            .and_then(|p| p.simulation.as_ref())
+            .and_then(|s| s.target_vertices),
+    ) {
+        r.errors
+            .push("project: targetVertices must be at least 100".into());
+    }
+    for g in &doc.garments {
+        if low_res(g.simulation.as_ref().and_then(|s| s.target_vertices)) {
+            r.errors.push(format!(
+                "garment {}: targetVertices must be at least 100",
+                g.name
+            ));
+        }
+    }
+
     let regions = doc.project_avatar().map(|a| &a.regions);
     for gar in &doc.garments {
         check_garment(gar, &fabrics, regions, &mut r);

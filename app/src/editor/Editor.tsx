@@ -2,7 +2,7 @@
 // The editor's frame: toolbar, panels, viewport, status bar.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, FolderOpen } from 'lucide-react';
+import { ChevronDown, FolderOpen, Redo2, Undo2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,21 +12,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { mainGarment, parseEntities } from '@/document/entities';
+import { DocumentStore, useDocument } from '@/document/store';
+import { PatternPanel, type Selection } from '@/pattern/PatternPanel';
+import { PropertiesPanel } from '@/properties/PropertiesPanel';
 import { EngineSession, useEngine } from '@/worker/session';
 import { type Example, fetchExample, listExamples } from './examples';
 import { StatusBar } from './StatusBar';
 import { Viewport } from './Viewport';
 
-interface OpenFile {
-  name: string;
-  title: string;
-  warnings: string[];
-}
-
 export function Editor() {
   const session = useMemo(() => new EngineSession(), []);
   const engine = useEngine(session);
-  const [file, setFile] = useState<OpenFile | null>(null);
+  const store = useMemo(() => new DocumentStore(session), [session]);
+  const doc = useDocument(store);
+  const [selection, setSelection] = useState<Selection>(null);
   const [error, setError] = useState<string | null>(null);
   const [examples, setExamples] = useState<Example[]>([]);
   const input = useRef<HTMLInputElement>(null);
@@ -38,10 +39,12 @@ export function Editor() {
   async function open(name: string, bytes: ArrayBuffer) {
     setError(null);
     try {
-      const { entities, warnings } = await session.open(bytes, 0);
-      const e = JSON.parse(entities) as { project?: { name?: string } };
-      setFile({ name, title: e.project?.name ?? name, warnings });
-      session.drape(0, true);
+      // Revisions keep growing across files, so a drape of the previous file is never newer.
+      const rev = store.state.rev + 1;
+      const { entities, warnings } = await session.open(bytes, rev);
+      store.load(name, parseEntities(entities), warnings, rev);
+      setSelection(null);
+      session.drape(rev, true);
     } catch (e) {
       setError(`${name}: ${(e as Error).message}`);
     }
@@ -49,7 +52,15 @@ export function Editor() {
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.metaKey || e.ctrlKey) return;
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && !typing && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
+        e.preventDefault();
+        if (e.key === 'y' || e.shiftKey) store.redo();
+        else store.undo();
+        return;
+      }
+      if (typing || mod) return;
       const c = session.state.controls;
       if (e.key === ' ') session.setControls({ paused: !c.paused });
       else if (e.key === 'f' || e.key === 'F') session.setControls({ fast: !c.fast });
@@ -59,7 +70,7 @@ export function Editor() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [session]);
+  }, [session, store]);
 
   return (
     <div className="flex h-full flex-col">
@@ -104,22 +115,68 @@ export function Editor() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        <div className="text-muted-foreground ml-auto truncate px-2 text-sm">{file ? file.title : 'No project open'}</div>
+        <Separator orientation="vertical" className="mx-1 h-5!" />
+        <ToolButton label={doc.undoLabel ? `Undo: ${doc.undoLabel} (⌘Z)` : 'Nothing to undo'} disabled={!doc.undoLabel} onClick={() => store.undo()}>
+          <Undo2 />
+        </ToolButton>
+        <ToolButton label={doc.redoLabel ? `Redo: ${doc.redoLabel} (⇧⌘Z)` : 'Nothing to redo'} disabled={!doc.redoLabel} onClick={() => store.redo()}>
+          <Redo2 />
+        </ToolButton>
+        <div className="text-muted-foreground ml-auto truncate px-2 text-sm">
+          {doc.empty ? 'No project open' : `${doc.entities.project?.name ?? doc.fileName}${doc.dirty ? ' •' : ''}`}
+        </div>
       </header>
-      <main className="relative min-h-0 flex-1">
-        <Viewport session={session} />
-        {!file && !error && engine.phase !== 'failed' && (
-          <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center text-sm">
-            Open a .vtry project, or pick one of the examples.
-          </div>
-        )}
-        {error && (
-          <div className="bg-destructive/15 text-destructive absolute inset-x-4 top-4 rounded-md p-3 text-sm" role="alert">
-            {error}
-          </div>
-        )}
+      <main className="flex min-h-0 flex-1">
+        <section className="w-[32%] min-w-56 border-r" aria-label="Pattern">
+          <PatternPanel garment={mainGarment(doc.entities)} selection={selection} onSelect={setSelection} />
+        </section>
+        <section className="relative min-w-0 flex-1" aria-label="3D view">
+          <Viewport session={session} />
+          {doc.empty && !error && engine.phase !== 'failed' && (
+            <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center text-sm">
+              Open a .vtry project, or pick one of the examples.
+            </div>
+          )}
+          {(error ?? doc.refused) && (
+            <div
+              className="bg-background/90 text-destructive border-destructive/40 absolute bottom-4 left-4 flex max-w-[80%] items-start gap-3 rounded-md border p-3 text-sm backdrop-blur"
+              role="alert"
+            >
+              <span>{error ?? doc.refused}</span>
+              <button
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Dismiss"
+                onClick={() => {
+                  setError(null);
+                  store.dismissRefused();
+                }}
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
+        </section>
+        <aside className="w-80 shrink-0 border-l" aria-label="Properties">
+          <PropertiesPanel store={store} doc={doc} selection={selection} />
+        </aside>
       </main>
-      <StatusBar engine={engine} warnings={file?.warnings ?? []} onDismissNotice={() => session.clearNotice()} />
+      <StatusBar engine={engine} warnings={doc.warnings} onDismissNotice={() => session.clearNotice()} />
     </div>
+  );
+}
+
+function ToolButton(props: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* A span keeps the tooltip working on a disabled button. */}
+        <span>
+          <Button variant="ghost" size="icon" className="size-8" aria-label={props.label} disabled={props.disabled} onClick={props.onClick}>
+            {props.children}
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{props.label}</TooltipContent>
+    </Tooltip>
   );
 }

@@ -458,3 +458,28 @@ fn invalid_entities_are_refused_and_change_nothing() {
     .unwrap();
     assert!(written.contains("\"futureScale\": 1.0"), "{written}");
 }
+
+#[test]
+fn physical_ranges_are_checked() {
+    let doc = Document::open(&example("tshirt")).unwrap().doc;
+    for (path, bad) in [
+        (&["density"][..], json!(0.0)),
+        (&["stretch", "warp"][..], json!(-5.0)),
+        (&["bending", "weft"][..], json!(0.0)),
+        (&["friction"][..], json!(-0.1)),
+    ] {
+        let mut d = doc.clone();
+        let mut e = d.entities();
+        let mut v = &mut e.fabrics[0];
+        for k in &path[..path.len() - 1] {
+            v = &mut v[*k];
+        }
+        v[path[path.len() - 1]] = bad;
+        let err = d.set_entities(e).unwrap_err().to_string();
+        assert!(err.contains(path[path.len() - 1]), "{err}");
+    }
+    let mut d = doc.clone();
+    let mut e = d.entities();
+    e.project.as_mut().unwrap()["simulation"]["targetVertices"] = json!(50);
+    assert!(d.set_entities(e).is_err());
+}

@@ -4,7 +4,7 @@
 // reads `state` through `useEngine`.
 
 import { useSyncExternalStore } from 'react';
-import { WorkerClient } from './client';
+import { WorkerClient, WorkerCrashed } from './client';
 import type { DrapeInfo, Requests, Stats, WorkerEvent } from './protocol';
 
 export interface EngineState {
@@ -131,6 +131,7 @@ export class EngineSession {
       await client.request('open', { bytes: r.bytes.slice(0) });
       if (r.entities !== r.openedEntities) await client.request('update', { rev: r.rev, entities: r.entities });
       this.drape(r.rev, true);
+      for (const cb of this.reopenedListeners) cb();
     } catch (e) {
       // A crash during the reopen is handled as a crash; other errors are shown.
       if (client.alive) this.set({ drapeError: String((e as Error).message) });
@@ -138,8 +139,14 @@ export class EngineSession {
   }
 
   private need(): WorkerClient {
-    if (!this.client) throw new Error('the 3D engine is restarting; try again in a moment');
+    if (!this.client) throw new WorkerCrashed('the 3D engine is restarting');
     return this.client;
+  }
+
+  private reopenedListeners: (() => void)[] = [];
+
+  onReopened(cb: () => void) {
+    this.reopenedListeners.push(cb);
   }
 
   clearNotice() {
@@ -160,6 +167,7 @@ export class EngineSession {
   /** Validates and takes the document's new JSON (see `Requests.update`). */
   async update(rev: number, entities: string): Promise<Requests['update']['reply']> {
     const reply = await this.need().request('update', { rev, entities });
+    // Only what Rust accepted is put back after a restart.
     if (this.restore) this.restore = { ...this.restore, entities, rev };
     return reply;
   }
