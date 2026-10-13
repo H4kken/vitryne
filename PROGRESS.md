@@ -420,11 +420,12 @@ decays through the 0.005 m/s threshold slowly, so a 0.1 mm difference moves the 
 
 ### Notes and open items
 
-- **`reset()` isn't a fresh simulation:** it restores positions, previous positions and
-  velocities, but not the self-collision and untangling scratch buffers, so a run after a
-  `warm_up()` follows a slightly different trajectory than a brand-new one (the regression
-  suite doesn't warm up; the benchmarks do). Harmless for the viewer's R key; noted so a
-  golden isn't compared with a benchmark's number by eye.
+- **`reset()` is a fresh simulation again (fixed after the review).** It restored positions,
+  previous positions and velocities but not the untangling accumulator, which also holds the
+  "tangled" flags that self-collision reads in the first substeps; a run after `warm_up()` (the
+  benchmarks) followed a slightly different trajectory than a brand-new one (trousers rest 172
+  vs 179). `Solver::reset` now clears it: a benchmark and the regression suite give the same
+  trousers (rest 179, p99 5.4%). Matters for M6, where changing a fabric re-drapes from a reset.
 - **M2's open items are unchanged:** trousers p99 5.4% against the 3% woven target, hoodie
   18.7% and its intersections, the 20k T-shirt drape at 3.5 s. They're in the golden results now.
 - **Settings in the web bindings** are still the JSON subset (`self_collision`, `self_rebuild`,

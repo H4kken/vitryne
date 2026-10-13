@@ -1183,6 +1183,12 @@ impl Solver {
         queue.write_buffer(&self.pos, 0, bytemuck::cast_slice(&self.init_pos));
         queue.write_buffer(&self.prev, 0, bytemuck::cast_slice(&self.init_pos));
         queue.write_buffer(&self.vel, 0, &vec![0u8; self.n_verts as usize * 16]);
+        // The untangling accumulator also holds the "tangled" flags that self-collision reads
+        // in the first substeps, before the first detection: stale ones from the run before
+        // would change the trajectory.
+        if let Some(u) = &self.untangle {
+            queue.write_buffer(&u.acc, 0, &vec![0u8; u.acc.size() as usize]);
+        }
     }
 
     pub fn total_free_mass(mesh: &ClothMesh, density: f32) -> f32 {
