@@ -194,6 +194,7 @@ fn main() {
                     .map(|x| x.parse::<f32>().expect("--cam"))
                     .collect::<Vec<_>>()
             });
+            let seams = take_flag(&mut args, "--seams");
             let engine = Engine::new(headless_gpu());
             render_frames(
                 &engine,
@@ -202,6 +203,7 @@ fn main() {
                 &at,
                 &dir,
                 cam,
+                seams,
             );
         }
         "garment-svg" => {
@@ -963,6 +965,7 @@ fn render_frames(
     at: &[u32],
     dir: &str,
     cam: Option<Vec<f32>>,
+    seams: bool,
 ) {
     std::fs::create_dir_all(dir).unwrap();
     let g = engine.gpu();
@@ -975,6 +978,13 @@ fn render_frames(
         sim.solver(),
         &scene.body.render,
     );
+    if seams {
+        renderer.set_seams(
+            &g.device,
+            &drape_render::seam_segments(&scene.garment.desc.seams),
+        );
+        renderer.show_seams(true);
+    }
     let (cam_target, cam_distance) = scene.garment.desc.camera;
     let mut camera = OrbitCamera::looking_at(cam_target, cam_distance);
     if let Some(c) = cam {

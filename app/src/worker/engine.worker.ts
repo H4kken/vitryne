@@ -332,6 +332,7 @@ function input(m: Input) {
       if (m.fast !== undefined) v.set_fast(m.fast);
       if (m.paused !== undefined) v.set_paused(m.paused);
       if (m.placing !== undefined) v.set_placing(m.placing);
+      if (m.seams !== undefined) v.set_show_seams(m.seams);
       if (m.reset) v.reset();
       return;
   }

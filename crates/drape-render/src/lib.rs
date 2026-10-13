@@ -12,6 +12,7 @@ use drape_core::{mesh::ClothMesh, scene::RenderMesh, sim::Solver};
 
 pub const NORMALS_SHADER: &str = include_str!("../shaders/normals.wgsl");
 pub const SHADER: &str = include_str!("../shaders/render.wgsl");
+pub const SEAMS_SHADER: &str = include_str!("../shaders/seams.wgsl");
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 /// The background.
 pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
@@ -144,6 +145,56 @@ struct CameraU {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
+struct SeamParamsU {
+    viewport: [f32; 2],
+    half_width_px: f32,
+    _pad: f32,
+}
+
+/// The colours seams are drawn in, by seam order (the editor's flat view uses the same).
+pub const SEAM_COLOURS: [[f32; 3]; 6] = [
+    [0.227, 0.388, 0.941],
+    [0.839, 0.271, 0.498],
+    [0.122, 0.616, 0.420],
+    [0.851, 0.510, 0.169],
+    [0.482, 0.361, 0.839],
+    [0.165, 0.616, 0.710],
+];
+
+/// The segments to draw for named seams (`GarmentDesc::seams`): between consecutive paired
+/// vertices on each side, one colour per seam.
+pub fn seam_segments(seams: &[(String, Vec<(u32, u32)>)]) -> Vec<([u32; 2], [f32; 3])> {
+    let mut out = Vec::new();
+    for (k, (_, pairs)) in seams.iter().enumerate() {
+        let c = SEAM_COLOURS[k % SEAM_COLOURS.len()];
+        for w in pairs.windows(2) {
+            for (p, q) in [(w[0].0, w[1].0), (w[0].1, w[1].1)] {
+                if p != q {
+                    out.push(([p, q], c));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// One drawn piece of a seam: two cloth vertices and a colour.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct SeamSegmentU {
+    seg: [u32; 2],
+    _pad: [u32; 2],
+    color: [f32; 4],
+}
+
+/// The seams drawn on the cloth, as segments between its vertices.
+struct SeamLines {
+    instances: wgpu::Buffer,
+    count: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct MaterialU {
     front: [f32; 4],
     back: [f32; 4],
@@ -169,6 +220,11 @@ pub struct Renderer {
     collider: Option<DrawMesh>,
     depth: Option<(wgpu::TextureView, u32, u32)>,
     background: wgpu::Color,
+    seam_pipeline: wgpu::RenderPipeline,
+    seam_bg: wgpu::BindGroup,
+    seam_params: wgpu::Buffer,
+    seams: Option<SeamLines>,
+    show_seams: bool,
 }
 
 fn material(
@@ -412,10 +468,117 @@ impl Renderer {
             material_buf: body_mat.1,
         });
 
+        // Seam lines: quads from segments of cloth vertices, read from the solver's positions.
+        let seam_params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("seam-params"),
+            size: std::mem::size_of::<SeamParamsU>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let seam_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("seams"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+        let seam_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("seams"),
+            layout: &seam_bgl,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: solver.pos.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: seam_params.as_entire_binding(),
+                },
+            ],
+        });
+        let seam_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("seams.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(SEAMS_SHADER.into()),
+        });
+        let seam_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("seams"),
+            bind_group_layouts: &[Some(&cam_bgl), Some(&seam_bgl)],
+            immediate_size: 0,
+        });
+        let seam_attrs = [
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Uint32x2,
+                offset: 0,
+                shader_location: 0,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 16,
+                shader_location: 1,
+            },
+        ];
+        let seam_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("seams"),
+            layout: Some(&seam_layout),
+            vertex: wgpu::VertexState {
+                module: &seam_module,
+                entry_point: Some("vs_main"),
+                buffers: &[Some(wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<SeamSegmentU>() as u64,
+                    step_mode: wgpu::VertexStepMode::Instance,
+                    attributes: &seam_attrs,
+                })],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &seam_module,
+                entry_point: Some("fs_main"),
+                targets: &[Some(format.into())],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: Some(false),
+                depth_compare: Some(wgpu::CompareFunction::Less),
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            multisample: Default::default(),
+            multiview_mask: None,
+            cache: None,
+        });
+
         Self {
             camera_buf,
             camera_bg,
             pipeline,
+            seam_pipeline,
+            seam_bg,
+            seam_params,
+            seams: None,
+            show_seams: false,
             normals_pipeline,
             normals_bg,
             normals_groups: n.div_ceil(64),
@@ -445,6 +608,34 @@ impl Renderer {
             self.depth = Some((tex.create_view(&Default::default()), w, h));
         }
         self.depth.as_ref().unwrap().0.clone()
+    }
+
+    /// The seams to draw on the cloth: segments between two cloth vertices, each with a colour
+    /// (rgb 0..1). Empty clears them.
+    pub fn set_seams(&mut self, device: &wgpu::Device, segments: &[([u32; 2], [f32; 3])]) {
+        self.seams = (!segments.is_empty()).then(|| {
+            let data: Vec<SeamSegmentU> = segments
+                .iter()
+                .map(|&(seg, c)| SeamSegmentU {
+                    seg,
+                    _pad: [0; 2],
+                    color: [c[0], c[1], c[2], 1.0],
+                })
+                .collect();
+            SeamLines {
+                instances: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("seam-segments"),
+                    contents: bytemuck::cast_slice(&data),
+                    usage: wgpu::BufferUsages::VERTEX,
+                }),
+                count: data.len() as u32,
+            }
+        });
+    }
+
+    /// Whether the seams are drawn (they are kept either way).
+    pub fn show_seams(&mut self, on: bool) {
+        self.show_seams = on;
     }
 
     /// Recompute normals and draw cloth + collider into `view` (size `w`×`h`).
@@ -526,6 +717,23 @@ impl Renderer {
             pass.set_vertex_buffer(1, m.nrm.slice(..));
             pass.set_index_buffer(m.index.slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..m.n_indices, 0, 0..1);
+        }
+        if let (true, Some(lines)) = (self.show_seams, &self.seams) {
+            // About 3 px wide; the viewport in the uniform sizes it.
+            queue.write_buffer(
+                &self.seam_params,
+                0,
+                bytemuck::bytes_of(&SeamParamsU {
+                    viewport: [w as f32, h as f32],
+                    half_width_px: 2.0,
+                    _pad: 0.0,
+                }),
+            );
+            pass.set_pipeline(&self.seam_pipeline);
+            pass.set_bind_group(0, &self.camera_bg, &[]);
+            pass.set_bind_group(1, &self.seam_bg, &[]);
+            pass.set_vertex_buffer(0, lines.instances.slice(..));
+            pass.draw(0..6, 0..lines.count);
         }
     }
 }

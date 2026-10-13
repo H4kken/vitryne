@@ -31,8 +31,8 @@ export interface EngineState {
   /** The newest drape shown, and its document revision. */
   drape: { rev: number; info: DrapeInfo } | null;
   drapeError: string | null;
-  /** `placing`: the cloth waits where it starts while pieces are placed. */
-  controls: { fast: boolean; paused: boolean; placing: boolean };
+  /** `placing`: the cloth waits where it starts while pieces are placed. `seams`: drawn on the cloth. */
+  controls: { fast: boolean; paused: boolean; placing: boolean; seams: boolean };
   /** The handles of the cut asked for with `showGizmo`, on screen. */
   gizmo: GizmoView | null;
 }
@@ -61,7 +61,7 @@ export class EngineSession {
     progress: null,
     drape: null,
     drapeError: null,
-    controls: { fast: false, paused: false, placing: false },
+    controls: { fast: false, paused: false, placing: false, seams: false },
     gizmo: null,
   };
 
@@ -90,8 +90,8 @@ export class EngineSession {
     const client = new WorkerClient(canvas, size, (e) => this.onEvent(client, e));
     this.client = client;
     this.set({ phase: 'starting' });
-    const { fast, paused, placing } = this.state.controls;
-    if (fast || paused || placing) client.send({ kind: 'controls', fast, paused, placing });
+    const { fast, paused, placing, seams } = this.state.controls;
+    if (fast || paused || placing || seams) client.send({ kind: 'controls', fast, paused, placing, seams });
     if (this.style) client.send({ kind: 'style', rgb: this.style });
     if (this.gizmoCut !== null) client.send({ kind: 'gizmo', cut: this.gizmoCut });
     if (this.restore) void this.reopen(client, this.restore);

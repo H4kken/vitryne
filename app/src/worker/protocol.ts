@@ -61,8 +61,8 @@ export type Input =
   /** The scene's colours (`Viewport::set_style`): background, cloth front, cloth back, body. */
   | { kind: 'style'; rgb: number[] }
   | { kind: 'wheel'; steps: number }
-  /** `placing`: the cloth stays where it starts while pieces are placed. */
-  | { kind: 'controls'; fast?: boolean; paused?: boolean; placing?: boolean; reset?: true }
+  /** `placing`: the cloth stays where it starts while pieces are placed. `seams`: seams drawn on the cloth. */
+  | { kind: 'controls'; fast?: boolean; paused?: boolean; placing?: boolean; seams?: boolean; reset?: true }
   /** Shows cut `cut` (panel index) at `placement` (JSON), while placing: a handle being dragged. */
   | { kind: 'place'; cut: number; placement: string }
   /** Report cut `cut`'s handles (panel index) in `gizmo` events, or none. */

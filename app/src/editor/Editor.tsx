@@ -229,6 +229,12 @@ export function Editor() {
     if (session.state.controls.placing !== placing) session.setControls({ placing });
   }, [placing, session]);
 
+  // The seams are drawn on the cloth while the Seams panel is open.
+  const showSeams = panel === 'seams';
+  useEffect(() => {
+    if (session.state.controls.seams !== showSeams) session.setControls({ seams: showSeams });
+  }, [showSeams, session]);
+
   // A click with Select in 3D picks a cut of the drape shown.
   const drapeCuts = engine.drape?.info.cuts;
   useEffect(

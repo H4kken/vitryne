@@ -56,6 +56,8 @@ struct Core {
     paused: Cell<bool>,
     /// Placing pieces: the cloth stays where it starts.
     placing: Cell<bool>,
+    /// Seams drawn on the cloth (the Seams panel is open).
+    show_seams: Cell<bool>,
     lost: Arc<AtomicBool>,
     style: Cell<Style>,
     /// Offscreen target for `measure_frame` (same size/format as the canvas, never presented).
@@ -134,6 +136,7 @@ impl Viewport {
                 fast: Cell::new(false),
                 paused: Cell::new(false),
                 placing: Cell::new(false),
+                show_seams: Cell::new(false),
                 lost,
                 style: Cell::new(Style::default()),
                 offscreen: RefCell::new(None),
@@ -205,6 +208,11 @@ impl Viewport {
             &body.render,
         );
         renderer.set_style(&c.engine.gpu().queue, &c.style.get());
+        renderer.set_seams(
+            &c.engine.gpu().device,
+            &drape_render::seam_segments(&garment.desc.seams),
+        );
+        renderer.show_seams(c.show_seams.get());
         if frame_camera {
             let (target, distance) = garment.desc.camera;
             *c.camera.borrow_mut() = OrbitCamera::looking_at(target, distance);
@@ -481,6 +489,14 @@ impl Viewport {
         if self.core.placing.get() != on {
             self.core.placing.set(on);
             self.reset();
+        }
+    }
+
+    /// Draws the garment's seams on the cloth (on) or not. Kept for later drapes.
+    pub fn set_show_seams(&self, on: bool) {
+        self.core.show_seams.set(on);
+        if let Some(live) = self.core.live.borrow().as_ref() {
+            live.renderer.borrow_mut().show_seams(on);
         }
     }
 
