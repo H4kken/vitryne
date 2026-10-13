@@ -221,7 +221,7 @@ prints it (`--regions --groups --seams --hotspots`). Baseline (M1 build), native
 2. **One iteration does not carry load across a panel.** The error grows with panel size
    (strain doubled from 10k to 20k).
 
-### What was added (all in `SimConfig`, defaults on)
+### What was added (all in `SimSettings`, defaults on)
 
 | Change | Default | Source |
 |---|---|---|
@@ -311,3 +311,121 @@ scenes, and `?scene=garment-trousers:10000` selects one. Self-collision is on by
 garments use `self_rebuild 4` as in the benchmarks. Checked in Chrome 150 on the M2, 10k, auto
 test (fast drape, then 3 s of dragging): all three load and drape, 56 fps while dragging, GPU
 cost ~10 ms/frame with rendering (median).
+
+---
+
+## M3 — Engine API, settings and regression tests ✅ (2026-10-13)
+
+**Done-when:** everything uses the API ✅, `./check` runs the regression suite and passes ✅,
+the spike's benchmark numbers reproduce within 5% ✅ (with M1's settings; see the table).
+
+### The API (`crates/drape-core/src/engine.rs`)
+
+```rust
+let engine  = Engine::new(gpu);
+let body    = Body::load(&Avatar { name, obj }, &BodyOptions::default())?;   // or Body::sphere(..)
+let garment = Garment::load(&desc, &fabric)?;      // desc: GarmentDesc, plain data
+let sim     = engine.simulate(&Arc::new(garment), &Arc::new(body), &SimSettings::default());
+sim.step(60);
+sim.grab(vertex, target).await;  sim.set_target(p);  sim.release();
+let state   = sim.read_state().await;   // positions, normals, per-triangle strain
+let metrics = sim.metrics().await;      // at_rest, vrms, penetration, intersections, strain, seam gap
+```
+
+- **`Body::load` and `Garment::load` are CPU only** (BVH, SDF bake, constraint colouring), so
+  the native viewer prepares the scene before it has a window; `Engine::load_body` and
+  `load_garment` are the same thing as methods, as in the plan.
+- **`GarmentDesc` is the interim for "from the project format (M5)":** the pieces already
+  meshed and placed, the sewing pairs, seams, panels, schedule and SDF box. `drape-assets`
+  builds it from DXF + sidecar (and the procedural T-shirt); M5 will build it from `.vitryne`.
+- **`Simulation` methods take `&self`:** the state lives in GPU buffers and cells, so a viewer
+  can share one between callbacks (the web viewer does, with no `RefCell`). `encode_step` puts a
+  frame into the caller's encoder (so a viewer draws in the same submit), `step(n)` is one submit
+  per frame, as the per-frame parameters require.
+- **Used by:** the native viewer, `drape bench`, `bench-drag`, `frames`, `regress`, the web
+  viewer and `run_bench` / `run_drag_bench`. The only direct `Solver` uses left are the renderer
+  (it draws from the solver's vertex buffer) and diagnostics (`attrib`, profiling).
+- **`SimSettings`** (was `SimConfig`): one documented struct, `serde(default)`, so a project
+  can store the fields it overrides. The scattered constants moved in: the drag stiffness,
+  radius, release length and surface margin, and the rest criteria (`rest_vrms`, `rest_window`).
+  Deliberately outside it (and said so in its doc comment): the fabric (per garment), the
+  sewing/gravity ramp (per garment), the avatar and SDF, and buffer sizes
+  (`DRAG_MAX_VERTICES`, `MAX_NEIGHBORS`).
+
+### Regression suite (`drape regress`, `tests/regression/`)
+
+Three garments at 10k vertices, 600 frames, self-collision on, then 300 more frames to tell
+persistent intersections from passing ones. Per case: rest frame (±15 frames), final shape
+(max vertex distance), penetration (< 2 mm and within 0.5 mm of the golden), persistent
+self-intersections, edge strain p50 / p90 / p99 (±0.5 percentage points), seam gap (±1 mm). The
+golden JSON and shape (`.pos`, f32 xyz) are 360 KB in total. Run time about 20 s; `./check`
+runs it in place of the old smoke test, and `--update` re-records.
+
+| Case | Rest frame | Penetration | Persistent self-isect | Strain p99 | Seam gap | Shape tolerance |
+|---|---|---|---|---|---|---|
+| T-shirt | 332 | 0.00 mm | 0 | 6.3% | 2.1 mm | 0.5 mm |
+| Trousers | 179 | 0.00 mm | 0 | 5.4% | 1.2 mm | 0.5 mm |
+| Hoodie | none | 0.00 mm | 145 (limit 25% over) | 18.7% | 33.6 mm | **20 mm** |
+
+- **The hoodie's tolerances differ from the plan's 0.5 mm, on purpose.** Its neck junction is
+  chaotic: native and Chrome differ by up to 11 mm after 600 frames (M2), and the golden
+  records its known weaknesses (never rests, 145 intersections) so that a fix shows up as a
+  difference to re-record instead of passing silently. On one machine and target it is exactly
+  reproducible (0.00 mm over repeated runs). **Your call** if you'd rather loosen nothing and
+  record the hoodie as "not part of the suite" until its neck is fixed.
+- **Tested that it detects:** changing a golden's rest frame and p99 makes the case fail with
+  both named; ordinary reruns give a shape difference of 0.00 mm.
+- The two other regression layers: unit tests (14 in `drape-core`, incl. the new strain
+  measure, long-range construction and golden comparison), and the drape on every garment in
+  Chrome (below).
+
+### The spike's numbers (M1 settings, with the M3 engine)
+
+`--stretch-iterations 1 --long-range 0 --long-range-cross 0` and the damping of the old
+formula expressed in the corrected one (β = 1e-5 · compliance / h²). Native, Apple M2,
+self-collision on, versus the M1 build's runs (`bench-out/m2/base`):
+
+| Garment | Vertices | Rest frame (M1 · M3) | ms/frame (M1 · M3) | Persistent self-isect | Shape diff mean / max |
+|---|---|---|---|---|---|
+| T-shirt | 10k | 231 · 231 | 3.82 · 3.90 | 0 · 0 | 0.00 / 0.02 mm |
+| T-shirt | 20k | 292 · 292 | 6.65 · 6.65 | 0 · 0 | 0.01 / 0.16 mm |
+| Trousers | 10k | 302 · 302 | 4.48 · 4.23 | 0 · 0 | 0.00 / 0.00 mm |
+| Trousers | 20k | 569 · 569 | 7.14 · 6.92 | 0 · 0 | 0.00 / 0.00 mm |
+| Hoodie | 10k | none · none | 4.76 · 4.74 | 8 · 8 | 0.01 / 0.24 mm |
+| Hoodie | 20k | none · none | 7.75 · 7.71 | 14 · 14 | 0.22 / 2.05 mm |
+
+Frame times are within 2% (T-shirt, hoodie) and 3–6% faster (trousers). The refactor itself
+(M2 build → M3 API, same settings) is bit-exact: the three 10k drapes have a shape difference of
+0.00 mm and the same rest frames, and the trousers drag test (seed 1) the same speeds, strain,
+seam widening and penetration.
+
+### Browser (Chrome 150, M2, 10k, through the web bindings)
+
+| Garment | Rest frame (native · Chrome) | ms/frame (native · Chrome) | Shape diff mean / p95 / max |
+|---|---|---|---|
+| Trousers | 172 · 172 | 5.93 · 5.82 | 0.01 / 0.04 / 0.10 mm |
+| T-shirt | 332 · 360 | 5.72 · 5.48 | 0.15 / 0.32 / 1.01 mm |
+
+The viewer's auto test (hoodie 10k, fast drape then 3 s dragging): 56 fps, ~11 ms/frame with
+rendering, cloth grabbed. The T-shirt's rest frame differs by 28 frames between targets: its speed
+decays through the 0.005 m/s threshold slowly, so a 0.1 mm difference moves the frame.
+
+### Also in this milestone
+
+- `docs/ALGORITHMS.md`: one entry per solver component with its paper (XPBD, small steps,
+  isometric bending, graph colouring, SDF and pseudo-normals, contact velocity filter, hashing,
+  untangling, long range, strain limiting), what's ours and why, and how to reproduce M1.
+- `tools/check_drapes.py` is gone (the suite replaces it); `CONTRIBUTING.md` and
+  `tools/README.md` say what `./check` does now.
+
+### Notes and open items
+
+- **`reset()` isn't a fresh simulation:** it restores positions, previous positions and
+  velocities, but not the self-collision and untangling scratch buffers, so a run after a
+  `warm_up()` follows a slightly different trajectory than a brand-new one (the regression
+  suite doesn't warm up; the benchmarks do). Harmless for the viewer's R key; noted so a
+  golden isn't compared with a benchmark's number by eye.
+- **M2's open items are unchanged:** trousers p99 5.4% against the 3% woven target, hoodie
+  18.7% and its intersections, the 20k T-shirt drape at 3.5 s. They're in the golden results now.
+- **Settings in the web bindings** are still the JSON subset (`self_collision`, `self_rebuild`,
+  `contact_max_accel`, `untangle_*`); the M6 UI will pass a `SimSettings` JSON instead.

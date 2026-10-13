@@ -90,7 +90,11 @@ It checks:
 - `cargo test`;
 - the wasm build and the production web bundle;
 - the web code (a syntax check for now; TypeScript typecheck and lint once the app lands);
-- the three sample drapes on your GPU (a smoke test for now; golden regression results later).
+- the golden regression suite on your GPU (`drape regress`): the three sample garments at 10k
+  vertices, 600 frames, compared with `tests/regression/` on rest frame, final shape (0.5 mm;
+  20 mm for the hoodie, whose neck junction is chaotic), penetration, self-intersections, edge
+  strain and seam gap. After an intended change, re-record with
+  `target/release/drape regress --update` and explain the difference in the commit message.
 
 ## Rules for engine changes
 

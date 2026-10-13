@@ -575,3 +575,58 @@ pub fn triangle_strain(mesh: &ClothMesh, pos: &[Vec3]) -> Vec<f32> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn grid_desc() -> GarmentDesc {
+        crate::scene::SheetScene {
+            grid: 12,
+            ..Default::default()
+        }
+        .garment()
+    }
+
+    #[test]
+    fn triangle_strain_measures_the_larger_principal_stretch() {
+        let m = ClothMesh::grid(8, 1.0, 0.0);
+        let rest = m.pos.clone();
+        assert!(triangle_strain(&m, &rest).iter().all(|s| s.abs() < 1e-5));
+        // Stretch x by 10%, and rotate the whole thing: strain is 0.1 everywhere.
+        let stretched: Vec<Vec3> = rest
+            .iter()
+            .map(|p| glam::Quat::from_rotation_y(0.7) * Vec3::new(p.x * 1.1, p.y, p.z))
+            .collect();
+        for s in triangle_strain(&m, &stretched) {
+            assert!((s - 0.1).abs() < 1e-4, "{s}");
+        }
+        // Compress: the larger principal stretch is then the unchanged direction (0).
+        let squeezed: Vec<Vec3> = rest
+            .iter()
+            .map(|p| Vec3::new(p.x * 0.9, p.y, p.z))
+            .collect();
+        assert!(
+            triangle_strain(&m, &squeezed)
+                .iter()
+                .all(|s| s.abs() < 1e-4)
+        );
+    }
+
+    #[test]
+    fn garment_load_validates_sewing_and_builds_constraints() {
+        let mut d = grid_desc();
+        let g = Garment::load(&d, &Fabric::cotton()).unwrap();
+        assert!(g.constraints.stretch.items.len() > 100);
+        assert_eq!(g.name(), "sheet");
+        d.sew_pairs.push((0, 1_000_000));
+        assert!(Garment::load(&d, &Fabric::cotton()).is_err());
+    }
+
+    #[test]
+    fn sphere_body_has_no_exact_query() {
+        let b = Body::sphere(Vec3::ZERO, 0.3);
+        assert!(b.query.is_none() && b.sdf().is_none());
+        assert!(!b.render.idx.is_empty());
+    }
+}

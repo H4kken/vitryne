@@ -13,6 +13,7 @@ pub mod gpu_async;
 pub mod longrange;
 pub mod mesh;
 pub mod metrics;
+pub mod regress;
 pub mod render;
 pub mod scene;
 pub mod selfcheck;

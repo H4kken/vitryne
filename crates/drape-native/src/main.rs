@@ -7,6 +7,9 @@
 //!                           headless benchmark, prints JSON
 //!   drape bench-drag [--drag-seconds S] [--seed N] [--max-offset M] [--min-pull S] [--out file.json]
 //!                           drape to rest, then scripted random drags (stability criterion)
+//!   drape regress [--update] [--only NAME] [--dir tests/regression]
+//!                           the golden regression suite (3 garments, 10k, 600 frames); exit 1
+//!                           on any difference beyond tolerance, --update re-records
 //!   drape export-web-assets <dir>
 //!                           body OBJ + baked SDF (.bin) for the web pages
 //!   drape frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
@@ -113,6 +116,15 @@ fn main() {
                 std::fs::write(&path, &json).expect("write --out");
             }
             println!("{json}");
+        }
+        "regress" => {
+            let update = take_flag(&mut args, "--update");
+            let only = take_value(&mut args, "--only");
+            let dir = take_value(&mut args, "--dir").unwrap_or_else(|| "tests/regression".into());
+            let engine = Engine::new(headless_gpu());
+            if !regress(&engine, &dir, only.as_deref(), update) {
+                std::process::exit(1);
+            }
         }
         "export-web-assets" => {
             let dir = args
@@ -483,6 +495,121 @@ fn load_body_cached(obj: &str, p: &SdfParams) -> Body {
 struct Scene {
     garment: Arc<Garment>,
     body: Arc<Body>,
+}
+
+/// The golden cases: (name, garment sidecar, golden shape tolerance mm, persistent
+/// self-intersection slack, note). The hoodie never rests and its neck junction is chaotic
+/// (native vs Chrome differ by up to 11 mm at the end, PROGRESS.md M2), so its shape tolerance
+/// is wide and its intersection count has headroom; it still catches a real change.
+const REGRESSION_CASES: [(&str, &str, f32, f32, &str); 3] = [
+    (
+        "tshirt",
+        "assets/garments/tshirt/garment.toml",
+        0.5,
+        0.0,
+        "FreeSewing Teagan at chest ease 18%, knit jersey, 10k vertices, self-collision.",
+    ),
+    (
+        "trousers",
+        "assets/garments/trousers/garment.toml",
+        0.5,
+        0.0,
+        "FreeSewing Titan, twill (woven), 10k vertices, self-collision.",
+    ),
+    (
+        "hoodie",
+        "assets/garments/hoodie/garment.toml",
+        20.0,
+        0.25,
+        "FreeSewing Hugo, known weaknesses recorded on purpose: never rests, ~136 persistent \
+         self-intersections at the hood junction, seam gap ~34 mm (PROGRESS.md M2). A fix \
+         will show up here as a difference to re-record.",
+    ),
+];
+
+/// Runs (or, with `update`, records) the cases. Returns true if everything passed.
+fn regress(engine: &Engine, dir: &str, only: Option<&str>, update: bool) -> bool {
+    use drape_core::regress::{
+        Golden, observe, positions_from_bytes, positions_to_bytes, shape_diff_mm,
+    };
+    std::fs::create_dir_all(dir).expect("regression dir");
+    let mut all_ok = true;
+    for (name, toml, shape_tol, slack, note) in REGRESSION_CASES {
+        if only.is_some_and(|o| o != name) {
+            continue;
+        }
+        let mut a: Vec<String> = [
+            "--scene",
+            "garment",
+            "--garment",
+            toml,
+            "--verts",
+            "10000",
+            "--self-collision",
+            "--self-rebuild",
+            "4",
+        ]
+        .map(String::from)
+        .into();
+        let args = SceneArgs::take(&mut a);
+        let scene = args.build();
+        let sim = engine.simulate(&scene.garment, &scene.body, &args.sim);
+        let t0 = std::time::Instant::now();
+        let (now, pos) = pollster::block_on(observe(&sim));
+        let json_path = format!("{dir}/{name}.json");
+        let pos_path = format!("{dir}/{name}.pos");
+        if update {
+            let mut g = Golden::new(
+                note,
+                now.clone(),
+                serde_json::to_value(args.sim).expect("settings"),
+            );
+            g.shape_tolerance_mm = shape_tol;
+            g.intersection_slack = slack;
+            std::fs::write(&json_path, serde_json::to_string_pretty(&g).unwrap() + "\n")
+                .expect("write golden");
+            std::fs::write(&pos_path, positions_to_bytes(&pos)).expect("write golden shape");
+            println!("{name}: recorded {json_path} and {pos_path}");
+            continue;
+        }
+        let g: Golden = match std::fs::read_to_string(&json_path) {
+            Ok(t) => serde_json::from_str(&t).unwrap_or_else(|e| panic!("{json_path}: {e}")),
+            Err(e) => {
+                println!(
+                    "{name}: FAIL: no golden ({json_path}: {e}); run `drape regress --update`"
+                );
+                all_ok = false;
+                continue;
+            }
+        };
+        let shape = std::fs::read(&pos_path)
+            .ok()
+            .map(|b| positions_from_bytes(&b))
+            .filter(|p| p.len() == pos.len())
+            .map(|p| shape_diff_mm(&p, &pos));
+        let mut bad = g.check(&now, shape);
+        if shape.is_none() {
+            bad.push(format!("no usable golden shape ({pos_path})"));
+        }
+        let rest = now.rest_frame.map_or("none".into(), |r| r.to_string());
+        if bad.is_empty() {
+            println!(
+                "{name}: ok  rest {rest}, penetration {:.2} mm, persistent self-intersections {}, strain p99 {:.1}%, shape {:.2} mm ({:.0} s)",
+                now.max_penetration_mm,
+                now.persistent_pairs,
+                now.strain_p99 * 100.0,
+                shape.unwrap_or(0.0),
+                t0.elapsed().as_secs_f64()
+            );
+        } else {
+            all_ok = false;
+            println!("{name}: FAIL");
+            for b in bad {
+                println!("    {b}");
+            }
+        }
+    }
+    all_ok
 }
 
 fn pattern_svg(out: &str, edge: f32) {

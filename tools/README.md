@@ -9,7 +9,7 @@ which git ignores.
 | [bench/summary.py](bench/summary.py) | Markdown tables for any drape or drag JSON (files or directories). `--group` sums drag runs per target × garment × size. |
 | [bench/compare.py](bench/compare.py) | Two targets side by side, matched run by run: speed ratio, rest frame, penetration, self-intersections, final-shape difference, drag stability. |
 | [bench/chrome-check.mjs](bench/chrome-check.mjs) | Drives the installed Chrome headless with its GPU, over CDP: loads a page, waits for `#status`, saves a screenshot and the page's JSON report. `run.sh` uses it. |
-| [check_drapes.py](check_drapes.py) | The drape smoke test that `./check` runs. |
+| [strain.py](bench/strain.py) | Edge-strain tables from drape and drag JSON (`--regions --groups --seams --hotspots`). |
 | [patterns/](patterns/) | Measures the avatar and drafts the sample garments with FreeSewing into DXF-AAMA (`cd tools/patterns && npm install && ./export-all.sh`). |
 
 ## Examples
