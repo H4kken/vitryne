@@ -21,6 +21,31 @@ pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
     a: 1.0,
 };
 
+/// Colours of the scene (the values the shader gets: the targets are not sRGB).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Style {
+    pub background: [f32; 3],
+    pub cloth: [f32; 3],
+    pub cloth_back: [f32; 3],
+    pub body: [f32; 3],
+}
+
+impl Default for Style {
+    /// The native viewer's: dark background, red cloth, grey body.
+    fn default() -> Self {
+        Self {
+            background: [
+                CLEAR_COLOR.r as f32,
+                CLEAR_COLOR.g as f32,
+                CLEAR_COLOR.b as f32,
+            ],
+            cloth: [0.85, 0.3, 0.25],
+            cloth_back: [0.55, 0.55, 0.6],
+            body: [0.75, 0.75, 0.72],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct OrbitCamera {
     pub target: Vec3,
@@ -130,6 +155,7 @@ struct DrawMesh {
     index: wgpu::Buffer,
     n_indices: u32,
     material: wgpu::BindGroup,
+    material_buf: wgpu::Buffer,
 }
 
 pub struct Renderer {
@@ -142,6 +168,7 @@ pub struct Renderer {
     cloth: DrawMesh,
     collider: Option<DrawMesh>,
     depth: Option<(wgpu::TextureView, u32, u32)>,
+    background: wgpu::Color,
 }
 
 fn material(
@@ -149,23 +176,28 @@ fn material(
     layout: &wgpu::BindGroupLayout,
     front: [f32; 3],
     back: [f32; 3],
-) -> wgpu::BindGroup {
+) -> (wgpu::BindGroup, wgpu::Buffer) {
     let buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("material"),
-        contents: bytemuck::bytes_of(&MaterialU {
-            front: [front[0], front[1], front[2], 1.0],
-            back: [back[0], back[1], back[2], 1.0],
-        }),
-        usage: wgpu::BufferUsages::UNIFORM,
+        contents: bytemuck::bytes_of(&material_u(front, back)),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
+    let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("material"),
         layout,
         entries: &[wgpu::BindGroupEntry {
             binding: 0,
             resource: buf.as_entire_binding(),
         }],
-    })
+    });
+    (bg, buf)
+}
+
+fn material_u(front: [f32; 3], back: [f32; 3]) -> MaterialU {
+    MaterialU {
+        front: [front[0], front[1], front[2], 1.0],
+        back: [back[0], back[1], back[2], 1.0],
+    }
 }
 
 impl Renderer {
@@ -337,12 +369,16 @@ impl Renderer {
             cache: None,
         });
 
+        let style = Style::default();
+        let cloth_mat = material(device, &mat_bgl, style.cloth, style.cloth_back);
+        let body_mat = material(device, &mat_bgl, style.body, style.body);
         let cloth = DrawMesh {
             pos: solver.pos.clone(),
             nrm,
             index: tris_buf,
             n_indices: tris.len() as u32,
-            material: material(device, &mat_bgl, [0.85, 0.3, 0.25], [0.55, 0.55, 0.6]),
+            material: cloth_mat.0,
+            material_buf: cloth_mat.1,
         };
         let sp: Vec<[f32; 4]> = collider
             .pos
@@ -372,7 +408,8 @@ impl Renderer {
                 wgpu::BufferUsages::INDEX,
             ),
             n_indices: si.len() as u32,
-            material: material(device, &mat_bgl, [0.75, 0.75, 0.72], [0.75, 0.75, 0.72]),
+            material: body_mat.0,
+            material_buf: body_mat.1,
         });
 
         Self {
@@ -385,6 +422,7 @@ impl Renderer {
             cloth,
             collider,
             depth: None,
+            background: CLEAR_COLOR,
         }
     }
 
@@ -410,6 +448,24 @@ impl Renderer {
     }
 
     /// Recompute normals and draw cloth + collider into `view` (size `w`×`h`).
+    /// Recolours the scene (applies at the next submit).
+    pub fn set_style(&mut self, queue: &wgpu::Queue, s: &Style) {
+        let [r, g, b] = s.background.map(f64::from);
+        self.background = wgpu::Color { r, g, b, a: 1.0 };
+        queue.write_buffer(
+            &self.cloth.material_buf,
+            0,
+            bytemuck::bytes_of(&material_u(s.cloth, s.cloth_back)),
+        );
+        if let Some(c) = &self.collider {
+            queue.write_buffer(
+                &c.material_buf,
+                0,
+                bytemuck::bytes_of(&material_u(s.body, s.body)),
+            );
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &mut self,
@@ -446,7 +502,7 @@ impl Renderer {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
+                    load: wgpu::LoadOp::Clear(self.background),
                     store: wgpu::StoreOp::Store,
                 },
             })],

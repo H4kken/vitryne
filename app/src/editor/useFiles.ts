@@ -12,7 +12,8 @@ import type { FileRef, ProjectStorage } from '@/storage/storage';
 import { copyFileData, type FileData } from '@/worker/protocol';
 import type { EngineSession } from '@/worker/session';
 
-export type Notice = { kind: 'ok' | 'error'; text: string } | null;
+/** ok: a save (shown by the title); info: worth a card; error: what went wrong. */
+export type Notice = { kind: 'ok' | 'info' | 'error'; text: string } | null;
 
 /** How long the document must be still before its recovery copy is written. */
 const RECOVERY_DELAY_MS = 1000;
@@ -124,7 +125,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
       await load({ name: r.fileName, form: r.data.form }, r.data);
       if (!store.execute((e) => recoverChanges(e, parseEntities(r.current)))) throw new Error(store.state.refused ?? 'refused');
       await dropRecovery(r.tab);
-      setNotice({ kind: 'ok', text: `Recovered your unsaved changes to ${r.fileName}. Save them to keep them.` });
+      setNotice({ kind: 'info', text: `Recovered your unsaved changes to ${r.fileName}. Save them to keep them.` });
     } catch (e) {
       fail('Could not recover', e);
     } finally {
@@ -153,6 +154,15 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
     openFile: () => openWith(() => storage.openFile()),
     openFolder: () => openWith(() => storage.openFolder()),
     openData: (r: FileRef, data: () => Promise<FileData>) => openWith(async () => ({ ref: r, data: await data() })),
+    close: () =>
+      guarded(() => {
+        store.close();
+        session.closeDocument();
+        original.current = null;
+        setRef(null);
+        setNotice(null);
+        void dropRecovery();
+      }),
     save: () => saveTo('same'),
     saveAs: () => saveTo('as'),
     /** The unsaved-changes question, while one is open. */

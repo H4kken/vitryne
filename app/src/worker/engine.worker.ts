@@ -143,6 +143,7 @@ function request(m: RequestMessage) {
 // ---- inputs and frames ---------------------------------------------------------------------
 
 /** Pointer state: a press is undecided until the pick says cloth (drag) or not (orbit). */
+let style: Float32Array | null = null;
 let press: { px: number; py: number; orbit: boolean } | null = null;
 let frames = 0;
 let statsAt = performance.now();
@@ -183,6 +184,7 @@ async function start(m: Extract<Input, { kind: 'init' }>) {
     canvas.width = m.width;
     canvas.height = m.height;
     viewport = await Viewport.create(canvas);
+    if (style) viewport.set_style(style);
   } catch (e) {
     crash(`could not start WebGPU in the worker: ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -196,6 +198,11 @@ function input(m: Input) {
     case 'init':
       // Requests wait for the device.
       queue = queue.then(() => start(m));
+      return;
+    case 'style':
+      // May come before the device is up: kept and applied then.
+      style = new Float32Array(m.rgb);
+      viewport?.set_style(style);
       return;
     case 'tick':
       // Ticks queued while a request ran (an SDF bake) arrive in a burst: draw one.
@@ -211,8 +218,9 @@ function input(m: Input) {
       return;
     case 'pointer':
       if (m.phase === 'down') {
-        const p = { px: m.px, py: m.py, orbit: false };
+        const p = { px: m.px, py: m.py, orbit: m.tool === 'turn' };
         press = p;
+        if (p.orbit) return;
         v.pointer_down(m.x, m.y).then(
           (grabbed: boolean) => {
             if (press === p && !grabbed) p.orbit = true;
@@ -234,6 +242,7 @@ function input(m: Input) {
     case 'wheel':
       v.zoom(m.steps);
       return;
+
     case 'controls':
       if (m.fast !== undefined) v.set_fast(m.fast);
       if (m.paused !== undefined) v.set_paused(m.paused);

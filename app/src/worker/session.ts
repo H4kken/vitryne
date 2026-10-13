@@ -5,7 +5,16 @@
 
 import { useSyncExternalStore } from 'react';
 import { WorkerClient, WorkerCrashed } from './client';
-import { copyFileData, type DrapeInfo, type FileData, fileDataBuffers, type Requests, type Stats, type WorkerEvent } from './protocol';
+import {
+  copyFileData,
+  type DrapeInfo,
+  type FileData,
+  fileDataBuffers,
+  type PointerTool,
+  type Requests,
+  type Stats,
+  type WorkerEvent,
+} from './protocol';
 
 export interface EngineState {
   /** Changes when the worker is replaced: the viewport makes a new canvas for it. */
@@ -78,6 +87,7 @@ export class EngineSession {
     this.set({ phase: 'starting' });
     const { fast, paused } = this.state.controls;
     if (fast || paused) client.send({ kind: 'controls', fast, paused });
+    if (this.style) client.send({ kind: 'style', rgb: this.style });
     if (this.restore) void this.reopen(client, this.restore);
   }
 
@@ -166,6 +176,12 @@ export class EngineSession {
     return reply;
   }
 
+  /** Nothing to put back after a restart any more. */
+  closeDocument() {
+    this.restore = null;
+    this.set({ drape: null, drapeError: null, progress: null });
+  }
+
   /** Validates and takes the document's new JSON (see `Requests.update`). */
   async update(rev: number, entities: string): Promise<Requests['update']['reply']> {
     const reply = await this.need().request('update', { rev, entities });
@@ -206,8 +222,16 @@ export class EngineSession {
     this.client?.send({ kind: 'resize', width, height });
   }
 
-  pointer(phase: 'down' | 'move' | 'up', x: number, y: number, px: number, py: number) {
-    this.client?.send({ kind: 'pointer', phase, x, y, px, py });
+  pointer(phase: 'down' | 'move' | 'up', x: number, y: number, px: number, py: number, tool?: PointerTool) {
+    this.client?.send({ kind: 'pointer', phase, x, y, px, py, tool });
+  }
+
+  private style: number[] | null = null;
+
+  /** The scene's colours; kept and sent again to a restarted worker. */
+  setStyle(rgb: number[]) {
+    this.style = rgb;
+    this.client?.send({ kind: 'style', rgb });
   }
 
   wheel(steps: number) {

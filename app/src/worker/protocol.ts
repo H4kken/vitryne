@@ -25,11 +25,19 @@ export function copyFileData(d: FileData): FileData {
   return d.form === 'zip' ? { form: 'zip', bytes: d.bytes.slice(0) } : { form: 'folder', files: d.files.map(([p, b]) => [p, b.slice(0)]) };
 }
 
+export type PointerTool = 'turn' | 'pinch';
+
 export type Input =
   | { kind: 'init'; canvas: OffscreenCanvas; width: number; height: number }
   | { kind: 'resize'; width: number; height: number }
-  /** `x`, `y`: normalized device coordinates (-1..1, y up); `px`, `py`: CSS pixels. */
-  | { kind: 'pointer'; phase: 'down' | 'move' | 'up'; x: number; y: number; px: number; py: number }
+  /**
+   * `x`, `y`: normalized device coordinates (-1..1, y up); `px`, `py`: CSS pixels. `tool`
+   * (on down): `turn` always orbits; `pinch` pulls the cloth under the pointer, or orbits when
+   * there is none.
+   */
+  | { kind: 'pointer'; phase: 'down' | 'move' | 'up'; x: number; y: number; px: number; py: number; tool?: PointerTool }
+  /** The scene's colours (`Viewport::set_style`): background, cloth front, cloth back, body. */
+  | { kind: 'style'; rgb: number[] }
   | { kind: 'wheel'; steps: number }
   | { kind: 'controls'; fast?: boolean; paused?: boolean; reset?: true }
   /** One display frame, sent by the UI where workers have no requestAnimationFrame. */

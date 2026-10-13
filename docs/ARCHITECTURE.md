@@ -36,6 +36,18 @@ freezes while the cloth simulates. The worker also holds the file: the browser o
 `.vtry` with the same Rust code as the CLI. Frames come from `requestAnimationFrame` inside the
 worker, or from ticks the UI sends where workers lack it.
 
+### Look
+
+The editor follows the "Vitryne editor concept" design canvas (claude.ai artifact
+`Ci1MyouGsSDARsvNGrZ7WM`): a start screen (presets or open a project), then a top bar, an icon rail
+that opens one panel at a time, and one canvas showing either the 3D drape or the flat pieces,
+with a status pill, a hint, zoom and a floating tool bar. Its colours, radii and type are the
+tokens in `app/src/index.css` (light only); the fonts, Bricolage Grotesque and DM Sans (OFL),
+are bundled from `@fontsource`, never fetched from another site. The 3D scene's colours go to
+the renderer as a `drape_render::Style`. Parts of the concept that belong to later milestones
+(pattern import, fabric presets, colour and print, fit, export and share, drawing from scratch)
+are not built yet.
+
 ### Worker protocol
 
 `app/src/worker/protocol.ts` defines every message:

@@ -640,3 +640,21 @@ unsaved-changes dialog, the leave-page prompt, and a recovery copy.
   out side by side for now), camera edits.
 - A recovery copy left by another open tab is offered too (records are per tab, the newest is
   offered).
+
+### After review (2026-10-13)
+
+- **The editor follows the design canvas** ("Vitryne editor concept"): light look, Bricolage
+  Grotesque and DM Sans (bundled), a start screen with the presets and "Open a project", a top
+  bar (undo, redo, 3D/flat toggle, Save, a menu for Open, Save as, Close), a rail with Fabric,
+  Pieces and Settings panels in plain words (sliders say "Light / Heavy", "Drapey / Stiff"; the
+  exact values stay editable), one canvas that switches between the 3D drape and the flat pieces,
+  a live status pill (stats in its tooltip; the status bar is gone), and a floating tool bar
+  with Turn view and Pinch fabric. The 3D scene uses the concept's colours
+  (`drape_render::Style`; the native viewer keeps its own). Only what M6 already did was
+  restyled: the concept's import, presets of fabrics, colour and print, fit, export, share and
+  drawing from scratch are left for their milestones (fit needs the patents check first).
+- **pnpm instead of npm** (`app/`, `tools/patterns/`): lockfiles converted with the same versions,
+  `packageManager` pins pnpm 10.11.1; the FreeSewing export reproduces the DXFs byte for byte.
+- Re-checked in Chrome after the redesign: unedited and edited-then-undone saves byte-identical,
+  the unsaved-changes dialog (now also on "Back to start"), the recovery copy.
+

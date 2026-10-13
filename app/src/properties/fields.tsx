@@ -29,12 +29,12 @@ export function TextField(props: { label: string; value: string; placeholder?: s
   };
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={id} className="text-muted-foreground text-xs">
+      <Label htmlFor={id} className="text-sm font-semibold">
         {props.label}
       </Label>
       <Input
         id={id}
-        className="h-8"
+        className="h-11 rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-card px-3 text-[15px] shadow-none"
         value={d.text}
         placeholder={props.placeholder}
         onChange={(e) => d.setDraft(e.target.value)}
@@ -63,6 +63,8 @@ export interface NumberFieldProps {
   max: number;
   log?: boolean;
   step?: number;
+  /** What the two ends of the slider mean, in plain words. */
+  ends?: [string, string];
   integer?: boolean;
   /** A value from the slider (during a drag) or the box. */
   onChange: (value: number, dragging: boolean) => void;
@@ -85,15 +87,15 @@ export function NumberField(p: NumberFieldProps) {
     d.clear();
   };
   return (
-    <div className="grid gap-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <Label htmlFor={id} className="text-muted-foreground text-xs">
+    <div className="grid gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor={id} className="text-[15px] font-semibold">
           {p.label}
         </Label>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <Input
             id={id}
-            className="h-7 w-24 px-2 text-right text-xs tabular-nums"
+            className="h-8 w-20 rounded-lg border-[#D5D9D1] bg-card px-2 text-right text-[13px] tabular-nums shadow-none"
             inputMode="decimal"
             value={d.text}
             onChange={(e) => d.setDraft(e.target.value)}
@@ -106,10 +108,11 @@ export function NumberField(p: NumberFieldProps) {
               }
             }}
           />
-          <span className="text-muted-foreground w-12 text-xs">{p.unit}</span>
+          {p.unit && <span className="text-muted-foreground min-w-9 text-xs">{p.unit}</span>}
         </div>
       </div>
       <Slider
+        className="h-7"
         min={toSlider(p.min)}
         max={toSlider(p.max)}
         step={p.log ? (toSlider(p.max) - toSlider(p.min)) / 400 : (p.step ?? (p.max - p.min) / 400)}
@@ -123,6 +126,12 @@ export function NumberField(p: NumberFieldProps) {
         onValueCommit={() => p.onDragEnd?.()}
         aria-label={p.label}
       />
+      {p.ends && (
+        <div className="text-muted-foreground flex justify-between text-[13px]">
+          <span>{p.ends[0]}</span>
+          <span>{p.ends[1]}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -19,7 +19,7 @@ use drape_core::{
     gpu,
     sim::DragPatch,
 };
-use drape_render::{self as render, OrbitCamera, Renderer};
+use drape_render::{self as render, OrbitCamera, Renderer, Style};
 use glam::Vec3;
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
@@ -46,6 +46,7 @@ struct Core {
     fast: Cell<bool>,
     paused: Cell<bool>,
     lost: Arc<AtomicBool>,
+    style: Cell<Style>,
     /// Offscreen target for `measure_frame` (same size/format as the canvas, never presented).
     offscreen: RefCell<Option<(wgpu::TextureView, u32, u32)>>,
 }
@@ -90,6 +91,7 @@ impl Viewport {
                 fast: Cell::new(false),
                 paused: Cell::new(false),
                 lost,
+                style: Cell::new(Style::default()),
                 offscreen: RefCell::new(None),
             }),
         })
@@ -151,13 +153,14 @@ impl Viewport {
         c.pulling.set(None);
         *c.live.borrow_mut() = None;
         let sim = c.engine.simulate(&garment, &body, &p.settings);
-        let renderer = Renderer::new(
+        let mut renderer = Renderer::new(
             &c.engine.gpu().device,
             c.config.borrow().format,
             garment.mesh(),
             sim.solver(),
             &body.render,
         );
+        renderer.set_style(&c.engine.gpu().queue, &c.style.get());
         if frame_camera {
             let (target, distance) = garment.desc.camera;
             *c.camera.borrow_mut() = OrbitCamera::looking_at(target, distance);
@@ -168,6 +171,28 @@ impl Viewport {
             renderer: RefCell::new(renderer),
         }));
         Ok(baked)
+    }
+
+    /// The scene's colours, as twelve numbers 0..1: background, cloth (front), cloth (back),
+    /// body, each r, g, b. Kept for later drapes.
+    pub fn set_style(&self, rgb: &[f32]) -> Result<(), JsValue> {
+        let c = |i: usize| -> Result<[f32; 3], JsValue> {
+            rgb.get(i * 3..i * 3 + 3)
+                .and_then(|s| s.try_into().ok())
+                .ok_or_else(|| "set_style: twelve numbers".into())
+        };
+        let style = Style {
+            background: c(0)?,
+            cloth: c(1)?,
+            cloth_back: c(2)?,
+            body: c(3)?,
+        };
+        self.core.style.set(style);
+        let gpu = self.core.engine.gpu();
+        if let Some(live) = self.core.live.borrow().as_ref() {
+            live.renderer.borrow_mut().set_style(&gpu.queue, &style);
+        }
+        Ok(())
     }
 
     /// Drops the drape (a document that can't be draped); the body stays cached.
@@ -224,7 +249,10 @@ impl Viewport {
                         depth_slice: None,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(render::CLEAR_COLOR),
+                            load: wgpu::LoadOp::Clear({
+                                let [r, g, b] = c.style.get().background.map(f64::from);
+                                wgpu::Color { r, g, b, a: 1.0 }
+                            }),
                             store: wgpu::StoreOp::Store,
                         },
                     })],

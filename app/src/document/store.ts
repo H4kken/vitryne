@@ -119,6 +119,17 @@ export class DocumentStore {
     this.publish({ empty: false, fileName, entities, rev, refused: null, warnings });
   }
 
+  /** Back to nothing open (the caller asked about unsaved changes first). */
+  close() {
+    clearTimeout(this.drapeTimer);
+    this.undoStack = [];
+    this.redoStack = [];
+    this.gesture = null;
+    this.saved = EMPTY;
+    this.drapeDirty = false;
+    this.publish({ empty: true, fileName: '', entities: EMPTY, rev: this.state.rev + 1, refused: null, warnings: [] });
+  }
+
   /** The document as last opened or saved. */
   get savedEntities(): Entities {
     return this.saved;
