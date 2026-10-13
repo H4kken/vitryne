@@ -13,6 +13,7 @@ use drape_assets::{
     garment::Garment as DxfGarment,
     import::{Choice, DxfImport},
     placement::BodyPlace,
+    seams::EdgePick,
     tshirt::{self, SdfParams, TshirtParams},
 };
 use drape_core::{
@@ -367,6 +368,34 @@ impl VtryFile {
             seed,
         )?;
         Ok(serde_json::to_string(&a).expect("addition serializes"))
+    }
+
+    /// Every whole edge of every cut, free or sewn (`seams::CutEdge[]` as JSON).
+    pub fn sewing_edges(&self) -> Result<String, JsValue> {
+        let r = self.file.sewing_edges()?;
+        Ok(serde_json::to_string(&r).expect("edges serialize"))
+    }
+
+    /// Suggested seams for the edges nothing sews yet (`seams::SeamProposal[]` as JSON). The
+    /// project is unchanged; the editor adds an accepted one as a command.
+    pub fn suggest_seams(&self) -> Result<String, JsValue> {
+        let r = self.file.suggest_seams()?;
+        Ok(serde_json::to_string(&r).expect("proposals serialize"))
+    }
+
+    /// The seam two whole edges make: `a` and `b` are `{cut, from, to}` JSON. Anything that
+    /// isn't a whole edge is refused.
+    pub fn join_edges(&self, a: &str, b: &str) -> Result<String, JsValue> {
+        let a: EdgePick = serde_json::from_str(a).map_err(|e| format!("edge a: {e}"))?;
+        let b: EdgePick = serde_json::from_str(b).map_err(|e| format!("edge b: {e}"))?;
+        let r = self.file.join_edges(&a, &b)?;
+        Ok(serde_json::to_string(&r).expect("proposal serializes"))
+    }
+
+    /// Each seam's length difference, percent, by seam id (JSON object).
+    pub fn seam_differences(&self) -> Result<String, JsValue> {
+        let r = self.file.seam_differences()?;
+        Ok(serde_json::to_string(&r).expect("differences serialize"))
     }
 
     /// Cut `cut` (its id) started again at `place` (a `placement::BodyPlace` name, e.g.

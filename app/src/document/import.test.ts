@@ -57,6 +57,32 @@ describe('import', () => {
     expect(avatar().avatars).toHaveLength(1);
   });
 
+  it('suggests seams for a bare import and refuses anything but whole edges (M8)', () => {
+    const p = JSON.parse(wasm.VtryFile.inspect_dxf('tshirt.dxf', tshirtDxf, '')) as Preview;
+    const glb = readFileSync(resolve(repo, 'app/public/avatar/body.glb'));
+    const f = wasm.VtryFile.import_new('tshirt.dxf', tshirtDxf, '', JSON.stringify(suggested(p)), glb, Date.now(), seed);
+    type Edge = { cut: string; from: string; to: string; length: number; sewn: boolean };
+    type Run = { cut: string; from: string; to: string; direction: string };
+    type Proposal = { a: Run[]; b: Run[]; pairing?: string; score: number; difference_percent: number };
+    const edges = JSON.parse(f.sewing_edges()) as Edge[];
+    expect(edges.length).toBeGreaterThan(10);
+    expect(edges.every((x) => !x.sewn)).toBe(true);
+    // Suggestions: the sides, shoulders, both sleeve caps and underarms of a T-shirt.
+    const proposals = JSON.parse(f.suggest_seams()) as Proposal[];
+    expect(proposals.length).toBeGreaterThanOrEqual(8);
+    expect(proposals.every((x) => x.a.length > 0 && x.b.length > 0)).toBe(true);
+    // Two picks of whole edges make a seam; a corner paired with another edge's end is refused.
+    const a = edges[0]!;
+    const b = edges.find((x) => x.cut !== a.cut)!;
+    const pick = (x: Edge) => JSON.stringify({ cut: x.cut, from: x.from, to: x.to });
+    const made = JSON.parse(f.join_edges(pick(a), pick(b))) as Proposal;
+    expect(made.a).toHaveLength(1);
+    expect(made.b).toHaveLength(1);
+    const partial = JSON.stringify({ cut: a.cut, from: a.from, to: b.to });
+    expect(() => f.join_edges(partial, pick(b))).toThrow();
+    f.free();
+  });
+
   it('adds pieces with their sewing to an open project as one undoable edit', () => {
     const p = JSON.parse(wasm.VtryFile.inspect_dxf('hoodie.dxf', hoodieDxf, hoodieToml)) as Preview;
     expect(p.sewing!.seams).toBeGreaterThan(5);

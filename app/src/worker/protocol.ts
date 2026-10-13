@@ -104,6 +104,14 @@ export interface Requests {
   importAddition: { args: { name: string; dxf: string; sidecar: string; choices: string; seed: number[] }; reply: { addition: string } };
   /** Cut `cut` started again at `place` (Rust `project::Rewrapped`, JSON); nothing changes. */
   rewrap: { args: { cut: string; place: string }; reply: { rewrapped: string } };
+  /** Every whole edge of every cut, sewn or free (Rust `seams::CutEdge[]`, JSON). */
+  sewingEdges: { args: Record<string, never>; reply: { edges: string } };
+  /** Suggested seams for the free edges (Rust `seams::SeamProposal[]`, JSON); nothing changes. */
+  suggestSeams: { args: Record<string, never>; reply: { proposals: string } };
+  /** The seam two whole edges make (`{cut, from, to}` each, JSON); refused unless both are whole edges. */
+  joinEdges: { args: { a: string; b: string }; reply: { proposal: string } };
+  /** Each seam's length difference in percent, by seam id (JSON object). */
+  seamDifferences: { args: Record<string, never>; reply: { differences: string } };
 }
 
 export type Op = keyof Requests;

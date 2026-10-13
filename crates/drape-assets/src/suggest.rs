@@ -198,7 +198,7 @@ fn adjust(edges: &[Edge], a: &[usize], b: &[usize], mut s: f32) -> f32 {
     );
     if ea.iter().chain(&eb).any(|e| e.touches_middle) {
         // Centre hems, centre necks and folds are usually free edges.
-        s -= 0.4;
+        s -= 0.5;
     }
     // (An edge against its own mirrored copy bends the opposite way there, so it is exempt.)
     if a != b && ta.abs() > CURVED && tb.abs() > CURVED && ta * tb > 0.0 {
@@ -243,6 +243,10 @@ fn runs(edges: &[Edge]) -> Vec<Vec<usize>> {
         start = end;
     }
     out
+}
+
+fn side_of(edges: &[Edge], r: &[usize]) -> f32 {
+    r.iter().map(|&e| edges[e].side).sum::<f32>() / r.len().max(1) as f32
 }
 
 fn run_length(edges: &[Edge], r: &[usize]) -> f32 {
@@ -323,6 +327,12 @@ pub fn suggest(pieces: &[Piece], edges: &[Edge]) -> Vec<Suggestion> {
                     || edges[x[0]].piece == edges[y[0]].piece
                     || edges[x[0]].piece == edges[z[0]].piece
                 {
+                    continue;
+                }
+                // The two pieces meet at the junction: a front's left side with a back's right
+                // (opposite sides), not the same side.
+                let (sy, sz) = (side_of(edges, y), side_of(edges, z));
+                if sy.abs() > 0.3 && sz.abs() > 0.3 && sy * sz > 0.0 {
                     continue;
                 }
                 let ly = run_length(edges, y) + run_length(edges, z);
@@ -527,10 +537,12 @@ mod tests {
     /// floors measured in M8 (PROGRESS.md): geometry alone sews the T-shirt, mostly the trousers
     /// (the centre front needs the user), and a third of the hoodie, whose cuff, waistband and
     /// binding strips are interchangeable by length. Raising a floor is fine; lowering one is a
-    /// quality change that needs its reasoning.
+    /// quality change that needs its reasoning. The hoodie's went from 5 to 4 when a centre hem
+    /// stopped being proposed against the other piece's hem (a wrong suggestion on every
+    /// garment) at the price of the pocket bottom, which is sewn along such an edge.
     #[test]
     fn sample_garments() {
-        for (name, floor) in [("tshirt", 10), ("trousers", 5), ("hoodie", 5)] {
+        for (name, floor) in [("tshirt", 10), ("trousers", 5), ("hoodie", 4)] {
             let (found, total, missed, extra) = report(name);
             println!("== {name}: {found}/{total} sidecar seams found");
             for m in &missed {

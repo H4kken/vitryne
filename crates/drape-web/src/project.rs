@@ -11,6 +11,7 @@ use drape_assets::{
     import::{Addition, Choice, DxfImport, import_bounds, rewrap},
     placement::{BodyFacts, BodyPlace},
     project::{Placer, ProjectGarment, avatar_mesh},
+    seams::{self, CutEdge, EdgePick, SeamProposal},
 };
 use drape_core::{
     body::{BodyMesh, SdfParams},
@@ -205,6 +206,31 @@ impl ProjectFile {
             .ok_or("the project has no avatar")?;
         let mesh = avatar_mesh(&self.doc)?.ok_or("the project has no avatar")?;
         Ok((&avatar.regions, mesh.pos))
+    }
+
+    /// Every whole edge of every cut of the first garment, and whether a seam sews it.
+    pub fn sewing_edges(&self) -> Result<Vec<CutEdge>, String> {
+        Ok(seams::cut_edges(ProjectGarment::new(&self.doc)?.garment))
+    }
+
+    /// Suggested seams for the edges nothing sews yet, best first. The user accepts or
+    /// rejects each one; nothing changes here.
+    pub fn suggest_seams(&self) -> Result<Vec<SeamProposal>, String> {
+        Ok(seams::propose(ProjectGarment::new(&self.doc)?.garment))
+    }
+
+    /// The seam two picked whole edges make (docs/PATENTS.md, rule 1: anything else is refused).
+    pub fn join_edges(&self, a: &EdgePick, b: &EdgePick) -> Result<SeamProposal, String> {
+        seams::join(ProjectGarment::new(&self.doc)?.garment, a, b)
+    }
+
+    /// Each seam's length difference in percent, by seam id.
+    pub fn seam_differences(&self) -> Result<BTreeMap<String, f32>, String> {
+        let g = ProjectGarment::new(&self.doc)?.garment;
+        Ok(seams::seam_differences(g)
+            .into_iter()
+            .map(|(id, d)| (id.to_string(), d))
+            .collect())
     }
 
     /// Cut `cut` started again at `place`: a fresh wrap from its size and the body
@@ -405,5 +431,39 @@ mod tests {
         let r = file.rewrap(front, BodyPlace::BodyFront).unwrap();
         let b = r.bounds.unwrap();
         assert_eq!((b.min[1], b.max[1]), (0.0, 1720.0));
+    }
+
+    #[test]
+    fn sewing_calls_on_a_bare_import() {
+        let (mut file, _) = ProjectFile::open(&example_zip("tshirt")).unwrap();
+        // The sample sewn: its edges are sewn, and each seam has a length difference.
+        let sewn = file.sewing_edges().unwrap();
+        assert!(sewn.iter().filter(|e| e.sewn).count() >= 8);
+        assert_eq!(file.seam_differences().unwrap().len(), 10);
+        // Without its seams (a bare import): every edge is free, and suggestions cover it.
+        let mut e: serde_json::Value = serde_json::from_str(&file.entities_json()).unwrap();
+        e["garments"][0]["seams"] = serde_json::json!([]);
+        file.set_entities_json(&e.to_string()).unwrap();
+        let edges = file.sewing_edges().unwrap();
+        assert!(!edges.is_empty() && edges.iter().all(|e| !e.sewn));
+        let proposals = file.suggest_seams().unwrap();
+        assert!(proposals.len() >= 6, "{} proposals", proposals.len());
+        assert!(proposals.iter().all(|p| !p.a.is_empty() && !p.b.is_empty()));
+        // Two picks make a seam; a pick that isn't a whole edge is refused.
+        let a = &edges[0];
+        let b = edges.iter().find(|e| e.cut != a.cut).unwrap();
+        let pick = |e: &CutEdge| EdgePick {
+            cut: e.cut.clone(),
+            from: e.from.clone(),
+            to: e.to.clone(),
+        };
+        assert!(file.join_edges(&pick(a), &pick(b)).is_ok());
+        let bad = EdgePick {
+            cut: a.cut.clone(),
+            from: a.from.clone(),
+            to: b.to.clone(),
+        };
+        assert!(file.join_edges(&bad, &pick(b)).is_err());
+        assert!(file.seam_differences().unwrap().is_empty());
     }
 }

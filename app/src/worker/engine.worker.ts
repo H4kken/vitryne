@@ -133,6 +133,22 @@ const handlers: Handlers = {
   async rewrap({ cut, place }) {
     return { rewrapped: needFile().rewrap(cut, place) };
   },
+
+  async sewingEdges() {
+    return { edges: needFile().sewing_edges() };
+  },
+
+  async suggestSeams() {
+    return { proposals: needFile().suggest_seams() };
+  },
+
+  async joinEdges({ a, b }) {
+    return { proposal: needFile().join_edges(a, b) };
+  },
+
+  async seamDifferences() {
+    return { differences: needFile().seam_differences() };
+  },
 };
 
 function needFile(): VtryFile {

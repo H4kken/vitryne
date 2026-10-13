@@ -252,6 +252,26 @@ export class EngineSession {
     return (await this.need().request('rewrap', { cut, place })).rewrapped;
   }
 
+  /** Every whole edge of every cut (`seams::CutEdge[]`, JSON). */
+  async sewingEdges(): Promise<string> {
+    return (await this.need().request('sewingEdges', {})).edges;
+  }
+
+  /** Suggested seams (`seams::SeamProposal[]`, JSON): the user accepts or rejects each. */
+  async suggestSeams(): Promise<string> {
+    return (await this.need().request('suggestSeams', {})).proposals;
+  }
+
+  /** The seam two whole edges make (`seams::SeamProposal`, JSON); a pick that isn't a whole edge is refused. */
+  async joinEdges(a: string, b: string): Promise<string> {
+    return (await this.need().request('joinEdges', { a, b })).proposal;
+  }
+
+  /** Each seam's length difference in percent, by seam id (JSON). */
+  async seamDifferences(): Promise<string> {
+    return (await this.need().request('seamDifferences', {})).differences;
+  }
+
   /** The worker's document as a file (validated and read back in Rust). */
   async save(rev: number, form: FileData['form']): Promise<FileData> {
     const { data } = await this.need().request('save', { rev, form });
