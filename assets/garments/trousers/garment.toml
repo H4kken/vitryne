@@ -1,6 +1,7 @@
 # Straight trousers: FreeSewing Titan (trouser block, MIT), drafted at the avatar's measurements,
 # exported as DXF-AAMA by tools/patterns/export-all.sh (ankle length: lengthBonus -6%).
-# Front and back are cut twice (left/right).
+# Front and back are cut twice (left/right). Pieces are listed piece by piece (both fronts, then
+# both backs), the order a project file has them in, so both paths number vertices the same.
 name = "trousers-titan"
 dxf = "trousers.dxf"
 
@@ -24,15 +25,15 @@ dxf = "front"
 place = { frame = "leg_r", angle = 0, radius = 0.12, top = 1.12 }
 
 [[piece]]
-name = "back_r"
-dxf = "back"
-place = { frame = "leg_r", angle = 180, radius = 0.12, top = 1.12 }
-
-[[piece]]
 name = "front_l"
 dxf = "front"
 mirror = true
 place = { frame = "leg_l", angle = 0, radius = 0.12, top = 1.12 }
+
+[[piece]]
+name = "back_r"
+dxf = "back"
+place = { frame = "leg_r", angle = 180, radius = 0.12, top = 1.12 }
 
 [[piece]]
 name = "back_l"

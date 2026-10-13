@@ -4,16 +4,16 @@
     "vertices": 10243,
     "frames": 600,
     "rest_frame": 179,
-    "max_speed": 2.881904,
+    "max_speed": 2.8818848,
     "non_finite_frames": 0,
     "max_penetration_mm": 0.0,
     "self_intersections": 0,
     "persistent_pairs": 0,
-    "strain_p50": 0.0019552708,
-    "strain_p90": 0.01680088,
-    "strain_p99": 0.0543046,
-    "strain_max": 0.21568608,
-    "max_seam_gap_mm": 1.1810567
+    "strain_p50": 0.001956582,
+    "strain_p90": 0.016806364,
+    "strain_p99": 0.054317355,
+    "strain_max": 0.2151376,
+    "max_seam_gap_mm": 1.1800122
   },
   "settings": {
     "air_drag": 4.0,
