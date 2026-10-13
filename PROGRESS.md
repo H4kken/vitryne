@@ -5,7 +5,8 @@ Vitryne MVP, milestone by milestone. The spike that produced the engine has its 
 [docs/history/REPORT.md](docs/history/REPORT.md).
 
 Machine so far: MacBook Air, Apple M2 (integrated GPU), macOS (Darwin 27). Rust 1.99.0,
-wgpu 30.0.1, wasm-bindgen 0.2.129, Node 24.15, Vite 8.3.1, Chrome 150.
+wgpu 30.0.1, wasm-bindgen 0.2.129, Node 24.15, Vite 8.3.1, Chrome 150; the editor: React 19.3,
+TypeScript 6.0, Tailwind 4.3, vitest 5.0.
 
 **How to build, run and check:** [CONTRIBUTING.md](CONTRIBUTING.md). Benchmark and analysis
 scripts: [tools/README.md](tools/README.md).
@@ -559,3 +560,83 @@ as a solver regression.
 - A garment file (`.vtryg`, no avatar) is placed on the test avatar.
 - `tools/format/validate.py` (Python) stays as an independent check of the zips; the Rust tests
   cover the same rules plus the schemas.
+
+---
+
+## M6 — Editor shell ✅ (2026-10-13)
+
+**Done-when:** each sample project opens, shows its pieces in 2D and its drape in 3D, can be
+dragged without the UI freezing, and saves back byte-identical, both unedited and after edits
+that are then undone; edits to fabric, labels and settings work and undo; `./check` passes ✅.
+Checked in Chrome on the M2 (real GPU, driven over CDP); Safari not checked yet (see the open
+items).
+
+### What's there
+
+| Path | What |
+|---|---|
+| [app/](app/) | The editor: Vite, React, TypeScript, Tailwind + shadcn/ui. 2D pattern panel (SVG: outlines, folds, grain lines, notches, internal lines; zoom, pan, select), 3D viewport (orbit, zoom, cloth drag, play/pause/fast/restart), properties (names, fabric, mesh resolution, self-collision), File menu with the three examples, undo/redo, status bar. A clear page when WebGPU is missing. `bench.html` moved here, in TypeScript; `web/` and the old canvas viewer are gone. |
+| `app/src/worker/` | The engine in a Web Worker on an OffscreenCanvas; the typed protocol; `EngineSession`, which restarts the worker after a panic, a lost device or an error and puts the document back. |
+| `app/src/document/` | The document as the file's JSON, commands (the only way it changes), `DocumentStore` (undo/redo, gestures, Rust confirmation and rollback, debounced re-drapes). |
+| `app/src/storage/` | `ProjectStorage` (local now; cloud in M12): File System Access API where available, upload/download elsewhere, folder projects; the IndexedDB recovery copy. |
+| [crates/drape-render](crates/drape-render/) | The renderer, out of drape-core (which now has no rendering). |
+| `crates/drape-web` | `VtryFile` (open zip or folder, entities out and in with validation, checked saves), `PreparedScene`, `Viewport`. |
+| `vitryne-format` | `Document::entities` / `set_entities` (atomic, validated), `to_zip_checked` / `to_entries_checked`, physical range checks, exact float parsing (`float_roundtrip`). |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/HOSTING.md](docs/HOSTING.md) | How the editor is built and its guardrails; the COOP/COEP headers for nginx, Caddy and static hosts. |
+
+The guardrails (details in ARCHITECTURE.md): the document is deep-frozen in development and
+tests; commands record whole entities before and after, so undo is exact; a command checks the
+JSON Schema of what it produces before it exists; Rust validates every new state in the worker
+and a refusal rolls back with the reason; a save waits for Rust, is read back in Rust and then
+from disk; revisions drop stale drapes; crashes restart the worker without losing edits; an
+unsaved-changes dialog, the leave-page prompt, and a recovery copy.
+
+### Numbers (Chrome 150, M2, 10k vertices)
+
+| | T-shirt | Trousers | Hoodie |
+|---|---|---|---|
+| Open an example → first drape frame | 0.90 s | 1.19 s | 1.27 s |
+| Bundled SDF loaded (instead of a ~9 s bake) | 33 ms | 15 ms | not timed |
+| GPU work per frame at rest (sim + render, sampled) | 8.4–10.5 ms | 13.1–13.5 ms | 16.4 ms |
+| Worker frames, at rest and while dragging | 60 fps | 60 fps | 60 fps |
+| UI thread while dragging the cloth: fps, longest frame gap | 60, 17 ms | 60, 18 ms | 60, 34 ms |
+
+- Rust validation of a whole document per edit (`set_entities`, the worker's wasm in Node): 1.1 ms
+  for the T-shirt. A saved, unedited example and a saved, edited-then-undone one are
+  byte-identical to the original (491,877 bytes); an edited one differs.
+- Bench page from `app/`: T-shirt 10k with self-collision, 7.1 ms per frame pipelined, 8.7 ms
+  serial median, cross-origin isolated, no NaN frames.
+- Production bundle: wasm 3.0 MB (880 KB gzipped), UI 549 KB JS (144 KB gzipped), worker 43 KB,
+  CSS 43 KB. The bundled SDFs are 32–50 MB each (about a third gzipped; HOSTING.md says to
+  compress them).
+- Tests: 44 Rust (new: the worker's open → edit → undo → save path and the folder form on the
+  examples, entities through JSON text, refused edits change nothing, physical ranges), 28
+  TypeScript, among them 3 property tests of 40 random sessions of up to 25 edits, undos and
+  redos per example, checked against Rust after every step. A planted key-order bug in undo
+  failed them on the first run with a one-step counterexample.
+
+### Changes outside the editor
+
+- **The examples carry their simulation settings.** Sidecars take an `[engine]` table; the three
+  set `self_collision = true` and `self_rebuild_every = 4` (how they were always measured and
+  the regression setting), so the editor and `drape view` drape them like the goldens without
+  flags. Goldens unchanged.
+- `SdfParams::cache_key` is shared by the CLI's cache and the browser; the SDF bake reports
+  progress.
+- `drape export-app-assets` (example zips, index, their SDFs by key); `export-web-assets` is now
+  `export-bench-assets`.
+
+### Notes and open items
+
+- **Safari is not checked.** The browser checks here ran in Chrome only. Worth a manual pass on
+  Safari 26 (open, drag, edit, save as download, recovery): it has OffscreenCanvas and WebGPU in
+  workers, but `requestAnimationFrame` in a worker may be missing, in which case the UI sends
+  frame ticks (implemented, not exercised).
+- The bench page runs on the main thread, as before, not in the editor's worker: its numbers stay
+  comparable with M1–M3. The plan said "same worker"; the wasm build is the same.
+- "GPU ms per frame" in the status bar is sampled once a second and jumps while dragging
+  (10–31 ms seen with 60 fps held); read it as a rough load indicator.
+- Not in M6 by plan: moving pieces (M7), the file's own 2D layout (`cut.layout`; pieces are laid
+  out side by side for now), camera edits.
+- A recovery copy left by another open tab is offered too (records are per tab, the newest is
+  offered).

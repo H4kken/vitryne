@@ -57,19 +57,20 @@ The first run bakes the body SDF (about 1–2 s) and caches it in `target/sdf-ca
 **Browser:**
 
 ```sh
-cd web
+cd app
 npm ci
-npm run dev        # builds the wasm, exports the assets, serves http://localhost:5173
-npm run build      # production build in web/dist
+npm run dev        # builds the wasm, exports the examples and SDFs, serves http://localhost:5173
+npm run build      # production build in app/dist
+npm run check      # format types up to date, tsc, eslint, vitest (needs `npm run wasm` and `npm run assets` once)
 ```
 
-The page needs cross-origin isolation, so whatever serves it must send these headers (the dev
-server and `vite preview` already do):
+The editor (`app/`) is TypeScript, React, Tailwind and shadcn/ui; how it is built, and the
+rules it follows, are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). After changing
+`docs/format/schema/`, run `npm run gen:format` to regenerate the types and validators.
 
-```
-Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: require-corp
-```
+The app needs cross-origin isolation, so whatever serves it must send two headers (the dev
+server and `vite preview` already do); [docs/HOSTING.md](docs/HOSTING.md) has them for nginx,
+Caddy and static hosts.
 
 The bench page is at `/bench.html`. Benchmark scripts are in [tools/bench/](tools/bench/), and
 their output goes to `bench-out/`, which git ignores.
@@ -87,9 +88,11 @@ It checks:
 - SPDX headers, and that no file over 1 MiB is committed outside Git LFS;
 - `cargo fmt --check`;
 - `cargo clippy -D warnings`, natively and for wasm32;
-- `cargo test`;
-- the wasm build and the production web bundle;
-- the web code (a syntax check for now; TypeScript typecheck and lint once the app lands);
+- `cargo test` (including the worker's open, edit, undo, save path on the three examples);
+- the app: the wasm build, the production bundle, the format types and validators up to date with
+  `docs/format/schema/`, `tsc`, eslint, and vitest (commands and guardrails, and random edit
+  sessions checked against the worker's Rust after every step);
+- that `examples/` is what `drape convert` writes;
 - the golden regression suite on your GPU (`drape regress`): the three sample garments at 10k
   vertices, 600 frames, compared with `tests/regression/` on rest frame, final shape (0.5 mm;
   20 mm for the hoodie, whose neck junction is chaotic), penetration, self-intersections, edge

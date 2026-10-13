@@ -5,7 +5,8 @@
 export type GpuCheck = { ok: true } | { ok: false; reason: string };
 
 export async function checkWebGpu(): Promise<GpuCheck> {
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
+  // Typed as always there; it isn't in browsers without WebGPU.
+  const gpu = navigator.gpu as GPU | undefined;
   if (!gpu) return { ok: false, reason: 'This browser has no WebGPU.' };
   if (typeof OffscreenCanvas === 'undefined' || !('transferControlToOffscreen' in HTMLCanvasElement.prototype)) {
     return { ok: false, reason: 'This browser cannot draw from a worker (no OffscreenCanvas).' };

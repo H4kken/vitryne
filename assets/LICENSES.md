@@ -15,8 +15,9 @@ under the AGPL like the code.
 placement sidecars, `body/measurements.json` (measured on the CC0 mesh by
 `tools/patterns/measure.py`), `body/convert.py`, and the READMEs.
 
-**Generated, not in the repository:** the body SDFs (`target/sdf-cache/`, `web/public/assets/`)
-are baked from the CC0 mesh at build time by `drape export-web-assets`.
+**Generated, not in the repository:** the body SDFs (`target/sdf-cache/`, `app/public/sdf/`,
+`app/public/bench-assets/`) are baked from the CC0 mesh at build time by `drape
+export-app-assets` and `drape export-bench-assets`.
 
 **Build-time dependencies, not in the repository:** `tools/patterns` drafts the DXFs with the
 FreeSewing npm packages (MIT). Rust crates and npm packages are fetched by `cargo` and `npm`

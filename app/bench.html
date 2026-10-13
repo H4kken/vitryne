@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>drape-spike bench</title>
+  <title>Vitryne bench</title>
   <style>
     body { margin: 0; padding: 16px; background: #111; color: #ddd; font: 13px/1.45 ui-monospace, monospace; }
     h1 { font-size: 15px; margin: 0 0 12px; }
@@ -21,7 +21,7 @@
   </style>
 </head>
 <body>
-  <h1>drape-spike benchmark (same code as <code>drape bench</code> / <code>drape bench-drag</code>)</h1>
+  <h1>Vitryne engine benchmark (same code as <code>drape bench</code> / <code>drape bench-drag</code>)</h1>
   <div>
     <label>mode <select id="mode">
       <option value="tshirt" selected>T-shirt drape</option>
@@ -56,6 +56,6 @@
   <p id="status">idle</p>
   <div class="wrap"><table id="table"></table></div>
   <pre id="report"></pre>
-  <script type="module" src="/bench.js"></script>
+  <script type="module" src="/src/bench/bench.ts"></script>
 </body>
 </html>

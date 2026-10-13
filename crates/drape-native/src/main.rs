@@ -11,8 +11,8 @@
 //!                           the golden regression suite (examples/*.vtry, 10k, 600 frames);
 //!                           exit 1 on any difference beyond tolerance, --update re-records,
 //!                           --toml drapes the garment.toml sidecars instead (same goldens)
-//!   drape export-web-assets <dir>
-//!                           body OBJ + baked SDF (.bin) for the web pages
+//!   drape export-bench-assets <dir>
+//!                           body OBJ, baked SDFs and the garments for the bench page
 //!   drape export-app-assets <dir>
 //!                           for the editor: examples/*.vtry as zips (+ examples/index.json)
 //!                           and each one's body SDF, sdf/<key>.bin (see SdfParams::cache_key)
@@ -142,11 +142,11 @@ fn main() {
             let dir = args.get(1).cloned().unwrap_or_else(|| "app/public".into());
             export_app_assets(&dir);
         }
-        "export-web-assets" => {
+        "export-bench-assets" => {
             let dir = args
                 .get(1)
                 .cloned()
-                .unwrap_or_else(|| "web/public/assets".into());
+                .unwrap_or_else(|| "app/public/bench-assets".into());
             std::fs::create_dir_all(&dir).unwrap();
             let obj = std::fs::read_to_string(BODY_OBJ).expect("body obj");
             let body = BodyQuery::new(BodyMesh::from_obj(&obj).expect("parse body obj"));
@@ -255,7 +255,7 @@ fn main() {
         }
         other => {
             eprintln!(
-                "unknown command '{other}' (view | bench | bench-drag | regress | frames | export-web-assets | export-app-assets | convert | garment-svg | pattern-svg | info | snapshot)"
+                "unknown command '{other}' (view | bench | bench-drag | regress | frames | export-bench-assets | export-app-assets | convert | garment-svg | pattern-svg | info | snapshot)"
             );
             std::process::exit(2);
         }

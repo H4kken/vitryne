@@ -24,4 +24,4 @@ wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
 console_log = "1"
-web-sys = { version = "0.3", features = ["Window", "Document", "HtmlCanvasElement", "Element", "OffscreenCanvas"] }
+web-sys = { version = "0.3", features = ["OffscreenCanvas"] }

@@ -40,17 +40,20 @@ if [ "$quick" = 1 ]; then
   exit 0
 fi
 
-step "web: wasm build + production bundle"
-[ -d web/node_modules ] || (cd web && npm ci)
-(cd web && npm run build)
+step "app: wasm, assets, production bundle"
+# npm run build: the wasm (browser + Node), the bundled examples and SDFs, tsc, vite build.
+[ -d app/node_modules ] || (cd app && npm ci)
+(cd app && npm run build)
 
-step "web: syntax check"
-# The viewer is plain JS until the TypeScript app arrives (M6); then this becomes tsc + eslint.
-for f in $(git ls-files 'web/*.js' 'web/*.mjs' 'tools/*.mjs'); do node --check "$f"; done
+step "app: format types up to date, typecheck, lint, tests"
+# The TypeScript types and validators are generated from docs/format/schema/; the tests run
+# the commands and guardrails against the worker's Rust (Node build of the same wasm),
+# including random edit sessions on the three examples (fast-check).
+(cd app && npm run check)
+
+step "tools: syntax check"
+for f in $(git ls-files 'tools/*.mjs'); do node --check "$f"; done
 echo ok
-
-step "app: typecheck + lint"
-echo "skipped: app/ arrives in M6"
 
 step "example projects are up to date"
 # examples/*.vtry are `drape convert` output; after a change to the converter or a sidecar,

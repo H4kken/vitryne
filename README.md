@@ -3,9 +3,9 @@
 **Open-source garment design in the browser.** Import a sewing pattern, place it around a body,
 sew it, pick a fabric, and watch it drape in 3D, on your own GPU, for free.
 
-> **Status: early development.** The cloth engine works, natively and in the browser. The
-> editor doesn't exist yet. [PROGRESS.md](PROGRESS.md) tracks the work toward the first usable
-> version.
+> **Status: early development.** The cloth engine works, natively and in the browser, and the
+> editor's first shell opens, edits and saves projects. Importing and sewing patterns in the
+> editor come next. [PROGRESS.md](PROGRESS.md) tracks the work toward the first usable version.
 
 <!-- A GIF of the drape goes here (M11). -->
 
@@ -17,7 +17,10 @@ sew it, pick a fabric, and watch it drape in 3D, on your own GPU, for free.
   each piece starts around the body.
 - Three sample garments (a T-shirt, trousers and a hoodie, from FreeSewing) and a sample avatar
   (MakeHuman).
-- A native viewer, a browser viewer and benchmarks. On an Apple M2, a 20k-vertex T-shirt comes
+- The editor shell in the browser: open a `.vtry` project (or a sample), see its pattern in 2D
+  and its drape in 3D, drag the cloth, edit the fabric, names and simulation settings with undo,
+  and save, with a recovery copy if the tab closes.
+- A native viewer and benchmarks. On an Apple M2, a 20k-vertex T-shirt comes
   to rest in about 1 s, and dragging it runs at 55+ fps in Chrome and Safari.
 
 The engine's history and numbers from the original spikes are in [docs/history/](docs/history/).
@@ -30,13 +33,14 @@ export glTF or OBJ, all in the browser, with nothing to install and no account.
 ## Browser requirements
 
 Vitryne needs **WebGPU**. Tested so far: Chrome and Safari on an Apple M2 Mac. Not yet tested:
-Firefox, and Windows. Without WebGPU, today's viewer only shows a technical error; the editor
-will explain what to do.
+Firefox, and Windows. Without WebGPU, the editor says so and names the browsers that work.
+Saving over the opened file needs the File System Access API (Chrome, Edge); elsewhere a save
+downloads the file.
 
 ## Try it locally
 
 ```sh
-cd web && npm ci && npm run dev       # then open http://localhost:5173
+cd app && npm ci && npm run dev       # then open http://localhost:5173
 ```
 
 You need Rust, the wasm target, `wasm-bindgen-cli` and Node; see

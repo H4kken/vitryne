@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! wasm entry points. The same drape-core and drape-assets as native; WebGPU backend only (no
-//! WebGL fallback). Builds natively too (only the canvas viewers are wasm-only), so
+//! WebGL fallback). Builds natively too (only the viewport is wasm-only), so
 //! `cargo test --workspace` and rust-analyzer check it.
 //!
 //! The editor's worker uses `VtryFile` (open, validate, save: no GPU, so the app's tests run it
@@ -324,10 +324,6 @@ impl PreparedScene {
 }
 
 pub mod project;
-#[cfg(target_arch = "wasm32")]
-mod viewer;
-#[cfg(target_arch = "wasm32")]
-pub use viewer::App;
 #[cfg(target_arch = "wasm32")]
 mod viewport;
 #[cfg(target_arch = "wasm32")]

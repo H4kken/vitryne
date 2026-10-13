@@ -1,10 +1,6 @@
 /target
-/web/node_modules
-/web/pkg
-/web/dist
 *.ppm
 .DS_Store
 /.gstack
-/web/public/assets
 /bench-out
 __pycache__/

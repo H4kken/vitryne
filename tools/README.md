@@ -20,7 +20,7 @@ which git ignores.
 # Drape matrix, native: 3 garments x {10k, 20k}, self-collision on
 tools/bench/run.sh drape bench-out/drape/native
 
-# The same in Chrome (serve the page first: cd web && npm run dev)
+# The same in Chrome (serve the page first: cd app && npm run dev)
 TARGET=chrome tools/bench/run.sh drape bench-out/drape/chrome
 python3 tools/bench/compare.py bench-out/drape/native bench-out/drape/chrome
 
