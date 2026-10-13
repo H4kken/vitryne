@@ -401,3 +401,60 @@ fn written_parts_match_the_schemas() {
         }
     }
 }
+
+/// The editor's path: entities out as JSON text (what the worker sends), back in, saved. The
+/// numbers survive JavaScript's single number type, and the file is byte-identical.
+#[test]
+fn entities_round_trip_through_json_text() {
+    for name in EXAMPLES {
+        let mut doc = Document::open(&example(name)).unwrap().doc;
+        let zip = doc.to_zip().unwrap();
+        let text = serde_json::to_string(&doc.entities()).unwrap();
+        // What JSON.parse then JSON.stringify gives: integers and floats are one type.
+        let js: Value = serde_json::from_str(&text).unwrap();
+        let js = serde_json::to_string(&js)
+            .unwrap()
+            .replace(".0,", ",")
+            .replace(".0]", "]");
+        doc.set_entities(serde_json::from_str(&js).unwrap())
+            .unwrap();
+        assert_eq!(doc.to_zip_checked().unwrap(), zip, "{name}");
+    }
+}
+
+#[test]
+fn invalid_entities_are_refused_and_change_nothing() {
+    let mut doc = Document::open(&example("tshirt")).unwrap().doc;
+    let before = doc.clone();
+    let mut e = doc.entities();
+    e.garments[0]["fabric"] = json!("01a13cdb-cc03-7000-8000-000000000000");
+    let err = doc.set_entities(e).unwrap_err();
+    assert!(err.to_string().contains("fabric"), "{err}");
+    let mut e = doc.entities();
+    e.fabrics[0]["density"] = json!("heavy");
+    assert!(doc.set_entities(e).is_err());
+    let mut e = doc.entities();
+    e.kind = Kind::Fabric;
+    assert!(doc.set_entities(e).is_err());
+    assert_eq!(doc, before);
+    // A valid edit applies; an unknown member keeps its 1.0 through a JavaScript round trip.
+    let mut e = doc.entities();
+    e.fabrics[0]["friction"] = json!(0.4);
+    e.fabrics[0]["futureScale"] = json!(1.0);
+    doc.set_entities(e).unwrap();
+    let mut e = doc.entities();
+    e.fabrics[0]["futureScale"] = json!(1);
+    e.fabrics[0]["name"] = json!("Renamed");
+    doc.set_entities(e).unwrap();
+    assert_eq!(doc.fabrics[0].friction, 0.4);
+    let written = String::from_utf8(
+        doc.to_entries()
+            .unwrap()
+            .into_iter()
+            .find(|(p, _)| p.starts_with("fabrics/"))
+            .unwrap()
+            .1,
+    )
+    .unwrap();
+    assert!(written.contains("\"futureScale\": 1.0"), "{written}");
+}

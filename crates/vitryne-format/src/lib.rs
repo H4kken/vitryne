@@ -20,6 +20,7 @@
 
 pub mod container;
 mod document;
+mod entities;
 pub mod glb;
 pub mod id;
 pub mod json;
@@ -29,6 +30,7 @@ pub mod model;
 mod validate;
 
 pub use document::{Document, File, Opened};
+pub use entities::Entities;
 pub use id::{Id, IdGen};
 pub use manifest::Kind;
 pub use model::*;

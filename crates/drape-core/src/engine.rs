@@ -97,9 +97,20 @@ impl Body {
 
     /// As `load`, from a mesh already read (a project's glTF avatar).
     pub fn from_mesh(name: &str, mesh: BodyMesh, opts: &BodyOptions) -> Result<Body, String> {
+        Self::from_mesh_with_progress(name, mesh, opts, &mut |_| {})
+    }
+
+    /// As `from_mesh`, reporting how much of an SDF bake is done (see
+    /// `Sdf::bake_with_progress`).
+    pub fn from_mesh_with_progress(
+        name: &str,
+        mesh: BodyMesh,
+        opts: &BodyOptions,
+        progress: &mut dyn FnMut(f32),
+    ) -> Result<Body, String> {
         let query = Arc::new(BodyQuery::new(mesh));
         let sdf = match &opts.sdf {
-            SdfSource::Bake(p) => p.bake(&query),
+            SdfSource::Bake(p) => p.bake_with_progress(&query, progress),
             SdfSource::Bytes(b) => Sdf::from_bytes(b).ok_or("bad SDF bytes")?,
         };
         let bm = &query.mesh;

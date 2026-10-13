@@ -10,6 +10,10 @@
   },
   "fabric": "01a13cdb-cc03-7433-bee6-fababed9f2a8",
   "simulation": {
+    "engine": {
+      "self_collision": true,
+      "self_rebuild_every": 4
+    },
     "collisionBounds": {
       "min": [-550.0, 600.0, -250.0],
       "max": [550.0, 1720.0, 350.0]

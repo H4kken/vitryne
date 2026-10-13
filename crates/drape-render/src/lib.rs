@@ -13,6 +13,13 @@ use drape_core::{mesh::ClothMesh, scene::RenderMesh, sim::Solver};
 pub const NORMALS_SHADER: &str = include_str!("../shaders/normals.wgsl");
 pub const SHADER: &str = include_str!("../shaders/render.wgsl");
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+/// The background.
+pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
+    r: 0.09,
+    g: 0.09,
+    b: 0.11,
+    a: 1.0,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct OrbitCamera {
@@ -439,12 +446,7 @@ impl Renderer {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.09,
-                        g: 0.09,
-                        b: 0.11,
-                        a: 1.0,
-                    }),
+                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
                     store: wgpu::StoreOp::Store,
                 },
             })],

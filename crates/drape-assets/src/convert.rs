@@ -508,10 +508,11 @@ pub fn convert(g: &DxfGarment, opts: &ConvertOptions) -> Result<Document, String
         });
     }
     // Simulation: the SDF box as collision bounds (always written, so the drape doesn't
-    // change), its resolution and the ramp only when they differ from the engine's defaults.
+    // change), its resolution and the ramp only when they differ from the engine's defaults,
+    // and the sidecar's own engine overrides.
     let sdf = g.sdf_params();
     let d = SdfParams::default();
-    let mut engine = Map::new();
+    let mut engine = spec.engine.clone().unwrap_or_default();
     if sdf.cell != d.cell {
         engine.insert("sdf_cell".into(), exact(sdf.cell).into());
     }

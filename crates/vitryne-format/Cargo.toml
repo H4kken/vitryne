@@ -8,7 +8,8 @@ publish.workspace = true
 
 [dependencies]
 serde.workspace = true
-serde_json = { workspace = true, features = ["preserve_order"] }
+# float_roundtrip: numbers parse to the exact double JavaScript gives them (the editor's JSON).
+serde_json = { workspace = true, features = ["preserve_order", "float_roundtrip"] }
 sha2 = "0.11"
 # Deflate and Store only (FORMAT.md, Container), in pure Rust so it builds for wasm32.
 zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! wasm entry points. The same drape-core and drape-assets as native; WebGPU backend only (no
-//! WebGL fallback). Builds natively too (only the canvas viewer is wasm-only), so
+//! WebGL fallback). Builds natively too (only the canvas viewers are wasm-only), so
 //! `cargo test --workspace` and rust-analyzer check it.
+//!
+//! The editor's worker uses `VtryFile` (open, validate, save: no GPU, so the app's tests run it
+//! in Node too), `PreparedScene` and `Viewport` (the drape on an OffscreenCanvas). The bench
+//! page uses `run_bench`, `run_drag_bench` and `bake_sdf_ms`.
 
 use std::sync::Arc;
 
@@ -226,7 +230,75 @@ pub fn bake_sdf_ms(obj: String) -> Result<f64, JsValue> {
     Ok(ms)
 }
 
+/// A `.vtry` project in the worker (`project::ProjectFile`). Errors are strings for the UI.
+#[wasm_bindgen]
+pub struct VtryFile {
+    file: project::ProjectFile,
+    warnings: Vec<String>,
+}
+
+#[wasm_bindgen]
+impl VtryFile {
+    /// Opens a `.vtry` zip; refuses anything that isn't a valid project.
+    pub fn open(bytes: &[u8]) -> Result<VtryFile, JsValue> {
+        let (file, report) = project::ProjectFile::open(bytes)?;
+        Ok(VtryFile {
+            file,
+            warnings: report.warnings,
+        })
+    }
+
+    /// What opening noticed without refusing the file (JSON array of strings).
+    pub fn warnings(&self) -> String {
+        serde_json::to_string(&self.warnings).expect("strings serialize")
+    }
+
+    /// The entities as JSON text (`vitryne_format::Entities`).
+    pub fn entities(&self) -> String {
+        self.file.entities_json()
+    }
+
+    /// Replaces the entities if they are valid, else changes nothing and throws why. Returns the
+    /// warnings (JSON array).
+    pub fn set_entities(&mut self, json: &str) -> Result<String, JsValue> {
+        let w = self.file.set_entities_json(json)?;
+        Ok(serde_json::to_string(&w).expect("strings serialize"))
+    }
+
+    /// The `.vtry` bytes, already read back and checked.
+    pub fn save(&self) -> Result<Vec<u8>, JsValue> {
+        Ok(self.file.save()?)
+    }
+
+    /// Meshes and places the garment for `Viewport::load` (CPU, tens of ms).
+    pub fn prepare(&self) -> Result<PreparedScene, JsValue> {
+        Ok(PreparedScene {
+            inner: self.file.prepare()?,
+        })
+    }
+}
+
+/// A garment meshed and placed, waiting for its body (see `PreparedInfo`).
+#[wasm_bindgen]
+pub struct PreparedScene {
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    inner: project::Prepared,
+}
+
+#[wasm_bindgen]
+impl PreparedScene {
+    /// `project::PreparedInfo` as JSON: the SDF key, vertices, warnings.
+    pub fn info(&self) -> String {
+        serde_json::to_string(&self.inner.info).expect("info serializes")
+    }
+}
+
+pub mod project;
 #[cfg(target_arch = "wasm32")]
 mod viewer;
 #[cfg(target_arch = "wasm32")]
 pub use viewer::App;
+#[cfg(target_arch = "wasm32")]
+mod viewport;
+#[cfg(target_arch = "wasm32")]
+pub use viewport::Viewport;

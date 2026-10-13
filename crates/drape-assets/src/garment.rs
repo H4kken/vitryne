@@ -51,6 +51,10 @@ pub struct GarmentSpec {
     pub sdf: Option<SdfParams>,
     #[serde(default)]
     pub schedule: Option<Schedule>,
+    /// Engine overrides for the project file (`simulation.engine`, drape-core `SimSettings`
+    /// names), e.g. `self_collision = true`. Only `drape convert` uses them.
+    #[serde(default)]
+    pub engine: Option<serde_json::Map<String, serde_json::Value>>,
     /// Fabric; default `Material::cotton()` (the spike-1 jersey placeholder).
     #[serde(default)]
     pub material: Option<MaterialSpec>,

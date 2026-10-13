@@ -13,6 +13,9 @@
 //!                           --toml drapes the garment.toml sidecars instead (same goldens)
 //!   drape export-web-assets <dir>
 //!                           body OBJ + baked SDF (.bin) for the web pages
+//!   drape export-app-assets <dir>
+//!                           for the editor: examples/*.vtry as zips (+ examples/index.json)
+//!                           and each one's body SDF, sdf/<key>.bin (see SdfParams::cache_key)
 //!   drape frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
 //!                           headless: render the sim at those frames to PNGs
 //!   drape info              print adapter report as JSON and exit
@@ -135,6 +138,10 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        "export-app-assets" => {
+            let dir = args.get(1).cloned().unwrap_or_else(|| "app/public".into());
+            export_app_assets(&dir);
+        }
         "export-web-assets" => {
             let dir = args
                 .get(1)
@@ -248,7 +255,7 @@ fn main() {
         }
         other => {
             eprintln!(
-                "unknown command '{other}' (view | bench | bench-drag | regress | frames | export-web-assets | convert | garment-svg | pattern-svg | info | snapshot)"
+                "unknown command '{other}' (view | bench | bench-drag | regress | frames | export-web-assets | export-app-assets | convert | garment-svg | pattern-svg | info | snapshot)"
             );
             std::process::exit(2);
         }
@@ -568,19 +575,55 @@ const BODY_OBJ: &str = "assets/body/makehuman_body_m.obj";
 /// Where a baked SDF is cached: target/sdf-cache/, keyed by the body mesh and the SDF
 /// parameters (so the OBJ and a project's glTF of the same mesh share one bake).
 fn sdf_cache_path(mesh: &BodyMesh, p: &SdfParams) -> String {
-    let mut h: u64 = 0xcbf29ce484222325;
-    let params = serde_json::to_string(p).unwrap();
-    let bytes = mesh
-        .pos
-        .iter()
-        .flat_map(|v| v.to_array())
-        .flat_map(f32::to_le_bytes)
-        .chain(mesh.tris.iter().flatten().flat_map(|i| i.to_le_bytes()))
-        .chain(params.bytes());
-    for b in bytes {
-        h = (h ^ b as u64).wrapping_mul(0x100000001b3);
+    format!("target/sdf-cache/{}.bin", p.cache_key(mesh))
+}
+
+/// The editor's bundled examples: each `examples/<name>.vtry` folder as a zip, its body SDF
+/// under the key the browser computes (so opening an example never bakes), and an index.
+fn export_app_assets(dir: &str) {
+    std::fs::create_dir_all(format!("{dir}/examples")).expect("examples dir");
+    std::fs::create_dir_all(format!("{dir}/sdf")).expect("sdf dir");
+    let mut index = Vec::new();
+    let mut names: Vec<String> = std::fs::read_dir("examples")
+        .expect("examples/")
+        .filter_map(|e| e.ok()?.file_name().into_string().ok())
+        .filter(|n| n.ends_with(".vtry"))
+        .collect();
+    names.sort();
+    for name in names {
+        let doc = open_project(&format!("examples/{name}"));
+        let file = format!("{dir}/examples/{name}");
+        std::fs::write(
+            &file,
+            doc.to_zip().unwrap_or_else(|e| panic!("{name}: {e}")),
+        )
+        .expect("write example");
+        let pg = ProjectGarment::new(&doc).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let edge = pg
+            .edge_for_vertices(pg.target_vertices())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let desc = pg.build(edge).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let mesh = avatar_mesh(&doc)
+            .unwrap_or_else(|e| panic!("{name}: {e}"))
+            .unwrap_or_else(|| panic!("{name}: no avatar"));
+        let key = desc.sdf.cache_key(&mesh);
+        let sdf_file = format!("{dir}/sdf/{key}.bin");
+        if !std::path::Path::new(&sdf_file).is_file() {
+            let sdf = load_or_bake_sdf(&BodyQuery::new(mesh), &desc.sdf);
+            std::fs::write(&sdf_file, sdf.to_bytes()).expect("write sdf");
+        }
+        println!("wrote {file} and {sdf_file}");
+        index.push(serde_json::json!({
+            "file": format!("examples/{name}"),
+            "title": doc.project.as_ref().and_then(|p| p.name.clone()).unwrap_or(name.clone()),
+            "sdfKey": key,
+        }));
     }
-    format!("target/sdf-cache/{h:016x}.bin")
+    std::fs::write(
+        format!("{dir}/examples/index.json"),
+        serde_json::to_string_pretty(&index).unwrap() + "\n",
+    )
+    .expect("write index");
 }
 
 /// The bake takes seconds, so cache it under target/ keyed by body + SDF parameters.

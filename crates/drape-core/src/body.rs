@@ -360,6 +360,19 @@ impl Sdf {
     /// Narrow-band bake: exact signed distance within `band`, ±band beyond it. Far points that
     /// are inside (no surface within the band) are found with a ray-parity test.
     pub fn bake(q: &BodyQuery, min: Vec3, max: Vec3, cell: f32, band: f32) -> Self {
+        Self::bake_with_progress(q, min, max, cell, band, &mut |_| {})
+    }
+
+    /// As `bake`, calling `progress` with the fraction done (0..1). In wasm (one thread) it is
+    /// called after every slice; natively, where slices bake in parallel, only at the end.
+    pub fn bake_with_progress(
+        q: &BodyQuery,
+        min: Vec3,
+        max: Vec3,
+        cell: f32,
+        band: f32,
+        progress: &mut dyn FnMut(f32),
+    ) -> Self {
         let dims = ((max - min) / cell).ceil().as_uvec3() + UVec3::ONE;
         let (nx, ny, nz) = (dims.x as usize, dims.y as usize, dims.z as usize);
         let slice = |k: usize| -> Vec<f32> {
@@ -390,7 +403,14 @@ impl Sdf {
             (0..nz).into_par_iter().map(slice).collect()
         };
         #[cfg(target_arch = "wasm32")]
-        let slices: Vec<Vec<f32>> = (0..nz).map(slice).collect();
+        let slices: Vec<Vec<f32>> = (0..nz)
+            .map(|k| {
+                let s = slice(k);
+                progress((k + 1) as f32 / nz as f32);
+                s
+            })
+            .collect();
+        progress(1.0);
         Self {
             origin: min,
             cell,
@@ -622,6 +642,24 @@ impl Default for SdfParams {
 }
 
 impl SdfParams {
+    /// Names the SDF this bakes over `mesh`, for caching it (FNV-1a over the mesh and these
+    /// parameters): native under target/sdf-cache/, the browser in its own storage.
+    pub fn cache_key(&self, mesh: &BodyMesh) -> String {
+        let mut h: u64 = 0xcbf29ce484222325;
+        let params = serde_json::to_string(self).expect("SdfParams serializes");
+        let bytes = mesh
+            .pos
+            .iter()
+            .flat_map(|v| v.to_array())
+            .flat_map(f32::to_le_bytes)
+            .chain(mesh.tris.iter().flatten().flat_map(|i| i.to_le_bytes()))
+            .chain(params.bytes());
+        for b in bytes {
+            h = (h ^ b as u64).wrapping_mul(0x100000001b3);
+        }
+        format!("{h:016x}")
+    }
+
     pub fn bake(&self, q: &BodyQuery) -> Sdf {
         Sdf::bake(
             q,
@@ -629,6 +667,17 @@ impl SdfParams {
             Vec3::from(self.max),
             self.cell,
             self.band,
+        )
+    }
+
+    pub fn bake_with_progress(&self, q: &BodyQuery, progress: &mut dyn FnMut(f32)) -> Sdf {
+        Sdf::bake_with_progress(
+            q,
+            Vec3::from(self.min),
+            Vec3::from(self.max),
+            self.cell,
+            self.band,
+            progress,
         )
     }
 }
