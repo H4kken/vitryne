@@ -34,8 +34,10 @@ export type FlatTool = 'select' | 'move' | 'sew';
 /** The sew tool's edges and what the user has picked so far. */
 export interface SewingState {
   edges: CutEdge[];
-  picked: CutEdge | null;
-  onPick: (edge: CutEdge) => void;
+  /** The edges picked so far, both sides. */
+  picked: CutEdge[];
+  /** `more`: Shift was held, so the side being picked continues with another edge. */
+  onPick: (edge: CutEdge, more: boolean) => void;
 }
 
 const SEAM_COLOURS = ['#3A63F0', '#D6457F', '#1F9D6B', '#D9822B', '#7B5CD6', '#2A9DB5'];
@@ -266,7 +268,7 @@ export function PatternPanel({
         if (tool === 'sew') {
           const edge = edgeHit(p);
           if (edge) {
-            sewing?.onPick(edge);
+            sewing?.onPick(edge, e.shiftKey);
             return;
           }
         }
@@ -368,7 +370,7 @@ export function PatternPanel({
                   sewing?.edges
                     .filter((e) => e.cut === v.cut.id && !e.sewn)
                     .map((e) => {
-                      const on = sewing.picked ? sameEdge(sewing.picked, e) : false;
+                      const on = sewing.picked.some((x) => sameEdge(x, e));
                       return (
                         <path
                           key={`${e.from}:${e.to}`}

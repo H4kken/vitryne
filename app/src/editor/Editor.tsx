@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils';
 import { type FlatTool, PatternPanel, type PatternView, type Selection } from '@/pattern/PatternPanel';
 import { type Place, tidy } from '@/placement/places';
 import { FabricPanel, PANEL_TITLES, type PanelId, PiecesPanel, SettingsPanel } from '@/properties/panels';
-import { type CutEdge, parseDifferences, parseEdges, parseProposals, type SeamProposal } from '@/sewing/api';
+import { type CutEdge, parseDifferences, parseEdges, parseProposals, sameEdge, type SeamProposal } from '@/sewing/api';
 import { SeamsPanel } from '@/sewing/SeamsPanel';
 import { LocalStorage } from '@/storage/storage';
 import type { PointerTool } from '@/worker/protocol';
@@ -50,7 +50,7 @@ const HINTS: Record<string, string> = {
   '3d:pinch': 'Pinch: drag the fabric to pull it. It settles when you let go.',
   'flat:select': 'Select: click a piece to pick it, drag its round handle to turn it. Drag the background to look around.',
   'flat:move': 'Move: drag a piece to place it.',
-  'flat:sew': 'Sew: click an edge, then the edge it is sewn to. Dotted edges are free; coloured ones are already sewn.',
+  'flat:sew': 'Sew: click an edge, then the edge it is sewn to. Hold Shift to add more edges to a side. Dotted edges are free; coloured ones are sewn.',
 };
 
 /** Random bytes for new ids. */
@@ -120,9 +120,15 @@ export function Editor() {
   }, [session, sewingShown, doc.empty, sewingKey, seams, pieces]);
   // Suggestions and a half-made pick belong to the garment they were made for.
   const [proposalState, setProposalState] = useState<{ key: string; list: SeamProposal[] } | null>(null);
-  const [pickState, setPickState] = useState<{ key: string; edge: CutEdge } | null>(null);
+  /** The edges picked for the seam being made: `open` is the side being picked. */
+  interface Picks {
+    a: CutEdge[];
+    b: CutEdge[];
+    open: 'a' | 'b';
+  }
+  const [pickState, setPickState] = useState<{ key: string; picks: Picks } | null>(null);
   const proposals = proposalState?.key === sewingKey ? proposalState.list : null;
-  const firstPick = pickState?.key === sewingKey ? pickState.edge : null;
+  const picks: Picks | null = pickState?.key === sewingKey ? pickState.picks : null;
   const setProposals = useCallback(
     (f: (l: SeamProposal[] | null) => SeamProposal[] | null) =>
       setProposalState((s) => {
@@ -131,7 +137,7 @@ export function Editor() {
       }),
     [sewingKey],
   );
-  const setFirstPick = useCallback((edge: CutEdge | null) => setPickState(edge ? { key: sewingKey, edge } : null), [sewingKey]);
+  const setPicks = useCallback((p: Picks | null) => setPickState(p ? { key: sewingKey, picks: p } : null), [sewingKey]);
 
   const findSeams = useCallback(async () => {
     setFinding(true);
@@ -161,30 +167,51 @@ export function Editor() {
     [sew, findSeams],
   );
 
-  const pickEdge = useCallback(
-    (edge: CutEdge) => {
-      if (!firstPick) {
-        setFirstPick(edge);
-        return;
-      }
-      if (firstPick.cut === edge.cut && firstPick.from === edge.from && firstPick.to === edge.to) {
-        setFirstPick(null);
-        return;
-      }
-      const pick = (x: CutEdge) => JSON.stringify({ cut: x.cut, from: x.from, to: x.to });
-      session.joinEdges(pick(firstPick), pick(edge)).then(
+  /** Sews the picked sides (one or more whole edges each). */
+  const completeSeam = useCallback(
+    (p: Picks) => {
+      const side = (list: CutEdge[]) => JSON.stringify(list.length === 1 ? { cut: list[0]?.cut, from: list[0]?.from, to: list[0]?.to } : list.map((x) => ({ cut: x.cut, from: x.from, to: x.to })));
+      session.joinEdges(side(p.a), side(p.b)).then(
         (j) => {
           const [made] = parseProposals(`[${j}]`);
           if (made) sew(made);
-          setFirstPick(null);
+          setPicks(null);
         },
         (e: Error) => {
-          setFirstPick(null);
+          setPicks(null);
           files.showError('Could not sew those edges', e);
         },
       );
     },
-    [firstPick, session, sew, files, setFirstPick],
+    [session, sew, files, setPicks],
+  );
+
+  /**
+   * A click on a whole edge adds it to the open side. A plain click ends that side (so two
+   * clicks sew two edges); Shift keeps the side open for another edge, for a seam along
+   * several edges. `finish` ends the open side without an edge.
+   */
+  const pickEdge = useCallback(
+    (edge: CutEdge | null, more: boolean) => {
+      const cur: Picks = picks ?? { a: [], b: [], open: 'a' };
+      const all = [...cur.a, ...cur.b];
+      if (edge && all.some((x) => sameEdge(x, edge))) {
+        // Picking it again takes it back.
+        const drop = (l: CutEdge[]) => l.filter((x) => !sameEdge(x, edge));
+        const next = { ...cur, a: drop(cur.a), b: drop(cur.b) };
+        setPicks(next.a.length || next.b.length ? next : null);
+        return;
+      }
+      const next: Picks = edge ? { ...cur, [cur.open]: [...cur[cur.open], edge] } : cur;
+      if (more && edge) {
+        setPicks(next);
+        return;
+      }
+      if (next[next.open].length === 0) return;
+      if (next.open === 'a') setPicks({ ...next, open: 'b' });
+      else completeSeam(next);
+    },
+    [picks, setPicks, completeSeam],
   );
   const fabric = garment ? doc.entities.fabrics.find((f) => f.id === garment.fabric) : doc.entities.fabrics[0];
   // A selection only counts in the file it was made in.
@@ -427,9 +454,10 @@ export function Editor() {
                 onAccept={acceptProposal}
                 onSkip={(i) => setProposals((list) => list?.filter((_, k) => k !== i) ?? null)}
                 picking={mode === 'flat' && flatTool === 'sew'}
-                firstPicked={firstPick !== null}
+                picks={picks ? { a: picks.a.length, b: picks.b.length, open: picks.open } : null}
+                onFinishSide={() => pickEdge(null, false)}
                 onStartPicking={() => (setMode('flat'), setFlatTool('sew'))}
-                onStopPicking={() => (setFlatTool('select'), setFirstPick(null))}
+                onStopPicking={() => (setFlatTool('select'), setPicks(null))}
               />
             )}
             {panel === 'settings' && <SettingsPanel store={store} entities={doc.entities} />}
@@ -460,7 +488,7 @@ export function Editor() {
                 selection={shownSelection}
                 onSelect={select}
                 tool={flatTool}
-                sewing={{ edges, picked: firstPick, onPick: pickEdge }}
+                sewing={{ edges, picked: picks ? [...picks.a, ...picks.b] : [], onPick: pickEdge }}
                 onArrange={(cutId, t) => garment && store.execute((e) => setLayout(e, garment.id, cutId, { position: [t.x, t.y], rotation: t.rot }))}
               />
             </div>

@@ -27,8 +27,10 @@ export function SeamsPanel(props: {
   onSkip: (index: number) => void;
   /** Whole-edge picking in the flat view. */
   picking: boolean;
-  /** One edge is picked, and the second is awaited. */
-  firstPicked: boolean;
+  /** Edges picked so far for each side, and the side being picked; null before the first. */
+  picks: { a: number; b: number; open: 'a' | 'b' } | null;
+  /** Ends the open side without picking another edge. */
+  onFinishSide: () => void;
   onStartPicking: () => void;
   onStopPicking: () => void;
 }) {
@@ -85,8 +87,20 @@ export function SeamsPanel(props: {
         {props.picking ? (
           <>
             <p className="m-0 text-sm leading-snug" role="status">
-              {props.firstPicked ? 'Now pick the edge it is sewn to.' : 'Click an edge in the flat view, then the edge it is sewn to.'}
+              {!props.picks
+                ? 'Click an edge in the flat view, then the edge it is sewn to.'
+                : props.picks.open === 'a'
+                  ? `Side one: ${props.picks.a} edge${props.picks.a === 1 ? '' : 's'}. Now click the edge it is sewn to.`
+                  : `Side two: ${props.picks.b} edge${props.picks.b === 1 ? '' : 's'}.`}
             </p>
+            <p className="text-muted-foreground m-0 text-[13px] leading-snug">
+              For a seam along several edges, hold Shift and click each one, then click the last one without Shift.
+            </p>
+            {props.picks && props.picks[props.picks.open] > 0 && (
+              <Button variant="outline" onClick={props.onFinishSide}>
+                {props.picks.open === 'a' ? 'That is the whole first side' : 'Sew them'}
+              </Button>
+            )}
             <Button variant="outline" onClick={props.onStopPicking}>
               Done
             </Button>

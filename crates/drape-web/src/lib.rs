@@ -383,12 +383,21 @@ impl VtryFile {
         Ok(serde_json::to_string(&r).expect("proposals serialize"))
     }
 
-    /// The seam two whole edges make: `a` and `b` are `{cut, from, to}` JSON. Anything that
-    /// isn't a whole edge is refused.
+    /// The seam whole edges make: `a` and `b` are each one `{cut, from, to}` or an array of
+    /// them (a chain, in the order picked), as JSON. Anything that isn't a whole edge is
+    /// refused.
     pub fn join_edges(&self, a: &str, b: &str) -> Result<String, JsValue> {
-        let a: EdgePick = serde_json::from_str(a).map_err(|e| format!("edge a: {e}"))?;
-        let b: EdgePick = serde_json::from_str(b).map_err(|e| format!("edge b: {e}"))?;
-        let r = self.file.join_edges(&a, &b)?;
+        let side = |name: &str, json: &str| -> Result<Vec<EdgePick>, String> {
+            let v: serde_json::Value =
+                serde_json::from_str(json).map_err(|e| format!("edge {name}: {e}"))?;
+            let list = if v.is_array() {
+                v
+            } else {
+                serde_json::json!([v])
+            };
+            serde_json::from_value(list).map_err(|e| format!("edge {name}: {e}"))
+        };
+        let r = self.file.join_edges(&side("a", a)?, &side("b", b)?)?;
         Ok(serde_json::to_string(&r).expect("proposal serializes"))
     }
 

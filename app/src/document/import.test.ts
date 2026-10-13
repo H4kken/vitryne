@@ -80,6 +80,14 @@ describe('import', () => {
     expect(made.b).toHaveLength(1);
     const partial = JSON.stringify({ cut: a.cut, from: a.from, to: b.to });
     expect(() => f.join_edges(partial, pick(b))).toThrow();
+    // A side may be several whole edges (a chain): one run each, paired by length.
+    const c = edges.find((x) => x.cut !== a.cut && x.cut !== b.cut)!;
+    const chain = JSON.parse(f.join_edges(pick(a), `[${pick(b)},${pick(c)}]`)) as Proposal;
+    expect(chain.a).toHaveLength(1);
+    expect(chain.b).toHaveLength(2);
+    expect(chain.pairing).toBe('length');
+    // ...and still only whole edges.
+    expect(() => f.join_edges(pick(a), `[${pick(b)},${partial}]`)).toThrow();
     f.free();
   });
 

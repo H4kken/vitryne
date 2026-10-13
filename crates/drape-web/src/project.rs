@@ -219,9 +219,10 @@ impl ProjectFile {
         Ok(seams::propose(ProjectGarment::new(&self.doc)?.garment))
     }
 
-    /// The seam two picked whole edges make (docs/PATENTS.md, rule 1: anything else is refused).
-    pub fn join_edges(&self, a: &EdgePick, b: &EdgePick) -> Result<SeamProposal, String> {
-        seams::join(ProjectGarment::new(&self.doc)?.garment, a, b)
+    /// The seam picked whole edges make: one or more per side (docs/PATENTS.md, rule 1:
+    /// anything that isn't a whole edge is refused).
+    pub fn join_edges(&self, a: &[EdgePick], b: &[EdgePick]) -> Result<SeamProposal, String> {
+        seams::join_chains(ProjectGarment::new(&self.doc)?.garment, a, b)
     }
 
     /// Each seam's length difference in percent, by seam id.
@@ -457,13 +458,13 @@ mod tests {
             from: e.from.clone(),
             to: e.to.clone(),
         };
-        assert!(file.join_edges(&pick(a), &pick(b)).is_ok());
+        assert!(file.join_edges(&[pick(a)], &[pick(b)]).is_ok());
         let bad = EdgePick {
             cut: a.cut.clone(),
             from: a.from.clone(),
             to: b.to.clone(),
         };
-        assert!(file.join_edges(&bad, &pick(b)).is_err());
+        assert!(file.join_edges(&[bad], &[pick(b)]).is_err());
         assert!(file.seam_differences().unwrap().is_empty());
     }
 }

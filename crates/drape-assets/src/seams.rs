@@ -381,23 +381,29 @@ pub fn propose(g: &Garment) -> Vec<SeamProposal> {
         .collect()
 }
 
+/// The index in `all` of the whole edge a pick names, or why it isn't one.
+fn find_edge(
+    g: &Garment,
+    conv: &Converted,
+    all: &[Edge],
+    pick: &EdgePick,
+) -> Result<usize, String> {
+    let (pi, _) = piece_of_cut(g, &pick.cut).ok_or("that piece isn't in the garment")?;
+    all.iter()
+        .position(|e| {
+            e.piece == pi && {
+                let (f, t) = (&conv.nodes[pi][e.from], &conv.nodes[pi][e.to]);
+                (f == &pick.from && t == &pick.to) || (f == &pick.to && t == &pick.from)
+            }
+        })
+        .ok_or_else(|| "pick a whole edge, from corner to corner".to_string())
+}
+
 /// The seam two picked whole edges make. Refuses anything that isn't a whole edge of its cut.
 pub fn join(g: &Garment, a: &EdgePick, b: &EdgePick) -> Result<SeamProposal, String> {
     let conv = convert(g);
     let all = edges(&conv.pieces);
-    let find = |pick: &EdgePick| -> Result<(usize, usize), String> {
-        let (pi, _) = piece_of_cut(g, &pick.cut).ok_or("that piece isn't in the garment")?;
-        all.iter()
-            .position(|e| {
-                e.piece == pi && {
-                    let (f, t) = (&conv.nodes[pi][e.from], &conv.nodes[pi][e.to]);
-                    (f == &pick.from && t == &pick.to) || (f == &pick.to && t == &pick.from)
-                }
-            })
-            .map(|i| (pi, i))
-            .ok_or_else(|| "pick a whole edge, from corner to corner".to_string())
-    };
-    let ((_, ia), (_, ib)) = (find(a)?, find(b)?);
+    let (ia, ib) = (find_edge(g, &conv, &all, a)?, find_edge(g, &conv, &all, b)?);
     if a.cut == b.cut && ia == ib {
         return Err("pick two different edges".into());
     }
@@ -411,6 +417,115 @@ pub fn join(g: &Garment, a: &EdgePick, b: &EdgePick) -> Result<SeamProposal, Str
         score: 0.0,
         length_ratio: ea.length.min(eb.length) / ea.length.max(eb.length),
         difference_percent: diff,
+    })
+}
+
+/// The runs of one side of a seam made of several picked whole edges, in the order picked.
+/// Each edge is walked so that it connects to the next one: along a shared corner on one cut,
+/// else over the junction at the higher end (the shoulder of a garment drawn upright). Edges
+/// on different cuts meet where other seams join the pieces, which isn't known here, so the
+/// seam is paired by length and the user can flip it.
+fn orient_side(g: &Garment, conv: &Converted, all: &[Edge], picks: &[(usize, &Id)]) -> Vec<Run> {
+    let ends = |i: usize| {
+        let e = &all[i];
+        (&conv.nodes[e.piece][e.from], &conv.nodes[e.piece][e.to])
+    };
+    let higher_first = |i: usize| {
+        let (u, v) = ends(i);
+        node_height(g, all[i].piece, v) > node_height(g, all[i].piece, u)
+    };
+    let mut out: Vec<Run> = Vec::new();
+    let mut prev_end: Option<(&Id, &Id)> = None; // (cut, node)
+    for (k, &(i, cut)) in picks.iter().enumerate() {
+        let (u, v) = ends(i);
+        // The node this run should start at, if it is forced.
+        let start: &Id = if k > 0 {
+            match prev_end {
+                Some((c, n)) if c == cut && (n == u || n == v) => n,
+                // Over a junction: start at the higher end.
+                _ => {
+                    if higher_first(i) {
+                        v
+                    } else {
+                        u
+                    }
+                }
+            }
+        } else if picks.len() > 1 {
+            // End where the next run starts: a corner shared on one cut, else the higher end.
+            let (j, c2) = picks[1];
+            let (u2, v2) = ends(j);
+            let shared = if c2 == cut {
+                [u, v].into_iter().find(|n| *n == u2 || *n == v2)
+            } else {
+                None
+            };
+            let end = shared.unwrap_or(if higher_first(i) { v } else { u });
+            if end == v { u } else { v }
+        } else {
+            u
+        };
+        let forwards = start == u;
+        let (from, to) = if forwards { (u, v) } else { (v, u) };
+        out.push(run(
+            cut,
+            from,
+            to,
+            if forwards {
+                Direction::Ccw
+            } else {
+                Direction::Cw
+            },
+        ));
+        prev_end = Some((cut, to));
+    }
+    out
+}
+
+/// The seam made of one or more picked whole edges on each side (a sleeve cap against a front
+/// and a back armhole). Two single edges are `join`. Every pick must be a whole edge of its cut
+/// (docs/PATENTS.md, rule 1); a chain is a list of whole edges, never a part of one.
+pub fn join_chains(g: &Garment, a: &[EdgePick], b: &[EdgePick]) -> Result<SeamProposal, String> {
+    if a.is_empty() || b.is_empty() {
+        return Err("a seam needs edges on both sides".into());
+    }
+    if let ([x], [y]) = (a, b) {
+        return join(g, x, y);
+    }
+    let conv = convert(g);
+    let all = edges(&conv.pieces);
+    let find_all = |side: &'_ [EdgePick]| -> Result<Vec<usize>, String> {
+        side.iter().map(|p| find_edge(g, &conv, &all, p)).collect()
+    };
+    let (ia, ib) = (find_all(a)?, find_all(b)?);
+    // The same edge of the same cut twice is a mistake; the same edge on the two cuts of a
+    // piece is not (a centre seam).
+    let mut seen: Vec<(&Id, usize)> = Vec::new();
+    for (p, &i) in a.iter().chain(b).zip(ia.iter().chain(&ib)) {
+        if seen.contains(&(&p.cut, i)) {
+            return Err("an edge can only be on one side once".into());
+        }
+        seen.push((&p.cut, i));
+    }
+    let side = |picks: &[EdgePick], idx: &[usize]| -> (Vec<Run>, f32) {
+        let items: Vec<(usize, &Id)> = idx
+            .iter()
+            .copied()
+            .zip(picks.iter().map(|p| &p.cut))
+            .collect();
+        (
+            orient_side(g, &conv, &all, &items),
+            idx.iter().map(|&i| all[i].length).sum(),
+        )
+    };
+    let ((ra, la), (rb, lb)) = (side(a, &ia), side(b, &ib));
+    Ok(SeamProposal {
+        a: ra,
+        b: rb,
+        pairing: Some(Pairing::Length),
+        score: 0.0,
+        length_ratio: la.min(lb) / la.max(lb),
+        difference_percent: difference_percent(la, lb),
     })
 }
 
@@ -614,6 +729,56 @@ mod tests {
             to: a.to.clone(),
         };
         assert!(join(&g, &a_ok, &ok).is_ok());
+    }
+
+    #[test]
+    fn chains_of_whole_edges_make_one_seam() {
+        let g = example("tshirt");
+        let es = cut_edges(&g);
+        let pick = |e: &CutEdge| EdgePick {
+            cut: e.cut.clone(),
+            from: e.from.clone(),
+            to: e.to.clone(),
+        };
+        // The right sleeve's cap (its longest edge) against the front's and back's right
+        // armholes (the example's own seams name them).
+        let by = |run: &Run| {
+            es.iter()
+                .find(|e| {
+                    e.cut == run.cut
+                        && ((e.from == run.from && e.to == run.to)
+                            || (e.from == run.to && e.to == run.from))
+                })
+                .cloned()
+        };
+        let front = &g.seams[4].b[0];
+        let back = &g.seams[5].b[0];
+        let cap = es
+            .iter()
+            .filter(|e| e.cut == g.seams[4].a[0].cut)
+            .max_by(|x, y| x.length.total_cmp(&y.length))
+            .unwrap();
+        // Armholes in the example are cut in halves at the cap top; the whole armhole edges are
+        // the front's and back's, picked by their own corners.
+        let (f, bk) = (by(front).unwrap(), by(back).unwrap());
+        let made = join_chains(&g, &[pick(cap)], &[pick(&f), pick(&bk)]).unwrap();
+        assert_eq!(made.a.len(), 1);
+        assert_eq!(made.b.len(), 2);
+        assert_eq!(made.pairing, Some(Pairing::Length));
+        // Both sides' lengths are within a few percent: a real armhole.
+        assert!(
+            made.difference_percent.abs() < 15.0,
+            "{}",
+            made.difference_percent
+        );
+        // The same edge twice, or something that isn't a whole edge, is refused.
+        assert!(join_chains(&g, &[pick(cap)], &[pick(&f), pick(&f)]).is_err());
+        let part = EdgePick {
+            cut: f.cut.clone(),
+            from: f.from.clone(),
+            to: cap.to.clone(),
+        };
+        assert!(join_chains(&g, &[pick(cap)], &[part, pick(&bk)]).is_err());
     }
 
     #[test]
