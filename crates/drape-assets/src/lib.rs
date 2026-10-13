@@ -12,4 +12,5 @@ pub mod pattern;
 pub mod placement;
 pub mod preview;
 pub mod project;
+pub mod suggest;
 pub mod tshirt;
