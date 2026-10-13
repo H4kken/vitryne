@@ -1,0 +1,90 @@
+{
+  "id": "01a13cdb-cc04-728e-9afd-3f992133737d",
+  "name": "MakeHuman base (male, A-pose)",
+  "attribution": {
+    "title": "MakeHuman base mesh (hm08)",
+    "creator": "Data Collection AB, Joel Palmius, Jonas Hauquier",
+    "license": "CC0-1.0",
+    "source": "https://github.com/makehumancommunity/makehuman"
+  },
+  "mesh": "avatars/01a13cdb-cc04-728e-9afd-3f992133737d/body.glb",
+  "pose": "A",
+  "regions": {
+    "arm-left": {
+      "type": "path",
+      "points": [
+        [182.0, 1360.0, 6.0],
+        [297.0, 1179.0, 12.0],
+        [335.0, 1143.0, 48.0],
+        [366.0, 1113.0, 90.0],
+        [428.0, 1058.0, 177.0]
+      ],
+      "zero": [0, 1, 0]
+    },
+    "arm-right": {
+      "type": "path",
+      "points": [
+        [-182.0, 1360.0, 6.0],
+        [-297.0, 1179.0, 12.0],
+        [-335.0, 1143.0, 48.0],
+        [-366.0, 1113.0, 90.0],
+        [-428.0, 1058.0, 177.0]
+      ],
+      "zero": [0, 1, 0]
+    },
+    "arm-straight-left": {
+      "type": "axis",
+      "origin": [182.0, 1360.0, 6.0],
+      "axis": [-0.543, 0.753, -0.373],
+      "zero": [0, 1, 0]
+    },
+    "arm-straight-right": {
+      "type": "axis",
+      "origin": [-182.0, 1360.0, 6.0],
+      "axis": [0.543, 0.753, -0.373],
+      "zero": [0, 1, 0]
+    },
+    "head": {
+      "type": "axis",
+      "origin": [0.0, 0.0, 55.0],
+      "axis": [0, 1, 0],
+      "zero": [0, 0, 1]
+    },
+    "head-over": {
+      "type": "axis",
+      "origin": [0.0, 1500.0, 55.0],
+      "axis": [1, 0, 0],
+      "zero": [0, 1, 0]
+    },
+    "leg-left": {
+      "type": "axis",
+      "origin": [240.0, 0.0, -5.0],
+      "axis": [-0.095, 0.56, 0.03],
+      "zero": [0, 0, 1]
+    },
+    "leg-right": {
+      "type": "axis",
+      "origin": [-240.0, 0.0, -5.0],
+      "axis": [0.095, 0.56, 0.03],
+      "zero": [0, 0, 1]
+    },
+    "torso": {
+      "type": "axis",
+      "origin": [0.0, 0.0, 30.0],
+      "axis": [0, 1, 0],
+      "zero": [0, 0, 1]
+    },
+    "upper-arm-left": {
+      "type": "axis",
+      "origin": [182.0, 1360.0, 6.0],
+      "axis": [-0.544, 0.837, -0.061],
+      "zero": [0, 1, 0]
+    },
+    "upper-arm-right": {
+      "type": "axis",
+      "origin": [-182.0, 1360.0, 6.0],
+      "axis": [0.544, 0.837, -0.061],
+      "zero": [0, 1, 0]
+    }
+  }
+}

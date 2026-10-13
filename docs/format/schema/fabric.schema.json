@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vitryne.app/schema/1/fabric.schema.json",
+  "title": "Vitryne format v1: fabrics/<id>.json",
+  "description": "A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity, added later. 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.",
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "name": { "$ref": "common.schema.json#/$defs/name" },
+    "category": {
+      "description": "Construction. Quality targets differ (docs/history: woven p99 strain < 3%, knit < 8%).",
+      "enum": ["woven", "knit", "nonwoven"]
+    },
+    "density": {
+      "description": "Areal density, kg/m² (150 g/m² = 0.15).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "thickness": {
+      "description": "Fabric thickness, mm. Optional; not used by the v1 engine (its collision thickness is a simulation setting).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "stretch": {
+      "description": "In-plane tensile stiffness, N/m (force per unit width per unit strain). shear: in-plane shear stiffness, N/m.",
+      "type": "object",
+      "properties": {
+        "warp": { "type": "number", "exclusiveMinimum": 0 },
+        "weft": { "type": "number", "exclusiveMinimum": 0 },
+        "shear": { "type": "number", "exclusiveMinimum": 0 },
+        "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+        "extras": { "$ref": "common.schema.json#/$defs/extras" }
+      },
+      "required": ["warp", "weft", "shear"],
+      "unevaluatedProperties": false
+    },
+    "bending": {
+      "description": "Bending rigidity per unit width, N·m (moment per unit width per unit curvature), for bending lines across the warp, across the weft, and on the bias (optional; defaults to the mean of warp and weft).",
+      "type": "object",
+      "properties": {
+        "warp": { "type": "number", "exclusiveMinimum": 0 },
+        "weft": { "type": "number", "exclusiveMinimum": 0 },
+        "bias": { "type": "number", "exclusiveMinimum": 0 },
+        "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+        "extras": { "$ref": "common.schema.json#/$defs/extras" }
+      },
+      "required": ["warp", "weft"],
+      "unevaluatedProperties": false
+    },
+    "friction": {
+      "description": "Coulomb friction coefficient against the body (dimensionless).",
+      "type": "number",
+      "minimum": 0
+    },
+    "notes": {
+      "description": "Where the values come from (measurement, datasheet, paper) or that they're placeholders.",
+      "type": "string"
+    },
+    "attribution": { "$ref": "common.schema.json#/$defs/attribution" },
+    "libraryRef": { "$ref": "common.schema.json#/$defs/libraryRef" },
+    "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+    "extras": { "$ref": "common.schema.json#/$defs/extras" }
+  },
+  "required": ["id", "name", "category", "density", "stretch", "bending", "friction"],
+  "unevaluatedProperties": false
+}

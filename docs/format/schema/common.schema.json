@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vitryne.app/schema/1/common.schema.json",
+  "title": "Vitryne format v1: shared definitions",
+  "description": "Units: every length in a JSON part is in millimetres, every angle in radians, everything else SI. Binary parts declare their own units (glTF: metres).",
+  "$defs": {
+    "id": {
+      "description": "A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "vec2": {
+      "description": "A 2D point or vector, mm.",
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "vec3": {
+      "description": "A 3D point or vector, mm (a direction's length doesn't matter).",
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "name": {
+      "description": "A label for people. Never used as a reference.",
+      "type": "string"
+    },
+    "extensions": {
+      "description": "Extension data, keyed by extension name (VTRY_ official, EXT_ multi-vendor, or a vendor prefix). Readers preserve extensions they don't know.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Z0-9]+_[A-Za-z0-9_]+$" },
+      "additionalProperties": { "type": "object" }
+    },
+    "extras": {
+      "description": "Application-specific data with no meaning in the format. Preserved, never interpreted."
+    },
+    "attribution": {
+      "description": "Who made the thing and under which licence. Kept with the data wherever it is copied.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "creator": { "type": "string" },
+        "license": { "description": "An SPDX license expression, or LicenseRef-... for others.", "type": "string" },
+        "source": { "description": "Where it comes from (URL).", "type": "string" },
+        "notes": { "type": "string" },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "extras": { "$ref": "#/$defs/extras" }
+      },
+      "required": ["license"],
+      "unevaluatedProperties": false
+    },
+    "libraryRef": {
+      "description": "Where a copied entity came from (a library file or a cloud library), so the app can offer updates. The copy is what's used.",
+      "type": "object",
+      "properties": {
+        "library": { "description": "The source library's id.", "$ref": "#/$defs/id" },
+        "entity": { "description": "The entity's id in that library.", "$ref": "#/$defs/id" },
+        "revision": { "description": "The library's revision when copied (opaque).", "type": "string" },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "extras": { "$ref": "#/$defs/extras" }
+      },
+      "required": ["library", "entity"],
+      "unevaluatedProperties": false
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vitryne.app/schema/1/manifest.schema.json",
+  "title": "Vitryne format v1: manifest.json",
+  "description": "The first part a reader opens: what kind of file this is, which format version, and every part in it.",
+  "type": "object",
+  "properties": {
+    "format": { "const": "vitryne" },
+    "kind": {
+      "description": "project (.vtry): garments + avatar + fabrics + settings. garment (.vtryg): one garment and the fabrics it uses. fabric (.vtryf): one or more fabrics (a library). avatar (.vtrya): one avatar.",
+      "enum": ["project", "garment", "fabric", "avatar"]
+    },
+    "formatVersion": {
+      "description": "The format version this file was written in.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "minReaderVersion": {
+      "description": "The oldest reader version that understands this file well enough to open and save it. Readers older than this refuse it (they may offer read-only viewing).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "generator": {
+      "description": "What wrote the file, e.g. \"vitryne 0.3.1 (web)\". For diagnostics only.",
+      "type": "string"
+    },
+    "parts": {
+      "description": "Every file in the container except mimetype and manifest.json.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/part" }
+    },
+    "extensionsUsed": {
+      "description": "Every extension name used anywhere in the file.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "extensionsRequired": {
+      "description": "Extensions without which the file can't be used correctly. A reader that doesn't know one of these refuses the file.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+    "extras": { "$ref": "common.schema.json#/$defs/extras" }
+  },
+  "required": ["format", "kind", "formatVersion", "minReaderVersion", "parts"],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "part": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Relative path in the container, '/' separated, no '..' segments, case-sensitive.",
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[A-Za-z0-9._/-]+$"
+        },
+        "mediaType": {
+          "description": "application/json, model/gltf-binary, application/dxf, ...",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Lowercase hex SHA-256 of the part's bytes. Writers set it; readers warn (not fail) on a mismatch, so hand-edited files still open.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "role": {
+          "description": "cache: derived data, safe to delete (see FORMAT.md, Simulation cache). source: an imported original, kept for reference. Absent: a regular part.",
+          "enum": ["cache", "source"]
+        },
+        "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+        "extras": { "$ref": "common.schema.json#/$defs/extras" }
+      },
+      "required": ["path", "mediaType"],
+      "unevaluatedProperties": false
+    }
+  }
+}

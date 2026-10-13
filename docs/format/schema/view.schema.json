@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vitryne.app/schema/1/view.schema.json",
+  "title": "Vitryne format v1: view.json",
+  "description": "How the project was last looked at. Optional, never affects the drape, not part of the cache key.",
+  "type": "object",
+  "properties": {
+    "camera": {
+      "type": "object",
+      "properties": {
+        "target": { "$ref": "common.schema.json#/$defs/vec3" },
+        "distance": { "description": "mm", "type": "number", "exclusiveMinimum": 0 },
+        "yaw": { "description": "radians around +Y, 0 = looking at the avatar's front", "type": "number" },
+        "pitch": { "description": "radians, positive = looking down", "type": "number" },
+        "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+        "extras": { "$ref": "common.schema.json#/$defs/extras" }
+      },
+      "required": ["target", "distance"],
+      "unevaluatedProperties": false
+    },
+    "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+    "extras": { "$ref": "common.schema.json#/$defs/extras" }
+  },
+  "unevaluatedProperties": false
+}

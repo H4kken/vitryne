@@ -24,6 +24,8 @@ without checking them against that file, and say so when a request conflicts wit
 | `crates/drape-native` | The `drape` CLI and the winit viewer (`view`, `bench`, `bench-drag`, `regress`, `frames`, `export-web-assets`, ...). |
 | `crates/drape-web` + `web/` | wasm bindings, the plain-JS viewer (`index.html`, scenes `garment-<name>:<verts>`) and `bench.html`. The TypeScript editor (`app/`) arrives in M6. |
 | `assets/` | Avatar (CC0 MakeHuman), three FreeSewing garments with their licences. `tools/patterns` re-drafts them (`./export-all.sh`; the T-shirt is at chest ease 18%, on purpose). |
+| `docs/FORMAT.md`, `docs/format/schema/` | The project file format (`.vtry` family): spec with rationale, and a JSON Schema per part. Approved in M4; `vitryne-format` implements it in M5. |
+| `examples/` | Sample projects in folder form (`tshirt.vtry/`); `tools/format/build-examples.sh` zips and validates them. |
 | `tests/regression/` | Golden results for `drape regress`. |
 | `tools/bench/` | `run.sh` (drape/drag matrices, native or Chrome), `summary.py`, `compare.py`, `strain.py`, `chrome-check.mjs`. Output goes to `bench-out/` (git-ignored). |
 
@@ -56,8 +58,11 @@ without checking them against that file, and say so when a request conflicts wit
 ## State and things that surprise
 
 - **Done:** M0 repo, M1 low-end check (accepted qualitatively; no integrated-GPU or Firefox
-  numbers), M2 stretch, M3 API + settings + regression. **Next:** M4, the project file format as
-  a design in `docs/FORMAT.md`, then stop for review before implementing.
+  numbers), M2 stretch, M3 API + settings + regression, M4 file format design (`docs/FORMAT.md`).
+  **Next:** M5, implementing the format (`vitryne-format` crate, converter, the engine changes
+  listed at the end of FORMAT.md), the samples as `examples/*.vtry`.
+- **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
+  `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **Known and accepted for now** (PROGRESS.md M2/M3): trousers p99 edge strain 5.4% against a 3%
   woven target; the hoodie is a basic placeholder (never rests, ~145 persistent
   self-intersections, 20 mm shape tolerance in the golden suite); the 20k T-shirt drape takes

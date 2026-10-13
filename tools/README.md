@@ -10,6 +10,8 @@ which git ignores.
 | [bench/compare.py](bench/compare.py) | Two targets side by side, matched run by run: speed ratio, rest frame, penetration, self-intersections, final-shape difference, drag stability. |
 | [bench/chrome-check.mjs](bench/chrome-check.mjs) | Drives the installed Chrome headless with its GPU, over CDP: loads a page, waits for `#status`, saves a screenshot and the page's JSON report. `run.sh` uses it. |
 | [strain.py](bench/strain.py) | Edge-strain tables from drape and drag JSON (`--regions --groups --seams --hotspots`). |
+| [format/validate.py](format/validate.py) | Checks a Vitryne file (`.vtry` zip or folder) against `docs/format/schema/` and the reference rules of [docs/FORMAT.md](../docs/FORMAT.md). Needs `pip install jsonschema`. |
+| [format/build-examples.sh](format/build-examples.sh) | Builds the example projects' avatar mesh if missing (`format/obj2glb.py`), zips each `examples/*.vtry` folder to `bench-out/examples/`, and validates both forms. |
 | [patterns/](patterns/) | Measures the avatar and drafts the sample garments with FreeSewing into DXF-AAMA (`cd tools/patterns && npm install && ./export-all.sh`). |
 
 ## Examples

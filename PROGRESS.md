@@ -430,3 +430,59 @@ decays through the 0.005 m/s threshold slowly, so a 0.1 mm difference moves the 
   18.7% and its intersections, the 20k T-shirt drape at 3.5 s. They're in the golden results now.
 - **Settings in the web bindings** are still the JSON subset (`self_collision`, `self_rebuild`,
   `contact_max_accel`, `untangle_*`); the M6 UI will pass a `SimSettings` JSON instead.
+
+---
+
+## M4 — Project file format: design ✅ (2026-10-13)
+
+**Done-when:** the user approves the design ✅ (reviewed and approved on 2026-10-13).
+
+### What's there
+
+| Path | What |
+|---|---|
+| [docs/FORMAT.md](docs/FORMAT.md) | The spec, with the rationale for each choice, the mapping from `garment.toml`, and what M5 has to change in the engine. |
+| [docs/format/schema/](docs/format/schema/) | JSON Schema (2020-12) per part: manifest, project, garment, fabric, avatar, view, plus shared definitions. |
+| [examples/tshirt.vtry/](examples/tshirt.vtry/) | The T-shirt project, in folder form: 3 pieces (31 nodes, 732 outline points), 4 cuts, 10 seams, the cotton placeholder fabric, the MakeHuman avatar (`body.glb`, generated from the OBJ and committed). |
+| [tools/format/](tools/format/) | `validate.py` (schemas plus reference rules), `obj2glb.py`, `build-examples.sh`. |
+
+### Decisions made in review
+
+- **File family:** `.vtry` (project), `.vtryg` (garment), `.vtryf` (fabric), `.vtrya` (avatar), all
+  the same zip container told apart by `manifest.kind`. `.vit`, the first idea, is Seamly2D's
+  measurement file. The plan's `.vitryne` is replaced.
+- **Units:** mm for every length in JSON, 2D and 3D; radians; SI for fabric physics; glTF parts
+  in metres. The fenced `simulation.engine` object is the one exception.
+- **Cut on the fold:** stored unfolded, with the fold line as an entity (can rebuild the half-piece
+  form, not the other way round).
+- **Seams:** any two nodes; the format doesn't enforce the patent-driven "whole edges" UI rule.
+- **Avatar:** embedded in every project.
+- **Fabric:** physical parameters now (tensile and shear N/m, bending N·m, per direction).
+- **Imported DXF:** kept in the user's own project, left out of shared copies unless opted in.
+
+### Numbers
+
+| | Size |
+|---|---|
+| Garment part (JSON) | 41 KB, 6.6 KB deflated |
+| Fabric part | 0.5 KB |
+| Avatar mesh (`body.glb`, 13,380 vertices) | 482 KB |
+| Whole T-shirt project, zipped | 492 KB |
+
+`tools/format/validate.py` passes on the example in both forms, and fails as it should on six
+broken copies (a seam node from the wrong piece, a duplicate id, an unknown region, an unknown
+field, a run without direction, a placement loop); a well-formed extension passes.
+
+### Notes and open items
+
+- **The example was generated, not converted.** A throwaway script took the geometry from the
+  importer (`aama::read`) and the names, seams and placement from the sidecar by hand. M5's
+  converter must reproduce it, up to ids.
+- **M5 engine work** (end of FORMAT.md): `Material` from physical fabric values
+  (k = (√3/2)·Y), body regions from the avatar instead of `Frame::named`, one fabric per garment
+  until M9, collision bounds from the file, and `.vtry` drapes matching the `garment.toml` path.
+- **Not in M4, raised during review:** the hosted instance (self-hosted Supabase, anonymous users,
+  `docker compose up` for self-hosters) and DXF export. Both need their own milestone and change
+  the plan's hosting and network rules.
+- `validate.py` needs `pip install jsonschema`; it isn't part of `./check` yet (M5 validates in
+  Rust tests).

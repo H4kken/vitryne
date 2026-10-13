@@ -1,0 +1,14 @@
+{
+  "id": "01a13cdb-cc01-7c75-b193-e1f5e9b453f4",
+  "name": "T-shirt on the test avatar",
+  "garments": [
+    "01a13cdb-cc02-7918-aa9f-9eb6980dd3b8"
+  ],
+  "avatar": "01a13cdb-cc04-728e-9afd-3f992133737d",
+  "fabrics": [
+    "01a13cdb-cc03-713c-9796-120438b8ba92"
+  ],
+  "simulation": {
+    "targetVertices": 10000
+  }
+}
