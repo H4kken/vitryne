@@ -248,6 +248,36 @@ impl VtryFile {
         })
     }
 
+    /// Opens the folder form: `paths[i]` (relative, `/`-separated) holds `contents[i]`
+    /// (`Uint8Array`s).
+    pub fn open_folder(paths: Vec<String>, contents: js_sys::Array) -> Result<VtryFile, JsValue> {
+        if paths.len() != contents.length() as usize {
+            return Err("open_folder: one content per path".into());
+        }
+        let files = paths
+            .into_iter()
+            .zip(contents.iter())
+            .map(|(p, c)| (p, js_sys::Uint8Array::new(&c).to_vec()))
+            .collect();
+        let (file, report) = project::ProjectFile::open_folder(files)?;
+        Ok(VtryFile {
+            file,
+            warnings: report.warnings,
+        })
+    }
+
+    /// The folder form's files, checked: an array of `[path, Uint8Array]`.
+    pub fn save_folder(&self) -> Result<js_sys::Array, JsValue> {
+        let out = js_sys::Array::new();
+        for (path, bytes) in self.file.save_folder()? {
+            let pair = js_sys::Array::new();
+            pair.push(&JsValue::from_str(&path));
+            pair.push(&js_sys::Uint8Array::from(bytes.as_slice()));
+            out.push(&pair);
+        }
+        Ok(out)
+    }
+
     /// What opening noticed without refusing the file (JSON array of strings).
     pub fn warnings(&self) -> String {
         serde_json::to_string(&self.warnings).expect("strings serialize")

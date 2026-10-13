@@ -52,7 +52,19 @@ impl ProjectFile {
     /// A `.vtry` zip. Only projects (a garment, fabric or avatar file has nothing to drape on
     /// its own yet).
     pub fn open(bytes: &[u8]) -> Result<(Self, OpenReport), String> {
-        let opened = Document::from_zip(bytes).map_err(|e| e.to_string())?;
+        Self::from_opened(Document::from_zip(bytes).map_err(|e| e.to_string())?)
+    }
+
+    /// The folder form: every file under the folder, by path relative to it.
+    pub fn open_folder(files: Vec<(String, Vec<u8>)>) -> Result<(Self, OpenReport), String> {
+        let entries = vitryne_format::container::Entries {
+            files,
+            warnings: Vec::new(),
+        };
+        Self::from_opened(Document::from_entries(entries).map_err(|e| e.to_string())?)
+    }
+
+    fn from_opened(opened: vitryne_format::Opened) -> Result<(Self, OpenReport), String> {
         if opened.doc.kind != Kind::Project {
             return Err(format!(
                 "this is a {} file; the editor opens projects ({}) for now",
@@ -85,6 +97,11 @@ impl ProjectFile {
     /// The file's bytes, read back and checked before they are returned.
     pub fn save(&self) -> Result<Vec<u8>, String> {
         self.doc.to_zip_checked().map_err(|e| e.to_string())
+    }
+
+    /// The folder form's files, read back and checked.
+    pub fn save_folder(&self) -> Result<Vec<(String, Vec<u8>)>, String> {
+        self.doc.to_entries_checked().map_err(|e| e.to_string())
     }
 
     /// Meshes and places the project's garment, with its fabric, settings and avatar. CPU
@@ -154,6 +171,18 @@ mod tests {
             file.set_entities_json(&original).unwrap();
             assert_eq!(file.save().unwrap(), zip, "{name}: edited then undone");
         }
+    }
+
+    #[test]
+    fn folder_form_round_trips() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/hoodie.vtry");
+        let files = vitryne_format::container::read_dir(&dir).unwrap().files;
+        let (file, _) = ProjectFile::open_folder(files.clone()).unwrap();
+        let mut saved = file.save_folder().unwrap();
+        let mut on_disk = files;
+        saved.sort();
+        on_disk.sort();
+        assert_eq!(saved, on_disk);
     }
 
     #[test]

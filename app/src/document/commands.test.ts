@@ -11,6 +11,7 @@ import {
   renameFabric,
   renamePiece,
   renameProject,
+  recoverChanges,
   renameSeam,
   revertCommand,
   selfCollision,
@@ -83,5 +84,22 @@ describe.each(EXAMPLES)('%s', (name) => {
     // The examples set it on the garment, so that's where the edit goes.
     expect(mainGarment(off)!.simulation).toMatchObject({ engine: { self_collision: false } });
     expect(off.project).toBe(frozen.project);
+  });
+});
+
+describe('recoverChanges', () => {
+  it('puts a recovery copy back as one undoable step', () => {
+    const { file, entities } = openExample('tshirt');
+    const edited = applyCommand(entities, setFabricValue(entities, entities.fabrics[0]!.id, 'friction', 0.7));
+    const renamed = applyCommand(edited, renameProject(edited, 'Mine'));
+    const cmd = recoverChanges(entities, renamed);
+    expect(cmd.changes).toHaveLength(2);
+    const back = applyCommand(entities, cmd);
+    expect(JSON.stringify(back)).toBe(JSON.stringify(renamed));
+    expect(rustRefuses(file, back)).toBeNull();
+    expect(JSON.stringify(revertCommand(back, cmd))).toBe(JSON.stringify(entities));
+    expect(() => recoverChanges(entities, entities)).toThrow(/no changes/);
+    const damaged = { ...renamed, fabrics: [{ ...renamed.fabrics[0]!, density: -1 }] };
+    expect(() => recoverChanges(entities, damaged)).toThrow(/damaged/);
   });
 });

@@ -208,3 +208,29 @@ export function setSelfCollision(e: Entities, on: boolean): Command {
     drape: true,
   });
 }
+
+/**
+ * From the `saved` document to `current` (the same entities, other values): a recovery copy
+ * put back, as one undoable step.
+ */
+export function recoverChanges(saved: Entities, current: Entities): Command {
+  const changes: Change[] = [];
+  const slots: Slot[] = [
+    ...(saved.project ? [{ kind: 'project' } as const] : []),
+    ...(saved.view ? [{ kind: 'view' } as const] : []),
+    ...saved.garments.map((g) => ({ kind: 'garment', id: g.id }) as const),
+    ...saved.fabrics.map((f) => ({ kind: 'fabric', id: f.id }) as const),
+    ...saved.avatars.map((a) => ({ kind: 'avatar', id: a.id }) as const),
+  ];
+  for (const slot of slots) {
+    const before = getEntity(saved, slot);
+    const after = getEntity(current, slot);
+    if (after === undefined) throw new CommandError(`the recovery copy has no ${slotKey(slot)}`);
+    if (deepEqual(before, after)) continue;
+    const problems = schemaErrors(slot.kind, after);
+    if (problems.length) throw new CommandError(`the recovery copy is damaged: ${problems.join('; ')}`);
+    changes.push({ slot, before, after });
+  }
+  if (!changes.length) throw new CommandError('the recovery copy has no changes');
+  return { label: 'Recover unsaved changes', drape: true, changes };
+}

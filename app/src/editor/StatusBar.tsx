@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { EngineState } from '@/worker/session';
 
-export function StatusBar(props: { engine: EngineState; warnings: string[]; onDismissNotice: () => void }) {
+export function StatusBar(props: { engine: EngineState; warnings: string[]; activity: string | null; onDismissNotice: () => void }) {
   const { engine } = props;
   const s = engine.stats;
   const drapeWarnings = engine.drape?.info.warnings ?? [];
@@ -13,7 +13,9 @@ export function StatusBar(props: { engine: EngineState; warnings: string[]; onDi
           {engine.notice}
         </button>
       ) : (
-        <span>{engine.phase === 'starting' ? 'Starting the 3D engine…' : engine.phase === 'failed' ? 'Engine stopped' : 'Ready'}</span>
+        <span>
+          {props.activity ?? (engine.phase === 'starting' ? 'Starting the 3D engine…' : engine.phase === 'failed' ? 'Engine stopped' : 'Ready')}
+        </span>
       )}
       {warnings.length > 0 && (
         <span className="text-amber-400" title={warnings.join('\n')}>

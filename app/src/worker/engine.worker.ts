@@ -4,7 +4,7 @@
 // inputs and frames run between them.
 
 import init, { type PreparedScene, Viewport, VtryFile } from '../../pkg/drape_web.js';
-import type { DrapeInfo, FromWorker, Input, Requests, RequestMessage, ToWorker } from './protocol';
+import { type DrapeInfo, type FromWorker, fileDataBuffers, type Input, type Requests, type RequestMessage, type ToWorker } from './protocol';
 import { dropSdf, loadSdf, storeSdf } from './sdf-cache';
 
 const post = (m: FromWorker, transfer: Transferable[] = []) => self.postMessage(m, { transfer });
@@ -37,8 +37,14 @@ function rethrow(e: unknown): never {
 type Handlers = { [K in keyof Requests]: (a: Requests[K]['args']) => Promise<Requests[K]['reply']> };
 
 const handlers: Handlers = {
-  async open({ bytes }) {
-    const next = VtryFile.open(new Uint8Array(bytes));
+  async open({ data }) {
+    const next =
+      data.form === 'zip'
+        ? VtryFile.open(new Uint8Array(data.bytes))
+        : VtryFile.open_folder(
+            data.files.map(([p]) => p),
+            data.files.map(([, b]) => new Uint8Array(b)),
+          );
     file?.free();
     file = next;
     viewport?.clear();
@@ -92,9 +98,11 @@ const handlers: Handlers = {
     }
   },
 
-  async save({ rev }) {
-    const bytes = needFile().save();
-    return { rev, bytes: bytes.buffer as ArrayBuffer };
+  async save({ rev, form }) {
+    const f = needFile();
+    if (form === 'zip') return { rev, data: { form, bytes: f.save().buffer as ArrayBuffer } };
+    const files = (f.save_folder() as [string, Uint8Array][]).map(([p, b]): [string, ArrayBuffer] => [p, b.buffer as ArrayBuffer]);
+    return { rev, data: { form, files } };
   },
 };
 
@@ -123,7 +131,7 @@ function request(m: RequestMessage) {
       } catch (e) {
         rethrow(e);
       }
-      const transfer = m.op === 'save' ? [(value as { bytes: ArrayBuffer }).bytes] : [];
+      const transfer = m.op === 'save' ? fileDataBuffers((value as Requests['save']['reply']).data) : [];
       post({ kind: 'reply', id: m.id, ok: true, value }, transfer);
     } catch (e) {
       if (crashed) return;

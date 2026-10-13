@@ -14,6 +14,17 @@ export interface DrapeInfo {
   warnings: string[];
 }
 
+/** A file's content: the zip, or the folder form's files by relative path. */
+export type FileData = { form: 'zip'; bytes: ArrayBuffer } | { form: 'folder'; files: [string, ArrayBuffer][] };
+
+export function fileDataBuffers(d: FileData): ArrayBuffer[] {
+  return d.form === 'zip' ? [d.bytes] : d.files.map(([, b]) => b);
+}
+
+export function copyFileData(d: FileData): FileData {
+  return d.form === 'zip' ? { form: 'zip', bytes: d.bytes.slice(0) } : { form: 'folder', files: d.files.map(([p, b]) => [p, b.slice(0)]) };
+}
+
 export type Input =
   | { kind: 'init'; canvas: OffscreenCanvas; width: number; height: number }
   | { kind: 'resize'; width: number; height: number }
@@ -25,8 +36,8 @@ export type Input =
   | { kind: 'tick' };
 
 export interface Requests {
-  /** Opens `.vtry` bytes. The UI keeps a copy of the bytes, to reopen after a restart. */
-  open: { args: { bytes: ArrayBuffer }; reply: { entities: string; warnings: string[] } };
+  /** Opens a `.vtry` (zip or folder). The UI keeps a copy, to reopen after a restart. */
+  open: { args: { data: FileData }; reply: { entities: string; warnings: string[] } };
   /**
    * Validates the document's new JSON (Rust, the same checks as reading a file) and, if
    * valid, makes it the worker's document. If not, the worker's document is unchanged and
@@ -41,8 +52,8 @@ export interface Requests {
     args: { rev: number; frameCamera: boolean };
     reply: { rev: number; stale: true } | { rev: number; stale: false; info: DrapeInfo };
   };
-  /** The worker's document as `.vtry` bytes, already read back and checked in Rust. */
-  save: { args: { rev: number }; reply: { rev: number; bytes: ArrayBuffer } };
+  /** The worker's document in the given form, already read back and checked in Rust. */
+  save: { args: { rev: number; form: FileData['form'] }; reply: { rev: number; data: FileData } };
 }
 
 export type Op = keyof Requests;

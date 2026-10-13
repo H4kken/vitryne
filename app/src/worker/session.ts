@@ -5,7 +5,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { WorkerClient, WorkerCrashed } from './client';
-import type { DrapeInfo, Requests, Stats, WorkerEvent } from './protocol';
+import { copyFileData, type DrapeInfo, type FileData, fileDataBuffers, type Requests, type Stats, type WorkerEvent } from './protocol';
 
 export interface EngineState {
   /** Changes when the worker is replaced: the viewport makes a new canvas for it. */
@@ -33,7 +33,7 @@ export class EngineSession {
   private listeners = new Set<() => void>();
   private crashes: number[] = [];
   /** What a new worker needs to show the same thing: the file's bytes and the current JSON. */
-  private restore: { bytes: ArrayBuffer; openedEntities: string; entities: string; rev: number } | null = null;
+  private restore: { data: FileData; openedEntities: string; entities: string; rev: number } | null = null;
   private newestDrapeAsked = -1;
   private canvas: HTMLCanvasElement | null = null;
   private detachTimer: ReturnType<typeof setTimeout> | undefined;
@@ -128,7 +128,8 @@ export class EngineSession {
 
   private async reopen(client: WorkerClient, r: NonNullable<EngineSession['restore']>) {
     try {
-      await client.request('open', { bytes: r.bytes.slice(0) });
+      const data = copyFileData(r.data);
+      await client.request('open', { data }, fileDataBuffers(data));
       if (r.entities !== r.openedEntities) await client.request('update', { rev: r.rev, entities: r.entities });
       this.drape(r.rev, true);
       for (const cb of this.reopenedListeners) cb();
@@ -155,11 +156,12 @@ export class EngineSession {
 
   // ---- the document ---------------------------------------------------------------------
 
-  /** Opens `.vtry` bytes; the worker keeps the binary parts, the UI gets the JSON. */
-  async open(bytes: ArrayBuffer, rev: number): Promise<Requests['open']['reply']> {
-    const copy = bytes.slice(0);
-    const reply = await this.need().request('open', { bytes: bytes.slice(0) });
-    this.restore = { bytes: copy, openedEntities: reply.entities, entities: reply.entities, rev };
+  /** Opens a `.vtry`; the worker keeps the binary parts, the UI gets the JSON. */
+  async open(data: FileData, rev: number): Promise<Requests['open']['reply']> {
+    const copy = copyFileData(data);
+    const sent = copyFileData(data);
+    const reply = await this.need().request('open', { data: sent }, fileDataBuffers(sent));
+    this.restore = { data: copy, openedEntities: reply.entities, entities: reply.entities, rev };
     this.set({ drape: null, drapeError: null });
     return reply;
   }
@@ -190,13 +192,12 @@ export class EngineSession {
     );
   }
 
-  /** The `.vtry` bytes of the worker's document (validated and read back in Rust). */
-  async save(rev: number): Promise<ArrayBuffer> {
-    const { bytes } = await this.need().request('save', { rev });
-    if (this.restore) {
-      this.restore = { bytes: bytes.slice(0), openedEntities: this.restore.entities, entities: this.restore.entities, rev };
-    }
-    return bytes;
+  /** The worker's document as a file (validated and read back in Rust). */
+  async save(rev: number, form: FileData['form']): Promise<FileData> {
+    const { data } = await this.need().request('save', { rev, form });
+    // What a restarted worker reopens from now on.
+    if (this.restore) this.restore = { data: copyFileData(data), openedEntities: this.restore.entities, entities: this.restore.entities, rev };
+    return data;
   }
 
   // ---- inputs ---------------------------------------------------------------------------

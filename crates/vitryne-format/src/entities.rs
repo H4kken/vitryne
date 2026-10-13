@@ -127,6 +127,23 @@ impl Document {
         Ok(warnings)
     }
 
+    /// `to_entries` (the folder form), read back and written again the same way, as
+    /// `to_zip_checked` does for the zip.
+    pub fn to_entries_checked(&self) -> Result<Vec<(String, Vec<u8>)>, Error> {
+        let files = self.to_entries()?;
+        let back = Document::from_entries(crate::container::Entries {
+            files: files.clone(),
+            warnings: Vec::new(),
+        })
+        .map_err(|e| Error::Invalid(vec![format!("the saved files don't read back: {e}")]))?;
+        if back.doc.to_entries()? != files {
+            return Err(Error::Invalid(vec![
+                "the saved files read back differently (a writer bug: please report it)".into(),
+            ]));
+        }
+        Ok(files)
+    }
+
     /// `to_zip`, then the bytes read back and written again must give the same bytes; a save
     /// is only reported done after this check.
     pub fn to_zip_checked(&self) -> Result<Vec<u8>, Error> {

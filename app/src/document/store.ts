@@ -119,6 +119,11 @@ export class DocumentStore {
     this.publish({ empty: false, fileName, entities, rev, refused: null, warnings });
   }
 
+  /** The document as last opened or saved. */
+  get savedEntities(): Entities {
+    return this.saved;
+  }
+
   /** The document as just saved: it is the file now. */
   markSaved(fileName: string, entities: Entities) {
     this.saved = entities;
