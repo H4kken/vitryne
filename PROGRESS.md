@@ -568,8 +568,8 @@ as a solver regression.
 **Done-when:** each sample project opens, shows its pieces in 2D and its drape in 3D, can be
 dragged without the UI freezing, and saves back byte-identical, both unedited and after edits
 that are then undone; edits to fabric, labels and settings work and undo; `./check` passes ✅.
-Checked in Chrome on the M2 (real GPU, driven over CDP); Safari not checked yet (see the open
-items).
+Checked in Chrome on the M2 (real GPU, driven over CDP), and by hand in Safari on the same Mac
+(works). **Accepted 2026-10-13.**
 
 ### What's there
 
@@ -628,10 +628,9 @@ unsaved-changes dialog, the leave-page prompt, and a recovery copy.
 
 ### Notes and open items
 
-- **Safari is not checked.** The browser checks here ran in Chrome only. Worth a manual pass on
-  Safari 26 (open, drag, edit, save as download, recovery): it has OffscreenCanvas and WebGPU in
-  workers, but `requestAnimationFrame` in a worker may be missing, in which case the UI sends
-  frame ticks (implemented, not exercised).
+- **Safari** was checked by hand after review and works. The automated checks run in Chrome only.
+  Where a worker has no `requestAnimationFrame`, the UI sends frame ticks; that path is
+  implemented but no browser tested so far has needed it.
 - The bench page runs on the main thread, as before, not in the editor's worker: its numbers stay
   comparable with M1–M3. The plan said "same worker"; the wasm build is the same.
 - "GPU ms per frame" in the status bar is sampled once a second and jumps while dragging

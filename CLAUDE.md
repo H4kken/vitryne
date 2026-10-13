@@ -64,7 +64,7 @@ without checking them against that file, and say so when a request conflicts wit
 5. Design our own editor interactions (see the patents note).
 6. Every commit is signed off (`git commit -s`, identity `Mathis Grimberg
    <mathis.grimberg@protonmail.com>`); end a milestone with a commit, PROGRESS.md numbers, and a
-   stop for review. No remote yet: the user pushes.
+   stop for review. The only branch is `main` (remote `origin`); the user pushes.
 7. Local-first: no accounts, telemetry or network calls beyond loading the app and its assets.
 
 ## State and things that surprise
@@ -73,7 +73,8 @@ without checking them against that file, and say so when a request conflicts wit
   numbers), M2 stretch, M3 API + settings + regression, M4 file format design (`docs/FORMAT.md`),
   M5 format implementation (`vitryne-format`, `drape convert`, `.vtry` in the CLI and goldens),
   M6 editor shell (worker + OffscreenCanvas, document model with guardrails, 2D panel,
-  properties, storage and save). **Next:** M7 (import and placement in the editor).
+  properties, storage and save; accepted after a manual Safari check). **Next:** M7 (import and
+  placement in the editor; read docs/PATENTS.md before designing placement).
 - **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
   `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **The `.vtry` and `garment.toml` paths give bit-identical garments** (test
