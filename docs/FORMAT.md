@@ -321,7 +321,7 @@ placement type, added in a minor version.
 **Why regions by name:** a garment file has to fit any avatar. Garments say "torso" and
 "upper-arm-left", and each avatar defines where those are. The region coordinates used to be
 hard-coded in Rust for one avatar; they move into the avatar. **Patents:** placement is data the
-user sets. Under [patents.md](patents.md) rule 3, auto-join must not use it as an input, and that
+user sets. Under [PATENTS.md](PATENTS.md) rule 3, auto-join must not use it as an input, and that
 is an app rule, not a format rule.
 
 ### Seams
@@ -351,7 +351,7 @@ A seam sews **side `a`** to **side `b`**. Each side is a chain of **runs**, and 
   there. That's how the T-shirt sleeve's cap top (no notch in the pattern) works: a named point
   at half the length between the two cap notches.
 - **The format doesn't restrict which nodes a seam may use** (whole edges, notch to notch, or any
-  two points). The patent-driven interaction rules in [patents.md](patents.md) constrain how
+  two points). The patent-driven interaction rules in [PATENTS.md](PATENTS.md) constrain how
   the editor lets people create seams, not what a file may contain.
 
 **Why "starts meet" instead of the sidecar's `reverse` flag:** one rule, no flag. To reverse a
@@ -575,7 +575,7 @@ How the planned features fit, without breaking v1 files:
 
 | Feature | How it's added |
 |---|---|
-| **Sizes and grading** | Per-size offsets of outline **nodes** (by id), the way grade rules work in industry formats. The ids are why nodes exist. A `sizes` list on the garment plus per-node deltas. (Watch [patents.md](patents.md) rule 6 for automatic grading.) |
+| **Sizes and grading** | Per-size offsets of outline **nodes** (by id), the way grade rules work in industry formats. The ids are why nodes exist. A `sizes` list on the garment plus per-node deltas. (Watch [PATENTS.md](PATENTS.md) rule 6 for automatic grading.) |
 | **Colourways and textures** | A new `appearances/<id>.json` entity (colour, texture parts, print scale), and `colourways` on the garment mapping cuts to appearances. Physics stays in fabrics, so nothing existing changes. |
 | **Multi-garment outfits** | Already there: `project.garments` is in layering order. Per-garment visibility or grouping are additions. |
 | **Avatars from measurements** | `avatar.source = {generator, measurements}`, with `body.glb` as the generated (and regenerable) mesh. |

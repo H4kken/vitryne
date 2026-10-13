@@ -12,7 +12,7 @@ CLO Virtual Fashion holds and enforces patents on free-sewing UIs, 2D pattern me
 automatic grading, and has pending applications on automatic sewing-line detection and ML
 placement. Before designing or building any feature that joins pattern pieces, places pieces
 around a body, measures a pattern, or resizes a garment, read
-[docs/patents.md](docs/patents.md) and follow its design rules. Do not add such features
+[docs/PATENTS.md](docs/PATENTS.md) and follow its design rules. Do not add such features
 without checking them against that file, and say so when a request conflicts with it.
 
 ## Where things are
