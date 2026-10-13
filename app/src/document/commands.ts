@@ -327,6 +327,73 @@ export function setLayout(e: Entities, garmentId: string, cutId: string, layout:
   );
 }
 
+// ---- M8: sewing ----------------------------------------------------------------------------
+
+type Run = Seam['a'][number];
+
+/** The same stretch of outline, walked the other way (FORMAT.md: to reverse a side, write its runs the other way). */
+function reversedRuns(runs: readonly Run[]): [Run, ...Run[]] {
+  const out = [...runs].reverse().map((r) => {
+    const flipped: Run = { ...r, from: r.to, to: r.from };
+    if (r.direction !== undefined) flipped.direction = r.direction === 'ccw' ? 'cw' : 'ccw';
+    return flipped;
+  });
+  return out as [Run, ...Run[]];
+}
+
+/**
+ * A seam the user accepted, or two whole edges they picked (Rust's `seams::SeamProposal`, which
+ * only ever holds whole edges of one cut or chains of them). docs/PATENTS.md: nothing here is
+ * built from a point the user placed on an edge.
+ */
+export interface SeamDraft {
+  a: Run[];
+  b: Run[];
+  pairing?: 'nodes' | 'length';
+}
+
+export function addSeam(e: Entities, garmentId: string, draft: SeamDraft, id: string, name?: string): Command {
+  if (!draft.a.length || !draft.b.length) throw new CommandError('a seam needs two sides');
+  const g = garment(e, garmentId);
+  const cuts = new Set(g.pieces.flatMap((p) => p.cuts.map((c) => c.id)));
+  for (const r of [...draft.a, ...draft.b]) {
+    if (!cuts.has(r.cut)) throw new CommandError('the seam is on a piece that is not in this garment');
+  }
+  const seam: Seam = {
+    id,
+    ...(name ? { name } : {}),
+    a: draft.a as Seam['a'],
+    b: draft.b as Seam['b'],
+    ...(draft.pairing ? { pairing: draft.pairing } : {}),
+  };
+  return editGarment(e, garmentId, (x) => setIn(x, ['seams'], [...(x.seams ?? []), seam]), { label: 'Sew two edges', drape: true });
+}
+
+export function removeSeam(e: Entities, garmentId: string, seamId: string): Command {
+  const g = garment(e, garmentId);
+  indexOf(g.seams, seamId, 'seam');
+  return editGarment(
+    e,
+    garmentId,
+    (x) =>
+      setIn(
+        x,
+        ['seams'],
+        (x.seams ?? []).filter((s) => s.id !== seamId),
+      ),
+    { label: 'Remove a seam', drape: true },
+  );
+}
+
+/** Which way side `b` runs against side `a`: flipping it twists the seam the other way. */
+export function reverseSeam(e: Entities, garmentId: string, seamId: string): Command {
+  const g = garment(e, garmentId);
+  const i = indexOf(g.seams, seamId, 'seam');
+  const seam = (g.seams ?? [])[i];
+  if (!seam) throw new CommandError(`no seam ${seamId}`);
+  return editGarment(e, garmentId, (x) => setIn(x, ['seams', i, 'b'], reversedRuns(seam.b)), { label: 'Reverse a seam', drape: true });
+}
+
 /** What an import adds to a garment (Rust `import::Addition`). */
 export interface Addition {
   pieces: Piece[];

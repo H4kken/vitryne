@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { EXAMPLES, openExample, rustRefuses } from '@/test/rust';
 import {
+  addSeam,
   applyCommand,
   type Command,
   CommandError,
@@ -12,7 +13,9 @@ import {
   renamePiece,
   renameProject,
   recoverChanges,
+  removeSeam,
   renameSeam,
+  reverseSeam,
   revertCommand,
   selfCollision,
   setFabricValue,
@@ -38,6 +41,10 @@ function everyCommand(e: Entities): Command[] {
     renameCut(e, g.id, piece.id, piece.cuts[0]!.id, ''),
     renameSeam(e, g.id, g.seams![0]!.id, 'side'),
     renameFabric(e, fabric.id, 'Denim'),
+    // Sewing: the first seam taken out, turned over, and put back as a new one.
+    removeSeam(e, g.id, g.seams![0]!.id),
+    reverseSeam(e, g.id, g.seams![0]!.id),
+    addSeam(e, g.id, { a: g.seams![0]!.a, b: g.seams![0]!.b, pairing: g.seams![0]!.pairing }, '01a13cdb-cc00-7000-8000-000000000999', 'Again'),
     ...(Object.keys(FABRIC_FIELDS) as FabricField[]).map((f) => setFabricValue(e, fabric.id, f, 0.123)),
     setTargetVertices(e, 5000),
     setSelfCollision(e, !selfCollision(e)),

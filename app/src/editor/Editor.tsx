@@ -7,7 +7,7 @@
 // selected one's handles.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ellipsis, FastForward, Pause, Play, RotateCcw, Shapes, SlidersHorizontal, X } from 'lucide-react';
+import { Ellipsis, FastForward, Link2, Pause, Play, RotateCcw, Shapes, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { type Addition, addPieces, findCut, setLayout, setPlacement, type Bounds } from '@/document/commands';
+import { type Addition, addPieces, addSeam, findCut, setLayout, setPlacement, type Bounds } from '@/document/commands';
 import { mainGarment } from '@/document/entities';
 import type { Placement } from '@/format/schema.gen';
 import { DocumentStore, useDocument } from '@/document/store';
@@ -27,6 +27,8 @@ import { cn } from '@/lib/utils';
 import { type FlatTool, PatternPanel, type PatternView, type Selection } from '@/pattern/PatternPanel';
 import { type Place, tidy } from '@/placement/places';
 import { FabricPanel, PANEL_TITLES, type PanelId, PiecesPanel, SettingsPanel } from '@/properties/panels';
+import { type CutEdge, parseDifferences, parseEdges, parseProposals, type SeamProposal } from '@/sewing/api';
+import { SeamsPanel } from '@/sewing/SeamsPanel';
 import { LocalStorage } from '@/storage/storage';
 import type { PointerTool } from '@/worker/protocol';
 import { type EngineState, EngineSession, useEngine } from '@/worker/session';
@@ -48,6 +50,7 @@ const HINTS: Record<string, string> = {
   '3d:pinch': 'Pinch: drag the fabric to pull it. It settles when you let go.',
   'flat:select': 'Select: click a piece to pick it, drag its round handle to turn it. Drag the background to look around.',
   'flat:move': 'Move: drag a piece to place it.',
+  'flat:sew': 'Sew: click an edge, then the edge it is sewn to. Dotted edges are free; coloured ones are already sewn.',
 };
 
 /** Random bytes for new ids. */
@@ -88,6 +91,101 @@ export function Editor() {
   }, []);
 
   const garment = mainGarment(doc.entities);
+
+  // Sewing (M8): the whole edges and each seam's length difference, asked of Rust whenever the
+  // pieces or seams change and something shows them; suggestions when the user asks.
+  const [edges, setEdges] = useState<CutEdge[]>([]);
+  const [differences, setDifferences] = useState<Record<string, number>>({});
+  const [finding, setFinding] = useState(false);
+  const sewingShown = panel === 'seams' || (mode === 'flat' && flatTool === 'sew');
+  const sewingKey = garment ? `${garment.id}` : '';
+  const seams = garment?.seams;
+  const pieces = garment?.pieces;
+  useEffect(() => {
+    if (!sewingShown || doc.empty || !garment) return;
+    let current = true;
+    session.sewingEdges().then(
+      (j) => current && setEdges(parseEdges(j)),
+      () => current && setEdges([]),
+    );
+    session.seamDifferences().then(
+      (j) => current && setDifferences(parseDifferences(j)),
+      () => current && setDifferences({}),
+    );
+    return () => {
+      current = false;
+    };
+    // `seams` and `pieces` change with edits to them; the rest of the garment doesn't matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, sewingShown, doc.empty, sewingKey, seams, pieces]);
+  // Suggestions and a half-made pick belong to the garment they were made for.
+  const [proposalState, setProposalState] = useState<{ key: string; list: SeamProposal[] } | null>(null);
+  const [pickState, setPickState] = useState<{ key: string; edge: CutEdge } | null>(null);
+  const proposals = proposalState?.key === sewingKey ? proposalState.list : null;
+  const firstPick = pickState?.key === sewingKey ? pickState.edge : null;
+  const setProposals = useCallback(
+    (f: (l: SeamProposal[] | null) => SeamProposal[] | null) =>
+      setProposalState((s) => {
+        const list = f(s?.key === sewingKey ? s.list : null);
+        return list ? { key: sewingKey, list } : null;
+      }),
+    [sewingKey],
+  );
+  const setFirstPick = useCallback((edge: CutEdge | null) => setPickState(edge ? { key: sewingKey, edge } : null), [sewingKey]);
+
+  const findSeams = useCallback(async () => {
+    setFinding(true);
+    try {
+      const list = parseProposals(await session.suggestSeams());
+      setProposals(() => list);
+    } catch (e) {
+      files.showError('Could not suggest seams', e as Error);
+    } finally {
+      setFinding(false);
+    }
+  }, [session, files, setProposals]);
+
+  const sew = useCallback(
+    (p: { a: SeamProposal['a']; b: SeamProposal['b']; pairing?: SeamProposal['pairing'] }) => {
+      if (!garment) return false;
+      return store.execute((e) => addSeam(e, garment.id, p, crypto.randomUUID()));
+    },
+    [garment, store],
+  );
+
+  const acceptProposal = useCallback(
+    (p: SeamProposal) => {
+      // Edges taken, so the rest of the list is asked again.
+      if (sew(p)) void findSeams();
+    },
+    [sew, findSeams],
+  );
+
+  const pickEdge = useCallback(
+    (edge: CutEdge) => {
+      if (!firstPick) {
+        setFirstPick(edge);
+        return;
+      }
+      if (firstPick.cut === edge.cut && firstPick.from === edge.from && firstPick.to === edge.to) {
+        setFirstPick(null);
+        return;
+      }
+      const pick = (x: CutEdge) => JSON.stringify({ cut: x.cut, from: x.from, to: x.to });
+      session.joinEdges(pick(firstPick), pick(edge)).then(
+        (j) => {
+          const [made] = parseProposals(`[${j}]`);
+          if (made) sew(made);
+          setFirstPick(null);
+        },
+        (e: Error) => {
+          setFirstPick(null);
+          files.showError('Could not sew those edges', e);
+        },
+      );
+    },
+    [firstPick, session, sew, files, setFirstPick],
+  );
   const fabric = garment ? doc.entities.fabrics.find((f) => f.id === garment.fabric) : doc.entities.fabrics[0];
   // A selection only counts in the file it was made in.
   const selected = selection && garment ? findCut(garment, selection.cutId) : undefined;
@@ -300,6 +398,7 @@ export function Editor() {
         <nav aria-label="Panels" className="flex w-20 shrink-0 flex-col gap-1.5 border-r bg-white px-2 py-3">
           <RailButton id="fabric" icon={<FabricIcon />} panel={panel} setPanel={setPanel} />
           <RailButton id="pieces" icon={<Shapes className="size-6" strokeWidth={1.6} />} panel={panel} setPanel={setPanel} />
+          <RailButton id="seams" icon={<Link2 className="size-6" strokeWidth={1.6} />} panel={panel} setPanel={setPanel} />
           <RailButton id="settings" icon={<SlidersHorizontal className="size-6" strokeWidth={1.6} />} panel={panel} setPanel={setPanel} />
         </nav>
         {/* Panel */}
@@ -315,6 +414,22 @@ export function Editor() {
                 onSelect={select}
                 onRewrap={rewrap}
                 onPlaceIn3d={placing ? null : () => (setMode('3d'), setTool('select'))}
+              />
+            )}
+            {panel === 'seams' && (
+              <SeamsPanel
+                store={store}
+                garment={garment}
+                differences={differences}
+                proposals={proposals}
+                finding={finding}
+                onFind={() => void findSeams()}
+                onAccept={acceptProposal}
+                onSkip={(i) => setProposals((list) => list?.filter((_, k) => k !== i) ?? null)}
+                picking={mode === 'flat' && flatTool === 'sew'}
+                firstPicked={firstPick !== null}
+                onStartPicking={() => (setMode('flat'), setFlatTool('sew'))}
+                onStopPicking={() => (setFlatTool('select'), setFirstPick(null))}
               />
             )}
             {panel === 'settings' && <SettingsPanel store={store} entities={doc.entities} />}
@@ -345,6 +460,7 @@ export function Editor() {
                 selection={shownSelection}
                 onSelect={select}
                 tool={flatTool}
+                sewing={{ edges, picked: firstPick, onPick: pickEdge }}
                 onArrange={(cutId, t) => garment && store.execute((e) => setLayout(e, garment.id, cutId, { position: [t.x, t.y], rotation: t.rot }))}
               />
             </div>
@@ -448,6 +564,16 @@ export function Editor() {
               </ToolButton>
               <ToolButton label="Move" selected={flatTool === 'move'} onClick={() => setFlatTool('move')}>
                 <MoveIcon />
+              </ToolButton>
+              <ToolButton
+                label="Sew two edges"
+                selected={flatTool === 'sew'}
+                onClick={() => {
+                  setFlatTool('sew');
+                  setPanel('seams');
+                }}
+              >
+                <Link2 className="size-5" />
               </ToolButton>
             </div>
           )}

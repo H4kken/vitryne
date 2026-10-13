@@ -23,6 +23,50 @@ export function outlinePoints(piece: Piece): P[] {
   return pts;
 }
 
+/**
+ * The stretch of the outline from node `from` to node `to`, counter-clockwise (the outline's
+ * order) or clockwise, with its edge points. Empty if either node isn't on the outline.
+ */
+export function runPoints(piece: Piece, from: string, to: string, ccw: boolean): P[] {
+  const nodes = piece.outline as OutlineNode[];
+  const n = nodes.length;
+  let i = nodes.findIndex((x) => x.id === from);
+  const end = nodes.findIndex((x) => x.id === to);
+  const first = nodes[i];
+  if (!first || end < 0) return [];
+  const pts: P[] = [first.position];
+  for (let steps = 0; i !== end && steps <= n; steps++) {
+    const here = nodes[i];
+    if (ccw) {
+      for (const q of here?.edge.points ?? []) pts.push(q as P);
+      i = (i + 1) % n;
+    } else {
+      i = (i + n - 1) % n;
+      for (const q of [...(nodes[i]?.edge.points ?? [])].reverse()) pts.push(q as P);
+    }
+    const there = nodes[i];
+    if (there) pts.push(there.position);
+  }
+  return pts;
+}
+
+/** Distance from `p` to the polyline `pts`. */
+export function distToPolyline([px, py]: P, pts: readonly P[]): number {
+  let best = Infinity;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (!a || !b) continue;
+    const [ax, ay] = a;
+    const [bx, by] = b;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+    best = Math.min(best, Math.hypot(px - (ax + t * dx), py - (ay + t * dy)));
+  }
+  return best;
+}
+
 export function linePoints(line: Line): P[] {
   const pts: P[] = [];
   for (const n of line.nodes) {

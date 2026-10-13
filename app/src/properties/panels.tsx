@@ -33,9 +33,9 @@ import { NumberField, TextField } from './fields';
 /** How far a piece placed on another sits off it, mm (Rust `import::ON_TOP_LIFT_MM`). */
 export const ON_TOP_LIFT_MM = 12;
 
-export type PanelId = 'fabric' | 'pieces' | 'settings';
+export type PanelId = 'fabric' | 'pieces' | 'seams' | 'settings';
 
-export const PANEL_TITLES: Record<PanelId, string> = { fabric: 'Fabric', pieces: 'Pieces', settings: 'Settings' };
+export const PANEL_TITLES: Record<PanelId, string> = { fabric: 'Fabric', pieces: 'Pieces', seams: 'Seams', settings: 'Settings' };
 
 function Intro({ children }: { children: React.ReactNode }) {
   return <p className="text-muted-foreground m-0 text-sm leading-snug">{children}</p>;

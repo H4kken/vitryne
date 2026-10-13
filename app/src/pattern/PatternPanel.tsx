@@ -2,7 +2,9 @@
 // The flat pieces view: every cut of the garment (a mirrored one drawn mirrored) with its
 // folds, grain line, notches and internal lines, where its layout puts it. Wheel zooms around
 // the cursor, dragging empty space pans. The select tool picks a cut and turns it by its round
-// handle; the move tool drags cuts. Where a cut sits here is display only (`cut.layout`).
+// handle; the move tool drags cuts; the sew tool picks whole edges to sew (two clicks, edge
+// then edge: nothing is measured or shown while picking, docs/PATENTS.md). Sewn edges are drawn
+// in a colour per seam. Where a cut sits here is display only (`cut.layout`).
 
 import { type Ref, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { Garment, OutlineNode, Piece } from '@/format/schema.gen';
@@ -15,16 +17,30 @@ import {
   layoutCuts,
   linePoints,
   outlinePoints,
+  distToPolyline,
   type P,
   pathData,
+  runPoints,
   type Transform,
   unapply,
 } from './geometry';
+import { type CutEdge, sameEdge } from '@/sewing/api';
 
 /** A cut, by its id (and its piece's). */
 export type Selection = { kind: 'cut'; pieceId: string; cutId: string } | null;
 
-export type FlatTool = 'select' | 'move';
+export type FlatTool = 'select' | 'move' | 'sew';
+
+/** The sew tool's edges and what the user has picked so far. */
+export interface SewingState {
+  edges: CutEdge[];
+  picked: CutEdge | null;
+  onPick: (edge: CutEdge) => void;
+}
+
+const SEAM_COLOURS = ['#3A63F0', '#D6457F', '#1F9D6B', '#D9822B', '#7B5CD6', '#2A9DB5'];
+/** How close the pointer must be to an edge to pick it, screen pixels. */
+const EDGE_PICK_PX = 10;
 
 /** What the zoom control can do to the view. */
 export interface PatternView {
@@ -119,6 +135,7 @@ export function PatternPanel({
   onSelect,
   tool,
   onArrange,
+  sewing,
   ref,
 }: {
   garment: Garment | undefined;
@@ -127,6 +144,8 @@ export function PatternPanel({
   tool: FlatTool;
   /** A cut moved or turned: its new layout (one edit per drag). */
   onArrange: (cutId: string, t: Transform) => void;
+  /** For the sew tool: the whole edges to pick from. */
+  sewing?: SewingState;
   ref?: Ref<PatternView>;
 }) {
   const layout = useMemo(() => layoutCuts(garment), [garment]);
@@ -201,6 +220,22 @@ export function PatternPanel({
     return [vb.minX + (e.clientX - r.left) * mmPerPx, -(vb.minY + (e.clientY - r.top) * mmPerPx)];
   };
 
+  /** The free whole edge nearest to `p`, if the pointer is on one. */
+  const edgeHit = (p: P): CutEdge | null => {
+    if (!sewing) return null;
+    let best: { e: CutEdge; d: number } | null = null;
+    for (const v of cuts) {
+      const q = unapply(v.t, p);
+      const local: P = v.cut.mirrored ? [-q[0], q[1]] : q;
+      for (const e of sewing.edges) {
+        if (e.cut !== v.cut.id || e.sewn) continue;
+        const d = distToPolyline(local, runPoints(v.piece, e.from, e.to, true));
+        if (d <= EDGE_PICK_PX * mmPerPx && (!best || d < best.d)) best = { e, d };
+      }
+    }
+    return best?.e ?? null;
+  };
+
   const hitCut = (p: P) => [...cuts].reverse().find((v) => inside(unapply(v.t, p), v.pts)) ?? null;
   const selected = selection ? cuts.find((v) => v.cut.id === selection.cutId) : undefined;
   // The turn handle, above the selection's top middle (pattern coordinates, y up).
@@ -214,7 +249,7 @@ export function PatternPanel({
   return (
     <div
       ref={host}
-      className={`flat-grid h-full w-full touch-none overflow-hidden ${tool === 'move' ? 'cursor-move' : 'cursor-default'}`}
+      className={`flat-grid h-full w-full touch-none overflow-hidden ${tool === 'move' ? 'cursor-move' : tool === 'sew' ? 'cursor-crosshair' : 'cursor-default'}`}
       onPointerDown={(e) => {
         try {
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -227,6 +262,13 @@ export function PatternPanel({
           freeze();
           drag.current = { kind: 'turn', cut: selected, centre, local: unapply(selected.t, centre), from: Math.atan2(p[1] - centre[1], p[0] - centre[0]), t: selected.t };
           return;
+        }
+        if (tool === 'sew') {
+          const edge = edgeHit(p);
+          if (edge) {
+            sewing?.onPick(edge);
+            return;
+          }
         }
         const hit = hitCut(p);
         if (tool === 'move' && hit) {
@@ -303,6 +345,44 @@ export function PatternPanel({
             <g key={v.cut.id}>
               <g transform={svgTransform(v.t, !!v.cut.mirrored)}>
                 <PieceDrawing piece={v.piece} />
+                {/* Seams, one colour each, on the edges they sew. */}
+                {(garment?.seams ?? []).flatMap((seam, i) =>
+                  [...seam.a, ...seam.b]
+                    .filter((r) => r.cut === v.cut.id && !r.line)
+                    .map((r, k) => (
+                      <path
+                        key={`${seam.id}:${k}`}
+                        d={pathData(runPoints(v.piece, r.from, r.to, r.direction !== 'cw'), false)}
+                        fill="none"
+                        stroke={SEAM_COLOURS[i % SEAM_COLOURS.length]}
+                        strokeWidth={5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        opacity={0.85}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    )),
+                )}
+                {/* The sew tool: free edges to pick, and the first pick. */}
+                {tool === 'sew' &&
+                  sewing?.edges
+                    .filter((e) => e.cut === v.cut.id && !e.sewn)
+                    .map((e) => {
+                      const on = sewing.picked ? sameEdge(sewing.picked, e) : false;
+                      return (
+                        <path
+                          key={`${e.from}:${e.to}`}
+                          d={pathData(runPoints(v.piece, e.from, e.to, true), false)}
+                          fill="none"
+                          stroke="#3A63F0"
+                          strokeWidth={on ? 7 : 4}
+                          strokeDasharray={on ? undefined : '2 7'}
+                          strokeLinecap="round"
+                          opacity={on ? 1 : 0.55}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      );
+                    })}
               </g>
               <text
                 x={(v.box.minX + v.box.maxX) / 2}
