@@ -1,13 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The flat pieces view: every piece of the garment with its folds, grain line, notches and
-// internal lines. Wheel zooms around the cursor, dragging pans, clicking a piece selects it.
-// Pieces don't move until M7.
+// The flat pieces view: every cut of the garment (a mirrored one drawn mirrored) with its
+// folds, grain line, notches and internal lines, where its layout puts it. Wheel zooms around
+// the cursor, dragging empty space pans. The select tool picks a cut and turns it by its round
+// handle; the move tool drags cuts. Where a cut sits here is display only (`cut.layout`).
 
 import { type Ref, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { Garment, OutlineNode, Piece } from '@/format/schema.gen';
-import { type Box, bounds, inside, layoutPieces, linePoints, outlinePoints, type P, pathData } from './geometry';
+import {
+  apply,
+  type Box,
+  bounds,
+  type CutView,
+  inside,
+  layoutCuts,
+  linePoints,
+  outlinePoints,
+  type P,
+  pathData,
+  type Transform,
+  unapply,
+} from './geometry';
 
-export type Selection = { kind: 'piece'; id: string } | null;
+/** A cut, by its id (and its piece's). */
+export type Selection = { kind: 'cut'; pieceId: string; cutId: string } | null;
+
+export type FlatTool = 'select' | 'move';
 
 /** What the zoom control can do to the view. */
 export interface PatternView {
@@ -16,8 +33,12 @@ export interface PatternView {
 }
 
 const NOTCH_MM = 10;
-/** Room under each piece for its name. */
+/** Room under each cut for its name. */
 const LABEL_GAP_MM = 34;
+/** The turn handle: how far above the selection, and how big, in screen pixels. */
+const HANDLE_PX = 26;
+const HANDLE_R_PX = 7;
+const SNAP_DEG = 15;
 
 function fit(box: Box, aspect: number, margin = 60): Box {
   let w = box.maxX - box.minX + 2 * margin;
@@ -29,7 +50,13 @@ function fit(box: Box, aspect: number, margin = 60): Box {
   return { minX: cx - w / 2, maxX: cx + w / 2, minY: cy - h / 2, maxY: cy + h / 2 };
 }
 
-function PieceShape({ piece, dx, dy, selected }: { piece: Piece; dx: number; dy: number; selected: boolean }) {
+/** The SVG transform for a cut's frame (SVG's y points down, so turns are clockwise there). */
+function svgTransform(t: Transform, mirrored: boolean): string {
+  return `translate(${t.x} ${-t.y}) rotate(${(-t.rot * 180) / Math.PI}) scale(${mirrored ? -1 : 1} 1)`;
+}
+
+/** The piece drawn in its own frame (the group around it mirrors, turns and moves it). */
+function PieceDrawing({ piece }: { piece: Piece }) {
   const outline = outlinePoints(piece);
   const nodes = piece.outline;
   const byId = new Map(nodes.map((n: OutlineNode) => [n.id, n.position]));
@@ -46,11 +73,8 @@ function PieceShape({ piece, dx, dy, selected }: { piece: Piece; dx: number; dy:
     const [x, y] = n.position;
     return [[[x, y], [x - (ty / len) * NOTCH_MM, y + (tx / len) * NOTCH_MM]] as P[]];
   });
-  const box = bounds(outline);
-  const cuts = piece.cuts.length;
-  const pad = 12;
   return (
-    <g transform={`translate(${dx} ${-dy})`}>
+    <>
       <path d={pathData(outline, true)} fill="#FFFFFF" stroke="#14181F" strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       {(piece.lines ?? []).map((l) => (
         <path key={l.id} d={pathData(linePoints(l), false)} fill="none" stroke="#8E968A" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
@@ -76,51 +100,36 @@ function PieceShape({ piece, dx, dy, selected }: { piece: Piece; dx: number; dy:
           vectorEffect="non-scaling-stroke"
         />
       )}
-      {selected && (
-        <rect
-          x={box.minX - pad}
-          y={-box.maxY - pad}
-          width={box.maxX - box.minX + 2 * pad}
-          height={box.maxY - box.minY + 2 * pad}
-          fill="none"
-          stroke="#3A63F0"
-          strokeWidth={1.5}
-          strokeDasharray="5 4"
-          vectorEffect="non-scaling-stroke"
-        />
-      )}
-      <text
-        x={(box.minX + box.maxX) / 2}
-        y={-box.minY + LABEL_GAP_MM}
-        textAnchor="middle"
-        fill={selected ? '#14181F' : '#5B625C'}
-        fontWeight={selected ? 600 : 400}
-        className="pointer-events-none font-sans text-[22px] select-none"
-      >
-        {piece.name}
-        {cuts > 1 ? ` ×${cuts}` : ''}
-      </text>
-    </g>
+    </>
   );
 }
+
+function cutLabel(v: CutView): string {
+  return v.cut.name ?? v.piece.name;
+}
+
+type Drag =
+  | { kind: 'pan'; x: number; y: number; moved: boolean; hit: CutView | null }
+  | { kind: 'move'; cut: CutView; start: P; t: Transform; moved: boolean }
+  | { kind: 'turn'; cut: CutView; centre: P; local: P; from: number; t: Transform };
 
 export function PatternPanel({
   garment,
   selection,
   onSelect,
+  tool,
+  onArrange,
   ref,
 }: {
   garment: Garment | undefined;
   selection: Selection;
   onSelect: (s: Selection) => void;
+  tool: FlatTool;
+  /** A cut moved or turned: its new layout (one edit per drag). */
+  onArrange: (cutId: string, t: Transform) => void;
   ref?: Ref<PatternView>;
 }) {
-  const layout = useMemo(() => layoutPieces(garment?.pieces ?? [], 80), [garment?.pieces]);
-  // The same box in SVG coordinates (y down), with room for the labels.
-  const all = useMemo(
-    () => ({ minX: layout.box.minX, maxX: layout.box.maxX, minY: -layout.box.maxY, maxY: -layout.box.minY + LABEL_GAP_MM }),
-    [layout.box],
-  );
+  const layout = useMemo(() => layoutCuts(garment), [garment]);
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1, h: 1 });
   const garmentId = garment?.id;
@@ -128,7 +137,9 @@ export function PatternPanel({
   const [userView, setUserView] = useState<{ garment: string | undefined; box: Box } | null>(null);
   const view = userView && userView.garment === garmentId ? userView.box : null;
   const setView = (box: Box | null) => setUserView(box ? { garment: garmentId, box } : null);
-  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const drag = useRef<Drag | null>(null);
+  /** A cut being dragged or turned, drawn where the pointer has it until the edit lands. */
+  const [live, setLive] = useState<{ cutId: string; t: Transform } | null>(null);
 
   useEffect(() => {
     const el = host.current;
@@ -138,6 +149,12 @@ export function PatternPanel({
     return () => ro.disconnect();
   }, []);
 
+  const cuts = layout.cuts.map((v) => {
+    if (live?.cutId !== v.cut.id) return v;
+    return { ...v, t: live.t, box: bounds(v.pts.map((p) => apply(live.t, p))) };
+  });
+  // The same box in SVG coordinates (y down), with room for the labels.
+  const all = { minX: layout.box.minX, maxX: layout.box.maxX, minY: -layout.box.maxY, maxY: -layout.box.minY + LABEL_GAP_MM };
   const aspect = size.w / size.h;
   // Room around the pieces for the status pill above and the hint and zoom below.
   const home = fit(all, aspect, 0.12 * Math.max(all.maxX - all.minX, (all.maxY - all.minY) * aspect));
@@ -179,41 +196,93 @@ export function PatternPanel({
     return () => el.removeEventListener('wheel', wheel);
   }, []);
 
-  const toPattern = (e: { clientX: number; clientY: number; currentTarget: Element }): P => {
-    const r = e.currentTarget.getBoundingClientRect();
+  const toPattern = (e: { clientX: number; clientY: number }): P => {
+    const r = host.current?.getBoundingClientRect() ?? { left: 0, top: 0 };
     return [vb.minX + (e.clientX - r.left) * mmPerPx, -(vb.minY + (e.clientY - r.top) * mmPerPx)];
+  };
+
+  const hitCut = (p: P) => [...cuts].reverse().find((v) => inside(unapply(v.t, p), v.pts)) ?? null;
+  const selected = selection ? cuts.find((v) => v.cut.id === selection.cutId) : undefined;
+  // The turn handle, above the selection's top middle (pattern coordinates, y up).
+  const handle: P | null = selected ? [(selected.box.minX + selected.box.maxX) / 2, selected.box.maxY + HANDLE_PX * mmPerPx] : null;
+  const select = (v: CutView | null) => onSelect(v ? { kind: 'cut', pieceId: v.piece.id, cutId: v.cut.id } : null);
+  // Panning or zooming during a drag would move the fit under the pointer: freeze it.
+  const freeze = () => {
+    if (!view) setView(vb);
   };
 
   return (
     <div
       ref={host}
-      className="flat-grid h-full w-full cursor-default touch-none overflow-hidden"
+      className={`flat-grid h-full w-full touch-none overflow-hidden ${tool === 'move' ? 'cursor-move' : 'cursor-default'}`}
       onPointerDown={(e) => {
         try {
           e.currentTarget.setPointerCapture(e.pointerId);
         } catch {
-          // A pointer the browser no longer tracks: panning just stops at the panel's edge.
+          // A pointer the browser no longer tracks: the drag just stops at the panel's edge.
         }
-        drag.current = { x: e.clientX, y: e.clientY, moved: false };
+        const p = toPattern(e);
+        if (selected && handle && Math.hypot(p[0] - handle[0], p[1] - handle[1]) <= (HANDLE_R_PX + 4) * mmPerPx) {
+          const centre: P = [(selected.box.minX + selected.box.maxX) / 2, (selected.box.minY + selected.box.maxY) / 2];
+          freeze();
+          drag.current = { kind: 'turn', cut: selected, centre, local: unapply(selected.t, centre), from: Math.atan2(p[1] - centre[1], p[0] - centre[0]), t: selected.t };
+          return;
+        }
+        const hit = hitCut(p);
+        if (tool === 'move' && hit) {
+          freeze();
+          select(hit);
+          drag.current = { kind: 'move', cut: hit, start: p, t: hit.t, moved: false };
+          return;
+        }
+        drag.current = { kind: 'pan', x: e.clientX, y: e.clientY, moved: false, hit };
       }}
       onPointerMove={(e) => {
         const d = drag.current;
         if (!d) return;
-        if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3) d.moved = true;
-        if (!d.moved) return;
-        const dx = (e.clientX - d.x) * mmPerPx;
-        const dy = (e.clientY - d.y) * mmPerPx;
-        d.x = e.clientX;
-        d.y = e.clientY;
-        setView({ minX: vb.minX - dx, maxX: vb.maxX - dx, minY: vb.minY - dy, maxY: vb.maxY - dy });
+        if (d.kind === 'pan') {
+          if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3) d.moved = true;
+          if (!d.moved) return;
+          const dx = (e.clientX - d.x) * mmPerPx;
+          const dy = (e.clientY - d.y) * mmPerPx;
+          d.x = e.clientX;
+          d.y = e.clientY;
+          setView({ minX: vb.minX - dx, maxX: vb.maxX - dx, minY: vb.minY - dy, maxY: vb.maxY - dy });
+          return;
+        }
+        const p = toPattern(e);
+        if (d.kind === 'move') {
+          d.moved = true;
+          setLive({ cutId: d.cut.cut.id, t: { ...d.t, x: d.t.x + p[0] - d.start[0], y: d.t.y + p[1] - d.start[1] } });
+          return;
+        }
+        // Turn about the box's centre: that point of the cut stays put.
+        let rot = d.t.rot + Math.atan2(p[1] - d.centre[1], p[0] - d.centre[0]) - d.from;
+        if (e.shiftKey) {
+          const step = (SNAP_DEG * Math.PI) / 180;
+          rot = Math.round(rot / step) * step;
+        }
+        rot = Math.atan2(Math.sin(rot), Math.cos(rot));
+        const [x, y] = apply({ x: 0, y: 0, rot }, d.local);
+        setLive({ cutId: d.cut.cut.id, t: { x: d.centre[0] - x, y: d.centre[1] - y, rot } });
       }}
-      onPointerUp={(e) => {
+      onPointerUp={() => {
         const d = drag.current;
         drag.current = null;
-        if (!d || d.moved) return;
-        const p = toPattern(e);
-        const hit = layout.placed.findLast(({ piece, dx, dy }) => inside([p[0] - dx, p[1] - dy], outlinePoints(piece)));
-        onSelect(hit ? { kind: 'piece', id: hit.piece.id } : null);
+        if (!d) return;
+        if (d.kind === 'pan') {
+          if (!d.moved) select(d.hit);
+          return;
+        }
+        if (live && live.cutId === d.cut.cut.id && (d.kind === 'turn' || d.moved)) {
+          const round = (x: number) => Math.round(x * 1000) / 1000;
+          onArrange(d.cut.cut.id, { x: round(live.t.x), y: round(live.t.y), rot: Math.round(live.t.rot * 1e4) / 1e4 });
+        }
+        setLive(null);
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+        setLive(null);
       }}
       onDoubleClick={() => setView(null)}
     >
@@ -221,16 +290,67 @@ export function PatternPanel({
         className={garment ? 'block h-full w-full' : 'hidden'}
         viewBox={`${vb.minX} ${vb.minY} ${vb.maxX - vb.minX} ${vb.maxY - vb.minY}`}
         role="img"
-        aria-label={`Flat pattern pieces: ${(garment?.pieces ?? []).map((p) => p.name).join(', ')}`}
+        aria-label={`Flat pattern pieces: ${cuts.map(cutLabel).join(', ')}`}
       >
         <defs>
           <marker id="grain-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M1 1 L9 5 L1 9" fill="none" stroke="#8E968A" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
           </marker>
         </defs>
-        {layout.placed.map(({ piece, dx, dy }) => (
-          <PieceShape key={piece.id} piece={piece} dx={dx} dy={dy} selected={selection?.kind === 'piece' && selection.id === piece.id} />
-        ))}
+        {cuts.map((v) => {
+          const on = selection?.cutId === v.cut.id;
+          return (
+            <g key={v.cut.id}>
+              <g transform={svgTransform(v.t, !!v.cut.mirrored)}>
+                <PieceDrawing piece={v.piece} />
+              </g>
+              <text
+                x={(v.box.minX + v.box.maxX) / 2}
+                y={-v.box.minY + LABEL_GAP_MM}
+                textAnchor="middle"
+                fill={on ? '#14181F' : '#5B625C'}
+                fontWeight={on ? 600 : 400}
+                className="pointer-events-none font-sans text-[22px] select-none"
+              >
+                {cutLabel(v)}
+                {v.cut.mirrored ? ' (mirrored)' : ''}
+              </text>
+            </g>
+          );
+        })}
+        {selected && handle && (
+          <g>
+            <rect
+              x={selected.box.minX - 12}
+              y={-selected.box.maxY - 12}
+              width={selected.box.maxX - selected.box.minX + 24}
+              height={selected.box.maxY - selected.box.minY + 24}
+              fill="none"
+              stroke="#3A63F0"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d={pathData([[handle[0], selected.box.maxY + 12], handle], false)}
+              stroke="#3A63F0"
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle
+              cx={handle[0]}
+              cy={-handle[1]}
+              r={HANDLE_R_PX * mmPerPx}
+              fill="#FFFFFF"
+              stroke="#3A63F0"
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+              className="cursor-grab"
+            >
+              <title>Drag to turn (Shift: 15° steps)</title>
+            </circle>
+          </g>
+        )}
       </svg>
     </div>
   );

@@ -7,10 +7,12 @@
 //! in Node too), `PreparedScene` and `Viewport` (the drape on an OffscreenCanvas). The bench
 //! page uses `run_bench`, `run_drag_bench` and `bake_sdf_ms`.
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use drape_assets::{
     garment::Garment as DxfGarment,
+    import::{Choice, DxfImport},
+    placement::BodyPlace,
     tshirt::{self, SdfParams, TshirtParams},
 };
 use drape_core::{
@@ -305,6 +307,75 @@ impl VtryFile {
         Ok(PreparedScene {
             inner: self.file.prepare()?,
         })
+    }
+
+    /// What importing a DXF would give (`import::Preview` as JSON): its pieces, what was
+    /// ignored, a suggested place for each. `sidecar`: a garment.toml's text, or empty.
+    pub fn inspect_dxf(file_name: &str, dxf: &str, sidecar: &str) -> Result<String, JsValue> {
+        let imp = DxfImport::read(file_name, dxf, (!sidecar.is_empty()).then_some(sidecar))?;
+        Ok(serde_json::to_string(&imp.preview()).expect("preview serializes"))
+    }
+
+    /// A new project from a DXF, its pieces placed as `choices` (JSON: piece name ->
+    /// `import::Choice`) say. `body_glb`: the test avatar's mesh. `seed`: random bytes for
+    /// the ids. The import's notes are in `warnings()`.
+    pub fn import_new(
+        file_name: &str,
+        dxf: &str,
+        sidecar: &str,
+        choices: &str,
+        body_glb: &[u8],
+        now_ms: f64,
+        seed: &[u8],
+    ) -> Result<VtryFile, JsValue> {
+        let choices: BTreeMap<String, Choice> =
+            serde_json::from_str(choices).map_err(|e| format!("choices: {e}"))?;
+        let imported = project::ProjectFile::import_new(
+            file_name,
+            dxf,
+            (!sidecar.is_empty()).then_some(sidecar),
+            &choices,
+            body_glb,
+            now_ms as u64,
+            seed,
+        )?;
+        Ok(VtryFile {
+            file: imported.file,
+            warnings: imported.notes,
+        })
+    }
+
+    /// Pieces from a DXF to add to this project's garment (`import::Addition` as JSON). The
+    /// project is unchanged: the editor adds them as an edit.
+    pub fn import_addition(
+        &self,
+        file_name: &str,
+        dxf: &str,
+        sidecar: &str,
+        choices: &str,
+        now_ms: f64,
+        seed: &[u8],
+    ) -> Result<String, JsValue> {
+        let choices: BTreeMap<String, Choice> =
+            serde_json::from_str(choices).map_err(|e| format!("choices: {e}"))?;
+        let a = self.file.import_addition(
+            file_name,
+            dxf,
+            (!sidecar.is_empty()).then_some(sidecar),
+            &choices,
+            now_ms as u64,
+            seed,
+        )?;
+        Ok(serde_json::to_string(&a).expect("addition serializes"))
+    }
+
+    /// Cut `cut` (its id) started again at `place` (a `placement::BodyPlace` name, e.g.
+    /// "body-front"): `project::Rewrapped` as JSON. The project is unchanged.
+    pub fn rewrap(&self, cut: &str, place: &str) -> Result<String, JsValue> {
+        let place: BodyPlace = serde_json::from_value(serde_json::Value::String(place.into()))
+            .map_err(|_| format!("no place {place:?}"))?;
+        let r = self.file.rewrap(cut, place)?;
+        Ok(serde_json::to_string(&r).expect("rewrap serializes"))
     }
 }
 

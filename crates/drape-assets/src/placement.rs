@@ -13,7 +13,8 @@ use std::{
 };
 
 use glam::{Vec2, Vec3};
-use vitryne_format::{Avatar, Region};
+use serde::{Deserialize, Serialize};
+use vitryne_format::{Avatar, Region, Wrap};
 
 use crate::{meshing::MeshedPattern, pattern::Pattern};
 
@@ -135,7 +136,9 @@ impl Frame {
         self.o
     }
 
-    fn place(&self, angle: f32, radius: f32, along: f32) -> Vec3 {
+    /// The point at (angle, radius, along) and the directions it moves in when each of them
+    /// grows (unit vectors): around the axis, along it, away from it.
+    pub fn basis(&self, angle: f32, radius: f32, along: f32) -> Basis {
         let (c, a, e0) = match &self.path {
             Some(path) if along < 0.0 => {
                 let x = -along / PATH_STEP;
@@ -151,8 +154,23 @@ impl Frame {
             _ => (self.o + along * self.a, self.a, self.e0),
         };
         let e1 = a.cross(e0);
-        c + radius * (angle.cos() * e0 + angle.sin() * e1)
+        let out = angle.cos() * e0 + angle.sin() * e1;
+        Basis {
+            point: c + radius * out,
+            around: angle.cos() * e1 - angle.sin() * e0,
+            along: a,
+            out,
+        }
     }
+}
+
+/// See `Frame::basis`.
+#[derive(Debug, Clone, Copy)]
+pub struct Basis {
+    pub point: Vec3,
+    pub around: Vec3,
+    pub along: Vec3,
+    pub out: Vec3,
 }
 
 /// The test avatar (MakeHuman base mesh, assets/body/): its entity as it goes into a project,
@@ -221,24 +239,45 @@ pub enum PlaceSpec {
     },
 }
 
-#[derive(Clone)]
-struct Resolved {
-    frame: Frame,
-    angle: f32,
-    radius: f32,
-    top: f32,
-    anchor: Vec2,
-    /// Tube radius by pattern y (lo, step, radii); None = constant `radius`.
-    tube: Option<(f32, f32, Vec<f32>)>,
-}
-
 /// Wraps every panel (`specs[i]` for panel i) onto its cylinder: a point p of the pattern goes
 /// to `frame.at(top + (p - anchor).y)` at angle `angle + (p - anchor).x / r` and radius r,
 /// where the anchor is the centre of the panel's bounding box in x and its top in y.
 pub fn place(mp: &mut MeshedPattern, pat: &Pattern, specs: &[PlaceSpec]) -> Result<(), String> {
+    let outlines: Vec<Vec<Vec2>> = pat.panels.iter().map(|p| p.outline()).collect();
+    let names: Vec<&str> = pat.panels.iter().map(|p| p.name.as_str()).collect();
+    let resolved = resolve_all(&outlines, &names, specs)?;
+    mp.mesh.pos = positions(&mp.uv, &mp.panel_vertices, &resolved);
+    for (pi, r) in resolved.iter().enumerate() {
+        // Render-only: front faces point away from the axis (mirrored pieces flip winding).
+        let f = &r.frame;
+        let score: f32 = mp.mesh.tris[mp.panel_tris[pi].clone()]
+            .iter()
+            .map(|t| {
+                let [a, b, c] = t.map(|k| mp.mesh.pos[k as usize]);
+                let q = (a + b + c) / 3.0 - f.o;
+                (b - a).cross(c - a).dot(q - q.dot(f.a) * f.a)
+            })
+            .sum();
+        if score < 0.0 {
+            for t in &mut mp.mesh.tris[mp.panel_tris[pi].clone()] {
+                t.swap(1, 2);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Each panel's wrap, with `follow`s resolved (`outlines`: each panel's, in its pattern
+/// coordinates; `names` for errors).
+pub fn resolve_all(
+    outlines: &[Vec<Vec2>],
+    names: &[&str],
+    specs: &[PlaceSpec],
+) -> Result<Vec<Resolved>, String> {
     fn resolve(
         i: usize,
-        pat: &Pattern,
+        outlines: &[Vec<Vec2>],
+        names: &[&str],
         specs: &[PlaceSpec],
         done: &mut Vec<Option<Resolved>>,
         visiting: &mut Vec<bool>,
@@ -247,20 +286,17 @@ pub fn place(mp: &mut MeshedPattern, pat: &Pattern, specs: &[PlaceSpec]) -> Resu
             return Ok(r.clone());
         }
         if visiting[i] {
-            return Err(format!(
-                "{}: its placement follows itself",
-                pat.panels[i].name
-            ));
+            return Err(format!("{}: its placement follows itself", names[i]));
         }
         visiting[i] = true;
-        let outline = pat.panels[i].outline();
+        let outline = &outlines[i];
         let (lo, hi) = outline.iter().fold(
             (Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)),
             |(lo, hi), q| (lo.min(*q), hi.max(*q)),
         );
         let r = match &specs[i] {
             PlaceSpec::Follow { of, angle, lift } => {
-                let base = resolve(*of, pat, specs, done, visiting)?;
+                let base = resolve(*of, outlines, names, specs, done, visiting)?;
                 Resolved {
                     angle: angle.unwrap_or(base.angle),
                     radius: base.radius + lift,
@@ -279,7 +315,7 @@ pub fn place(mp: &mut MeshedPattern, pat: &Pattern, specs: &[PlaceSpec]) -> Resu
                 radius: *radius,
                 top: *top,
                 anchor: Vec2::new(0.5 * (lo.x + hi.x), hi.y),
-                tube: tube.map(|ease| tube_profile(&outline, lo.y, hi.y, ease, *radius)),
+                tube: tube.map(|ease| tube_profile(outline, lo.y, hi.y, ease, *radius)),
             },
         };
         done[i] = Some(r.clone());
@@ -287,38 +323,68 @@ pub fn place(mp: &mut MeshedPattern, pat: &Pattern, specs: &[PlaceSpec]) -> Resu
     }
     let mut done = vec![None; specs.len()];
     let mut visiting = vec![false; specs.len()];
-    for pi in 0..specs.len() {
-        let r = resolve(pi, pat, specs, &mut done, &mut visiting)?;
-        for v in mp.panel_vertices[pi].clone() {
-            let q = mp.uv[v as usize] - r.anchor;
-            let radius = match &r.tube {
-                Some((lo, step, radii)) => {
-                    let x =
-                        ((mp.uv[v as usize].y - lo) / step).clamp(0.0, (radii.len() - 1) as f32);
-                    let k = (x.floor() as usize).min(radii.len() - 2);
-                    radii[k] + (radii[k + 1] - radii[k]) * (x - k as f32)
-                }
-                None => r.radius,
-            };
-            mp.mesh.pos[v as usize] = r.frame.place(r.angle + q.x / radius, radius, r.top + q.y);
-        }
-        // Render-only: front faces point away from the axis (mirrored pieces flip winding).
-        let f = &r.frame;
-        let score: f32 = mp.mesh.tris[mp.panel_tris[pi].clone()]
-            .iter()
-            .map(|t| {
-                let [a, b, c] = t.map(|k| mp.mesh.pos[k as usize]);
-                let q = (a + b + c) / 3.0 - f.o;
-                (b - a).cross(c - a).dot(q - q.dot(f.a) * f.a)
-            })
-            .sum();
-        if score < 0.0 {
-            for t in &mut mp.mesh.tris[mp.panel_tris[pi].clone()] {
-                t.swap(1, 2);
-            }
+    (0..specs.len())
+        .map(|i| resolve(i, outlines, names, specs, &mut done, &mut visiting))
+        .collect()
+}
+
+/// Where every vertex goes (`uv`: its pattern coordinates; `panel_vertices`: each panel's).
+pub fn positions(
+    uv: &[Vec2],
+    panel_vertices: &[std::ops::Range<u32>],
+    resolved: &[Resolved],
+) -> Vec<Vec3> {
+    let mut pos = vec![Vec3::ZERO; uv.len()];
+    for (r, range) in resolved.iter().zip(panel_vertices) {
+        for v in range.clone() {
+            pos[v as usize] = r.at(uv[v as usize]);
         }
     }
-    Ok(())
+    pos
+}
+
+/// One panel's wrap, resolved (see `place`).
+#[derive(Clone)]
+pub struct Resolved {
+    frame: Frame,
+    angle: f32,
+    radius: f32,
+    top: f32,
+    anchor: Vec2,
+    /// Tube radius by pattern y (lo, step, radii); None = constant `radius`.
+    tube: Option<(f32, f32, Vec<f32>)>,
+}
+
+impl Resolved {
+    /// The cylinder's radius at pattern height `y` (the tube's, or the wrap's).
+    pub fn radius_at(&self, y: f32) -> f32 {
+        match &self.tube {
+            Some((lo, step, radii)) => {
+                let x = ((y - lo) / step).clamp(0.0, (radii.len() - 1) as f32);
+                let k = (x.floor() as usize).min(radii.len() - 2);
+                radii[k] + (radii[k + 1] - radii[k]) * (x - k as f32)
+            }
+            None => self.radius,
+        }
+    }
+
+    /// Where pattern point `p` goes.
+    pub fn at(&self, p: Vec2) -> Vec3 {
+        self.basis_at(p).point
+    }
+
+    /// Where pattern point `p` goes, and how it moves with the wrap's angle, top and radius
+    /// (for the editor's gizmo).
+    pub fn basis_at(&self, p: Vec2) -> Basis {
+        let q = p - self.anchor;
+        let radius = self.radius_at(p.y);
+        self.frame
+            .basis(self.angle + q.x / radius, radius, self.top + q.y)
+    }
+
+    pub fn anchor(&self) -> Vec2 {
+        self.anchor
+    }
 }
 
 /// Tube radius along a piece (see `Wrap::tube`): `ease` x width / 2 pi below the widest row,
@@ -356,6 +422,182 @@ fn tube_profile(
         })
         .collect();
     (lo, step, radii)
+}
+
+// ---- the editor's places (docs/ARCHITECTURE.md, Placement) --------------------------------
+
+/// Where the editor offers to start a cut, as people say it: a region and a side of it. Each
+/// is a region name and an angle; `auto_wrap` works out the rest. "Left" is the wearer's left.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BodyPlace {
+    BodyFront,
+    BodyBack,
+    BodyLeft,
+    BodyRight,
+    ArmLeft,
+    ArmRight,
+    LegLeftFront,
+    LegLeftBack,
+    LegRightFront,
+    LegRightBack,
+    HeadLeft,
+    HeadRight,
+    OverHead,
+}
+
+/// Room around the piece's own circumference (a garment is looser than the body).
+const EASE: f32 = 1.15;
+/// The same for a sleeve's tube (`Wrap::tube`), as the file stores it.
+const TUBE_EASE: f64 = 1.15;
+/// The least gap between the cylinder and the body where it's measured, m.
+const CLEARANCE: f32 = 0.02;
+/// Heights as fractions of the avatar's height (standing, feet at y = 0), after the usual body
+/// proportions: the base of the neck (where a top's neckline sits), the waist (a waistband),
+/// the chin (the head is what's above it).
+const NECK_BASE: f32 = 0.86;
+const WAIST: f32 = 0.65;
+const CHIN: f32 = 0.87;
+/// A hood's top edge goes this far above the head, m.
+const HOOD_ABOVE: f32 = 0.03;
+
+impl BodyPlace {
+    pub fn region(self) -> &'static str {
+        use BodyPlace::*;
+        match self {
+            BodyFront | BodyBack | BodyLeft | BodyRight => "torso",
+            ArmLeft => "arm-left",
+            ArmRight => "arm-right",
+            LegLeftFront | LegLeftBack => "leg-left",
+            LegRightFront | LegRightBack => "leg-right",
+            HeadLeft | HeadRight => "head",
+            OverHead => "head-over",
+        }
+    }
+
+    /// Radians from the region's zero direction (torso, legs, head: the front; arms, over the
+    /// head: the top), towards the wearer's left.
+    pub fn angle(self) -> f64 {
+        use BodyPlace::*;
+        use std::f64::consts::{FRAC_PI_2, PI};
+        match self {
+            BodyBack | LegLeftBack | LegRightBack => PI,
+            BodyLeft | HeadLeft => FRAC_PI_2,
+            BodyRight | HeadRight => -FRAC_PI_2,
+            _ => 0.0,
+        }
+    }
+}
+
+/// What `auto_wrap` needs to know about the avatar, measured once from its mesh (m).
+#[derive(Debug, Clone, Copy)]
+pub struct BodyFacts {
+    pub height: f32,
+    /// Farthest point of the head (above the chin) from the head axis, and from the over-the-
+    /// head axis.
+    pub head: f32,
+    pub over_head: f32,
+    /// The shoulder joints' distance from the torso axis (the widest the torso gets, arms
+    /// aside); None without arm regions.
+    pub shoulders: Option<f32>,
+}
+
+fn axis_distance(p: Vec3, o: Vec3, a: Vec3) -> f32 {
+    let d = p - o;
+    (d - d.dot(a) * a).length()
+}
+
+impl BodyFacts {
+    pub fn measure(body: &[Vec3], regions: &BTreeMap<String, Region>) -> Result<Self, String> {
+        let height = body.iter().map(|p| p.y).fold(0.0, f32::max);
+        if height <= 0.0 {
+            return Err("the avatar's mesh has no height".into());
+        }
+        let farthest = |name: &str| -> Result<f32, String> {
+            let f = region_frame(regions, name)?;
+            Ok(body
+                .iter()
+                .filter(|p| p.y > CHIN * height)
+                .map(|&p| axis_distance(p, f.o, f.a))
+                .fold(0.0, f32::max))
+        };
+        let shoulders = region_frame(regions, "upper-arm-left")
+            .ok()
+            .and_then(|arm| {
+                let t = region_frame(regions, "torso").ok()?;
+                Some(axis_distance(arm.o, t.o, t.a))
+            });
+        Ok(Self {
+            height,
+            head: farthest("head").unwrap_or(0.0),
+            over_head: farthest("head-over").unwrap_or(0.0),
+            shoulders,
+        })
+    }
+}
+
+/// The starting wrap for a piece at `place` (docs/ARCHITECTURE.md, Placement): the cylinder
+/// is the piece's own circumference with some ease (a front and a back each make half of it, a
+/// sleeve all of it), never closer to the body than `CLEARANCE` where the body is measured;
+/// the top edge goes where that kind of piece usually starts (the base of the neck, the waist,
+/// above the head, the shoulder joint). `outline`: the piece in its cut's frame (mirrored and
+/// rotated), m. Lengths in the result are whole mm.
+pub fn auto_wrap(
+    place: BodyPlace,
+    outline: &[Vec2],
+    regions: &BTreeMap<String, Region>,
+    facts: &BodyFacts,
+) -> Result<Wrap, String> {
+    use BodyPlace::*;
+    use std::f32::consts::PI;
+    let region = place.region();
+    let f = region_frame(regions, region)?;
+    let (lo, hi) = outline.iter().fold(
+        (Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)),
+        |(lo, hi), q| (lo.min(*q), hi.max(*q)),
+    );
+    let (w, h) = (hi.x - lo.x, hi.y - lo.y);
+    if !(w > 0.0 && h > 0.0) {
+        return Err("the piece has no area".into());
+    }
+    let half = EASE * w / PI;
+    let height = facts.height;
+    // Along the axis to where it reaches height `y` (torso, head and legs rise with y).
+    let at_height = |y: f32| -> Result<f32, String> {
+        if f.a.y.abs() < 0.1 {
+            return Err(format!("region {region} doesn't rise"));
+        }
+        Ok((y - f.o.y) / f.a.y)
+    };
+    let (radius, top, tube) = match place {
+        BodyFront | BodyBack | BodyLeft | BodyRight => (
+            half.max(facts.shoulders.unwrap_or(0.11 * height) + CLEARANCE),
+            at_height(NECK_BASE * height)?,
+            None,
+        ),
+        // The tube follows the sleeve's width; its top radius is the widest row's.
+        ArmLeft | ArmRight => (EASE * w / (2.0 * PI), 0.0, Some(TUBE_EASE)),
+        LegLeftFront | LegLeftBack | LegRightFront | LegRightBack => {
+            (half, at_height(WAIST * height)?, None)
+        }
+        HeadLeft | HeadRight => (
+            half.max(facts.head + CLEARANCE),
+            at_height(height + HOOD_ABOVE)?,
+            None,
+        ),
+        // A strip over the head, centred on the axis.
+        OverHead => (half.max(facts.over_head + CLEARANCE), h / 2.0, None),
+    };
+    let whole_mm = |x: f32| (x as f64 * 1000.0).round() + 0.0;
+    Ok(Wrap {
+        region: region.to_string(),
+        angle: place.angle(),
+        radius: whole_mm(radius),
+        top: whole_mm(top),
+        rotation: None,
+        tube,
+        other: Default::default(),
+    })
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The 3D view: a canvas whose drawing is handed to the engine worker. Pointer input goes to
-// the worker with the active tool (turn: orbit; pinch: pull the cloth, or orbit off it).
+// the worker with the active tool (turn: orbit; pinch: pull the cloth, or orbit off it;
+// select: pick a piece with a click, orbit with a drag).
 
 import { useEffect, useRef } from 'react';
 import type { PointerTool } from '@/worker/protocol';
@@ -59,7 +60,7 @@ function ViewportCanvas({ session, tool }: { session: EngineSession; tool: Point
     <canvas
       ref={ref}
       aria-label="3D view of the garment on the mannequin"
-      className={`block h-full w-full touch-none outline-none ${tool === 'turn' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'}`}
+      className={`block h-full w-full touch-none outline-none ${tool === 'turn' ? 'cursor-grab active:cursor-grabbing' : tool === 'pinch' ? 'cursor-crosshair' : 'cursor-default'}`}
       tabIndex={-1}
       onPointerDown={(e) => {
         try {

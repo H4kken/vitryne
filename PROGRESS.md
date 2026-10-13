@@ -657,3 +657,67 @@ unsaved-changes dialog, the leave-page prompt, and a recovery copy.
 - Re-checked in Chrome after the redesign: unedited and edited-then-undone saves byte-identical,
   the unsaved-changes dialog (now also on "Back to start"), the recovery copy.
 
+
+## M7 — Import and placement (2026-10-14, waiting for review)
+
+**Done-when:** a FreeSewing T-shirt can be imported and placed without editing any file by hand,
+sewing still from the sidecar ✅. In Chrome (M2, real GPU, over CDP): the T-shirt's DXF picked
+in the start screen's "Import your own pattern", the suggested places kept (body front, body
+back, arms), imported, its front picked with Select in 3D and moved up with the gizmo (one undo
+step), a cut moved in the flat view; with its `garment.toml` for the sewing, the same import
+drapes into the T-shirt with no other step. The hoodie (hood sides, a strip over the head, a
+pocket on the front, long sleeves) imports and drapes the same way. Not checked in Safari yet.
+
+### What's there
+
+| Path | What |
+|---|---|
+| `crates/drape-assets/src/import.rs` | DXF (+ optional sidecar) → preview (pieces, thumbnails, what was left out, a suggestion per piece from its name) → a new project or an addition to the open garment. Pairs of cuts (the second mirrored), "on top of" (`follow`), left out (a sidecar's seams touching it are dropped and reported). |
+| `placement.rs` | `BodyPlace` (13 places: region + angle), `BodyFacts` (measured from the avatar mesh), `auto_wrap`; `resolve_all` / `positions` / `Frame::basis` split out of `place` (same numbers). |
+| `project.rs` | `Placer` (re-places the meshed garment for one changed cut; the gizmo's centre and directions), `placed_outline` (no meshing). |
+| `drape-core` | `Simulation::place_at`: start from given positions. |
+| `drape-web` | `VtryFile.inspect_dxf`, `import_new`, `import_addition`, `rewrap` (and whether the collision box must grow); `Viewport.set_placing`, `pick_cut`, `place_cut`, `gizmo`. |
+| `drape export-app-assets` | Also the test avatar's mesh (`avatar/body.glb`) and the SDF of the import box (74 MB), so a first import never bakes. |
+| `app/` | Start screen card "Import your own pattern" (or drop a DXF, with its garment.toml, anywhere); the import dialog; Select in the 3D tool bar (placing: the drape waits at the start, a click picks a piece, its gizmo moves it up and down, around, away, and turns it); the Pieces panel per cut (place, around, height, distance, turn, mirror image, fit again, on top of another piece); the flat view per cut with `cut.layout` (Select with a turn handle, Move); "Import a pattern" in the menu. An imported project is unsaved until saved (the recovery copy knows). |
+
+Design notes in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), "Import and placement". No format
+change: the gizmo edits the wrap's own fields; FORMAT.md now defines `cut.layout`.
+
+### Numbers
+
+| Automatic wrap vs the hand-tuned sidecar | radius, mm | top, mm |
+|---|---|---|
+| T-shirt front, back (torso) | 204 vs 200 | 1433 vs 1440 |
+| T-shirt sleeves | 57 (bent arm, tube) vs 60 (straight upper arm) | 0 vs −40 |
+| Trousers fronts, backs (legs) | 119–120 vs 120 | 1100 vs 1120 |
+| Hoodie front, back | 204 vs 200 | 1433 vs 1420 / 1460 |
+| Hoodie sleeves (bent arm, tube 1.15) | 59 vs 110 | 0 vs 100 |
+| Hoodie hood sides, strip over the head | 133, 187 vs 130, 150 | 1696, 28 vs 1710, 28 |
+
+- Import (the worker's wasm, in Node): T-shirt with sidecar 11 ms, the others 1–2 ms. The
+  bundled import SDF loads in 42 ms in Chrome.
+- Placement preview: every vertex re-placed per pointer move (10k points), no meshing. A move
+  equals a full rebuild bit for bit (test); a turn to well under 1 mm.
+- Production bundle: wasm 3.36 MB (978 KB gzipped; was 3.0 MB / 880 KB), UI 612 KB (162 KB).
+- Tests: 51 Rust (new: the bare T-shirt DXF to a draped and saved project, the sidecar path and
+  left-out pieces, name suggestions, the import box, preview against rebuild, rewrap and the box
+  growing only when needed), 34 TypeScript (new: the import through Rust in Node; placement,
+  flip, layout and import edits; the property tests now also move, flip, arrange and stack
+  pieces). On their first run the property tests found two real gaps: a NaN from a field reached
+  Rust as `null`, and a piece could be put on top of itself. `setPlacement` refuses both now.
+
+### Notes and open items
+
+- **Sewing in the editor is M8.** A bare DXF imports placed but not sewn; draped, its pieces fall.
+  The import dialog says so and offers a garment.toml for the sewing.
+- **Suggestions come from names only**, in English ("front", "back", "sleeve", "hood",
+  "pocket"); anything else, or another language, gets none and must be chosen. More than two
+  cuts of a piece (linings: the hoodie's hood sides say "quantity 4") are not offered; a pair is
+  the most.
+- **Pairs are "first right, second left, mirrored".** A pattern drafted for the other arm shows
+  its notches on the wrong side; "Mirror image" in the Pieces panel fixes that.
+- **The proportions are a starting point.** Fractions of the avatar's height suit standing adult
+  avatars; the hoodie's raglan sleeves start lower than its sidecar puts them and still drape.
+- **The import box** covers the whole test avatar (74 MB SDF at 4 mm, bundled); another avatar
+  bakes its own once.
+- The gizmo is drawn over the canvas, not in the 3D scene, so the cloth never hides it.

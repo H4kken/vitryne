@@ -4,7 +4,7 @@
 // that the document is where it expects before doing either. Builders check the JSON Schema
 // of what they produce, so an invalid value never becomes a command.
 
-import type { Fabric, Garment } from '@/format/schema.gen';
+import type { Cut, Fabric, Garment, Piece, Placement, Seam, Source, Vec3 } from '@/format/schema.gen';
 import { type Entities, getEntity, mainGarment, setEntity, type Slot, slotKey } from './entities';
 import { deepEqual, getIn, type Path, setIn } from './json';
 import { schemaErrors } from './validate';
@@ -207,6 +207,159 @@ export function setSelfCollision(e: Entities, on: boolean): Command {
     label: on ? 'Turn self-collision on' : 'Turn self-collision off',
     drape: true,
   });
+}
+
+// ---- M7: where cuts start on the body, and where they sit in the flat view -----------------
+
+/** A collision box, mm (`garment.simulation.collisionBounds`). */
+export interface Bounds {
+  min: Vec3;
+  max: Vec3;
+}
+
+/** The piece and cut indices of a cut in its garment. */
+function cutAt(g: Garment, cutId: string): [number, number] {
+  for (const [i, piece] of g.pieces.entries()) {
+    const j = piece.cuts.findIndex((c) => c.id === cutId);
+    if (j >= 0) return [i, j];
+  }
+  throw new CommandError(`no cut ${cutId}`);
+}
+
+export function findCut(g: Garment, cutId: string): { piece: Piece; cut: Cut } | undefined {
+  for (const piece of g.pieces) {
+    const cut = piece.cuts.find((c) => c.id === cutId);
+    if (cut) return { piece, cut };
+  }
+  return undefined;
+}
+
+/** `cutId` and the cuts placed on it, directly or not: it can't go on top of any of them. */
+export function followers(g: Garment, cutId: string): Set<string> {
+  const out = new Set<string>([cutId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const piece of g.pieces) {
+      for (const c of piece.cuts) {
+        if (!out.has(c.id) && c.placement.type === 'follow' && c.placement.cut && out.has(c.placement.cut)) {
+          out.add(c.id);
+          grew = true;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** A change to one garment, built by `edit` (which may throw a `CommandError`). */
+function editGarment(e: Entities, garmentId: string, edit: (g: Garment) => Garment, o: Options): Command {
+  const before = garment(e, garmentId);
+  const after = edit(before);
+  if (deepEqual(before, after)) throw new CommandError(`${o.label}: nothing changes`);
+  const problems = schemaErrors('garment', after);
+  if (problems.length) throw new CommandError(`${o.label}: ${problems.join('; ')}`);
+  return { label: o.label, drape: o.drape, coalesce: o.coalesce, changes: [{ slot: { kind: 'garment', id: garmentId }, before, after }] };
+}
+
+/**
+ * Where a cut starts on the body. `bounds`: a new collision box for the garment, when the
+ * cut needs a bigger one there (Rust's `rewrap` says). `coalesce`: a drag of one field.
+ */
+export function setPlacement(e: Entities, garmentId: string, cutId: string, placement: Placement, bounds?: Bounds, coalesce?: string): Command {
+  for (const k of ['angle', 'radius', 'top', 'rotation', 'tube', 'lift'] as const) {
+    const v = placement[k];
+    if (v !== undefined && !Number.isFinite(v)) throw new CommandError(`a placement's ${k} must be a number`);
+  }
+  if (placement.type === 'follow') {
+    const g = garment(e, garmentId);
+    if (!placement.cut || !findCut(g, placement.cut)) throw new CommandError('it must go on a piece of this garment');
+    if (followers(g, cutId).has(placement.cut)) throw new CommandError("a piece can't go on itself, or on a piece that goes on it");
+  }
+  return editGarment(
+    e,
+    garmentId,
+    (g) => {
+      const [i, j] = cutAt(g, cutId);
+      let out = setIn(g, ['pieces', i, 'cuts', j, 'placement'], placement);
+      if (bounds) out = setIn(out, ['simulation', 'collisionBounds'], bounds);
+      return out;
+    },
+    { label: 'Move a piece on the body', drape: true, coalesce },
+  );
+}
+
+/** A cut becomes the mirror image of the piece, or stops being it. */
+export function setMirrored(e: Entities, garmentId: string, cutId: string, mirrored: boolean): Command {
+  return editGarment(
+    e,
+    garmentId,
+    (g) => {
+      const [i, j] = cutAt(g, cutId);
+      // `false` is the default: store none rather than false.
+      return setIn(g, ['pieces', i, 'cuts', j, 'mirrored'], mirrored || undefined);
+    },
+    { label: 'Flip a piece', drape: true },
+  );
+}
+
+/** Where a cut sits in the flat view (FORMAT.md, Cuts: display only). */
+export interface Layout {
+  position: [number, number];
+  rotation: number;
+}
+
+export function setLayout(e: Entities, garmentId: string, cutId: string, layout: Layout): Command {
+  if (![...layout.position, layout.rotation].every(Number.isFinite)) throw new CommandError('a layout must be numbers');
+  return editGarment(
+    e,
+    garmentId,
+    (g) => {
+      const [i, j] = cutAt(g, cutId);
+      const old = g.pieces[i]?.cuts[j]?.layout;
+      // Unknown members of the layout stay.
+      let l: Record<string, unknown> = { ...(old ?? {}) };
+      l = setIn(l, ['position'], layout.position);
+      l = setIn(l, ['rotation'], layout.rotation === 0 ? undefined : layout.rotation);
+      return setIn(g, ['pieces', i, 'cuts', j, 'layout'], l);
+    },
+    { label: 'Arrange the pieces', drape: false, coalesce: `layout:${cutId}` },
+  );
+}
+
+/** What an import adds to a garment (Rust `import::Addition`). */
+export interface Addition {
+  pieces: Piece[];
+  seams: Seam[];
+  source: Source;
+  bounds: Bounds;
+  notes: string[];
+}
+
+/** Imported pieces, seams and their source, added to a garment; its collision box grows to cover them. */
+export function addPieces(e: Entities, garmentId: string, a: Addition): Command {
+  if (!a.pieces.length) throw new CommandError('nothing to import');
+  return editGarment(
+    e,
+    garmentId,
+    (g) => {
+      let out = setIn(g, ['pieces'], [...g.pieces, ...a.pieces]);
+      if (a.seams.length) out = setIn(out, ['seams'], [...(g.seams ?? []), ...a.seams]);
+      out = setIn(out, ['sources'], [...(g.sources ?? []), a.source]);
+      const own = g.simulation?.collisionBounds;
+      const box: Bounds = own
+        ? {
+            min: own.min.map((x, k) => Math.min(x, a.bounds.min[k] ?? x)) as Vec3,
+            max: own.max.map((x, k) => Math.max(x, a.bounds.max[k] ?? x)) as Vec3,
+          }
+        : a.bounds;
+      if (!own || !deepEqual(own.min, box.min) || !deepEqual(own.max, box.max)) {
+        out = setIn(out, ['simulation', 'collisionBounds'], own ? { ...own, min: box.min, max: box.max } : box);
+      }
+      return out;
+    },
+    { label: 'Import pieces', drape: true },
+  );
 }
 
 /**

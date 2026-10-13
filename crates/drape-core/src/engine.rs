@@ -424,6 +424,22 @@ impl Simulation {
         self.frame.set(0);
     }
 
+    /// At rest at `pos` (one per vertex), frame 0; releases a grab. The editor shows a piece
+    /// being placed this way; `reset` still goes back to the placed state.
+    pub fn place_at(&self, pos: &[Vec3]) -> Result<(), String> {
+        if pos.len() != self.n_verts() as usize {
+            return Err(format!(
+                "{} positions for {} vertices",
+                pos.len(),
+                self.n_verts()
+            ));
+        }
+        self.solver.place_at(&self.gpu.queue, pos);
+        self.solver.end_drag();
+        self.frame.set(0);
+        Ok(())
+    }
+
     /// One frame (frame 0's parameters), waited for, then a reset: pipelines and buffers are
     /// first-use costs that mustn't land in a measurement.
     pub async fn warm_up(&self) {

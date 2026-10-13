@@ -10,6 +10,7 @@ import {
   type DrapeInfo,
   type FileData,
   fileDataBuffers,
+  type GizmoView,
   type PointerTool,
   type Requests,
   type Stats,
@@ -30,7 +31,10 @@ export interface EngineState {
   /** The newest drape shown, and its document revision. */
   drape: { rev: number; info: DrapeInfo } | null;
   drapeError: string | null;
-  controls: { fast: boolean; paused: boolean };
+  /** `placing`: the cloth waits where it starts while pieces are placed. */
+  controls: { fast: boolean; paused: boolean; placing: boolean };
+  /** The handles of the cut asked for with `showGizmo`, on screen. */
+  gizmo: GizmoView | null;
 }
 
 /** Crashes within this window count towards giving up. */
@@ -57,7 +61,8 @@ export class EngineSession {
     progress: null,
     drape: null,
     drapeError: null,
-    controls: { fast: false, paused: false },
+    controls: { fast: false, paused: false, placing: false },
+    gizmo: null,
   };
 
   private set(patch: Partial<EngineState>) {
@@ -85,9 +90,10 @@ export class EngineSession {
     const client = new WorkerClient(canvas, size, (e) => this.onEvent(client, e));
     this.client = client;
     this.set({ phase: 'starting' });
-    const { fast, paused } = this.state.controls;
-    if (fast || paused) client.send({ kind: 'controls', fast, paused });
+    const { fast, paused, placing } = this.state.controls;
+    if (fast || paused || placing) client.send({ kind: 'controls', fast, paused, placing });
     if (this.style) client.send({ kind: 'style', rgb: this.style });
+    if (this.gizmoCut !== null) client.send({ kind: 'gizmo', cut: this.gizmoCut });
     if (this.restore) void this.reopen(client, this.restore);
   }
 
@@ -112,10 +118,24 @@ export class EngineSession {
       case 'progress':
         this.set({ progress: e.fraction >= 1 ? null : { task: e.task, fraction: e.fraction } });
         return;
+      case 'picked':
+        for (const cb of this.pickListeners) cb(e.cut);
+        return;
+      case 'gizmo':
+        this.set({ gizmo: e.gizmo });
+        return;
       case 'crashed':
         this.crashed(e.reason);
         return;
     }
+  }
+
+  private pickListeners = new Set<(cut: number) => void>();
+
+  /** The select tool's picks: a panel index of the shown drape (`DrapeInfo.cuts`), or -1. */
+  onPicked(cb: (cut: number) => void): () => void {
+    this.pickListeners.add(cb);
+    return () => this.pickListeners.delete(cb);
   }
 
   private crashed(reason: string) {
@@ -132,6 +152,7 @@ export class EngineSession {
       generation: this.state.generation + 1,
       phase: 'starting',
       progress: null,
+      gizmo: null,
       notice: `The 3D engine stopped (${reason}) and was restarted. Your document is unchanged.`,
     });
   }
@@ -208,6 +229,29 @@ export class EngineSession {
     );
   }
 
+  /**
+   * A new project from a DXF (see `Requests.importNew`): it becomes the worker's document, and
+   * the file it made is what a restarted worker reopens.
+   */
+  async importNew(args: Requests['importNew']['args'], rev: number): Promise<{ entities: string; notes: string[]; zip: ArrayBuffer }> {
+    const reply = await this.need().request('importNew', args, [args.avatar]);
+    this.restore = { data: { form: 'zip', bytes: reply.zip.slice(0) }, openedEntities: reply.entities, entities: reply.entities, rev };
+    this.set({ drape: null, drapeError: null });
+    return reply;
+  }
+
+  async inspectDxf(name: string, dxf: string, sidecar: string): Promise<string> {
+    return (await this.need().request('inspectDxf', { name, dxf, sidecar })).preview;
+  }
+
+  async importAddition(args: Requests['importAddition']['args']): Promise<string> {
+    return (await this.need().request('importAddition', args)).addition;
+  }
+
+  async rewrap(cut: string, place: string): Promise<string> {
+    return (await this.need().request('rewrap', { cut, place })).rewrapped;
+  }
+
   /** The worker's document as a file (validated and read back in Rust). */
   async save(rev: number, form: FileData['form']): Promise<FileData> {
     const { data } = await this.need().request('save', { rev, form });
@@ -245,6 +289,21 @@ export class EngineSession {
 
   resetDrape() {
     this.client?.send({ kind: 'controls', reset: true });
+  }
+
+  private gizmoCut: number | null = null;
+
+  /** Report the handles of this cut (a panel index of the shown drape), or none. */
+  showGizmo(cut: number | null) {
+    if (cut === this.gizmoCut) return;
+    this.gizmoCut = cut;
+    if (cut === null) this.set({ gizmo: null });
+    this.client?.send({ kind: 'gizmo', cut });
+  }
+
+  /** Shows a cut at a placement while its handle is dragged (no edit yet). */
+  placeCut(cut: number, placement: unknown) {
+    this.client?.send({ kind: 'place', cut, placement: JSON.stringify(placement) });
   }
 }
 

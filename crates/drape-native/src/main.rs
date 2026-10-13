@@ -15,7 +15,8 @@
 //!                           body OBJ, baked SDFs and the garments for the bench page
 //!   drape export-app-assets <dir>
 //!                           for the editor: examples/*.vtry as zips (+ examples/index.json)
-//!                           and each one's body SDF, sdf/<key>.bin (see SdfParams::cache_key)
+//!                           and each one's body SDF, sdf/<key>.bin (see SdfParams::cache_key);
+//!                           the test avatar's mesh (avatar/body.glb) and the SDF imports use
 //!   drape frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
 //!                           headless: render the sim at those frames to PNGs
 //!   drape info              print adapter report as JSON and exit
@@ -45,6 +46,7 @@ use std::sync::Arc;
 use drape_assets::{
     convert::ConvertOptions,
     garment::Garment as DxfGarment,
+    import::DxfImport,
     project::{DEFAULT_TARGET_VERTICES, ProjectGarment, avatar_mesh},
     tshirt::{self, SdfParams, TshirtParams},
 };
@@ -57,7 +59,7 @@ use drape_core::{
     timer::GpuTimer,
 };
 use drape_render::{self as render, OrbitCamera, Renderer, triangle::TriangleRenderer};
-use vitryne_format::{Document, Kind, glb};
+use vitryne_format::{Document, IdGen, Kind, glb};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
@@ -578,8 +580,9 @@ fn sdf_cache_path(mesh: &BodyMesh, p: &SdfParams) -> String {
     format!("target/sdf-cache/{}.bin", p.cache_key(mesh))
 }
 
-/// The editor's bundled examples: each `examples/<name>.vtry` folder as a zip, its body SDF
-/// under the key the browser computes (so opening an example never bakes), and an index.
+/// The editor's bundled assets: each `examples/<name>.vtry` folder as a zip, its body SDF
+/// under the key the browser computes (so opening an example never bakes), and an index; the
+/// test avatar's mesh and the SDF for imported patterns.
 fn export_app_assets(dir: &str) {
     std::fs::create_dir_all(format!("{dir}/examples")).expect("examples dir");
     std::fs::create_dir_all(format!("{dir}/sdf")).expect("sdf dir");
@@ -624,6 +627,43 @@ fn export_app_assets(dir: &str) {
         serde_json::to_string_pretty(&index).unwrap() + "\n",
     )
     .expect("write index");
+
+    // The test avatar's mesh, for projects made from an imported DXF, and the SDF of the
+    // collision box every import gets (found by importing the T-shirt's DXF, so the key is
+    // the one the browser computes).
+    let doc = open_project("examples/tshirt.vtry");
+    let avatar = doc.project_avatar().expect("tshirt: avatar");
+    let glb = &doc.files[&avatar.mesh].bytes;
+    std::fs::create_dir_all(format!("{dir}/avatar")).expect("avatar dir");
+    std::fs::write(format!("{dir}/avatar/body.glb"), glb).expect("write avatar");
+    let dxf = std::fs::read_to_string("assets/garments/tshirt/tshirt.dxf").expect("tshirt.dxf");
+    let imp = DxfImport::read("tshirt.dxf", &dxf, None).expect("import tshirt.dxf");
+    let choices = imp
+        .preview()
+        .pieces
+        .into_iter()
+        .map(|p| {
+            (
+                p.name,
+                p.suggestion.expect("a suggestion for each T-shirt piece"),
+            )
+        })
+        .collect();
+    let (imported, _) = imp
+        .new_project(&choices, glb, &mut IdGen::new(0, b"export"))
+        .expect("import tshirt.dxf");
+    let pg = ProjectGarment::new(&imported).expect("imported project");
+    let desc = pg
+        .build(pg.edge_for_vertices(4000).expect("edge"))
+        .expect("imported garment");
+    let mesh = avatar_mesh(&imported).expect("mesh").expect("avatar");
+    let key = desc.sdf.cache_key(&mesh);
+    let sdf_file = format!("{dir}/sdf/{key}.bin");
+    if !std::path::Path::new(&sdf_file).is_file() {
+        let sdf = load_or_bake_sdf(&BodyQuery::new(mesh), &desc.sdf);
+        std::fs::write(&sdf_file, sdf.to_bytes()).expect("write sdf");
+    }
+    println!("wrote {dir}/avatar/body.glb and {sdf_file} (imports)");
 }
 
 /// The bake takes seconds, so cache it under target/ keyed by body + SDF parameters.

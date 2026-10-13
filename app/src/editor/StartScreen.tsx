@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// What the editor shows with nothing open: start from a preset (the bundled examples) or open
-// a project file. Importing a pattern (M7) and starting from scratch come later.
+// What the editor shows with nothing open: start from a preset (the bundled examples), import
+// a DXF pattern (picked or dropped anywhere here), or open a project file. Starting from
+// scratch comes later.
 
 import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Example } from './examples';
-import { Logo, OpenIcon, PRESET_ART, PresetsIcon } from './icons';
+import { ImportIcon, Logo, PRESET_ART, PresetsIcon } from './icons';
 
 /** What each bundled example is made of. */
 const PRESET_NOTES: Record<string, string> = {
@@ -25,13 +26,16 @@ export function StartScreen(props: {
   examples: Example[];
   onPreset: (e: Example) => void;
   onOpen: () => void;
+  onImport: () => void;
+  /** Dropping a DXF (and its garment.toml) here imports it. */
+  dropProps: { onDragOver: (e: React.DragEvent) => void; onDrop: (e: React.DragEvent) => void };
   onOpenFolder: (() => void) | null;
   busy: string | null;
   banner?: React.ReactNode;
 }) {
   const [presetsOpen, setPresetsOpen] = useState(false);
   return (
-    <div className="bg-background absolute inset-0 z-30 flex flex-col overflow-y-auto">
+    <div className="bg-background absolute inset-0 z-30 flex flex-col overflow-y-auto" {...props.dropProps}>
       <div className="flex h-16 shrink-0 flex-wrap items-center gap-3 px-8">
         <Logo />
         <span className="font-display text-xl font-bold tracking-[-0.01em]">Vitryne</span>
@@ -43,7 +47,7 @@ export function StartScreen(props: {
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-3.5 px-8 pt-14 pb-7">
         <h1 className="font-display m-0 text-[52px] leading-[1.05] font-bold tracking-[-0.025em] max-sm:text-[38px]">What do you want to make?</h1>
         <p className="text-body-text m-0 max-w-[620px] text-[19px] leading-normal">
-          Start from something that already works, or open a project you saved. You can change anything later.
+          Start from something that already works, bring your own pattern, or open a project you saved. You can change anything later.
         </p>
       </div>
 
@@ -63,10 +67,21 @@ export function StartScreen(props: {
         </button>
         <button
           type="button"
+          onClick={props.onImport}
+          className="flex min-h-[92px] flex-[1_1_240px] items-center gap-3.5 rounded-2xl border-2 border-[#CFD4CB] bg-white px-5 py-4 text-left transition-colors hover:border-[#14181F]"
+        >
+          <ImportIcon className="text-foreground shrink-0" />
+          <span className="flex flex-col gap-0.5">
+            <span className="font-display text-xl font-semibold">Import your own pattern</span>
+            <span className="text-muted-foreground text-sm">Drop a DXF file</span>
+          </span>
+        </button>
+        <button
+          type="button"
           onClick={props.onOpen}
           className="flex min-h-[92px] flex-[1_1_240px] items-center gap-3.5 rounded-2xl border-2 border-[#CFD4CB] bg-white px-5 py-4 text-left transition-colors hover:border-[#14181F]"
         >
-          <OpenIcon className="text-foreground shrink-0" />
+          <FolderOpen className="text-foreground size-[30px] shrink-0" strokeWidth={1.8} />
           <span className="flex flex-col gap-0.5">
             <span className="font-display text-xl font-semibold">Open a project</span>
             <span className="text-muted-foreground text-sm">A .vtry file from your computer</span>

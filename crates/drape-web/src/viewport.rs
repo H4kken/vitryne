@@ -13,6 +13,7 @@ use std::{
     },
 };
 
+use drape_assets::project::Placer;
 use drape_core::{
     body::Sdf,
     engine::{Body, BodyOptions, Engine, Garment, SdfSource, Simulation},
@@ -20,7 +21,9 @@ use drape_core::{
     sim::DragPatch,
 };
 use drape_render::{self as render, OrbitCamera, Renderer, Style};
-use glam::Vec3;
+use glam::{Vec3, Vec4Swizzles};
+use serde::Serialize;
+use vitryne_format::Placement;
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
 
@@ -32,6 +35,12 @@ struct Live {
     sim: Simulation,
     renderer: RefCell<Renderer>,
     n_verts: u32,
+    /// Places the garment again for a cut being moved, and the cut shown moved (panel index,
+    /// placement) until the next drape.
+    placer: Placer,
+    moved: RefCell<Option<(usize, Placement)>>,
+    /// Each panel's (cut's) vertices.
+    panels: Vec<std::ops::Range<u32>>,
 }
 
 struct Core {
@@ -45,10 +54,44 @@ struct Core {
     pulling: Cell<Option<Vec3>>,
     fast: Cell<bool>,
     paused: Cell<bool>,
+    /// Placing pieces: the cloth stays where it starts.
+    placing: Cell<bool>,
     lost: Arc<AtomicBool>,
     style: Cell<Style>,
     /// Offscreen target for `measure_frame` (same size/format as the canvas, never presented).
     offscreen: RefCell<Option<(wgpu::TextureView, u32, u32)>>,
+}
+
+impl Core {
+    /// Whether frames advance the drape.
+    fn stepping(&self) -> bool {
+        !self.paused.get() && !self.placing.get()
+    }
+
+    fn aspect(&self) -> f32 {
+        let cfg = self.config.borrow();
+        cfg.width as f32 / cfg.height.max(1) as f32
+    }
+}
+
+/// A cut's handles on screen (see the editor's gizmo), in normalized device coordinates
+/// (-1..1, y up). Each `per` is how far the screen point moves per unit of the placement value
+/// the handle changes: radians of `angle`, mm of `top`, mm of `radius`.
+#[derive(Serialize)]
+struct GizmoView {
+    centre: [f32; 2],
+    along: Handle,
+    around: Handle,
+    out: Handle,
+    /// The turning ring (rotation: from `around` towards `along` is positive).
+    ring: Vec<[f32; 2]>,
+}
+
+#[derive(Serialize)]
+struct Handle {
+    /// The handle's line, from one end to the other.
+    line: Vec<[f32; 2]>,
+    per: [f32; 2],
 }
 
 #[wasm_bindgen]
@@ -90,6 +133,7 @@ impl Viewport {
                 pulling: Cell::new(None),
                 fast: Cell::new(false),
                 paused: Cell::new(false),
+                placing: Cell::new(false),
                 lost,
                 style: Cell::new(Style::default()),
                 offscreen: RefCell::new(None),
@@ -169,6 +213,9 @@ impl Viewport {
             n_verts: sim.n_verts(),
             sim,
             renderer: RefCell::new(renderer),
+            placer: p.placer.clone(),
+            moved: RefCell::new(None),
+            panels: garment.desc.groups.iter().map(|(_, r)| r.clone()).collect(),
         }));
         Ok(baked)
     }
@@ -225,10 +272,10 @@ impl Viewport {
             Some(live) => {
                 // Params are written per sim frame, and queue writes apply at submit, so each
                 // extra sim frame gets its own submit.
-                if !c.paused.get() && c.fast.get() {
+                if c.stepping() && c.fast.get() {
                     live.sim.step(7);
                 }
-                if !c.paused.get() {
+                if c.stepping() {
                     live.sim.encode_step(&mut enc, None);
                 }
                 live.renderer.borrow_mut().draw(
@@ -303,7 +350,7 @@ impl Viewport {
             live.sim.wait().await;
             let t0 = Instant::now();
             let mut enc = gpu.device.create_command_encoder(&Default::default());
-            if !c.paused.get() {
+            if c.stepping() {
                 live.sim.encode_step(&mut enc, None);
             }
             live.renderer.borrow_mut().draw(
@@ -426,6 +473,117 @@ impl Viewport {
 
     pub fn vertices(&self) -> u32 {
         self.core.live.borrow().as_ref().map_or(0, |l| l.n_verts)
+    }
+
+    /// Placing pieces (on) or draping (off). Either way the cloth goes back to where it starts:
+    /// while placing it stays there, so a cut's handles are where the cut starts.
+    pub fn set_placing(&self, on: bool) {
+        if self.core.placing.get() != on {
+            self.core.placing.set(on);
+            self.reset();
+        }
+    }
+
+    /// The cut under the pointer (normalized device coordinates): its panel index, or -1.
+    pub fn pick_cut(&self, x: f32, y: f32) -> js_sys::Promise {
+        let c = self.core.clone();
+        let (o, d) = self.ray(x, y);
+        wasm_bindgen_futures::future_to_promise(async move {
+            let Some(live) = c.live.borrow().clone() else {
+                return Ok(JsValue::from_f64(-1.0));
+            };
+            let pos = live.sim.read_positions().await;
+            let v = render::pick(&pos, o, d, 0.015);
+            let panel = v.and_then(|v| live.panels.iter().position(|r| r.contains(&v)));
+            Ok(JsValue::from_f64(panel.map_or(-1.0, |p| p as f64)))
+        })
+    }
+
+    /// Shows cut `cut` (panel index) where `placement` (JSON) puts it, the other cuts where
+    /// they start; while placing. The next drape (after the edit) starts from there too.
+    pub fn place_cut(&self, cut: u32, placement: &str) -> Result<(), JsValue> {
+        let p: Placement =
+            serde_json::from_str(placement).map_err(|e| format!("placement: {e}"))?;
+        let Some(live) = self.core.live.borrow().clone() else {
+            return Ok(());
+        };
+        let pos = live.placer.positions(cut as usize, &p)?;
+        live.sim.place_at(&pos)?;
+        *live.moved.borrow_mut() = Some((cut as usize, p));
+        Ok(())
+    }
+
+    /// Cut `cut`'s (panel index) handles as JSON (`GizmoView`), or "" when it has none: it
+    /// follows another cut, or its middle is behind the camera.
+    pub fn gizmo(&self, cut: u32) -> String {
+        let c = &self.core;
+        let Some(live) = c.live.borrow().clone() else {
+            return String::new();
+        };
+        let cut = cut as usize;
+        let Some(own) = live.placer.cuts().get(cut) else {
+            return String::new();
+        };
+        let placement = match &*live.moved.borrow() {
+            Some((k, p)) if *k == cut => p.clone(),
+            _ => own.placement.clone(),
+        };
+        if matches!(placement, Placement::Follow(_)) {
+            return String::new();
+        }
+        let Ok(g) = live.placer.gizmo(cut, &placement) else {
+            return String::new();
+        };
+        let vp = c.camera.borrow().view_proj(c.aspect());
+        let clip = |p: Vec3| vp * p.extend(1.0);
+        let b = g.basis;
+        if clip(b.point).w <= 1e-4 {
+            return String::new();
+        }
+        let ndc = |p: Vec3| {
+            let q = clip(p);
+            let q = q.xy() / q.w.max(1e-4);
+            [q.x, q.y]
+        };
+        let per = |dir: Vec3, step: f32| {
+            let (a, z) = (ndc(b.point), ndc(b.point + dir * step));
+            [(z[0] - a[0]) / step, (z[1] - a[1]) / step]
+        };
+        let reach = (0.3 * g.size.y).clamp(0.06, 0.18);
+        let arc: Vec<[f32; 2]> = (-8..=8)
+            .map(|k| {
+                let t = k as f32 / 8.0 * reach / g.radius;
+                ndc(b.point + g.radius * (t.sin() * b.around + (t.cos() - 1.0) * b.out))
+            })
+            .collect();
+        let ring: Vec<[f32; 2]> = (0..=32)
+            .map(|k| {
+                let t = k as f32 / 32.0 * std::f32::consts::TAU;
+                ndc(b.point + 0.55 * reach * (t.cos() * b.around + t.sin() * b.along))
+            })
+            .collect();
+        let view = GizmoView {
+            centre: ndc(b.point),
+            along: Handle {
+                line: vec![
+                    ndc(b.point - reach * b.along),
+                    ndc(b.point + reach * b.along),
+                ],
+                // mm: a 1 mm step.
+                per: per(b.along * 0.001, 1.0),
+            },
+            around: Handle {
+                line: arc,
+                // Radians: the point moves `radius` metres per radian.
+                per: per(b.around * g.radius, 0.001),
+            },
+            out: Handle {
+                line: vec![ndc(b.point), ndc(b.point + 0.08 * b.out)],
+                per: per(b.out * 0.001, 1.0),
+            },
+            ring,
+        };
+        serde_json::to_string(&view).unwrap_or_default()
     }
 
     pub fn adapter_report(&self) -> String {

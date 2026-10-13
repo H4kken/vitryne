@@ -2,9 +2,11 @@
 // The editor's frame, after the "Vitryne editor concept" canvas: a top bar, a rail that opens
 // one panel at a time, and one canvas showing either the 3D drape or the flat pieces, with a
 // status pill, a hint, zoom and a floating tool bar. The start screen covers it while nothing
-// is open (the 3D engine starts underneath, so a preset opens fast).
+// is open (the 3D engine starts underneath, so a preset opens fast). A DXF picked or dropped
+// opens the import dialog; with the Select tool the 3D view shows where pieces start, and the
+// selected one's handles.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ellipsis, FastForward, Pause, Play, RotateCcw, Shapes, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -17,16 +19,21 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { type Addition, addPieces, findCut, setLayout, setPlacement, type Bounds } from '@/document/commands';
 import { mainGarment } from '@/document/entities';
+import type { Placement } from '@/format/schema.gen';
 import { DocumentStore, useDocument } from '@/document/store';
 import { cn } from '@/lib/utils';
-import { PatternPanel, type PatternView, type Selection } from '@/pattern/PatternPanel';
+import { type FlatTool, PatternPanel, type PatternView, type Selection } from '@/pattern/PatternPanel';
+import { type Place, tidy } from '@/placement/places';
 import { FabricPanel, PANEL_TITLES, type PanelId, PiecesPanel, SettingsPanel } from '@/properties/panels';
 import { LocalStorage } from '@/storage/storage';
 import type { PointerTool } from '@/worker/protocol';
 import { type EngineState, EngineSession, useEngine } from '@/worker/session';
-import { type Example, fetchExample, listExamples } from './examples';
-import { CubeIcon, FabricIcon, FlatIcon, Logo, PinchIcon, RedoIcon, TurnIcon, UndoIcon } from './icons';
+import { type Example, fetchAvatar, fetchExample, listExamples } from './examples';
+import { Gizmo } from './Gizmo';
+import { CubeIcon, FabricIcon, FlatIcon, Logo, MoveIcon, PinchIcon, RedoIcon, SelectIcon, TurnIcon, UndoIcon } from './icons';
+import { ImportDialog, type TextFile } from './ImportDialog';
 import { StartScreen } from './StartScreen';
 import { useFiles } from './useFiles';
 import { Viewport } from './Viewport';
@@ -36,10 +43,24 @@ const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 type Mode = '3d' | 'flat';
 
 const HINTS: Record<string, string> = {
-  turn: 'Turn: drag to look around, scroll to zoom.',
-  pinch: 'Pinch: drag the fabric to pull it. It settles when you let go.',
-  flat: 'Click a piece to pick it. Drag to move around, scroll to zoom.',
+  '3d:select': 'Select: click a piece, then drag its handles to move it on the body. The drape waits until you pick another tool.',
+  '3d:turn': 'Turn: drag to look around, scroll to zoom.',
+  '3d:pinch': 'Pinch: drag the fabric to pull it. It settles when you let go.',
+  'flat:select': 'Select: click a piece to pick it, drag its round handle to turn it. Drag the background to look around.',
+  'flat:move': 'Move: drag a piece to place it.',
 };
+
+/** Random bytes for new ids. */
+const seed = () => Array.from(crypto.getRandomValues(new Uint8Array(16)));
+
+/** Text files from a drop or a file input: a DXF, and a garment.toml if there is one. */
+async function readPattern(files: FileList | File[]): Promise<{ dxf: TextFile; sidecar: TextFile | null } | null> {
+  const list = [...files];
+  const dxf = list.find((f) => /\.dxf$/i.test(f.name));
+  if (!dxf) return null;
+  const toml = list.find((f) => /\.toml$/i.test(f.name));
+  return { dxf: { name: dxf.name, text: await dxf.text() }, sidecar: toml ? { name: toml.name, text: await toml.text() } : null };
+}
 
 export function Editor() {
   const session = useMemo(() => new EngineSession(), []);
@@ -51,6 +72,12 @@ export function Editor() {
   const [mode, setMode] = useState<Mode>('3d');
   const [panel, setPanel] = useState<PanelId | null>('fabric');
   const [tool, setTool] = useState<PointerTool>('turn');
+  const [flatTool, setFlatTool] = useState<FlatTool>('select');
+  const [importing, setImporting] = useState<TextFile | null>(null);
+  const [importKey, setImportKey] = useState(0);
+  const dxfInput = useRef<HTMLInputElement>(null);
+  const canvasBox = useRef<HTMLElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ w: 1, h: 1 });
   const [selection, setSelection] = useState<Selection>(null);
   const [examples, setExamples] = useState<Example[]>([]);
   const [examplesError, setExamplesError] = useState<string | null>(null);
@@ -63,11 +90,101 @@ export function Editor() {
   const garment = mainGarment(doc.entities);
   const fabric = garment ? doc.entities.fabrics.find((f) => f.id === garment.fabric) : doc.entities.fabrics[0];
   // A selection only counts in the file it was made in.
-  const shownSelection = selection && garment?.pieces.some((p) => p.id === selection.id) ? selection : null;
+  const selected = selection && garment ? findCut(garment, selection.cutId) : undefined;
+  const shownSelection = selected ? selection : null;
 
-  const select = (s: Selection) => {
+  const select = useCallback((s: Selection) => {
     setSelection(s);
     if (s) setPanel('pieces');
+  }, []);
+
+  // Placing pieces: the Select tool in 3D. The cloth waits where it starts.
+  const placing = mode === '3d' && tool === 'select' && !doc.empty;
+  useEffect(() => {
+    if (session.state.controls.placing !== placing) session.setControls({ placing });
+  }, [placing, session]);
+
+  // A click with Select in 3D picks a cut of the drape shown.
+  const drapeCuts = engine.drape?.info.cuts;
+  useEffect(
+    () =>
+      session.onPicked((i) => {
+        const id = i >= 0 ? drapeCuts?.[i] : undefined;
+        const f = id && garment ? findCut(garment, id) : undefined;
+        select(f ? { kind: 'cut', pieceId: f.piece.id, cutId: f.cut.id } : null);
+      }),
+    [session, drapeCuts, garment, select],
+  );
+
+  // The selected cut's handles, while placing (and while it is in the drape shown).
+  const gizmoIndex = placing && selection ? (drapeCuts?.indexOf(selection.cutId) ?? -1) : -1;
+  useEffect(() => {
+    session.showGizmo(gizmoIndex >= 0 ? gizmoIndex : null);
+  }, [session, gizmoIndex]);
+
+  useEffect(() => {
+    const el = canvasBox.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setCanvasSize({ w: el.clientWidth || 1, h: el.clientHeight || 1 }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const rewrap = useCallback(
+    (cutId: string, place: Place) => {
+      const g = garment;
+      if (!g) return;
+      session.rewrap(cutId, place).then(
+        (json) => {
+          const r = JSON.parse(json) as { placement: Omit<Placement, 'type'>; bounds: Bounds | null };
+          store.execute((e) => setPlacement(e, g.id, cutId, { type: 'wrap', ...r.placement }, r.bounds ?? undefined));
+        },
+        (e: Error) => files.showError('Could not move the piece', e),
+      );
+    },
+    [garment, session, store, files],
+  );
+
+  /** A DXF picked or dropped: the import dialog (a garment.toml with it is kept for it). */
+  const [droppedSidecar, setDroppedSidecar] = useState<TextFile | null>(null);
+  const startImport = async (list: FileList | File[]) => {
+    const r = await readPattern(list);
+    if (!r) {
+      files.showError('Not imported', new Error('pick a DXF-AAMA pattern (.dxf)'));
+      return;
+    }
+    setDroppedSidecar(r.sidecar);
+    setImportKey((k) => k + 1);
+    setImporting(r.dxf);
+  };
+  const dropProps = {
+    onDragOver: (e: React.DragEvent) => {
+      if ([...e.dataTransfer.items].some((i) => i.kind === 'file')) e.preventDefault();
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (!e.dataTransfer.files.length) return;
+      e.preventDefault();
+      void startImport(e.dataTransfer.files);
+    },
+  };
+
+  const runImport = async (o: { dxf: TextFile; sidecar: TextFile | null; choices: Record<string, unknown>; into: 'new' | 'add' }) => {
+    const choices = JSON.stringify(o.choices);
+    if (o.into === 'add' && garment) {
+      const a = JSON.parse(await session.importAddition({ name: o.dxf.name, dxf: o.dxf.text, sidecar: o.sidecar?.text ?? '', choices, seed: seed() })) as Addition;
+      if (!store.execute((e) => addPieces(e, garment.id, a))) throw new Error(store.state.refused ?? 'the pieces could not be added');
+      if (a.notes.length) files.showInfo(a.notes.join('. '));
+    } else {
+      const avatar = await fetchAvatar();
+      const name = `${o.dxf.name.replace(/\.dxf$/i, '')}.vtry`;
+      await files.importNew(async (rev) => ({
+        name,
+        ...(await session.importNew({ name: o.dxf.name, dxf: o.dxf.text, sidecar: o.sidecar?.text ?? '', choices, avatar, seed: seed() }, rev)),
+      }));
+      setSelection(null);
+      setMode('3d');
+    }
+    setImporting(null);
   };
 
   const openPreset = (ex: Example) =>
@@ -168,6 +285,7 @@ export function Editor() {
               Open… <DropdownMenuShortcut>{MOD}O</DropdownMenuShortcut>
             </DropdownMenuItem>
             {storage.opensFolders && <DropdownMenuItem onSelect={() => files.openFolder()}>Open a folder project…</DropdownMenuItem>}
+            <DropdownMenuItem onSelect={() => dxfInput.current?.click()}>Import a pattern (DXF)…</DropdownMenuItem>
             <DropdownMenuItem disabled={doc.empty} onSelect={() => void files.saveAs()}>
               Save as… <DropdownMenuShortcut>⇧{MOD}S</DropdownMenuShortcut>
             </DropdownMenuItem>
@@ -190,27 +308,51 @@ export function Editor() {
             <h2 className="font-display m-0 text-xl font-semibold">{PANEL_TITLES[panel]}</h2>
             {panel === 'fabric' && <FabricPanel store={store} fabric={fabric} />}
             {panel === 'pieces' && (
-              <PiecesPanel store={store} garment={garment} selection={shownSelection} onShowFlat={mode === 'flat' ? null : () => setMode('flat')} />
+              <PiecesPanel
+                store={store}
+                garment={garment}
+                selection={shownSelection}
+                onSelect={select}
+                onRewrap={rewrap}
+                onPlaceIn3d={placing ? null : () => (setMode('3d'), setTool('select'))}
+              />
             )}
             {panel === 'settings' && <SettingsPanel store={store} entities={doc.entities} />}
           </aside>
         )}
 
         {/* Canvas */}
-        <section aria-label={mode === '3d' ? '3D view' : 'Flat pieces'} className="bg-canvas-3d relative min-w-0 grow overflow-hidden">
+        <section ref={canvasBox} aria-label={mode === '3d' ? '3D view' : 'Flat pieces'} className="bg-canvas-3d relative min-w-0 grow overflow-hidden" {...dropProps}>
           {/* The 3D view stays mounted (and simulating) under the flat view. */}
           <div className="absolute inset-0">
             <Viewport session={session} tool={tool} />
           </div>
+          {placing && engine.gizmo && selected?.cut.placement.type === 'wrap' && gizmoIndex >= 0 && (
+            <Gizmo
+              view={engine.gizmo}
+              width={canvasSize.w}
+              height={canvasSize.h}
+              placement={selected.cut.placement as Placement & { type: 'wrap' }}
+              onPreview={(p) => session.placeCut(gizmoIndex, tidy(p))}
+              onCommit={(p) => garment && store.execute((e) => setPlacement(e, garment.id, selected.cut.id, tidy(p)))}
+            />
+          )}
           {mode === 'flat' && (
             <div className="absolute inset-0">
-              <PatternPanel ref={pattern} garment={garment} selection={shownSelection} onSelect={select} />
+              <PatternPanel
+                ref={pattern}
+                garment={garment}
+                selection={shownSelection}
+                onSelect={select}
+                tool={flatTool}
+                onArrange={(cutId, t) => garment && store.execute((e) => setLayout(e, garment.id, cutId, { position: [t.x, t.y], rotation: t.rot }))}
+              />
             </div>
           )}
 
           <div className="absolute top-4 left-4 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <StatusPill engine={engine} mode={mode} />
+              <StatusPill engine={engine} mode={mode} placing={placing} />
               {doc.warnings.length + (engine.drape?.info.warnings.length ?? 0) > 0 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -249,7 +391,11 @@ export function Editor() {
             </div>
           )}
 
-          <div className="text-muted-foreground absolute bottom-5 left-4 max-w-60 text-[13px] leading-snug">{HINTS[mode === 'flat' ? 'flat' : tool]}</div>
+          <div className="text-muted-foreground pointer-events-none absolute bottom-5 left-4 max-w-60 text-[13px] leading-snug">
+            {placing && selected?.cut.placement.type === 'follow'
+              ? 'This piece sits on another one: it moves with it. Change that in the Pieces panel.'
+              : HINTS[mode === 'flat' ? `flat:${flatTool}` : `3d:${tool}`]}
+          </div>
 
           <div className="absolute right-4 bottom-4 flex items-center gap-0.5 rounded-[10px] border border-[#E1E4DE] bg-white p-0.5">
             <ZoomButton label="Zoom out" onClick={() => (mode === 'flat' ? pattern.current?.zoom(1 / 1.25) : session.wheel(-1))}>
@@ -267,6 +413,9 @@ export function Editor() {
 
           {mode === '3d' && (
             <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
+              <ToolButton label="Select" selected={tool === 'select'} onClick={() => setTool('select')}>
+                <SelectIcon />
+              </ToolButton>
               <ToolButton label="Turn view" selected={tool === 'turn'} onClick={() => setTool('turn')}>
                 <TurnIcon />
               </ToolButton>
@@ -276,7 +425,11 @@ export function Editor() {
               <span className="mx-1 my-2 w-px bg-white/20" />
               <ToolButton
                 label={engine.controls.paused ? 'Play (space)' : 'Pause (space)'}
-                onClick={() => session.setControls({ paused: !engine.controls.paused })}
+                onClick={() => {
+                  // Play while placing means "drape now".
+                  if (placing) setTool('turn');
+                  session.setControls({ paused: placing ? false : !engine.controls.paused });
+                }}
               >
                 {engine.controls.paused ? <Play className="size-5" /> : <Pause className="size-5" />}
               </ToolButton>
@@ -285,6 +438,16 @@ export function Editor() {
               </ToolButton>
               <ToolButton label="Drape again from the start (R)" onClick={() => session.resetDrape()}>
                 <RotateCcw className="size-5" />
+              </ToolButton>
+            </div>
+          )}
+          {mode === 'flat' && !doc.empty && (
+            <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
+              <ToolButton label="Select" selected={flatTool === 'select'} onClick={() => setFlatTool('select')}>
+                <SelectIcon />
+              </ToolButton>
+              <ToolButton label="Move" selected={flatTool === 'move'} onClick={() => setFlatTool('move')}>
+                <MoveIcon />
               </ToolButton>
             </div>
           )}
@@ -297,6 +460,8 @@ export function Editor() {
           busy={files.busy}
           onPreset={openPreset}
           onOpen={() => files.openFile()}
+          onImport={() => dxfInput.current?.click()}
+          dropProps={dropProps}
           onOpenFolder={storage.opensFolders ? () => files.openFolder() : null}
           banner={
             <>
@@ -313,6 +478,28 @@ export function Editor() {
         />
       )}
       {!doc.empty && files.recovery && <div className="absolute inset-x-0 top-16 z-20">{recoveryBanner}</div>}
+
+      <input
+        ref={dxfInput}
+        type="file"
+        accept=".dxf,.toml"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const list = e.target.files ? [...e.target.files] : [];
+          e.target.value = '';
+          if (list.length) void startImport(list);
+        }}
+      />
+      <ImportDialog
+        key={importKey}
+        dxf={importing}
+        initialSidecar={droppedSidecar}
+        session={session}
+        projectName={doc.empty ? null : (doc.entities.project?.name ?? doc.fileName)}
+        onClose={() => setImporting(null)}
+        onImport={runImport}
+      />
 
       <Dialog open={!!files.unsaved} onOpenChange={(open) => !open && files.unsaved?.cancel()}>
         <DialogContent className="rounded-[20px] p-6">
@@ -337,7 +524,7 @@ export function Editor() {
   );
 }
 
-function StatusPill({ engine, mode }: { engine: EngineState; mode: Mode }) {
+function StatusPill({ engine, mode, placing }: { engine: EngineState; mode: Mode; placing: boolean }) {
   let text: string;
   let dot = 'bg-live live-dot';
   if (engine.phase === 'failed') [text, dot] = ['3D view stopped', 'bg-destructive'];
@@ -345,6 +532,7 @@ function StatusPill({ engine, mode }: { engine: EngineState; mode: Mode }) {
   else if (engine.phase === 'starting') [text, dot] = ['Starting the 3D view…', 'bg-line live-dot'];
   else if (engine.drapeError) [text, dot] = ['The drape stopped', 'bg-destructive'];
   else if (mode === 'flat') [text, dot] = ['Flat pieces. 3D follows your edits', 'bg-live'];
+  else if (placing) [text, dot] = ['Placing pieces. The drape waits', 'bg-line'];
   else if (engine.controls.paused) [text, dot] = ['Paused', 'bg-line'];
   else text = 'Fabric is settling live';
   const s = engine.stats;

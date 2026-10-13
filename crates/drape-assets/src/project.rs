@@ -25,9 +25,12 @@ use vitryne_format::{
 
 use crate::{
     garment::{DEFAULT_CAMERA, GarmentPattern, garment_desc},
+    meshing::MeshedPattern,
     meshing::mesh_pattern,
     pattern::{EdgeRef, Panel, Pattern, PatternEdge, Seam},
-    placement::{PlaceSpec, default_avatar, place, region_frame},
+    placement::{
+        Basis, PlaceSpec, Resolved, default_avatar, place, positions, region_frame, resolve_all,
+    },
     tshirt::tshirt_schedule,
 };
 
@@ -396,43 +399,122 @@ impl<'a> ProjectGarment<'a> {
     }
 
     fn place_specs(&self) -> Result<Vec<PlaceSpec>, String> {
-        let g = self.garment;
-        let index: BTreeMap<&Id, usize> =
-            g.cuts().enumerate().map(|(i, (_, c))| (&c.id, i)).collect();
-        g.cuts()
-            .map(|(_, cut)| {
-                let at = |m: String| {
-                    format!(
-                        "{}: cut {}: {m}",
-                        g.name,
-                        cut.name.as_deref().unwrap_or(cut.id.as_str())
-                    )
-                };
-                Ok(match &cut.placement {
-                    Placement::Wrap(w) => PlaceSpec::Wrap {
-                        frame: region_frame(self.regions, &w.region).map_err(at)?,
-                        angle: w.angle as f32,
-                        radius: m(w.radius),
-                        top: m(w.top),
-                        tube: w.tube.map(|x| x as f32),
-                    },
-                    Placement::Follow(f) => PlaceSpec::Follow {
-                        of: *index
-                            .get(&f.cut)
-                            .ok_or_else(|| at("follows an unknown cut".into()))?,
-                        angle: f.angle.map(|a| a as f32),
-                        lift: m(f.lift),
-                    },
-                })
+        let placements: Vec<(&vitryne_format::Cut, &Placement)> = self
+            .garment
+            .cuts()
+            .map(|(_, c)| (c, &c.placement))
+            .collect();
+        place_specs(&self.garment.name, self.regions, &placements)
+    }
+
+    /// Meshes and places the garment (`edge`: target triangle edge length, m), and keeps what
+    /// placing it again needs (`Placer`).
+    pub fn build_with_placer(&self, edge: f32) -> Result<(GarmentDesc, Placer), String> {
+        let gp = self.pattern()?;
+        let pat = &gp.pattern;
+        let mp = mesh_pattern(pat, edge);
+        let placer = Placer {
+            uv: mp.uv.clone(),
+            panel_vertices: mp.panel_vertices.clone(),
+            outlines: pat.panels.iter().map(|p| p.outline()).collect(),
+            names: pat.panels.iter().map(|p| p.name.clone()).collect(),
+            cuts: self.garment.cuts().map(|(_, c)| c.clone()).collect(),
+            regions: self.regions.clone(),
+        };
+        Ok((self.finish(pat, mp, edge)?, placer))
+    }
+}
+
+/// Each cut's `PlaceSpec`, in the garment's cut order (`placements[i]`: cut i and the placement
+/// to use for it).
+fn place_specs(
+    garment: &str,
+    regions: &BTreeMap<String, Region>,
+    placements: &[(&vitryne_format::Cut, &Placement)],
+) -> Result<Vec<PlaceSpec>, String> {
+    let index: BTreeMap<&Id, usize> = placements
+        .iter()
+        .enumerate()
+        .map(|(i, (c, _))| (&c.id, i))
+        .collect();
+    placements
+        .iter()
+        .map(|&(cut, placement)| {
+            let at = |m: String| {
+                format!(
+                    "{}: cut {}: {m}",
+                    garment,
+                    cut.name.as_deref().unwrap_or(cut.id.as_str())
+                )
+            };
+            Ok(match placement {
+                Placement::Wrap(w) => PlaceSpec::Wrap {
+                    frame: region_frame(regions, &w.region).map_err(at)?,
+                    angle: w.angle as f32,
+                    radius: m(w.radius),
+                    top: m(w.top),
+                    tube: w.tube.map(|x| x as f32),
+                },
+                Placement::Follow(f) => PlaceSpec::Follow {
+                    of: *index
+                        .get(&f.cut)
+                        .ok_or_else(|| at("follows an unknown cut".into()))?,
+                    angle: f.angle.map(|a| a as f32),
+                    lift: m(f.lift),
+                },
             })
-            .collect()
+        })
+        .collect()
+}
+
+impl ProjectGarment<'_> {
+    /// Where cut `cut`'s outline goes with `placement` instead of its own (the other cuts as
+    /// they are), m. Cheap: no meshing.
+    pub fn placed_outline(&self, cut: &Id, placement: &Placement) -> Result<Vec<Vec3>, String> {
+        let gp = self.pattern()?;
+        let cuts: Vec<&vitryne_format::Cut> = self.garment.cuts().map(|(_, c)| c).collect();
+        let i = cuts
+            .iter()
+            .position(|c| &c.id == cut)
+            .ok_or_else(|| format!("no cut {cut}"))?;
+        let turn = match (placement, &cuts[i].placement) {
+            (Placement::Wrap(a), Placement::Wrap(b)) => {
+                (a.rotation.unwrap_or(0.0) - b.rotation.unwrap_or(0.0)) as f32
+            }
+            (Placement::Wrap(a), Placement::Follow(_)) => a.rotation.unwrap_or(0.0) as f32,
+            (Placement::Follow(_), _) => 0.0,
+        };
+        let (s, c) = turn.sin_cos();
+        let mut outlines: Vec<Vec<Vec2>> = gp.pattern.panels.iter().map(|p| p.outline()).collect();
+        outlines[i] = outlines[i]
+            .iter()
+            .map(|q| Vec2::new(c * q.x - s * q.y, s * q.x + c * q.y))
+            .collect();
+        let pairs: Vec<(&vitryne_format::Cut, &Placement)> = cuts
+            .iter()
+            .enumerate()
+            .map(|(k, c)| (*c, if k == i { placement } else { &c.placement }))
+            .collect();
+        let specs = place_specs(&self.garment.name, self.regions, &pairs)?;
+        let names: Vec<&str> = gp.pattern.panels.iter().map(|p| p.name.as_str()).collect();
+        let resolved = resolve_all(&outlines, &names, &specs)?;
+        Ok(outlines[i].iter().map(|&q| resolved[i].at(q)).collect())
     }
 
     /// Meshes and places the garment (`edge`: target triangle edge length, m).
     pub fn build(&self, edge: f32) -> Result<GarmentDesc, String> {
         let gp = self.pattern()?;
         let pat = &gp.pattern;
-        let mut mp = mesh_pattern(pat, edge);
+        let mp = mesh_pattern(pat, edge);
+        self.finish(pat, mp, edge)
+    }
+
+    fn finish(
+        &self,
+        pat: &Pattern,
+        mut mp: MeshedPattern,
+        edge: f32,
+    ) -> Result<GarmentDesc, String> {
         place(&mut mp, pat, &self.place_specs()?)?;
         let sdf = self.sdf_params(&mp.mesh.pos);
         let material = self.material();
@@ -447,6 +529,114 @@ impl<'a> ProjectGarment<'a> {
             sdf,
             self.camera(),
         ))
+    }
+}
+
+/// What placing a meshed garment again needs, without meshing it again: the editor moves a
+/// cut and sees it move at once (docs/ARCHITECTURE.md, Placement).
+#[derive(Clone)]
+pub struct Placer {
+    uv: Vec<Vec2>,
+    panel_vertices: Vec<std::ops::Range<u32>>,
+    /// Each panel's outline, in its cut's frame (mirrored, rotated) as meshed.
+    outlines: Vec<Vec<Vec2>>,
+    names: Vec<String>,
+    /// The cuts as meshed, one per panel.
+    cuts: Vec<vitryne_format::Cut>,
+    regions: BTreeMap<String, Region>,
+}
+
+/// The garment's wraps with one cut's placement replaced (see `Placer::resolve`): each panel's
+/// wrap and outline, and how much that cut turned, radians.
+struct Replaced {
+    resolved: Vec<Resolved>,
+    outlines: Vec<Vec<Vec2>>,
+    turn: f32,
+}
+
+/// A cut's centre on the body and how it moves (see `Placer::gizmo`).
+#[derive(Debug, Clone, Copy)]
+pub struct Gizmo {
+    pub basis: Basis,
+    /// The cut's width and height, m.
+    pub size: Vec2,
+    /// The cylinder's radius there, m.
+    pub radius: f32,
+}
+
+impl Placer {
+    pub fn cut_ids(&self) -> Vec<String> {
+        self.cuts.iter().map(|c| c.id.to_string()).collect()
+    }
+
+    fn rotation(p: &Placement) -> f32 {
+        match p {
+            Placement::Wrap(w) => w.rotation.unwrap_or(0.0) as f32,
+            Placement::Follow(_) => 0.0,
+        }
+    }
+
+    /// Each panel's wrap with cut `cut`'s placement replaced by `placement`, and that panel's
+    /// pattern turned by the change in rotation (the rest of the pattern is as meshed).
+    fn resolve(&self, cut: usize, placement: &Placement) -> Result<Replaced, String> {
+        if cut >= self.cuts.len() {
+            return Err(format!("no cut {cut}"));
+        }
+        let turn = Self::rotation(placement) - Self::rotation(&self.cuts[cut].placement);
+        let (s, c) = turn.sin_cos();
+        let rot = move |q: Vec2| Vec2::new(c * q.x - s * q.y, s * q.x + c * q.y);
+        let mut outlines = self.outlines.clone();
+        outlines[cut] = outlines[cut].iter().map(|&q| rot(q)).collect();
+        let pairs: Vec<(&vitryne_format::Cut, &Placement)> = self
+            .cuts
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (c, if i == cut { placement } else { &c.placement }))
+            .collect();
+        // Only the garment's name is used, in errors.
+        let specs = place_specs("the garment", &self.regions, &pairs)?;
+        let names: Vec<&str> = self.names.iter().map(String::as_str).collect();
+        Ok(Replaced {
+            resolved: resolve_all(&outlines, &names, &specs)?,
+            outlines,
+            turn,
+        })
+    }
+
+    /// Every vertex's start position with cut `cut` (in panel order) placed at `placement`.
+    pub fn positions(&self, cut: usize, placement: &Placement) -> Result<Vec<Vec3>, String> {
+        let Replaced { resolved, turn, .. } = self.resolve(cut, placement)?;
+        let (s, c) = turn.sin_cos();
+        let mut uv = self.uv.clone();
+        for v in self.panel_vertices[cut].clone() {
+            let q = uv[v as usize];
+            uv[v as usize] = Vec2::new(c * q.x - s * q.y, s * q.x + c * q.y);
+        }
+        Ok(positions(&uv, &self.panel_vertices, &resolved))
+    }
+
+    /// The cuts as meshed, in panel order.
+    pub fn cuts(&self) -> &[vitryne_format::Cut] {
+        &self.cuts
+    }
+
+    /// The middle of cut `cut` on the body when placed at `placement` (half-way down from
+    /// its anchor, the top centre), and the directions it moves in.
+    pub fn gizmo(&self, cut: usize, placement: &Placement) -> Result<Gizmo, String> {
+        let Replaced {
+            resolved, outlines, ..
+        } = self.resolve(cut, placement)?;
+        let (lo, hi) = outlines[cut].iter().fold(
+            (Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)),
+            |(lo, hi), q| (lo.min(*q), hi.max(*q)),
+        );
+        let r = &resolved[cut];
+        let mid = Vec2::new(r.anchor().x, 0.5 * (lo.y + hi.y));
+        Ok(Gizmo {
+            basis: r.basis_at(mid),
+            size: hi - lo,
+            radius: r.radius_at(mid.y),
+        })
     }
 }
 

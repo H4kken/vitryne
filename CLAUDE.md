@@ -73,8 +73,9 @@ without checking them against that file, and say so when a request conflicts wit
   numbers), M2 stretch, M3 API + settings + regression, M4 file format design (`docs/FORMAT.md`),
   M5 format implementation (`vitryne-format`, `drape convert`, `.vtry` in the CLI and goldens),
   M6 editor shell (worker + OffscreenCanvas, document model with guardrails, 2D panel,
-  properties, storage and save; accepted after a manual Safari check). **Next:** M7 (import and
-  placement in the editor; read docs/PATENTS.md before designing placement).
+  properties, storage and save; accepted after a manual Safari check), M7 import and placement
+  (DXF import dialog, placement by body place + automatic wrap + 3D gizmo, flat layout; waiting
+  for review). **Next:** M8 (sewing in the UI; read docs/PATENTS.md first, rules 1–3).
 - **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
   `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **The `.vtry` and `garment.toml` paths give bit-identical garments** (test

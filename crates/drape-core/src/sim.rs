@@ -1180,8 +1180,24 @@ impl Solver {
     }
 
     pub fn reset(&self, queue: &wgpu::Queue) {
-        queue.write_buffer(&self.pos, 0, bytemuck::cast_slice(&self.init_pos));
-        queue.write_buffer(&self.prev, 0, bytemuck::cast_slice(&self.init_pos));
+        self.start_from(queue, &self.init_pos);
+    }
+
+    /// At rest at `pos` (one per vertex; the masses stay), as `reset` is at the placed state:
+    /// the editor shows a piece being placed this way, without building the drape again.
+    pub fn place_at(&self, queue: &wgpu::Queue, pos: &[Vec3]) {
+        let p: Vec<[f32; 4]> = self
+            .init_pos
+            .iter()
+            .zip(pos)
+            .map(|(q, p)| [p.x, p.y, p.z, q[3]])
+            .collect();
+        self.start_from(queue, &p);
+    }
+
+    fn start_from(&self, queue: &wgpu::Queue, pos: &[[f32; 4]]) {
+        queue.write_buffer(&self.pos, 0, bytemuck::cast_slice(pos));
+        queue.write_buffer(&self.prev, 0, bytemuck::cast_slice(pos));
         queue.write_buffer(&self.vel, 0, &vec![0u8; self.n_verts as usize * 16]);
         // The untangling accumulator also holds the "tangled" flags that self-collision reads
         // in the first substeps, before the first detection: stale ones from the run before

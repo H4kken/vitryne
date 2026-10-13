@@ -16,6 +16,9 @@ import {
   revertCommand,
   selfCollision,
   setFabricValue,
+  setLayout,
+  setMirrored,
+  setPlacement,
   setSelfCollision,
   setTargetVertices,
   targetVertices,
@@ -38,6 +41,13 @@ function everyCommand(e: Entities): Command[] {
     ...(Object.keys(FABRIC_FIELDS) as FabricField[]).map((f) => setFabricValue(e, fabric.id, f, 0.123)),
     setTargetVertices(e, 5000),
     setSelfCollision(e, !selfCollision(e)),
+    setPlacement(e, g.id, piece.cuts[0]!.id, { ...piece.cuts[0]!.placement, angle: (piece.cuts[0]!.placement.angle ?? 0) + 0.1 }),
+    setPlacement(e, g.id, piece.cuts[0]!.id, { type: 'wrap', region: 'torso', angle: 1, radius: 250, top: 1500 }, {
+      min: [-600, 0, -300],
+      max: [600, 1800, 400],
+    }),
+    setMirrored(e, g.id, piece.cuts[0]!.id, !piece.cuts[0]!.mirrored),
+    setLayout(e, g.id, piece.cuts[0]!.id, { position: [120, -40], rotation: 0.5 }),
   ];
 }
 
@@ -66,6 +76,16 @@ describe.each(EXAMPLES)('%s', (name) => {
     expect(() => setTargetVertices(frozen, 50)).toThrow(CommandError);
     expect(() => setTargetVertices(frozen, 5000.5)).toThrow(CommandError);
     expect(() => renameProject(frozen, frozen.project!.name!)).toThrow(/nothing changes/);
+  });
+
+  it('refuses placements Rust or the schema would refuse', () => {
+    const g = mainGarment(frozen)!;
+    const cut = g.pieces[0]!.cuts[0]!;
+    expect(() => setPlacement(frozen, g.id, cut.id, { type: 'wrap', region: 'torso', angle: 0, radius: -5, top: 0 })).toThrow(CommandError);
+    expect(() => setLayout(frozen, g.id, cut.id, { position: [Number.NaN, 0], rotation: 0 })).toThrow(CommandError);
+    expect(() => setPlacement(frozen, g.id, cut.id, { ...cut.placement, angle: Number.NaN })).toThrow(/number/);
+    // On itself: the schema allows it, Rust wouldn't.
+    expect(() => setPlacement(frozen, g.id, cut.id, { type: 'follow', cut: cut.id, lift: 12 })).toThrow(/itself/);
   });
 
   it('refuses to apply or revert from a state it does not expect', () => {

@@ -282,7 +282,9 @@ A piece is cut one or more times. Each **cut** is one copy in the garment:
 - `mirrored`: the mirror image (x → −x in the piece frame), the other one of a left/right pair.
 - `fabric`: overrides the garment's fabric for this cut.
 - `placement`: where it starts before sewing (below).
-- `layout`: where it sits in the 2D pattern view (position, rotation). Display only.
+- `layout`: where it sits in the 2D pattern view. Display only. The cut's points (after
+  mirroring) are turned by `rotation` (radians, counter-clockwise) about the piece's origin, then
+  moved by `position` (mm). Without one, the app lays cuts out as it likes.
 
 **Seams and placement refer to cuts; geometry belongs to the piece.** Both cuts share the piece's
 node ids, and directions are always in the piece frame, including for a mirrored cut.
@@ -316,8 +318,8 @@ at that point of the axis. The reference implementation is `drape-assets` `garme
 tube as the followed cut, at its radius plus `lift` (mm), at its angle unless `angle` is given.
 The followed cut must not follow this one, directly or indirectly.
 
-The M7 placement gizmo adds a free adjustment after the wrap. That will be a new field or
-placement type, added in a minor version.
+The editor's placement gizmo adjusts these fields themselves (around, along, away from the
+axis, turn): no other placement data was needed.
 
 **Why regions by name:** a garment file has to fit any avatar. Garments say "torso" and
 "upper-arm-left", and each avatar defines where those are. The region coordinates used to be
@@ -590,7 +592,8 @@ How the planned features fit, without breaking v1 files:
 
 Converters, not the format:
 
-- **In: DXF-AAMA** (M5 converter, M7 in the editor). Each DXF piece becomes a piece; boundary
+- **In: DXF-AAMA** (M5 converter; M7 in the editor, where each cut is placed as the user
+  chooses and seams come from a `garment.toml` if one is given). Each DXF piece becomes a piece; boundary
   (or sew line, layer 14) → outline in mm, CCW; turn points → `corner` nodes; notches → `notch`
   nodes; mirror line → unfolded outline plus a `fold` between two `point` nodes; grain line →
   `grain`; internal lines → `lines` (both ends and every turn over 15° become nodes). DXF

@@ -4,7 +4,16 @@
 // inputs and frames run between them.
 
 import init, { type PreparedScene, Viewport, VtryFile } from '../../pkg/drape_web.js';
-import { type DrapeInfo, type FromWorker, fileDataBuffers, type Input, type Requests, type RequestMessage, type ToWorker } from './protocol';
+import {
+  type DrapeInfo,
+  type FromWorker,
+  fileDataBuffers,
+  type GizmoView,
+  type Input,
+  type Requests,
+  type RequestMessage,
+  type ToWorker,
+} from './protocol';
 import { dropSdf, loadSdf, storeSdf } from './sdf-cache';
 
 const post = (m: FromWorker, transfer: Transferable[] = []) => self.postMessage(m, { transfer });
@@ -104,6 +113,26 @@ const handlers: Handlers = {
     const files = (f.save_folder() as [string, Uint8Array][]).map(([p, b]): [string, ArrayBuffer] => [p, b.buffer as ArrayBuffer]);
     return { rev, data: { form, files } };
   },
+
+  async inspectDxf({ name, dxf, sidecar }) {
+    return { preview: VtryFile.inspect_dxf(name, dxf, sidecar) };
+  },
+
+  async importNew({ name, dxf, sidecar, choices, avatar, seed }) {
+    const next = VtryFile.import_new(name, dxf, sidecar, choices, new Uint8Array(avatar), Date.now(), new Uint8Array(seed));
+    file?.free();
+    file = next;
+    viewport?.clear();
+    return { entities: file.entities(), notes: JSON.parse(file.warnings()) as string[], zip: file.save().buffer as ArrayBuffer };
+  },
+
+  async importAddition({ name, dxf, sidecar, choices, seed }) {
+    return { addition: needFile().import_addition(name, dxf, sidecar, choices, Date.now(), new Uint8Array(seed)) };
+  },
+
+  async rewrap({ cut, place }) {
+    return { rewrapped: needFile().rewrap(cut, place) };
+  },
 };
 
 function needFile(): VtryFile {
@@ -131,7 +160,12 @@ function request(m: RequestMessage) {
       } catch (e) {
         rethrow(e);
       }
-      const transfer = m.op === 'save' ? fileDataBuffers((value as Requests['save']['reply']).data) : [];
+      const transfer =
+        m.op === 'save'
+          ? fileDataBuffers((value as Requests['save']['reply']).data)
+          : m.op === 'importNew'
+            ? [(value as Requests['importNew']['reply']).zip]
+            : [];
       post({ kind: 'reply', id: m.id, ok: true, value }, transfer);
     } catch (e) {
       if (crashed) return;
@@ -144,7 +178,11 @@ function request(m: RequestMessage) {
 
 /** Pointer state: a press is undecided until the pick says cloth (drag) or not (orbit). */
 let style: Float32Array | null = null;
-let press: { px: number; py: number; orbit: boolean } | null = null;
+/** select: a click picks a cut, a drag orbits. */
+let press: { px: number; py: number; orbit: boolean; select: boolean; x: number; y: number; sx: number; sy: number; moved: boolean } | null = null;
+/** The cut whose handles are reported, and the last report sent. */
+let gizmoCut: number | null = null;
+let gizmoSent = '';
 let frames = 0;
 let statsAt = performance.now();
 let frameMs = NaN;
@@ -159,6 +197,14 @@ function frame() {
     rethrow(e);
   }
   frames++;
+  if (gizmoCut !== null) {
+    // The handles move with the camera, the canvas size and the cut: send them when they do.
+    const g = v.gizmo(gizmoCut);
+    if (g !== gizmoSent) {
+      gizmoSent = g;
+      post({ kind: 'gizmo', gizmo: g ? (JSON.parse(g) as GizmoView) : null });
+    }
+  }
   const now = performance.now();
   lastFrame = now;
   if (now - statsAt >= 1000) {
@@ -218,7 +264,8 @@ function input(m: Input) {
       return;
     case 'pointer':
       if (m.phase === 'down') {
-        const p = { px: m.px, py: m.py, orbit: m.tool === 'turn' };
+        const select = m.tool === 'select';
+        const p = { px: m.px, py: m.py, orbit: m.tool !== 'pinch', select, x: m.x, y: m.y, sx: m.px, sy: m.py, moved: false };
         press = p;
         if (p.orbit) return;
         v.pointer_down(m.x, m.y).then(
@@ -230,14 +277,36 @@ function input(m: Input) {
       } else if (m.phase === 'move') {
         if (v.dragging()) v.pointer_move(m.x, m.y);
         else if (press?.orbit) {
+          if (Math.abs(m.px - press.sx) + Math.abs(m.py - press.sy) > 4) press.moved = true;
           v.orbit(m.px - press.px, m.py - press.py);
           press.px = m.px;
           press.py = m.py;
         }
       } else {
+        const p = press;
         press = null;
         v.pointer_up();
+        // A click (not a drag) with the select tool picks.
+        if (p?.select && !p.moved) {
+          v.pick_cut(p.x, p.y).then(
+            (cut: number) => post({ kind: 'picked', cut }),
+            () => {},
+          );
+        }
       }
+      return;
+    case 'place':
+      try {
+        v.place_cut(m.cut, m.placement);
+      } catch (e) {
+        // A placement Rust can't use (a cut that went away): the next drape shows the truth.
+        if (typeof e !== 'string') rethrow(e);
+      }
+      return;
+    case 'gizmo':
+      gizmoCut = m.cut;
+      gizmoSent = '';
+      if (m.cut === null) post({ kind: 'gizmo', gizmo: null });
       return;
     case 'wheel':
       v.zoom(m.steps);
@@ -246,6 +315,7 @@ function input(m: Input) {
     case 'controls':
       if (m.fast !== undefined) v.set_fast(m.fast);
       if (m.paused !== undefined) v.set_paused(m.paused);
+      if (m.placing !== undefined) v.set_placing(m.placing);
       if (m.reset) v.reset();
       return;
   }

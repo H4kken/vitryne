@@ -1,0 +1,838 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! DXF-AAMA into the editor (docs/ARCHITECTURE.md, Import and placement). Reading a DXF gives
+//! a preview: what was found, what was ignored, and for each piece how often it is cut and a
+//! suggested place on the body. The user confirms or changes a choice per piece, and the import
+//! makes the pieces and cuts, each cut wrapped around its place (`placement::auto_wrap`), as a
+//! new project or as an addition to the open one.
+//!
+//! A `garment.toml` sidecar may come with the DXF: then its pieces, cuts, names and seams are
+//! used (as `drape convert` does), and only its placements are replaced by the user's choices.
+//! Without one the garment has no seams yet.
+//!
+//! Suggestions come from the piece names only ("sleeve", "front", ...), never from anything
+//! learned, and the user sees and changes every one (docs/PATENTS.md, rule 4).
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use glam::{Vec2, Vec3};
+use serde::{Deserialize, Serialize};
+use serde_json::Map;
+
+use drape_core::constraints::Material;
+use vitryne_format::{
+    Bounds, Cut, Document, Follow, Garment, GarmentSimulation, Id, IdGen, Piece, Placement, Region,
+    Seam, Source, Wrap,
+};
+
+use crate::{
+    aama::{self, ImportReport},
+    convert::{ConvertOptions, convert_with, dxf_piece, fabric_entity, project_document},
+    garment::Garment as SidecarGarment,
+    placement::{BodyFacts, BodyPlace, auto_wrap, default_avatar},
+};
+
+/// How far a piece placed on another one sits off it, mm (the hoodie's pocket).
+pub const ON_TOP_LIFT_MM: f64 = 12.0;
+
+/// A pair of cuts, the first on the wearer's right, the second (the mirror image, unless a
+/// sidecar says otherwise) on the left.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Pair {
+    Arms,
+    LegsFront,
+    LegsBack,
+    HeadSides,
+    BodySides,
+}
+
+impl Pair {
+    pub fn places(self) -> [BodyPlace; 2] {
+        use BodyPlace::*;
+        match self {
+            Pair::Arms => [ArmRight, ArmLeft],
+            Pair::LegsFront => [LegRightFront, LegLeftFront],
+            Pair::LegsBack => [LegRightBack, LegLeftBack],
+            Pair::HeadSides => [HeadRight, HeadLeft],
+            Pair::BodySides => [BodyRight, BodyLeft],
+        }
+    }
+}
+
+/// What to do with one DXF piece.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "kebab-case")]
+pub enum Choice {
+    /// Not imported.
+    Leave,
+    /// One cut, at `place`.
+    One { place: BodyPlace },
+    /// Two cuts, at the pair's two places.
+    Pair { pair: Pair },
+    /// One cut on top of the first cut of `piece` (a pocket on a front).
+    On { piece: String },
+}
+
+impl Choice {
+    fn cuts(&self) -> usize {
+        match self {
+            Choice::Leave => 0,
+            Choice::Pair { .. } => 2,
+            _ => 1,
+        }
+    }
+}
+
+/// A DXF read for import, with its sidecar if one came with it.
+pub struct DxfImport {
+    file_name: String,
+    pieces: Vec<aama::Piece>,
+    report: ImportReport,
+    sidecar: Option<SidecarGarment>,
+}
+
+/// What the import dialog shows.
+#[derive(Debug, Serialize)]
+pub struct Preview {
+    pub file_name: String,
+    pub report: ImportReport,
+    /// With a sidecar: its title and how many seams it sews.
+    pub sewing: Option<SewingInfo>,
+    pub pieces: Vec<PiecePreview>,
+    /// DXF pieces the sidecar doesn't use (not imported).
+    pub unused: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SewingInfo {
+    pub title: String,
+    pub seams: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PiecePreview {
+    pub name: String,
+    /// "Quantity:" in the DXF.
+    pub quantity: u32,
+    /// The sidecar's cuts of this piece (then the choice must have as many); None: the choice
+    /// decides.
+    pub cuts: Option<usize>,
+    /// The outline (mm, unfolded), for a thumbnail.
+    pub outline: Vec<[f64; 2]>,
+    pub suggestion: Option<Choice>,
+}
+
+/// The garment's parts an import makes (see `DxfImport::parts`).
+struct Parts {
+    pieces: Vec<Piece>,
+    seams: Vec<Seam>,
+    source: Source,
+    notes: Vec<String>,
+}
+
+/// What an import into an open project adds to its garment.
+#[derive(Debug, Serialize)]
+pub struct Addition {
+    pub pieces: Vec<Piece>,
+    pub seams: Vec<Seam>,
+    pub source: Source,
+    /// The collision box the new pieces need (the garment's should cover it).
+    pub bounds: Bounds,
+    pub notes: Vec<String>,
+}
+
+fn whole_mm(x: f32) -> f64 {
+    (x as f64 * 1000.0).round() + 0.0
+}
+
+/// The collision box for an imported garment, mm: the body's box with room behind the back
+/// (where a back piece starts) and above the head, from the floor, rounded out to cm. For the
+/// test avatar it is the hoodie's box down to the floor.
+pub fn import_bounds(body: &[Vec3]) -> Bounds {
+    let (lo, hi) = body.iter().fold(
+        (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)),
+        |(lo, hi), p| (lo.min(*p), hi.max(*p)),
+    );
+    let lo = Vec3::new(lo.x - 0.05, 0.0, lo.z - 0.15);
+    let hi = hi + Vec3::new(0.05, 0.05, 0.03);
+    let cm = |x: f32, up: bool| {
+        let c = x * 100.0;
+        whole_mm(if up { c.ceil() } else { c.floor() } / 100.0)
+    };
+    Bounds {
+        min: [cm(lo.x, false), cm(lo.y, false), cm(lo.z, false)],
+        max: [cm(hi.x, true), cm(hi.y, true), cm(hi.z, true)],
+        other: Map::new(),
+    }
+}
+
+/// The suggested choice for a piece, from its name and how many cuts it gets (`cuts`: the
+/// sidecar's, else the DXF quantity), or none.
+pub fn suggest(name: &str, cuts: usize, all: &[&str]) -> Option<Choice> {
+    let n = name.to_lowercase();
+    let has = |w: &str| n.contains(w);
+    let pair = cuts >= 2;
+    if has("hood") {
+        return if has("side") {
+            Some(if pair {
+                Choice::Pair {
+                    pair: Pair::HeadSides,
+                }
+            } else {
+                Choice::One {
+                    place: BodyPlace::HeadRight,
+                }
+            })
+        } else if has("cent") || has("mid") {
+            Some(Choice::One {
+                place: BodyPlace::OverHead,
+            })
+        } else {
+            None
+        };
+    }
+    if has("sleeve") {
+        return Some(if pair {
+            Choice::Pair { pair: Pair::Arms }
+        } else {
+            Choice::One {
+                place: BodyPlace::ArmRight,
+            }
+        });
+    }
+    // Facings, bindings, cuffs and waistbands share words with the pieces below, but aren't them.
+    if ["facing", "binding", "cuff", "band", "collar", "yoke"]
+        .iter()
+        .any(|w| has(w))
+    {
+        return None;
+    }
+    if has("pocket") {
+        // On the first front that isn't a pocket itself.
+        return all
+            .iter()
+            .find(|o| {
+                let o = o.to_lowercase();
+                o.contains("front") && !o.contains("pocket")
+            })
+            .map(|o| Choice::On {
+                piece: o.to_string(),
+            });
+    }
+    if has("front") {
+        return Some(if pair {
+            Choice::Pair {
+                pair: Pair::LegsFront,
+            }
+        } else {
+            Choice::One {
+                place: BodyPlace::BodyFront,
+            }
+        });
+    }
+    if has("back") {
+        return Some(if pair {
+            Choice::Pair {
+                pair: Pair::LegsBack,
+            }
+        } else {
+            Choice::One {
+                place: BodyPlace::BodyBack,
+            }
+        });
+    }
+    None
+}
+
+/// A piece's outline in a cut's frame (mirrored or not), m.
+fn cut_outline(piece: &Piece, mirrored: bool) -> Vec<Vec2> {
+    let mut pts = Vec::new();
+    for n in &piece.outline {
+        pts.push(n.position);
+        if let Some(e) = &n.edge {
+            pts.extend(e.points.iter().copied());
+        }
+    }
+    pts.iter()
+        .map(|&[x, y]| {
+            let x = (x / 1000.0) as f32;
+            Vec2::new(if mirrored { -x } else { x }, (y / 1000.0) as f32)
+        })
+        .collect()
+}
+
+impl DxfImport {
+    /// Reads the DXF (and the sidecar, which names the DXF it was written for; any name is
+    /// accepted here, the user picked both files).
+    pub fn read(file_name: &str, dxf: &str, sidecar: Option<&str>) -> Result<Self, String> {
+        let (pieces, report, sidecar) = match sidecar {
+            Some(toml) => {
+                let g = SidecarGarment::load(toml, dxf)?;
+                (g.pieces.clone(), g.report.clone(), Some(g))
+            }
+            None => {
+                let (pieces, report) = aama::read(dxf)?;
+                (pieces, report, None)
+            }
+        };
+        if pieces.is_empty() {
+            return Err(
+                "no pattern pieces found (a DXF-AAMA piece is a block with a closed outline on layer 1)"
+                    .into(),
+            );
+        }
+        Ok(Self {
+            file_name: file_name.to_string(),
+            pieces,
+            report,
+            sidecar,
+        })
+    }
+
+    /// The pieces the import offers: the sidecar's, in its order, or every DXF piece.
+    fn offered(&self) -> Vec<(&aama::Piece, Option<usize>)> {
+        match &self.sidecar {
+            Some(g) => {
+                let mut out: Vec<(&aama::Piece, Option<usize>)> = Vec::new();
+                for ps in &g.spec.piece {
+                    if out.iter().any(|(p, _)| p.name == ps.dxf) {
+                        continue;
+                    }
+                    if let Some(p) = self.pieces.iter().find(|p| p.name == ps.dxf) {
+                        let n = g.spec.piece.iter().filter(|q| q.dxf == ps.dxf).count();
+                        out.push((p, Some(n)));
+                    }
+                }
+                out
+            }
+            None => self.pieces.iter().map(|p| (p, None)).collect(),
+        }
+    }
+
+    pub fn preview(&self) -> Preview {
+        let offered = self.offered();
+        let names: Vec<&str> = offered.iter().map(|(p, _)| p.name.as_str()).collect();
+        let pieces = offered
+            .iter()
+            .map(|(p, cuts)| {
+                let n = cuts.unwrap_or((p.quantity as usize).clamp(1, 2));
+                let suggestion = suggest(&p.name, n, &names).filter(|c| match cuts {
+                    Some(k) => c.cuts() == *k,
+                    None => true,
+                });
+                PiecePreview {
+                    name: p.name.clone(),
+                    quantity: p.quantity,
+                    cuts: *cuts,
+                    outline: p
+                        .boundary
+                        .iter()
+                        .map(|q| [whole_mm(q.x), whole_mm(q.y)])
+                        .collect(),
+                    suggestion,
+                }
+            })
+            .collect();
+        Preview {
+            file_name: self.file_name.clone(),
+            report: self.report.clone(),
+            sewing: self.sidecar.as_ref().map(|g| SewingInfo {
+                title: g.spec.title.clone().unwrap_or_else(|| g.spec.name.clone()),
+                seams: g.spec.seam.len(),
+            }),
+            pieces,
+            unused: self
+                .pieces
+                .iter()
+                .filter(|p| !names.contains(&p.name.as_str()))
+                .map(|p| p.name.clone())
+                .collect(),
+        }
+    }
+
+    /// The garment's parts for these choices (one per offered piece, by name): pieces with
+    /// their cuts placed, seams (the sidecar's, minus those touching a piece left out), the
+    /// source. `garment`: the sidecar's converted garment, if any (its pieces are reused).
+    fn parts(
+        &self,
+        choices: &BTreeMap<String, Choice>,
+        sidecar_garment: Option<&Garment>,
+        regions: &BTreeMap<String, Region>,
+        facts: &BodyFacts,
+        ids: &mut IdGen,
+    ) -> Result<Parts, String> {
+        let offered = self.offered();
+        let mut notes = Vec::new();
+        for name in choices.keys() {
+            if !offered.iter().any(|(p, _)| &p.name == name) {
+                return Err(format!("no piece {name} to import"));
+            }
+        }
+        let choice = |name: &str| -> Result<&Choice, String> {
+            choices
+                .get(name)
+                .ok_or_else(|| format!("{name}: choose where it goes, or leave it out"))
+        };
+        // Pieces with their cuts (ids only, placed below).
+        let (mut pieces, seams, source) = match sidecar_garment {
+            Some(g) => {
+                let source = g
+                    .sources
+                    .first()
+                    .cloned()
+                    .ok_or("the sidecar gave no source")?;
+                (g.pieces.clone(), g.seams.clone(), source)
+            }
+            None => {
+                let source = Source {
+                    id: ids.next_id(),
+                    kind: "dxf-aama".into(),
+                    file_name: Some(self.file_name.clone()),
+                    part: None,
+                    other: Map::new(),
+                };
+                let mut pieces = Vec::new();
+                for (p, _) in &offered {
+                    let n = choice(&p.name)?.cuts();
+                    if n == 0 {
+                        continue;
+                    }
+                    let mut piece = dxf_piece(p, &[], &BTreeMap::new(), &source.id, ids)?.piece;
+                    for k in 0..n {
+                        piece.cuts.push(Cut {
+                            id: ids.next_id(),
+                            name: (n == 2).then(|| {
+                                format!("{} {}", if k == 0 { "right" } else { "left" }, p.name)
+                            }),
+                            mirrored: k == 1,
+                            fabric: None,
+                            // Replaced below.
+                            placement: Placement::Follow(Follow {
+                                cut: source.id.clone(),
+                                lift: 0.0,
+                                angle: None,
+                                other: Map::new(),
+                            }),
+                            layout: None,
+                            other: Map::new(),
+                        });
+                    }
+                    pieces.push(piece);
+                }
+                (pieces, Vec::new(), source)
+            }
+        };
+        // Pieces left out (only possible with a sidecar here: without one they were skipped).
+        let mut gone: BTreeSet<Id> = BTreeSet::new();
+        pieces.retain(|p| {
+            let leave = matches!(choices.get(&p.name), Some(Choice::Leave));
+            if leave {
+                gone.extend(p.cuts.iter().map(|c| c.id.clone()));
+            }
+            !leave
+        });
+        let mut kept = Vec::new();
+        for s in seams {
+            if s.a.iter().chain(&s.b).any(|r| gone.contains(&r.cut)) {
+                notes.push(format!(
+                    "seam {} not imported: it sews a piece left out",
+                    s.name.as_deref().unwrap_or(s.id.as_str())
+                ));
+            } else {
+                kept.push(s);
+            }
+        }
+        // Placements.
+        let first_cut: BTreeMap<String, Id> = pieces
+            .iter()
+            .filter_map(|p| p.cuts.first().map(|c| (p.name.clone(), c.id.clone())))
+            .collect();
+        for piece in &mut pieces {
+            let c = choice(&piece.name)?.clone();
+            if c.cuts() != piece.cuts.len() {
+                return Err(format!(
+                    "{}: the sewing file cuts it {} time(s), so choose {}",
+                    piece.name,
+                    piece.cuts.len(),
+                    if piece.cuts.len() == 2 {
+                        "a pair of places"
+                    } else {
+                        "one place"
+                    }
+                ));
+            }
+            let places: Vec<Option<BodyPlace>> = match &c {
+                Choice::Leave => unreachable!("removed above"),
+                Choice::One { place } => vec![Some(*place)],
+                Choice::Pair { pair } => pair.places().map(Some).to_vec(),
+                Choice::On { .. } => vec![None],
+            };
+            let outlines: Vec<Vec<Vec2>> = piece
+                .cuts
+                .iter()
+                .map(|cut| cut_outline(piece, cut.mirrored))
+                .collect();
+            for ((cut, place), outline) in piece.cuts.iter_mut().zip(places).zip(outlines) {
+                cut.placement = match (place, &c) {
+                    (Some(place), _) => {
+                        Placement::Wrap(auto_wrap(place, &outline, regions, facts)?)
+                    }
+                    (None, Choice::On { piece: on }) => Placement::Follow(Follow {
+                        cut: first_cut
+                            .get(on)
+                            .filter(|id| **id != cut.id)
+                            .ok_or_else(|| format!("{on}: not imported, so nothing can go on it"))?
+                            .clone(),
+                        lift: ON_TOP_LIFT_MM,
+                        angle: None,
+                        other: Map::new(),
+                    }),
+                    (None, _) => unreachable!("only On has no place"),
+                };
+            }
+        }
+        if pieces.is_empty() {
+            return Err("every piece is left out".into());
+        }
+        Ok(Parts {
+            pieces,
+            seams: kept,
+            source,
+            notes,
+        })
+    }
+
+    /// The sidecar's garment converted with fresh ids (its placements are replaced later).
+    fn sidecar_document(
+        &self,
+        body_glb: &[u8],
+        ids: &mut IdGen,
+    ) -> Result<Option<Document>, String> {
+        self.sidecar
+            .as_ref()
+            .map(|g| {
+                convert_with(
+                    g,
+                    &ConvertOptions {
+                        body_glb: body_glb.to_vec(),
+                        dxf_file_name: self.file_name.clone(),
+                        include_dxf: None,
+                    },
+                    ids,
+                )
+            })
+            .transpose()
+    }
+
+    /// A new project with the test avatar (its mesh as glTF binary), the garment's pieces
+    /// placed as chosen, the sidecar's fabric or a placeholder jersey.
+    pub fn new_project(
+        &self,
+        choices: &BTreeMap<String, Choice>,
+        body_glb: &[u8],
+        ids: &mut IdGen,
+    ) -> Result<(Document, Vec<String>), String> {
+        let mesh = vitryne_format::glb::read(body_glb).map_err(|e| format!("avatar mesh: {e}"))?;
+        let body: Vec<Vec3> = mesh.positions.iter().map(|&p| Vec3::from(p)).collect();
+        let regions = &default_avatar().regions;
+        let facts = BodyFacts::measure(&body, regions)?;
+        if let Some(mut doc) = self.sidecar_document(body_glb, ids)? {
+            let g = doc.garments[0].clone();
+            let Parts {
+                pieces,
+                seams,
+                notes,
+                ..
+            } = self.parts(choices, Some(&g), regions, &facts, ids)?;
+            let g = &mut doc.garments[0];
+            g.pieces = pieces;
+            g.seams = seams;
+            let report = doc.validate();
+            if !report.errors.is_empty() {
+                return Err(report.errors.join("; "));
+            }
+            return Ok((doc, notes));
+        }
+        let (project_id, garment_id, fabric_id) = (ids.next_id(), ids.next_id(), ids.next_id());
+        let Parts {
+            pieces,
+            seams,
+            source,
+            notes,
+        } = self.parts(choices, None, regions, &facts, ids)?;
+        let name = self
+            .file_name
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(&self.file_name)
+            .trim_end_matches(".dxf")
+            .trim_end_matches(".DXF")
+            .to_string();
+        let fabric = fabric_entity(
+            fabric_id.clone(),
+            Material::cotton(),
+            "Cotton jersey (placeholder)".into(),
+            Some("knit"),
+            Some("The engine's placeholder jersey (Material::cotton), not calibrated.".into()),
+        )?;
+        // Drape as the sample garments do: with self-collision, its hash rebuilt every 4th
+        // substep (PROGRESS.md, M2).
+        let mut engine = Map::new();
+        engine.insert("self_collision".into(), true.into());
+        engine.insert("self_rebuild_every".into(), 4.into());
+        let garment = Garment {
+            id: garment_id,
+            name: if name.is_empty() {
+                "Imported pattern".into()
+            } else {
+                name
+            },
+            attribution: None,
+            library_ref: None,
+            fabric: fabric_id,
+            simulation: Some(GarmentSimulation {
+                target_vertices: None,
+                engine: Some(engine),
+                collision_bounds: Some(import_bounds(&body)),
+                other: Map::new(),
+            }),
+            sources: vec![source],
+            pieces,
+            seams,
+            other: Map::new(),
+        };
+        let doc = project_document(project_id, garment, fabric, body_glb.to_vec(), None, None)?;
+        Ok((doc, notes))
+    }
+
+    /// Pieces (and the sidecar's seams) to add to an open project's garment, placed around its
+    /// avatar (`body`: its mesh, m).
+    pub fn addition(
+        &self,
+        choices: &BTreeMap<String, Choice>,
+        regions: &BTreeMap<String, Region>,
+        body: &[Vec3],
+        ids: &mut IdGen,
+    ) -> Result<Addition, String> {
+        let facts = BodyFacts::measure(body, regions)?;
+        // The sidecar's conversion needs a body file only for its project; any bytes do.
+        let sidecar = self.sidecar_document(&[], ids)?;
+        let mut notes = Vec::new();
+        if self.sidecar.is_some() {
+            notes.push("the sewing file's fabric and simulation settings are not used when adding to a project".into());
+        }
+        let Parts {
+            pieces,
+            seams,
+            source,
+            notes: more,
+        } = self.parts(
+            choices,
+            sidecar.as_ref().map(|d| &d.garments[0]),
+            regions,
+            &facts,
+            ids,
+        )?;
+        notes.extend(more);
+        Ok(Addition {
+            pieces,
+            seams,
+            source,
+            bounds: import_bounds(body),
+            notes,
+        })
+    }
+}
+
+/// The wrap for a cut moved to `place` in the editor: `auto_wrap` on the cut's outline, keeping
+/// its in-plane rotation.
+pub fn rewrap(
+    piece: &Piece,
+    cut: &Cut,
+    place: BodyPlace,
+    regions: &BTreeMap<String, Region>,
+    facts: &BodyFacts,
+) -> Result<Wrap, String> {
+    let rotation = match &cut.placement {
+        Placement::Wrap(w) => w.rotation,
+        Placement::Follow(_) => None,
+    };
+    let (s, c) = (rotation.unwrap_or(0.0) as f32).sin_cos();
+    let outline: Vec<Vec2> = cut_outline(piece, cut.mirrored)
+        .into_iter()
+        .map(|q| Vec2::new(c * q.x - s * q.y, s * q.x + c * q.y))
+        .collect();
+    Ok(Wrap {
+        rotation,
+        ..auto_wrap(place, &outline, regions, facts)?
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn asset(path: &str) -> String {
+        std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../")
+                .join(path),
+        )
+        .unwrap()
+    }
+
+    fn body_glb() -> Vec<u8> {
+        let body = drape_core::body::BodyMesh::from_obj(&asset("assets/body/makehuman_body_m.obj"))
+            .unwrap();
+        let mesh = vitryne_format::glb::Mesh {
+            positions: body.pos.iter().map(|p| p.to_array()).collect(),
+            indices: body.tris.iter().flatten().copied().collect(),
+        };
+        vitryne_format::glb::write(&mesh, vitryne_format::GENERATOR)
+    }
+
+    fn suggested(p: &Preview) -> BTreeMap<String, Choice> {
+        p.pieces
+            .iter()
+            .map(|x| {
+                (
+                    x.name.clone(),
+                    x.suggestion.clone().unwrap_or(Choice::Leave),
+                )
+            })
+            .collect()
+    }
+
+    /// The done-when of M7: the FreeSewing T-shirt's bare DXF becomes a placed project with
+    /// the suggestions alone, and its wraps land near the hand-tuned sidecar's.
+    #[test]
+    fn tshirt_dxf_imports_and_places() {
+        let imp = DxfImport::read(
+            "tshirt.dxf",
+            &asset("assets/garments/tshirt/tshirt.dxf"),
+            None,
+        )
+        .unwrap();
+        let p = imp.preview();
+        let names: Vec<_> = p.pieces.iter().map(|x| x.name.as_str()).collect();
+        assert_eq!(names, ["front", "back", "sleeve"]);
+        let choices = suggested(&p);
+        assert_eq!(choices["sleeve"], Choice::Pair { pair: Pair::Arms });
+        let mut ids = IdGen::new(1_792_022_400_000, b"test");
+        let (doc, notes) = imp.new_project(&choices, &body_glb(), &mut ids).unwrap();
+        assert!(notes.is_empty());
+        let g = &doc.garments[0];
+        assert_eq!(g.cuts().count(), 4);
+        let wrap =
+            |piece: &str, k: usize| match &g.pieces.iter().find(|p| p.name == piece).unwrap().cuts
+                [k]
+                .placement
+            {
+                Placement::Wrap(w) => w.clone(),
+                _ => panic!(),
+            };
+        let front = wrap("front", 0);
+        assert_eq!((front.region.as_str(), front.angle), ("torso", 0.0));
+        // Sidecar: radius 200, top 1440.
+        assert!((front.radius - 200.0).abs() <= 10.0, "{}", front.radius);
+        assert!((front.top - 1440.0).abs() <= 20.0, "{}", front.top);
+        assert_eq!(wrap("back", 0).angle, std::f64::consts::PI);
+        let (right, left) = (wrap("sleeve", 0), wrap("sleeve", 1));
+        assert_eq!(
+            (right.region.as_str(), left.region.as_str()),
+            ("arm-right", "arm-left")
+        );
+        assert!(g.pieces[2].cuts[1].mirrored && !g.pieces[2].cuts[0].mirrored);
+        assert!(g.seams.is_empty());
+        // It opens, drapes and saves like any project.
+        let pg = crate::project::ProjectGarment::new(&doc).unwrap();
+        let desc = pg.build(pg.edge_for_vertices(4000).unwrap()).unwrap();
+        assert!(desc.mesh.n_verts() > 3000);
+        let zip = doc.to_zip_checked().unwrap();
+        assert!(Document::from_zip(&zip).is_ok());
+    }
+
+    /// With its sidecar: the sidecar's cuts and seams, the user's places.
+    #[test]
+    fn sidecar_gives_the_sewing() {
+        let toml = asset("assets/garments/hoodie/garment.toml");
+        let imp = DxfImport::read(
+            "hoodie.dxf",
+            &asset("assets/garments/hoodie/hoodie.dxf"),
+            Some(&toml),
+        )
+        .unwrap();
+        let p = imp.preview();
+        assert!(p.sewing.as_ref().unwrap().seams > 5);
+        assert!(p.unused.contains(&"cuff".to_string()));
+        let mut choices = suggested(&p);
+        assert_eq!(
+            choices["pocket"],
+            Choice::On {
+                piece: "front".into()
+            }
+        );
+        assert_eq!(
+            choices["hoodCenter"],
+            Choice::One {
+                place: BodyPlace::OverHead
+            }
+        );
+        let mut ids = IdGen::new(1_792_022_400_000, b"test");
+        let (doc, notes) = imp.new_project(&choices, &body_glb(), &mut ids).unwrap();
+        assert!(notes.is_empty(), "{notes:?}");
+        let seams = doc.garments[0].seams.len();
+        assert_eq!(seams, p.sewing.as_ref().unwrap().seams);
+        // Leaving the pocket out drops the seams that sew it.
+        choices.insert("pocket".into(), Choice::Leave);
+        let (doc, notes) = imp.new_project(&choices, &body_glb(), &mut ids).unwrap();
+        assert!(doc.garments[0].seams.len() < seams);
+        assert!(!notes.is_empty());
+        // A pair where the sidecar cuts once is refused.
+        choices.insert(
+            "front".into(),
+            Choice::Pair {
+                pair: Pair::BodySides,
+            },
+        );
+        assert!(imp.new_project(&choices, &body_glb(), &mut ids).is_err());
+    }
+
+    #[test]
+    fn suggestions_come_from_names() {
+        let all = ["front", "back", "sleeve", "pocket"];
+        assert_eq!(
+            suggest("Front", 1, &all),
+            Some(Choice::One {
+                place: BodyPlace::BodyFront
+            })
+        );
+        assert_eq!(
+            suggest("front", 2, &all),
+            Some(Choice::Pair {
+                pair: Pair::LegsFront
+            })
+        );
+        assert_eq!(suggest("waistband", 1, &all), None);
+        assert_eq!(suggest("pocketFacing", 2, &all), None);
+        assert_eq!(suggest("neckBinding", 1, &all), None);
+        assert_eq!(
+            suggest("hoodSide", 2, &all),
+            Some(Choice::Pair {
+                pair: Pair::HeadSides
+            })
+        );
+    }
+
+    #[test]
+    fn bounds_cover_the_test_avatar() {
+        let body = drape_core::body::BodyMesh::from_obj(&asset("assets/body/makehuman_body_m.obj"))
+            .unwrap();
+        let b = import_bounds(&body.pos);
+        assert_eq!(
+            (b.min, b.max),
+            ([-550.0, 0.0, -260.0], [550.0, 1720.0, 360.0])
+        );
+    }
+}

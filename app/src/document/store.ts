@@ -59,6 +59,8 @@ export class DocumentStore {
   private redoStack: Command[] = [];
   private gesture: string | null = null;
   private saved: Entities = EMPTY;
+  /** The document has never been saved to a file (an import): it is unsaved even unedited. */
+  private neverSaved = false;
   /** The newest state Rust accepted, and the stacks that went with it. */
   private confirmed: Snapshot = { rev: 0, entities: EMPTY, undo: [], redo: [] };
   private inFlight = false;
@@ -99,7 +101,7 @@ export class DocumentStore {
   private publish(patch: Partial<DocState>) {
     const next = { ...this.state, ...patch };
     if (this.opts.freeze) deepFreeze(next.entities);
-    next.dirty = !next.empty && next.entities !== this.saved && !deepEqual(next.entities, this.saved);
+    next.dirty = !next.empty && (this.neverSaved || (next.entities !== this.saved && !deepEqual(next.entities, this.saved)));
     next.undoLabel = this.undoStack.at(-1)?.label ?? null;
     next.redoLabel = this.redoStack.at(-1)?.label ?? null;
     next.syncing = this.inFlight || this.pending;
@@ -107,9 +109,13 @@ export class DocumentStore {
     for (const l of this.listeners) l();
   }
 
-  /** A document just opened (already in the worker, at revision `rev`). */
-  load(fileName: string, entities: Entities, warnings: string[], rev: number) {
+  /**
+   * A document just opened (already in the worker, at revision `rev`). `unsaved`: it was
+   * made here (an import) and isn't in any file yet.
+   */
+  load(fileName: string, entities: Entities, warnings: string[], rev: number, opts: { unsaved?: boolean } = {}) {
     clearTimeout(this.drapeTimer);
+    this.neverSaved = !!opts.unsaved;
     this.undoStack = [];
     this.redoStack = [];
     this.gesture = null;
@@ -126,6 +132,7 @@ export class DocumentStore {
     this.redoStack = [];
     this.gesture = null;
     this.saved = EMPTY;
+    this.neverSaved = false;
     this.drapeDirty = false;
     this.publish({ empty: true, fileName: '', entities: EMPTY, rev: this.state.rev + 1, refused: null, warnings: [] });
   }
@@ -135,9 +142,15 @@ export class DocumentStore {
     return this.saved;
   }
 
+  /** Never saved to a file. */
+  get unsaved(): boolean {
+    return this.neverSaved;
+  }
+
   /** The document as just saved: it is the file now. */
   markSaved(fileName: string, entities: Entities) {
     this.saved = entities;
+    this.neverSaved = false;
     this.publish({ fileName });
   }
 

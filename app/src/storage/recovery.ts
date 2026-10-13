@@ -14,6 +14,8 @@ export interface Recovery {
   /** The entities of that file, and the unsaved ones (JSON). */
   saved: string;
   current: string;
+  /** Never saved to a file (an imported pattern): recovered, it still needs saving. */
+  unsaved?: boolean;
   at: number;
 }
 

@@ -18,3 +18,10 @@ export async function fetchExample(e: Example): Promise<ArrayBuffer> {
   if (!r.ok) throw new Error(`${e.file}: ${r.status} ${r.statusText}`);
   return r.arrayBuffer();
 }
+
+/** The test avatar's mesh (glTF binary), which projects made from an imported pattern use. */
+export async function fetchAvatar(): Promise<ArrayBuffer> {
+  const r = await fetch(`${import.meta.env.BASE_URL}avatar/body.glb`);
+  if (!r.ok) throw new Error('the avatar is missing (run `pnpm run assets`)');
+  return r.arrayBuffer();
+}

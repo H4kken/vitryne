@@ -6,6 +6,7 @@ pub mod aama;
 pub mod convert;
 pub mod dxf;
 pub mod garment;
+pub mod import;
 pub mod meshing;
 pub mod pattern;
 pub mod placement;

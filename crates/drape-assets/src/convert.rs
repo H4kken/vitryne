@@ -244,10 +244,119 @@ fn outline(
     Ok(Outline { nodes, by_token })
 }
 
+/// A DXF piece as a format piece with no cuts yet, its outline node ids by landmark token
+/// ("3", "3+0.5") and its internal lines' node ids.
+pub(crate) struct PieceParts {
+    pub piece: Piece,
+    pub by_token: BTreeMap<String, Id>,
+    pub line_nodes: Vec<Vec<Id>>,
+}
+
+/// Outline nodes (landmarks plus `fracs`), internal lines, folds and grain of one DXF piece.
+pub(crate) fn dxf_piece(
+    p: &aama::Piece,
+    fracs: &[String],
+    names: &BTreeMap<String, Names>,
+    source: &Id,
+    ids: &mut IdGen,
+) -> Result<PieceParts, String> {
+    let dxf_name = p.name.as_str();
+    let ol = outline(p, fracs, names, ids)?;
+    let mut lines = Vec::new();
+    let mut line_nodes = Vec::new();
+    for (li, l) in p.inner.iter().enumerate() {
+        let key = format!("{dxf_name}:L{li}");
+        let names = match names.get(&key) {
+            Some(Names::List(v)) if v.len() == l.landmarks.len() => Some(v.clone()),
+            Some(_) => {
+                return Err(format!(
+                    "[names] {key}: want a list of {} names",
+                    l.landmarks.len()
+                ));
+            }
+            None => None,
+        };
+        let mut nodes = Vec::new();
+        for (k, &v) in l.landmarks.iter().enumerate() {
+            let edge = l
+                .landmarks
+                .get(k + 1)
+                .map(|&next| Edge::polyline(l.pts[v + 1..next].iter().map(|&q| mm2(q)).collect()));
+            nodes.push(Node {
+                id: ids.next_id(),
+                kind: NodeType::Point,
+                name: names.as_ref().map(|n| n[k].clone()),
+                position: mm2(l.pts[v]),
+                edge,
+                other: Map::new(),
+            });
+        }
+        line_nodes.push(nodes.iter().map(|n| n.id.clone()).collect::<Vec<_>>());
+        lines.push(Line {
+            id: ids.next_id(),
+            name: Some(format!("line {li}")),
+            nodes,
+            other: Map::new(),
+        });
+    }
+    let folds = if p.unfolded {
+        let ends: Vec<&Id> = p
+            .landmarks
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.kind == LandmarkKind::FoldEnd)
+            .map(|(k, _)| &ol.by_token[&k.to_string()])
+            .collect();
+        match ends.as_slice() {
+            [a, b] => vec![Fold {
+                id: ids.next_id(),
+                from: (*a).clone(),
+                to: (*b).clone(),
+                other: Map::new(),
+            }],
+            _ => return Err(format!("{dxf_name}: unfolded, but not two fold ends")),
+        }
+    } else {
+        Vec::new()
+    };
+    let piece = Piece {
+        id: ids.next_id(),
+        name: dxf_name.to_string(),
+        source: Some(PieceSource {
+            source: source.clone(),
+            piece: dxf_name.to_string(),
+            other: Map::new(),
+        }),
+        outline: ol.nodes,
+        lines,
+        folds,
+        grain: p.grain.map(|(a, b)| Grain {
+            from: mm2(a),
+            to: mm2(b),
+            other: Map::new(),
+        }),
+        cuts: Vec::new(),
+        other: Map::new(),
+    };
+    Ok(PieceParts {
+        piece,
+        by_token: ol.by_token,
+        line_nodes,
+    })
+}
+
 /// Converts a sidecar garment (its DXF already imported) into a project file.
 pub fn convert(g: &DxfGarment, opts: &ConvertOptions) -> Result<Document, String> {
+    convert_with(g, opts, &mut IdGen::new(ID_TIME_MS, g.spec.name.as_bytes()))
+}
+
+/// The same, with the caller's ids (the editor's import makes fresh ones).
+pub fn convert_with(
+    g: &DxfGarment,
+    opts: &ConvertOptions,
+    ids: &mut IdGen,
+) -> Result<Document, String> {
     let spec = &g.spec;
-    let mut ids = IdGen::new(ID_TIME_MS, spec.name.as_bytes());
     let (project_id, garment_id, fabric_id, source_id) =
         (ids.next_id(), ids.next_id(), ids.next_id(), ids.next_id());
 
@@ -305,68 +414,14 @@ pub fn convert(g: &DxfGarment, opts: &ConvertOptions) -> Result<Document, String
                     g.report.pieces.join(", ")
                 )
             })?;
-        let ol = outline(
+        let parts = dxf_piece(
             p,
             fracs.get(dxf_name).map_or(&[][..], Vec::as_slice),
             &spec.names,
-            &mut ids,
+            &source_id,
+            ids,
         )?;
-        let mut lines = Vec::new();
-        let mut line_nodes = Vec::new();
-        for (li, l) in p.inner.iter().enumerate() {
-            let key = format!("{dxf_name}:L{li}");
-            let names = match spec.names.get(&key) {
-                Some(Names::List(v)) if v.len() == l.landmarks.len() => Some(v.clone()),
-                Some(_) => {
-                    return Err(format!(
-                        "[names] {key}: want a list of {} names",
-                        l.landmarks.len()
-                    ));
-                }
-                None => None,
-            };
-            let mut nodes = Vec::new();
-            for (k, &v) in l.landmarks.iter().enumerate() {
-                let edge = l.landmarks.get(k + 1).map(|&next| {
-                    Edge::polyline(l.pts[v + 1..next].iter().map(|&q| mm2(q)).collect())
-                });
-                nodes.push(Node {
-                    id: ids.next_id(),
-                    kind: NodeType::Point,
-                    name: names.as_ref().map(|n| n[k].clone()),
-                    position: mm2(l.pts[v]),
-                    edge,
-                    other: Map::new(),
-                });
-            }
-            line_nodes.push(nodes.iter().map(|n| n.id.clone()).collect::<Vec<_>>());
-            lines.push(Line {
-                id: ids.next_id(),
-                name: Some(format!("line {li}")),
-                nodes,
-                other: Map::new(),
-            });
-        }
-        let folds = if p.unfolded {
-            let ends: Vec<&Id> = p
-                .landmarks
-                .iter()
-                .enumerate()
-                .filter(|(_, l)| l.kind == LandmarkKind::FoldEnd)
-                .map(|(k, _)| &ol.by_token[&k.to_string()])
-                .collect();
-            match ends.as_slice() {
-                [a, b] => vec![Fold {
-                    id: ids.next_id(),
-                    from: (*a).clone(),
-                    to: (*b).clone(),
-                    other: Map::new(),
-                }],
-                _ => return Err(format!("{dxf_name}: unfolded, but not two fold ends")),
-            }
-        } else {
-            Vec::new()
-        };
+        let (ol, line_nodes) = (&parts.by_token, &parts.line_nodes);
         let mut cuts = Vec::new();
         for ps in spec.piece.iter().filter(|ps| ps.dxf == dxf_name) {
             let placement = match &ps.place.like {
@@ -408,10 +463,7 @@ pub fn convert(g: &DxfGarment, opts: &ConvertOptions) -> Result<Document, String
                 }
             };
             let id = cut_ids[ps.name.as_str()].clone();
-            inst.insert(
-                &ps.name,
-                (id.clone(), ol.by_token.clone(), line_nodes.clone()),
-            );
+            inst.insert(&ps.name, (id.clone(), ol.clone(), line_nodes.clone()));
             cuts.push(Cut {
                 id,
                 name: Some(ps.label.clone().unwrap_or_else(|| ps.name.clone())),
@@ -423,23 +475,8 @@ pub fn convert(g: &DxfGarment, opts: &ConvertOptions) -> Result<Document, String
             });
         }
         pieces.push(Piece {
-            id: ids.next_id(),
-            name: dxf_name.to_string(),
-            source: Some(PieceSource {
-                source: source_id.clone(),
-                piece: dxf_name.to_string(),
-                other: Map::new(),
-            }),
-            outline: ol.nodes,
-            lines,
-            folds,
-            grain: p.grain.map(|(a, b)| Grain {
-                from: mm2(a),
-                to: mm2(b),
-                other: Map::new(),
-            }),
             cuts,
-            other: Map::new(),
+            ..parts.piece
         });
     }
 
@@ -541,47 +578,18 @@ pub fn convert(g: &DxfGarment, opts: &ConvertOptions) -> Result<Document, String
             bend_kb: m.bend_kb,
         })
         .unwrap_or_else(Material::cotton);
-    let y = 2.0 / 3f64.sqrt() * exact(material.stretch_k);
     let meta = spec.fabric.clone();
-    let fabric = Fabric {
-        id: fabric_id.clone(),
-        name: meta.as_ref().map_or_else(
+    let fabric = fabric_entity(
+        fabric_id.clone(),
+        material,
+        meta.as_ref().map_or_else(
             || format!("{} fabric (placeholder)", spec.name),
             |f| f.name.clone(),
         ),
-        category: match meta.as_ref().map(|f| f.category.as_str()) {
-            Some("woven") => Category::Woven,
-            Some("nonwoven") => Category::Nonwoven,
-            Some("knit") | None => Category::Knit,
-            Some(other) => {
-                return Err(format!(
-                    "[fabric] category {other:?}: woven | knit | nonwoven"
-                ));
-            }
-        },
-        density: exact(material.density),
-        thickness: None,
-        stretch: Stretch {
-            warp: y,
-            weft: y,
-            shear: 3.0 / 8.0 * y,
-            other: Map::new(),
-        },
-        bending: Bending {
-            warp: exact(material.bend_kb),
-            weft: exact(material.bend_kb),
-            bias: None,
-            other: Map::new(),
-        },
-        friction: exact(drape_core::sim::SimSettings::default().friction),
-        notes: meta.and_then(|f| f.notes),
-        attribution: None,
-        library_ref: None,
-        other: Map::new(),
-    };
+        meta.as_ref().map(|f| f.category.as_str()),
+        meta.as_ref().and_then(|f| f.notes.clone()),
+    )?;
 
-    let mut doc = Document::new(Kind::Project);
-    let avatar = default_avatar().clone();
     let garment = Garment {
         id: garment_id.clone(),
         name: spec.title.clone().unwrap_or_else(|| spec.name.clone()),
@@ -610,13 +618,84 @@ pub fn convert(g: &DxfGarment, opts: &ConvertOptions) -> Result<Document, String
         seams,
         other: Map::new(),
     };
-    if let Some(dxf) = &opts.include_dxf {
+    let camera = spec.camera.map(|c| ([c[0], c[1], c[2]], c[3]));
+    project_document(
+        project_id,
+        garment,
+        fabric,
+        opts.body_glb.clone(),
+        camera,
+        opts.include_dxf
+            .as_ref()
+            .map(|dxf| (format!("sources/{source_id}.dxf"), dxf.clone())),
+    )
+}
+
+/// A fabric from the engine's material (FORMAT.md, From garment.toml: Y = 2k/√3, shear 3Y/8,
+/// the default friction). `category`: woven | knit (default) | nonwoven.
+pub(crate) fn fabric_entity(
+    id: Id,
+    material: Material,
+    name: String,
+    category: Option<&str>,
+    notes: Option<String>,
+) -> Result<Fabric, String> {
+    let y = 2.0 / 3f64.sqrt() * exact(material.stretch_k);
+    Ok(Fabric {
+        id,
+        name,
+        category: match category {
+            Some("woven") => Category::Woven,
+            Some("nonwoven") => Category::Nonwoven,
+            Some("knit") | None => Category::Knit,
+            Some(other) => {
+                return Err(format!(
+                    "[fabric] category {other:?}: woven | knit | nonwoven"
+                ));
+            }
+        },
+        density: exact(material.density),
+        thickness: None,
+        stretch: Stretch {
+            warp: y,
+            weft: y,
+            shear: 3.0 / 8.0 * y,
+            other: Map::new(),
+        },
+        bending: Bending {
+            warp: exact(material.bend_kb),
+            weft: exact(material.bend_kb),
+            bias: None,
+            other: Map::new(),
+        },
+        friction: exact(drape_core::sim::SimSettings::default().friction),
+        notes,
+        attribution: None,
+        library_ref: None,
+        other: Map::new(),
+    })
+}
+
+/// A project around one garment and its fabric, with the test avatar (its mesh `body_glb`),
+/// 10,000 points, and a camera (target and distance, m; default: the garments' usual view).
+/// `dxf`: a source part to keep (path, bytes). Validated.
+pub(crate) fn project_document(
+    project_id: Id,
+    garment: Garment,
+    fabric: Fabric,
+    body_glb: Vec<u8>,
+    camera: Option<([f32; 3], f32)>,
+    dxf: Option<(String, Vec<u8>)>,
+) -> Result<Document, String> {
+    let mut doc = Document::new(Kind::Project);
+    let avatar = default_avatar().clone();
+    if let Some((path, bytes)) = dxf {
         doc.files.insert(
-            format!("sources/{source_id}.dxf"),
+            path,
             File {
                 media_type: "image/vnd.dxf".into(),
                 role: Some(ROLE_SOURCE.into()),
-                bytes: dxf.clone(),
+                bytes,
             },
         );
     }
@@ -625,16 +704,16 @@ pub fn convert(g: &DxfGarment, opts: &ConvertOptions) -> Result<Document, String
         File {
             media_type: MEDIA_GLB.into(),
             role: None,
-            bytes: opts.body_glb.clone(),
+            bytes: body_glb,
         },
     );
     doc.project = Some(Project {
         id: project_id,
         name: Some(garment.name.clone()),
         description: None,
-        garments: vec![garment_id],
+        garments: vec![garment.id.clone()],
         avatar: avatar.id.clone(),
-        fabrics: vec![fabric_id],
+        fabrics: vec![fabric.id.clone()],
         simulation: Some(ProjectSimulation {
             target_vertices: Some(DEFAULT_TARGET_VERTICES),
             engine: None,
@@ -642,10 +721,7 @@ pub fn convert(g: &DxfGarment, opts: &ConvertOptions) -> Result<Document, String
         }),
         other: Map::new(),
     });
-    let (target, distance) = spec
-        .camera
-        .map(|c| ([c[0], c[1], c[2]], c[3]))
-        .unwrap_or(([0.0, 1.12, 0.03], 1.5));
+    let (target, distance) = camera.unwrap_or(([0.0, 1.12, 0.03], 1.5));
     doc.view = Some(View {
         camera: Some(Camera {
             target: target.map(mm),

@@ -23,7 +23,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   /** An action waiting for the user to decide about unsaved changes. */
-  const [pending, setPending] = useState<(() => void) | null>(null);
+  const [pending, setPending] = useState<{ run: () => void; cancelled?: () => void } | null>(null);
   const [recovery, setRecovery] = useState<Recovery | null>(null);
   /** The file as opened or last saved, for the recovery copy. */
   const original = useRef<FileData | null>(null);
@@ -31,13 +31,14 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   const fail = (what: string, e: unknown) => setNotice({ kind: 'error', text: `${what}: ${(e as Error).message ?? String(e)}` });
 
   const load = useCallback(
-    async (r: FileRef, data: FileData) => {
+    async (r: FileRef, data: FileData, opts: { unsaved?: boolean } = {}) => {
       // Revisions keep growing across files, so a drape of the previous file is never newer.
       const rev = store.state.rev + 1;
       const { entities, warnings } = await session.open(copyFileData(data), rev);
-      store.load(r.name, parseEntities(entities), warnings, rev);
+      store.load(r.name, parseEntities(entities), warnings, rev, opts);
       original.current = copyFileData(data);
-      setRef(r);
+      // A never-saved document has no file: saving asks where.
+      setRef(opts.unsaved ? null : r);
       session.drape(rev, true);
       void dropRecovery();
       return entities;
@@ -45,10 +46,36 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
     [session, store],
   );
 
+  /** A project made from an imported pattern: unsaved until the user saves it. */
+  const importNew = (make: (rev: number) => Promise<{ name: string; entities: string; notes: string[]; zip: ArrayBuffer }>) =>
+    new Promise<void>((resolve, reject) => {
+      guarded(async () => {
+        try {
+          setBusy('Importing');
+          const rev = store.state.rev + 1;
+          const m = await make(rev);
+          store.load(m.name, parseEntities(m.entities), m.notes, rev, { unsaved: true });
+          original.current = { form: 'zip', bytes: m.zip.slice(0) };
+          setRef(null);
+          session.drape(rev, true);
+          void dropRecovery();
+          setNotice({
+            kind: 'info',
+            text: `Imported ${m.name}. Pick Select in the 3D view to move a piece, or the Pieces panel to change where it starts. Save to keep it.`,
+          });
+          resolve();
+        } catch (e) {
+          reject(e as Error);
+        } finally {
+          setBusy(null);
+        }
+      }, () => reject(new Error('cancelled')));
+    });
+
   /** Runs `action` now, or after the user decided what to do with unsaved changes. */
-  const guarded = (action: () => Promise<void> | void) => {
+  const guarded = (action: () => Promise<void> | void, cancelled?: () => void) => {
     const run = () => void Promise.resolve(action()).catch((e: unknown) => fail('Could not open', e));
-    if (store.state.dirty) setPending(() => run);
+    if (store.state.dirty) setPending(() => ({ run, cancelled }));
     else run();
   };
 
@@ -105,7 +132,13 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
     const data = original.current;
     const t = setTimeout(() => {
       void store.settled().then(({ entities }) =>
-        keepRecovery({ fileName: doc.fileName, data, saved: JSON.stringify(store.savedEntities), current: JSON.stringify(entities) }),
+        keepRecovery({
+          fileName: doc.fileName,
+          data,
+          saved: JSON.stringify(store.savedEntities),
+          current: JSON.stringify(entities),
+          unsaved: store.unsaved,
+        }),
       );
     }, RECOVERY_DELAY_MS);
     return () => clearTimeout(t);
@@ -122,8 +155,11 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
     if (!r) return;
     setBusy('Recovering');
     try {
-      await load({ name: r.fileName, form: r.data.form }, r.data);
-      if (!store.execute((e) => recoverChanges(e, parseEntities(r.current)))) throw new Error(store.state.refused ?? 'refused');
+      await load({ name: r.fileName, form: r.data.form }, r.data, { unsaved: r.unsaved });
+      // An import never edited has nothing to put back but itself.
+      if (r.current !== r.saved && !store.execute((e) => recoverChanges(e, parseEntities(r.current)))) {
+        throw new Error(store.state.refused ?? 'refused');
+      }
       await dropRecovery(r.tab);
       setNotice({ kind: 'info', text: `Recovered your unsaved changes to ${r.fileName}. Save them to keep them.` });
     } catch (e) {
@@ -151,6 +187,8 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
     busy,
     notice,
     dismissNotice: () => setNotice(null),
+    showError: fail,
+    showInfo: (text: string) => setNotice({ kind: 'info', text }),
     openFile: () => openWith(() => storage.openFile()),
     openFolder: () => openWith(() => storage.openFolder()),
     openData: (r: FileRef, data: () => Promise<FileData>) => openWith(async () => ({ ref: r, data: await data() })),
@@ -163,6 +201,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
         setNotice(null);
         void dropRecovery();
       }),
+    importNew,
     save: () => saveTo('same'),
     saveAs: () => saveTo('as'),
     /** The unsaved-changes question, while one is open. */
@@ -172,14 +211,17 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
             await saveTo('same');
             if (!store.state.dirty) {
               setPending(null);
-              pending();
+              pending.run();
             }
           },
           discard: () => {
             setPending(null);
-            pending();
+            pending.run();
           },
-          cancel: () => setPending(null),
+          cancel: () => {
+            setPending(null);
+            pending.cancelled?.();
+          },
         }
       : null,
     recovery: recovery ? { fileName: recovery.fileName, at: recovery.at, recover, discard: discardRecovery } : null,

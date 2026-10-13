@@ -16,6 +16,9 @@ import {
   renameProject,
   renameSeam,
   setFabricValue,
+  setLayout,
+  setMirrored,
+  setPlacement,
   setSelfCollision,
   setTargetVertices,
 } from './commands';
@@ -27,6 +30,10 @@ type Step =
   | { op: 'rename'; what: 'project' | 'piece' | 'cut' | 'seam' | 'fabric'; index: number; name: string }
   | { op: 'vertices'; value: number }
   | { op: 'selfCollision'; on: boolean }
+  | { op: 'place'; index: number; field: 'angle' | 'top' | 'radius' | 'rotation'; value: number }
+  | { op: 'follow'; index: number; on: number }
+  | { op: 'flip'; index: number }
+  | { op: 'layout'; index: number; x: number; y: number; rot: number }
   | { op: 'undo' }
   | { op: 'redo' };
 
@@ -45,6 +52,10 @@ const step: fc.Arbitrary<Step> = fc.oneof(
   }),
   fc.record({ op: fc.constant('vertices' as const), value: fc.oneof(fc.integer({ min: -10, max: 40_000 }), fc.double({ min: 0, max: 1e4 })) }),
   fc.record({ op: fc.constant('selfCollision' as const), on: fc.boolean() }),
+  fc.record({ op: fc.constant('place' as const), index: fc.nat(20), field: fc.constantFrom('angle' as const, 'top' as const, 'radius' as const, 'rotation' as const), value: number }),
+  fc.record({ op: fc.constant('follow' as const), index: fc.nat(20), on: fc.nat(20) }),
+  fc.record({ op: fc.constant('flip' as const), index: fc.nat(20) }),
+  fc.record({ op: fc.constant('layout' as const), index: fc.nat(20), x: number, y: number, rot: number }),
   fc.constant({ op: 'undo' as const }),
   fc.constant({ op: 'redo' as const }),
 );
@@ -59,6 +70,18 @@ function build(s: Step, e: Entities): Command {
       return setTargetVertices(e, s.value);
     case 'selfCollision':
       return setSelfCollision(e, s.on);
+    case 'place':
+    case 'follow':
+    case 'flip':
+    case 'layout': {
+      const cuts = g.pieces.flatMap((p) => p.cuts);
+      const cut = cuts[s.index % cuts.length]!;
+      if (s.op === 'flip') return setMirrored(e, g.id, cut.id, !cut.mirrored);
+      if (s.op === 'layout') return setLayout(e, g.id, cut.id, { position: [s.x, s.y], rotation: s.rot });
+      // Following may make a loop: Rust refuses that, and the store rolls it back.
+      if (s.op === 'follow') return setPlacement(e, g.id, cut.id, { type: 'follow', cut: cuts[s.on % cuts.length]!.id, lift: 12 });
+      return setPlacement(e, g.id, cut.id, { ...cut.placement, [s.field]: s.value });
+    }
     case 'rename': {
       const piece = g.pieces[s.index % g.pieces.length]!;
       switch (s.what) {
