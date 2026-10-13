@@ -191,6 +191,50 @@ plan). No sewing is derived from placement, and no learned placement (PATENTS.md
 and 4): suggestions come from names, every one shown to the user; the wrap is geometry from the
 piece and the avatar's own regions.
 
+### Sewing (M8)
+
+Sewing is the part of the editor most constrained by [PATENTS.md](PATENTS.md) (patents held by
+other companies; we avoid the designs they claim, and its rules override the plan where the two
+differ). The design, and why:
+
+- **The unit is a whole edge**: the stretch of a cut's outline between two of its corners
+  (corners, fold ends; notches and `point` nodes lie inside an edge and are not its ends). There
+  is no way to pick a part of an edge. `seams::join_chains` in Rust refuses anything that isn't
+  a whole edge, so the guardrail is not only the UI's (rule 1).
+- **Two ways to make a seam, both whole edges.** (1) *Suggestions*: `seams::propose` pairs free
+  edges from piece geometry only (`suggest.rs`): lengths, notch counts and where they sit,
+  whether an edge bends the opposite way, which side of its piece it is on, whether it ends on
+  the piece's middle line (a centre hem or neck: probably free). No placement, no body place, no
+  piece name, no outline graph, no learning (rules 3 and 4). The user sews or skips each. A side
+  may be a run of up to three edges of one piece, and one side may be two such runs from two
+  pieces (a sleeve cap against the front's and back's armholes), paired by length. (2) *Picking*:
+  the flat view's Sew tool; click an edge, then the edge it is sewn to (rule 2). Shift-click
+  adds edges to a side. Nothing is measured, snapped or coloured while picking.
+- **A length difference is shown only for a seam that exists**, as a sentence in the seam list
+  ("Side two is 8% longer than side one"), never while picking and never in a colour that
+  changes with the difference. This is the "passive" case PATENTS.md marks for counsel's review.
+- **Where the logic lives.** `crates/drape-assets/src/suggest.rs` (edges, scoring) and
+  `seams.rs` (the project's cuts and node ids, proposals, `join_chains`, per-seam length
+  differences); the worker calls `sewing_edges`, `suggest_seams`, `join_edges` and
+  `seam_differences`; `document/commands.ts` has `addSeam`, `removeSeam`, `reverseSeam` (so
+  undo, validation and recovery work as for every edit); `sewing/` has the panel; the flat
+  view (`pattern/PatternPanel.tsx`) draws each seam in a colour on its edges and hosts the
+  Sew tool; the 3D view draws the seams on the cloth (`drape-render/shaders/seams.wgsl`,
+  screen-space quads between consecutive paired cloth vertices) while the Seams panel is open.
+- **Cuts, and which way a run goes.** A piece with two cuts (sleeves) is sewn once per cut:
+  free is judged per cut, so sewing one sleeve leaves the other offered. Which cut meets which
+  side of the partner follows the cut's mirror flag and the edge's side of its piece in the
+  piece's own drawing frame (the unmirrored cut meets the partner's left-in-the-drawing side).
+  It is a convention, not derived from where a cut is placed; a pattern drafted the other way
+  round needs "Flip direction" or a mirrored cut. Run directions: two outlines meet running
+  opposite ways, unless exactly one cut is mirrored. A chain connects through a shared corner on
+  one cut, else over the junction at the higher end of each piece (the shoulder of a garment
+  drawn upright), and is paired by length, so a wrong junction still sews; "Flip direction"
+  reverses side two.
+- **Limits.** Geometry alone cannot tell the hoodie's cuff, waistband and neck binding apart
+  (near-equal lengths): they, the pocket's internal line and the hood neck chain over three cuts
+  are picked by hand. `drape frames --seams` renders the seams natively.
+
 ### Drape and body SDF
 
 `VtryFile.prepare` meshes and places the project's first garment (CPU, tens of ms) and names

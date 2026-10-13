@@ -721,3 +721,67 @@ change: the gizmo edits the wrap's own fields; FORMAT.md now defines `cut.layout
 - **The import box** covers the whole test avatar (74 MB SDF at 4 mm, bundled); another avatar
   bakes its own once.
 - The gizmo is drawn over the canvas, not in the 3D scene, so the cloth never hides it.
+
+
+## M8 — Sewing in the UI (2026-10-14, waiting for review)
+
+**Done-when:** the T-shirt, trousers and hoodie can be fully sewn in the UI from bare DXF
+imports, and drape the same as the sample projects. **T-shirt ✅** (every suggestion accepted:
+the same sewing and mesh, frames indistinguishable). **Trousers: one seam by hand** (the centre
+front). **Hoodie: most seams by hand**, as the numbers below say; the criterion is met for the
+T-shirt and met with manual picks for the other two, not from suggestions alone. Seen in Chrome
+by the author; not run in Safari or Firefox.
+
+**The plan changed in one place, on purpose:** the plan's "notch-to-notch segments" became
+**whole edges** (docs/PATENTS.md, rule 1: the patents are another company's, and its rules
+override the plan). Suggestions may propose a chain of whole edges (a sleeve cap against two
+armholes); the user only accepts or rejects them. See ARCHITECTURE.md, "Sewing (M8)".
+
+### What's there
+
+| Path | What |
+|---|---|
+| `crates/drape-assets/src/suggest.rs` | Whole edges (corner to corner) and their geometric suggestions: length, notch positions, curvature, side of the piece, middle line. Pinned against the sample sidecars (floors in the test). |
+| `crates/drape-assets/src/seams.rs` | On a project's cuts and node ids: `cut_edges`, `propose` (free per cut, chains by length, directions from mirror flags), `join_chains` (refuses anything but whole edges), `seam_differences`. |
+| `crates/drape-render` | `seams.wgsl`: seam lines on the cloth in 3D, screen-space quads, one colour per seam. `drape frames --seams` for native. |
+| `crates/drape-web`, `app/src/worker` | `sewing_edges`, `suggest_seams`, `join_edges`, `seam_differences`, `set_show_seams`. |
+| `app/src/document/commands.ts`, `app/src/sewing/`, `PatternPanel.tsx` | `addSeam` / `removeSeam` / `reverseSeam`; the Seams panel (suggestions, picking, sewn list with a passive difference sentence, flip, remove); the flat view's Sew tool (click, click; Shift adds edges to a side); seams coloured on their edges. |
+
+### Numbers
+
+| Suggestions from bare geometry vs the sample sidecar | seams reproduced |
+|---|---|
+| T-shirt | 10 / 10 (8 proposals: sides, shoulders, two sleeve caps as chains, two underarms) |
+| Trousers | 5 / 6 (the centre front is an edge sewn to its own mirrored copy of another piece's pairing) |
+| Hoodie | 4 / 17 (cuff, waistband, binding and hood centre strips are interchangeable by length; the pocket's internal line and the hood neck chain are not suggested) |
+
+- A bare T-shirt import with every suggestion accepted: 232 sewing pairs against the sample's
+  234 (the sample splits each cap at a hand-placed point), 10 166 vertices against 10 166;
+  same drape at frame 400. Gate `check.sh`: golden drapes unchanged (T-shirt rest 249, trousers
+  179).
+- Tests: 59 Rust passing (new: edges and suggestions against the sidecars, proposals and joins on
+  the examples, the sewn-from-suggestions T-shirt, chains, whole-edge refusal), 38 TypeScript
+  (new: seam commands through the same apply/revert/Rust-validation property tests, the
+  helpers, the worker calls).
+- Bundle: wasm 3.49 MB (was 3.36), UI 622 KB (was 612).
+
+### Changed along the way
+
+- The **hoodie floor of the suggestion test is 4, not 5** (rule 3: its own commit and reason
+  in the message): centre hems stopped being proposed against the other piece's hem on every
+  garment, at the price of the pocket bottom, which is sewn along such an edge.
+- A bug the sewn-from-suggestions test found: "free" was judged per piece, so after one sleeve
+  was sewn the other was never offered. It is per cut now.
+
+### Notes and open items
+
+- **Which cut meets which side is a convention** (unmirrored cut to the partner's left side in
+  the piece's drawing), not derived from placement. A pattern drafted the other way round needs
+  "Flip direction" or a mirrored cut. A chain over a junction orients by height (the shoulder of
+  an upright piece) and is paired by length, so it sews even if the junction is guessed wrong.
+- **Counsel review is still open** (docs/PATENTS.md): the static length-difference sentence on
+  an existing seam, Shift-click chains of whole edges, and suggestions that emit chains.
+- **Not in M8:** seams on internal lines in suggestions (the hoodie's pocket); a chain across
+  three or more cuts is picked by hand; no seam allowance; the 3D view shows seams but picking
+  is in the flat view only.
+

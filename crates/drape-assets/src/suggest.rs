@@ -259,7 +259,18 @@ fn run_length(edges: &[Edge], r: &[usize]) -> f32 {
 /// three consecutive whole edges of one piece; the other side may be two such runs from two
 /// pieces (a sleeve cap against the front and back armholes).
 pub fn suggest(pieces: &[Piece], edges: &[Edge]) -> Vec<Suggestion> {
+    let capacity: Vec<u32> = edges
+        .iter()
+        .map(|e| pieces[e.piece].quantity.max(1))
+        .collect();
+    suggest_with(pieces, edges, &capacity)
+}
+
+/// As `suggest`, with how many times each edge may still be used (`capacity[i]`: the cuts of
+/// its piece where it is free); an edge with none is left out.
+pub fn suggest_with(pieces: &[Piece], edges: &[Edge], capacity: &[u32]) -> Vec<Suggestion> {
     let n = edges.len();
+    let usable = |i: usize| capacity[i] > 0;
     let rs = runs(edges);
     let adjacent = |i: usize, j: usize| {
         edges[i].piece == edges[j].piece
@@ -267,8 +278,8 @@ pub fn suggest(pieces: &[Piece], edges: &[Edge]) -> Vec<Suggestion> {
     };
     let mut cand: Vec<Suggestion> = Vec::new();
     // Edge against edge: lengths and notches, as in `score`.
-    for i in 0..n {
-        for j in i..n {
+    for i in (0..n).filter(|&i| usable(i)) {
+        for j in (i..n).filter(|&j| usable(j)) {
             if i == j {
                 // Its own mirrored copy: needs two cuts, and the edge out on the piece's side.
                 if pieces[edges[i].piece].quantity < 2
@@ -295,6 +306,10 @@ pub fn suggest(pieces: &[Piece], edges: &[Edge]) -> Vec<Suggestion> {
     }
     // A run (of two or three edges) against one edge of another piece, or against two edges or
     // runs of two other pieces. Lengths only (notches are across corners there).
+    let rs: Vec<Vec<usize>> = rs
+        .into_iter()
+        .filter(|r| r.iter().all(|&e| usable(e)))
+        .collect();
     let multi: Vec<&Vec<usize>> = rs.iter().filter(|r| r.len() > 1).collect();
     let disjoint = |x: &[usize], y: &[usize]| !x.iter().any(|e| y.contains(e));
     for x in &multi {
@@ -362,10 +377,7 @@ pub fn suggest(pieces: &[Piece], edges: &[Edge]) -> Vec<Suggestion> {
         c.score + 0.3 * len
     };
     cand.sort_by(|x, y| weight(y).total_cmp(&weight(x)));
-    let mut left: Vec<u32> = edges
-        .iter()
-        .map(|e| pieces[e.piece].quantity.max(1))
-        .collect();
+    let mut left: Vec<u32> = capacity.to_vec();
     let mut out: Vec<Suggestion> = Vec::new();
     for c in cand {
         let self_pair = c.a == c.b;

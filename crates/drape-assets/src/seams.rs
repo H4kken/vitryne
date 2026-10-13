@@ -17,7 +17,7 @@ use vitryne_format::{Direction, Garment, Id, NodeType, Other, Pairing, Piece as 
 
 use crate::{
     aama::{Landmark, LandmarkKind, Piece},
-    suggest::{Edge, edges, suggest},
+    suggest::{Edge, Suggestion, edges, suggest_with},
 };
 
 /// A free or sewn whole edge of one cut, for the UI to list and pick.
@@ -243,19 +243,6 @@ fn mean_side(es: &[Edge], ids: &[usize]) -> f32 {
     ids.iter().map(|&e| es[e].side).sum::<f32>() / ids.len().max(1) as f32
 }
 
-/// The cut of `piece` whose mirror flag fits an edge on the side `partner_side` of the piece
-/// it is sewn to: the unmirrored cut meets the partner's negative (left-in-the-drawing) side,
-/// the mirrored cut its positive side. Falls back to the first cut.
-fn cut_for_side(g: &Garment, piece: usize, partner_side: f32) -> &Id {
-    let cuts = &g.pieces[piece].cuts;
-    let want_mirrored = partner_side >= 0.0;
-    &cuts
-        .iter()
-        .find(|c| c.mirrored == want_mirrored)
-        .unwrap_or(&cuts[0])
-        .id
-}
-
 fn node_height(g: &Garment, piece: usize, id: &Id) -> f64 {
     g.pieces[piece]
         .outline
@@ -269,15 +256,15 @@ fn difference_percent(len_a: f32, len_b: f32) -> f32 {
 }
 
 /// Turns a suggestion (edge indices into `es`) into proposals, one per cut it applies to.
+/// `sewn`: the (cut, edge index) pairs seams already sew; those cuts are not used again.
 fn proposals_for(
     g: &Garment,
     conv: &Converted,
     es: &[Edge],
-    a: &[usize],
-    b: &[usize],
-    score: f32,
-    ratio: f32,
+    sewn: &HashSet<(Id, usize)>,
+    s: &Suggestion,
 ) -> Vec<SeamProposal> {
+    let (a, b) = (&s.a, &s.b);
     let (ga, gb) = (groups(es, a), groups(es, b));
     let len = |side: &[usize]| side.iter().map(|&e| es[e].length).sum::<f32>();
     let diff = difference_percent(len(a), len(b));
@@ -285,34 +272,55 @@ fn proposals_for(
         a,
         b,
         pairing: length.then_some(Pairing::Length),
-        score,
-        length_ratio: ratio,
+        score: s.score,
+        length_ratio: s.length_ratio,
         difference_percent: diff,
     };
-    let cuts = |piece: usize| &g.pieces[piece].cuts;
+    // The cuts of a piece where none of `group`'s edges is sewn yet.
+    let free_cuts = |piece: usize, group: &[usize]| -> Vec<&Id> {
+        g.pieces[piece]
+            .cuts
+            .iter()
+            .map(|c| &c.id)
+            .filter(|c| group.iter().all(|e| !sewn.contains(&((*c).clone(), *e))))
+            .collect()
+    };
+    // The one of `from` whose mirror flag fits an edge on `partner_side` of the piece it is
+    // sewn to: the unmirrored cut meets the partner's negative (left in the drawing) side, the
+    // mirrored cut its positive side. Else the first.
+    let by_side = |from: &[&'_ Id], partner_side: f32| -> Option<usize> {
+        let want = partner_side >= 0.0;
+        (0..from.len())
+            .find(|&k| mirrored(g, from[k]) == want)
+            .or((!from.is_empty()).then_some(0))
+    };
     if ga.len() == 1 && gb.len() == 1 {
         let (pa, pb) = (es[ga[0][0]].piece, es[gb[0][0]].piece);
         let single = ga[0].len() == 1 && gb[0].len() == 1;
+        let (fa, fb) = (free_cuts(pa, &ga[0]), free_cuts(pb, &gb[0]));
         // Which cuts meet.
         let pairs: Vec<(&Id, &Id)> = if pa == pb && ga[0] == gb[0] {
             // An edge against its own mirrored copy.
-            match cuts(pa).as_slice() {
-                [c0, c1, ..] => vec![(&c0.id, &c1.id)],
+            match fa.as_slice() {
+                [c0, c1, ..] => vec![(*c0, *c1)],
                 _ => vec![],
             }
         } else if pa == pb {
-            cuts(pa).iter().map(|c| (&c.id, &c.id)).collect()
+            fa.iter()
+                .filter(|c| fb.contains(c))
+                .map(|c| (*c, *c))
+                .collect()
         } else {
-            let (ca, cb) = (cuts(pa), cuts(pb));
-            match (ca.len(), cb.len()) {
-                (1, 1) => vec![(&ca[0].id, &cb[0].id)],
-                (n, 1) if n > 1 => {
-                    vec![(cut_for_side(g, pa, mean_side(es, &gb[0])), &cb[0].id)]
-                }
-                (1, n) if n > 1 => {
-                    vec![(&ca[0].id, cut_for_side(g, pb, mean_side(es, &ga[0])))]
-                }
-                _ => ca.iter().zip(cb).map(|(x, y)| (&x.id, &y.id)).collect(),
+            match (fa.len(), fb.len()) {
+                (0, _) | (_, 0) => vec![],
+                (1, 1) => vec![(fa[0], fb[0])],
+                (n, 1) if n > 1 => by_side(&fa, mean_side(es, &gb[0]))
+                    .map(|k| vec![(fa[k], fb[0])])
+                    .unwrap_or_default(),
+                (1, n) if n > 1 => by_side(&fb, mean_side(es, &ga[0]))
+                    .map(|k| vec![(fa[0], fb[k])])
+                    .unwrap_or_default(),
+                _ => fa.iter().zip(&fb).map(|(x, y)| (*x, *y)).collect(),
             }
         };
         return pairs
@@ -336,14 +344,16 @@ fn proposals_for(
     };
     let pc = es[single[0]].piece;
     let side = (mean_side(es, &chain[0]) + mean_side(es, &chain[1])) / 2.0;
-    let cx = if cuts(pc).len() > 1 {
-        cut_for_side(g, pc, side)
-    } else {
-        &cuts(pc)[0].id
+    let fc = free_cuts(pc, single);
+    let Some(cx) = by_side(&fc, side).map(|k| fc[k]) else {
+        return Vec::new();
     };
     let mut b_runs = Vec::new();
     for (k, grp) in chain.iter().enumerate() {
         let piece = es[grp[0]].piece;
+        let Some(cut) = free_cuts(piece, grp).first().copied() else {
+            return Vec::new();
+        };
         let (u, v) = (
             &conv.nodes[piece][es[grp[0]].from],
             &conv.nodes[piece][es[*grp.last().unwrap()].to],
@@ -351,7 +361,6 @@ fn proposals_for(
         let up = node_height(g, piece, v) >= node_height(g, piece, u);
         // First run goes up to the junction, second comes down from it.
         let forwards = up == (k == 0);
-        let cut = &cuts(piece)[0].id;
         b_runs.push(group_run(conv, es, grp, cut, !forwards));
     }
     vec![make(
@@ -361,23 +370,30 @@ fn proposals_for(
     )]
 }
 
-/// Suggested seams for the garment's free whole edges, best first.
+/// Suggested seams for the garment's free whole edges, best first. Free is per cut: once one
+/// sleeve is sewn, the other sleeve's edges are still offered.
 pub fn propose(g: &Garment) -> Vec<SeamProposal> {
     let conv = convert(g);
     let pairs = sewn_pairs(g);
     let all = edges(&conv.pieces);
-    // Edges a seam already sews are not proposed again.
-    let free: Vec<Edge> = all
-        .into_iter()
-        .filter(|e| {
-            let p = &g.pieces[e.piece];
-            let (from, to) = (&conv.nodes[e.piece][e.from], &conv.nodes[e.piece][e.to]);
-            !p.cuts.iter().any(|c| edge_sewn(p, &c.id, from, to, &pairs))
-        })
-        .collect();
-    suggest(&conv.pieces, &free)
+    let mut sewn: HashSet<(Id, usize)> = HashSet::new();
+    let mut capacity = Vec::with_capacity(all.len());
+    for (i, e) in all.iter().enumerate() {
+        let p = &g.pieces[e.piece];
+        let (from, to) = (&conv.nodes[e.piece][e.from], &conv.nodes[e.piece][e.to]);
+        let mut free = 0;
+        for c in &p.cuts {
+            if edge_sewn(p, &c.id, from, to, &pairs) {
+                sewn.insert((c.id.clone(), i));
+            } else {
+                free += 1;
+            }
+        }
+        capacity.push(free);
+    }
+    suggest_with(&conv.pieces, &all, &capacity)
         .iter()
-        .flat_map(|s| proposals_for(g, &conv, &free, &s.a, &s.b, s.score, s.length_ratio))
+        .flat_map(|s| proposals_for(g, &conv, &all, &sewn, s))
         .collect()
 }
 

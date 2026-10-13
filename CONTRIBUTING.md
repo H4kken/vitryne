@@ -82,8 +82,8 @@ their output goes to `bench-out/`, which git ignores.
 There's no CI. Run this before you push; it has to pass:
 
 ```sh
-./check            # everything: about 1–2 minutes once the caches are warm
-./check --quick    # Rust only: fmt, clippy (native and wasm32), tests
+./check.sh            # everything: about 1–2 minutes once the caches are warm
+./check.sh --quick    # Rust only: fmt, clippy (native and wasm32), tests
 ```
 
 It checks:
@@ -117,4 +117,4 @@ It checks:
 - Generated data isn't committed: SDF bakes, benchmark output, build output.
 - Binary assets over 1 MiB go through [Git LFS](https://git-lfs.com/). The patterns are in
   [.gitattributes](.gitattributes); run `git lfs install` once before adding one.
-- `./check` fails if a file over 1 MiB is committed outside LFS.
+- `./check.sh` fails if a file over 1 MiB is committed outside LFS.

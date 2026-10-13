@@ -81,6 +81,19 @@ edges by two clicks; a seam highlighted in 2D and 3D.
 A passive warning on a finished whole-edge pair ("these edges differ by 8%") is probably outside
 the claims above, but confirm it with counsel before shipping it.
 
+## How the editor follows these rules (M8)
+
+Where each rule is implemented, so a reviewer can check it. See ARCHITECTURE.md, "Sewing".
+
+| Rule | In the code |
+|---|---|
+| 1 whole edges only | `seams.rs` `find_edge` / `join_chains` refuse any pick that is not an outline stretch between two corners; the UI offers only whole edges to click. |
+| 2 two clicks | The flat view's Sew tool: edge, then edge. Shift-click adds more whole edges to one side (a chain of whole edges, not a part of one); this is beyond "two clicks" and is on the list for counsel. |
+| 3 geometry-derived suggestions | `suggest.rs`: lengths, notches, curvature, side of the piece, middle line. No placement, body place, name or outline graph. |
+| 4 no ML | Hand-set scores; nothing learned. |
+| 5 no cross-piece measure tool | There is none. The seam list shows a length difference of an existing seam only, as text. |
+| 6 parametric fit | Not touched in M8. |
+
 ## What this research did not cover
 
 - It listed CLO's US filings (59 results on Google Patents) but read the claims of only eight.
@@ -93,5 +106,6 @@ the claims above, but confirm it with counsel before shipping it.
 - [ ] Attorney review of rules 1 to 6 against the full claim text.
 - [ ] Read the claims of US20240411956A1 and US20230290100A1.
 - [ ] Wider search beyond CLO (other assignees, EP/KR/CN family members).
+- [ ] Ask counsel whether the seam list's static length-difference sentence (M8) is outside the '773/'355 claims, and whether Shift-click chains of whole edges are.
 - [ ] Ask counsel whether suggestions that emit chains or mid-edge points (decision above) stay outside the claims.
 - [ ] Decide whether to ask counsel about a prior-art search on the '773 family.

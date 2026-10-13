@@ -63,5 +63,5 @@ MIT); see [assets/LICENSES.md](assets/LICENSES.md).
 
 ## Contributing
 
-Contributions are welcome. Every commit needs a DCO sign-off (`git commit -s`), and `./check`
+Contributions are welcome. Every commit needs a DCO sign-off (`git commit -s`), and `./check.sh`
 has to pass. [CONTRIBUTING.md](CONTRIBUTING.md) has the details.

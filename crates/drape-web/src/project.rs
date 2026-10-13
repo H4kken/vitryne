@@ -467,4 +467,69 @@ mod tests {
         assert!(file.join_edges(&[bad], &[pick(b)]).is_err());
         assert!(file.seam_differences().unwrap().is_empty());
     }
+
+    /// M8's done-when for the T-shirt: a bare import, sewn by accepting every suggestion, is the
+    /// garment the sample project is: about the same sewing and mesh. (Written to
+    /// `SEWN_OUT` when set, to drape and look at.)
+    #[test]
+    fn a_bare_import_sewn_from_suggestions_matches_the_sample() {
+        let choices: BTreeMap<String, Choice> = serde_json::from_str(
+            r#"{"front": {"type": "one", "place": "body-front"},
+                "back": {"type": "one", "place": "body-back"},
+                "sleeve": {"type": "pair", "pair": "arms"}}"#,
+        )
+        .unwrap();
+        let mut file = ProjectFile::import_new(
+            "tshirt.dxf",
+            &asset("assets/garments/tshirt/tshirt.dxf"),
+            None,
+            &choices,
+            &body_glb(),
+            1_792_022_400_000,
+            b"seed",
+        )
+        .unwrap()
+        .file;
+        // Every suggestion, accepted one after another (each asked for again, as the editor
+        // does, so no edge is sewn twice).
+        for n in 0.. {
+            let Some(p) = file.suggest_seams().unwrap().into_iter().next() else {
+                break;
+            };
+            assert!(n < 20, "suggestions never run out");
+            let mut e: serde_json::Value = serde_json::from_str(&file.entities_json()).unwrap();
+            let mut seam = serde_json::json!({
+                "id": format!("00000000-0000-7000-8000-{:012x}", 0x5ea0 + n),
+                "a": p.a, "b": p.b,
+            });
+            if let Some(pairing) = p.pairing {
+                seam["pairing"] = serde_json::to_value(pairing).unwrap();
+            }
+            e["garments"][0]["seams"]
+                .as_array_mut()
+                .expect("a seams array")
+                .push(seam);
+            file.set_entities_json(&e.to_string()).unwrap();
+        }
+        let sewn = file.prepare().unwrap();
+        let (sample, _) = ProjectFile::open(&example_zip("tshirt")).unwrap();
+        let sample = sample.prepare().unwrap();
+        let (a, b) = (sewn.garment.sew_pairs.len(), sample.garment.sew_pairs.len());
+        let (va, vb) = (sewn.garment.mesh.n_verts(), sample.garment.mesh.n_verts());
+        println!("sewing pairs {a} vs {b}, vertices {va} vs {vb}");
+        for (who, p) in [("sewn", &sewn), ("sample", &sample)] {
+            let list: Vec<String> = p
+                .garment
+                .seams
+                .iter()
+                .map(|(n, v)| format!("{}:{}", &n[n.len().saturating_sub(6)..], v.len()))
+                .collect();
+            println!("{who}: {}", list.join(" "));
+        }
+        assert!(a.abs_diff(b) * 10 <= b, "sewing pairs {a} vs {b}");
+        assert!(va.abs_diff(vb) * 10 <= vb, "vertices {va} vs {vb}");
+        if let Ok(path) = std::env::var("SEWN_OUT") {
+            std::fs::write(path, file.save().unwrap()).unwrap();
+        }
+    }
 }

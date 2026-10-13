@@ -25,7 +25,7 @@ without checking them against that file, and say so when a request or the plan c
 | `crates/drape-core` | The solver and the public API. `engine.rs` is the entry point (`Engine`, `Body`, `Garment`, `GarmentDesc`, `Simulation`); `sim.rs` has `SimSettings` (every tunable) and `Solver`; `shaders/*.wgsl` are the solver's shaders (native and browser share them). Also: `bench.rs`, `dragbench.rs`, `regress.rs`, `strain.rs`, `longrange.rs`, `selfcol.rs`, `untangle.rs`, `body.rs` (BVH, SDF). |
 | `crates/drape-render` | Viewport rendering, out of the solver: `Renderer` (GPU normals, lit cloth and collider), `OrbitCamera`, `pick`/`drag_target` for cloth drags, the M0 triangle; its own `shaders/`. |
 | `crates/vitryne-format` | The project file format (`.vtry` family): types, read/write (zip or folder), validation, migrations, unknown data kept. No engine dependency. |
-| `crates/drape-assets` | DXF-AAMA import, `garment.toml` sidecar, meshing, placement (`placement.rs`, regions from `assets/body/avatar.json`); `project.rs` turns a `.vtry` into a `GarmentDesc`, `convert.rs` a sidecar into a `.vtry`. Its `garment::Garment` is the DXF garment, not the engine's (`drape_core::engine::Garment`); alias one of them on import. |
+| `crates/drape-assets` | DXF-AAMA import, `garment.toml` sidecar, meshing, placement (`placement.rs`, regions from `assets/body/avatar.json`); `project.rs` turns a `.vtry` into a `GarmentDesc`, `convert.rs` a sidecar into a `.vtry`; `suggest.rs` + `seams.rs` are sewing in the editor (whole edges only, docs/PATENTS.md). Its `garment::Garment` is the DXF garment, not the engine's (`drape_core::engine::Garment`); alias one of them on import. |
 | `crates/drape-native` | The `drape` CLI and the winit viewer (`view`, `bench`, `bench-drag`, `regress`, `frames`, `convert`, `export-app-assets`, `export-bench-assets`, ...). |
 | `crates/drape-web` | The wasm build: the editor worker's API (`project.rs`: `VtryFile` open/validate/save, `PreparedScene`; `viewport.rs`: `Viewport` on an OffscreenCanvas) and the bench page's (`run_bench`, ...). |
 | `app/` | The editor (TypeScript, React, Tailwind + shadcn/ui, Vite) and `bench.html`. `src/worker/` (protocol, worker, session with restarts), `src/document/` (the file's JSON, commands, store; tests), `src/format/*.gen.*` (generated from the schemas: `pnpm run gen:format`), `src/pattern/` (2D SVG), `src/properties/`, `src/storage/` (storage interface, recovery copy), `src/bench/`. |
@@ -37,8 +37,8 @@ without checking them against that file, and say so when a request or the plan c
 
 ## Commands
 
-- `./check` is the gate (fmt, clippy native + wasm32, tests, web build, golden drapes, ~1.5 min,
-  needs a GPU); `./check --quick` is Rust only. Run `./check` before every milestone commit.
+- `./check.sh` is the gate (fmt, clippy native + wasm32, tests, web build, golden drapes, ~1.5 min,
+  needs a GPU); `./check.sh --quick` is Rust only. Run `./check.sh` before every milestone commit.
 - `cargo` isn't on the shell `PATH` here: `export PATH="$HOME/.cargo/bin:$PATH"`, also for
   `pnpm run dev` (it rebuilds the wasm).
 - After an intended change to solver behaviour: `target/release/drape regress --update`, and
@@ -53,7 +53,7 @@ without checking them against that file, and say so when a request or the plan c
   `Input.dispatch*` events (synthetic DOM events can't capture pointers), and point
   `showSaveFilePicker` at OPFS to test saves.
 - After changing the converter, the importer or a sidecar: `tools/format/build-examples.sh` and
-  commit `examples/` (`./check` diffs them against `drape convert`).
+  commit `examples/` (`./check.sh` diffs them against `drape convert`).
 
 ## Rules (from the MVP plan, VITRYNE_MVP_PLAN.md, which is not committed; where it conflicts with docs/PATENTS.md, PATENTS.md wins)
 
@@ -76,8 +76,9 @@ without checking them against that file, and say so when a request or the plan c
   M5 format implementation (`vitryne-format`, `drape convert`, `.vtry` in the CLI and goldens),
   M6 editor shell (worker + OffscreenCanvas, document model with guardrails, 2D panel,
   properties, storage and save; accepted after a manual Safari check), M7 import and placement
-  (DXF import dialog, placement by body place + automatic wrap + 3D gizmo, flat layout; waiting
-  for review). **Next:** M8 (sewing in the UI; read docs/PATENTS.md first, rules 1–3: whole-edge seams, two-click fix-join, geometry-only suggestions; the plan's notch-to-notch wording is superseded).
+  (DXF import dialog, placement by body place + automatic wrap + 3D gizmo, flat layout;
+  waiting for review), M8 sewing in the UI (whole-edge seams: suggestions from geometry, two-click picking,
+  seam list, seams in 2D and 3D; waiting for review). **Next:** M9 fabric presets.
 - **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
   `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **The `.vtry` and `garment.toml` paths give bit-identical garments** (test
