@@ -1,5 +1,13 @@
 # Patent warnings
 
+> **What this file is, in one paragraph.** These are patents held by **other companies** (CLO
+> Virtual Fashion, mostly), not by us and not ours to use. The file lists what their claims cover
+> so that Vitryne can **avoid those designs**. "Avoid" means: do not build the interaction the
+> claim describes. It does not mean avoid sewing, placement or measuring as features. The design
+> rules below are our design-around and **override** older wording in `VITRYNE_MVP_PLAN.md`
+> (written before this research) and anything an agent or contributor would otherwise assume.
+> If a request or plan item conflicts with a rule here, stop and say so; do not pick the plan.
+
 Read this before building or changing anything that joins pattern pieces, places pieces around
 a body, measures a pattern, or resizes a garment.
 
@@ -42,8 +50,10 @@ CLO's account only.
 
 ## Design rules
 
-These are the constraints adopted for the editor so far. Rule 3 is the one that most needs an
-attorney's review.
+These are the constraints adopted for the editor so far, **binding on every editor feature**. They
+override `VITRYNE_MVP_PLAN.md` where the two differ (the plan's M8 "notch-to-notch segments" was
+superseded by rule 1: the unit is a whole edge). Rule 3 is the one that most needs an attorney's
+review.
 
 1. **Join whole edges only.** No start and end points on a sub-segment, no cursor snapping to
    make two lengths equal, no live colour-coded length difference while the user drags.
@@ -58,6 +68,10 @@ attorney's review.
    piece.
 6. **Fit stays parametric** (sliders on width, length, sleeve). No automatic grading based on
    avatar strain ratios.
+
+**Not covered by the rules, so allowed:** a seam list showing a static length difference for an
+existing whole-edge seam (see below); suggestions computed from piece geometry; picking whole
+edges by two clicks; a seam highlighted in 2D and 3D.
 
 A passive warning on a finished whole-edge pair ("these edges differ by 8%") is probably outside
 the claims above, but confirm it with counsel before shipping it.

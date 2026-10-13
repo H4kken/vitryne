@@ -186,7 +186,8 @@ still covers it with 5 cm to spare, growing it only when it doesn't.
 by side in rows. Select picks a cut and turns it by a round handle above it (Shift: 15° steps);
 Move drags cuts. One drag is one edit (`Arrange the pieces`); the layout is display only.
 
-**Patents.** No sewing is derived from placement, and no learned placement (PATENTS.md, rules 3
+**Patents** (other companies' claims we design around, docs/PATENTS.md; its rules override the
+plan). No sewing is derived from placement, and no learned placement (PATENTS.md, rules 3
 and 4): suggestions come from names, every one shown to the user; the wrap is geometry from the
 piece and the avatar's own regions.
 

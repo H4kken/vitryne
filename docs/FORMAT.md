@@ -354,8 +354,9 @@ A seam sews **side `a`** to **side `b`**. Each side is a chain of **runs**, and 
   there. That's how the T-shirt sleeve's cap top (no notch in the pattern) works: a named point
   at half the length between the two cap notches.
 - **The format doesn't restrict which nodes a seam may use** (whole edges, notch to notch, or any
-  two points). The patent-driven interaction rules in [PATENTS.md](PATENTS.md) constrain how
-  the editor lets people create seams, not what a file may contain.
+  two points). The interaction rules in [PATENTS.md](PATENTS.md) (designs to avoid because other
+  companies' patents claim them) constrain how the editor lets people create seams, not what a
+  file may contain.
 
 **Why "starts meet" instead of the sidecar's `reverse` flag:** one rule, no flag. To reverse a
 side, write its runs the other way.

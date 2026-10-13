@@ -9,12 +9,14 @@ numbers, [CONTRIBUTING.md](CONTRIBUTING.md) for build and check commands,
 
 ## Patents: read before touching joins, placement, measuring or grading
 
-CLO Virtual Fashion holds and enforces patents on free-sewing UIs, 2D pattern measuring and
-automatic grading, and has pending applications on automatic sewing-line detection and ML
-placement. Before designing or building any feature that joins pattern pieces, places pieces
+CLO Virtual Fashion (a competitor, **not us**) holds and enforces patents on free-sewing UIs, 2D
+pattern measuring and automatic grading, and has pending applications on automatic sewing-line
+detection and ML placement. `docs/PATENTS.md` lists those patents so we **avoid the designs they
+claim**; its design rules are binding and **override `VITRYNE_MVP_PLAN.md`** where they differ
+(e.g. seams are whole edges, not notch-to-notch segments). Before designing or building any feature that joins pattern pieces, places pieces
 around a body, measures a pattern, or resizes a garment, read
 [docs/PATENTS.md](docs/PATENTS.md) and follow its design rules. Do not add such features
-without checking them against that file, and say so when a request conflicts with it.
+without checking them against that file, and say so when a request or the plan conflicts with it.
 
 ## Where things are
 
@@ -53,7 +55,7 @@ without checking them against that file, and say so when a request conflicts wit
 - After changing the converter, the importer or a sidecar: `tools/format/build-examples.sh` and
   commit `examples/` (`./check` diffs them against `drape convert`).
 
-## Rules (from the MVP plan, VITRYNE_MVP_PLAN.md, which is not committed)
+## Rules (from the MVP plan, VITRYNE_MVP_PLAN.md, which is not committed; where it conflicts with docs/PATENTS.md, PATENTS.md wins)
 
 1. WebGPU core only: `Features::empty()`, `Limits::default()`, one set of WGSL; only the profiling
    mode may request `timestamp-query`.
@@ -75,7 +77,7 @@ without checking them against that file, and say so when a request conflicts wit
   M6 editor shell (worker + OffscreenCanvas, document model with guardrails, 2D panel,
   properties, storage and save; accepted after a manual Safari check), M7 import and placement
   (DXF import dialog, placement by body place + automatic wrap + 3D gizmo, flat layout; waiting
-  for review). **Next:** M8 (sewing in the UI; read docs/PATENTS.md first, rules 1–3).
+  for review). **Next:** M8 (sewing in the UI; read docs/PATENTS.md first, rules 1–3: whole-edge seams, two-click fix-join, geometry-only suggestions; the plan's notch-to-notch wording is superseded).
 - **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
   `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **The `.vtry` and `garment.toml` paths give bit-identical garments** (test
