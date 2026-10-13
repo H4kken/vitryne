@@ -49,12 +49,11 @@ use drape_core::{
     body::{BodyMesh, BodyQuery, Sdf},
     engine::{Body, BodyOptions, Engine, Garment, SdfSource, Simulation},
     gpu,
-    render::{self, OrbitCamera, Renderer},
     scene::SheetScene,
     sim::{DragPatch, SimSettings},
     timer::GpuTimer,
-    triangle::TriangleRenderer,
 };
+use drape_render::{self as render, OrbitCamera, Renderer, triangle::TriangleRenderer};
 use vitryne_format::{Document, Kind, glb};
 use winit::{
     application::ApplicationHandler,

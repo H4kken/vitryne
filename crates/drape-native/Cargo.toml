@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 drape-core.workspace = true
+drape-render.workspace = true
 drape-assets.workspace = true
 vitryne-format.workspace = true
 wgpu.workspace = true

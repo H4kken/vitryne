@@ -10,9 +10,9 @@ use std::{
 use drape_core::{
     engine::{Engine, Simulation},
     gpu,
-    render::{self, OrbitCamera, Renderer},
     sim::DragPatch,
 };
+use drape_render::{self as render, OrbitCamera, Renderer};
 use glam::Vec3;
 use wasm_bindgen::prelude::*;
 use web_time::Instant;

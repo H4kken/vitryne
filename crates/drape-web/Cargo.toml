@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 drape-core.workspace = true
+drape-render.workspace = true
 drape-assets.workspace = true
 wgpu.workspace = true
 glam.workspace = true

@@ -633,6 +633,7 @@ version = "0.1.0"
 dependencies = [
  "drape-assets",
  "drape-core",
+ "drape-render",
  "env_logger",
  "glam",
  "log",
@@ -645,6 +646,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "drape-render"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "drape-core",
+ "glam",
+ "wgpu",
+]
+
+[[package]]
 name = "drape-web"
 version = "0.1.0"
 dependencies = [
@@ -652,6 +663,7 @@ dependencies = [
  "console_log",
  "drape-assets",
  "drape-core",
+ "drape-render",
  "glam",
  "js-sys",
  "log",

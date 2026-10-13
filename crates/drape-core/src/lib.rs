@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Drape spike core: GPU device setup, solver, metrics.
+//! Drape core: GPU device setup, solver, metrics. Rendering lives in drape-render.
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod attrib;
@@ -14,12 +14,10 @@ pub mod longrange;
 pub mod mesh;
 pub mod metrics;
 pub mod regress;
-pub mod render;
 pub mod scene;
 pub mod selfcheck;
 pub mod selfcol;
 pub mod sim;
 pub mod strain;
 pub mod timer;
-pub mod triangle;
 pub mod untangle;

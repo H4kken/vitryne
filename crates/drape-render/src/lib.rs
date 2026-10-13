@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Minimal renderer: GPU-recomputed cloth normals, lit shading, an orbit camera, and the collider.
+//! Viewport rendering, kept out of the solver (drape-core has no rendering): GPU-recomputed cloth
+//! normals, lit shading, an orbit camera, the collider, and picking for cloth drags.
+
+pub mod triangle;
 
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
-use crate::{mesh::ClothMesh, scene::RenderMesh, sim::Solver};
+use drape_core::{mesh::ClothMesh, scene::RenderMesh, sim::Solver};
 
 pub const NORMALS_SHADER: &str = include_str!("../shaders/normals.wgsl");
 pub const SHADER: &str = include_str!("../shaders/render.wgsl");

@@ -19,7 +19,8 @@ without checking them against that file, and say so when a request conflicts wit
 
 | Path | What |
 |---|---|
-| `crates/drape-core` | The solver and the public API. `engine.rs` is the entry point (`Engine`, `Body`, `Garment`, `GarmentDesc`, `Simulation`); `sim.rs` has `SimSettings` (every tunable) and `Solver`; `shaders/*.wgsl` are the only shaders (native and browser share them). Also: `bench.rs`, `dragbench.rs`, `regress.rs`, `strain.rs`, `longrange.rs`, `selfcol.rs`, `untangle.rs`, `body.rs` (BVH, SDF). |
+| `crates/drape-core` | The solver and the public API. `engine.rs` is the entry point (`Engine`, `Body`, `Garment`, `GarmentDesc`, `Simulation`); `sim.rs` has `SimSettings` (every tunable) and `Solver`; `shaders/*.wgsl` are the solver's shaders (native and browser share them). Also: `bench.rs`, `dragbench.rs`, `regress.rs`, `strain.rs`, `longrange.rs`, `selfcol.rs`, `untangle.rs`, `body.rs` (BVH, SDF). |
+| `crates/drape-render` | Viewport rendering, out of the solver: `Renderer` (GPU normals, lit cloth and collider), `OrbitCamera`, `pick`/`drag_target` for cloth drags, the M0 triangle; its own `shaders/`. |
 | `crates/vitryne-format` | The project file format (`.vtry` family): types, read/write (zip or folder), validation, migrations, unknown data kept. No engine dependency. |
 | `crates/drape-assets` | DXF-AAMA import, `garment.toml` sidecar, meshing, placement (`placement.rs`, regions from `assets/body/avatar.json`); `project.rs` turns a `.vtry` into a `GarmentDesc`, `convert.rs` a sidecar into a `.vtry`. Its `garment::Garment` is the DXF garment, not the engine's (`drape_core::engine::Garment`); alias one of them on import. |
 | `crates/drape-native` | The `drape` CLI and the winit viewer (`view`, `bench`, `bench-drag`, `regress`, `frames`, `convert`, `export-web-assets`, ...). |
