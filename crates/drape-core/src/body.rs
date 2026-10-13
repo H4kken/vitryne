@@ -53,13 +53,18 @@ impl BodyMesh {
                 _ => {}
             }
         }
+        Ok(Self::new(pos, tris))
+    }
+
+    /// A mesh from positions and triangles, turned outward if it was inside out.
+    pub fn new(pos: Vec<Vec3>, tris: Vec<[u32; 3]>) -> Self {
         let mut m = Self { pos, tris };
         if m.signed_volume() < 0.0 {
             for t in &mut m.tris {
                 t.swap(1, 2);
             }
         }
-        Ok(m)
+        m
     }
 
     pub fn signed_volume(&self) -> f32 {

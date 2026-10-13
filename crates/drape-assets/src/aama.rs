@@ -79,6 +79,12 @@ pub struct ImportReport {
     pub warnings: Vec<String>,
 }
 
+/// A point on the project format's grid (0.001 mm, FORMAT.md, Numbers and JSON), so a piece
+/// imported here is exactly the piece a saved project holds, and drapes the same.
+pub fn on_grid(p: DVec2) -> Vec2 {
+    ((p * 1e6).round() / 1e6).as_vec2()
+}
+
 /// Distance under which a point counts as on the boundary or the mirror line, m.
 const ON_TOL: f64 = 5e-4;
 
@@ -346,7 +352,7 @@ fn piece_from_block(
         }
         lm.push(line.len() - 1);
         inner_lines.push(InnerLine {
-            pts: line.iter().map(|p| p.as_vec2()).collect(),
+            pts: line.iter().map(|&p| on_grid(p)).collect(),
             landmarks: lm,
         });
     }
@@ -376,9 +382,9 @@ fn piece_from_block(
     Ok(Some(Piece {
         name,
         quantity,
-        boundary: boundary.iter().map(|p| p.as_vec2()).collect(),
+        boundary: boundary.iter().map(|&p| on_grid(p)).collect(),
         landmarks,
-        grain: grain.map(|(a, b)| (a.as_vec2(), b.as_vec2())),
+        grain: grain.map(|(a, b)| (on_grid(a), on_grid(b))),
         unfolded,
         inner: inner_lines,
         from_sew_line,

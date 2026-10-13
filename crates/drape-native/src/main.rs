@@ -7,9 +7,10 @@
 //!                           headless benchmark, prints JSON
 //!   drape bench-drag [--drag-seconds S] [--seed N] [--max-offset M] [--min-pull S] [--out file.json]
 //!                           drape to rest, then scripted random drags (stability criterion)
-//!   drape regress [--update] [--only NAME] [--dir tests/regression]
-//!                           the golden regression suite (3 garments, 10k, 600 frames); exit 1
-//!                           on any difference beyond tolerance, --update re-records
+//!   drape regress [--update] [--only NAME] [--dir tests/regression] [--toml]
+//!                           the golden regression suite (examples/*.vtry, 10k, 600 frames);
+//!                           exit 1 on any difference beyond tolerance, --update re-records,
+//!                           --toml drapes the garment.toml sidecars instead (same goldens)
 //!   drape export-web-assets <dir>
 //!                           body OBJ + baked SDF (.bin) for the web pages
 //!   drape frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
@@ -20,11 +21,16 @@
 //!   drape pattern-svg <out.svg> [--edge E]
 //!                           meshed T-shirt pattern with seams, for inspection
 //!   drape garment-svg <out.svg> --garment G [--edge E | --verts N]
-//!                           meshed DXF-AAMA garment with landmark numbers and seams
+//!                           meshed garment with landmark numbers (node names for a .vtry)
+//!   drape convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]
+//!                           sidecar + DXF-AAMA -> project file (zip, or folder if the path
+//!                           ends in / or is a folder); --include-dxf keeps the DXF in it
 //!
-//! Scene: --scene sheet|tshirt|garment (default sheet).
-//!   garment: --garment path/garment.toml, --verts N (target vertex count, default 10000) or
-//!            --edge E; the SDF box comes from the toml
+//! Scene: --scene sheet|tshirt|garment (default sheet, or garment with --garment).
+//!   garment: --garment G, a project file (.vtry/.vtryg, zip or folder) or a garment.toml;
+//!            --verts N (target vertex count; default the file's targetVertices, or 10000)
+//!            or --edge E. The SDF box comes from the file. A project file brings its avatar,
+//!            fabric (friction included), camera and engine overrides; flags still win.
 //!   sheet:  --grid N (vertices per side), --pin-spacing F, --no-sphere
 //!   tshirt: --edge E (target edge length, m; 0.00864 ≈ 10k verts), --sdf-cell C (m)
 //! Sim (any scene): --substeps S, --damping D, --friction MU, --stretch-damping BETA (s),
@@ -34,12 +40,14 @@
 use std::sync::Arc;
 
 use drape_assets::{
+    convert::ConvertOptions,
     garment::Garment as DxfGarment,
+    project::{DEFAULT_TARGET_VERTICES, ProjectGarment, avatar_mesh},
     tshirt::{self, SdfParams, TshirtParams},
 };
 use drape_core::{
     body::{BodyMesh, BodyQuery, Sdf},
-    engine::{Avatar, Body, BodyOptions, Engine, Garment, SdfSource, Simulation},
+    engine::{Body, BodyOptions, Engine, Garment, SdfSource, Simulation},
     gpu,
     render::{self, OrbitCamera, Renderer},
     scene::SheetScene,
@@ -47,6 +55,7 @@ use drape_core::{
     timer::GpuTimer,
     triangle::TriangleRenderer,
 };
+use vitryne_format::{Document, Kind, glb};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
@@ -119,10 +128,11 @@ fn main() {
         }
         "regress" => {
             let update = take_flag(&mut args, "--update");
+            let toml = take_flag(&mut args, "--toml");
             let only = take_value(&mut args, "--only");
             let dir = take_value(&mut args, "--dir").unwrap_or_else(|| "tests/regression".into());
             let engine = Engine::new(headless_gpu());
-            if !regress(&engine, &dir, only.as_deref(), update) {
+            if !regress(&engine, &dir, only.as_deref(), update, toml) {
                 std::process::exit(1);
             }
         }
@@ -134,7 +144,7 @@ fn main() {
             std::fs::create_dir_all(&dir).unwrap();
             let obj = std::fs::read_to_string(BODY_OBJ).expect("body obj");
             let body = BodyQuery::new(BodyMesh::from_obj(&obj).expect("parse body obj"));
-            let sdf = load_or_bake_sdf(&obj, &body, &scene_args.sdf);
+            let sdf = load_or_bake_sdf(&body, &scene_args.sdf);
             std::fs::write(format!("{dir}/makehuman_body_m.obj"), &obj).unwrap();
             let name = format!(
                 "{dir}/sdf_{}mm.bin",
@@ -158,7 +168,7 @@ fn main() {
                 std::fs::create_dir_all(&out).unwrap();
                 std::fs::write(format!("{out}/garment.toml"), &toml).unwrap();
                 std::fs::copy(src.join(&g.spec.dxf), format!("{out}/garment.dxf")).unwrap();
-                let gsdf = load_or_bake_sdf(&obj, &body, &g.sdf_params());
+                let gsdf = load_or_bake_sdf(&body, &g.sdf_params());
                 std::fs::write(format!("{out}/sdf.bin"), gsdf.to_bytes()).unwrap();
                 println!("wrote {out}/ (sdf {:.1} MB)", gsdf.bytes() as f64 / 1e6);
             }
@@ -188,21 +198,46 @@ fn main() {
         }
         "garment-svg" => {
             let out = args.get(1).cloned().unwrap_or_else(|| "garment.svg".into());
-            let g = scene_args.garment();
-            let edge = scene_args.garment_edge(&g);
-            let gp = g.pattern().unwrap_or_else(|e| panic!("{e}"));
+            let (gp, edge, name, report) = match &scene_args.project {
+                Some(doc) => {
+                    let pg = ProjectGarment::new(doc).unwrap_or_else(|e| panic!("{e}"));
+                    let edge = scene_args.edge.unwrap_or_else(|| {
+                        let verts = scene_args.verts.unwrap_or_else(|| pg.target_vertices());
+                        pg.edge_for_vertices(verts)
+                            .unwrap_or_else(|e| panic!("{e}"))
+                    });
+                    let gp = pg.pattern().unwrap_or_else(|e| panic!("{e}"));
+                    (gp, edge, pg.garment.name.clone(), "{}".to_string())
+                }
+                None => {
+                    let g = scene_args.garment();
+                    let edge = scene_args.garment_edge(&g);
+                    let gp = g.pattern().unwrap_or_else(|e| panic!("{e}"));
+                    let report = serde_json::to_string(&g.report).unwrap();
+                    (gp, edge, g.spec.name.clone(), report)
+                }
+            };
             let mp = drape_assets::meshing::mesh_pattern(&gp.pattern, edge);
-            let title = format!("{} (edge {:.1} mm)", g.spec.name, edge * 1000.0);
+            let title = format!("{name} (edge {:.1} mm)", edge * 1000.0);
             std::fs::write(
                 &out,
                 drape_assets::preview::pattern_svg(&gp.pattern, &mp, &gp.labels, &title),
             )
             .expect("write svg");
             println!(
-                "wrote {out}: {} vertices; import: {}",
-                mp.mesh.n_verts(),
-                serde_json::to_string(&g.report).unwrap()
+                "wrote {out}: {} vertices; import: {report}",
+                mp.mesh.n_verts()
             );
+        }
+        "convert" => {
+            let include_dxf = take_flag(&mut args, "--include-dxf");
+            let (Some(src), Some(out)) = (args.get(1), args.get(2)) else {
+                eprintln!(
+                    "usage: drape convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]"
+                );
+                std::process::exit(2);
+            };
+            convert(src, out, include_dxf);
         }
         "pattern-svg" => {
             let out = args.get(1).cloned().unwrap_or_else(|| "pattern.svg".into());
@@ -214,7 +249,7 @@ fn main() {
         }
         other => {
             eprintln!(
-                "unknown command '{other}' (view | bench | bench-drag | frames | export-web-assets | pattern-svg | info | snapshot)"
+                "unknown command '{other}' (view | bench | bench-drag | regress | frames | export-web-assets | convert | garment-svg | pattern-svg | info | snapshot)"
             );
             std::process::exit(2);
         }
@@ -228,24 +263,46 @@ struct SceneArgs {
     sdf: SdfParams,
     sim: drape_core::sim::SimSettings,
     garment: Option<String>,
-    verts: u32,
+    /// The project file `--garment` names, opened.
+    project: Option<Arc<Document>>,
+    verts: Option<u32>,
     edge: Option<f32>,
 }
 
 impl SceneArgs {
     fn take(args: &mut Vec<String>) -> Self {
+        let garment = take_value(args, "--garment");
+        let project = garment
+            .as_deref()
+            .filter(|p| is_project_file(p))
+            .map(|p| Arc::new(open_project(p)));
         let mut a = Self {
-            kind: take_value(args, "--scene").unwrap_or_else(|| "sheet".into()),
+            kind: take_value(args, "--scene").unwrap_or_else(|| {
+                if garment.is_some() {
+                    "garment"
+                } else {
+                    "sheet"
+                }
+                .into()
+            }),
             sheet: SheetScene::default(),
             tshirt: TshirtParams::default(),
             sdf: SdfParams::default(),
             sim: SheetScene::config(),
-            garment: take_value(args, "--garment"),
-            verts: 10000,
+            garment,
+            project,
+            verts: None,
             edge: None,
         };
+        // The file's settings first (fabric friction, engine overrides), so flags win.
+        if let Some(doc) = &a.project {
+            let pg = ProjectGarment::new(doc).unwrap_or_else(|e| panic!("{e}"));
+            for w in pg.apply_settings(&mut a.sim) {
+                log::warn!("{w}");
+            }
+        }
         if let Some(v) = take_value(args, "--verts") {
-            a.verts = v.parse().expect("--verts");
+            a.verts = Some(v.parse().expect("--verts"));
         }
         let num = |args: &mut Vec<String>, flag: &str| {
             take_value(args, flag).map(|v| v.parse::<f32>().unwrap_or_else(|_| panic!("{flag}")))
@@ -293,7 +350,9 @@ impl SceneArgs {
         if take_flag(args, "--no-pins") {
             a.sheet.pins = false;
         }
-        a.sim.self_collision = take_flag(args, "--self-collision");
+        if take_flag(args, "--self-collision") {
+            a.sim.self_collision = true;
+        }
         if let Some(v) = num(args, "--self-radius") {
             a.sim.self_radius_edges = v;
         }
@@ -375,6 +434,8 @@ impl SceneArgs {
         let load = |e: String| -> ! { panic!("{e}") };
         let read_obj =
             || std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
+        let test_avatar =
+            || BodyMesh::from_obj(&read_obj()).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
         let (desc, fabric, body) = match self.kind.as_str() {
             "sheet" => (
                 self.sheet.garment(),
@@ -383,8 +444,32 @@ impl SceneArgs {
             ),
             "tshirt" => {
                 let desc = tshirt::build(&self.tshirt);
-                let body = load_body_cached(&read_obj(), &self.sdf);
+                let body = load_body_cached("makehuman", test_avatar(), &self.sdf);
                 (desc, tshirt::fabric(), body)
+            }
+            "garment" if self.project.is_some() => {
+                let doc = self.project.as_ref().unwrap();
+                let pg = ProjectGarment::new(doc).unwrap_or_else(|e| load(e));
+                for w in &pg.warnings {
+                    log::warn!("{w}");
+                }
+                let edge = self.edge.unwrap_or_else(|| {
+                    let verts = self.verts.unwrap_or_else(|| pg.target_vertices());
+                    pg.edge_for_vertices(verts).unwrap_or_else(|e| load(e))
+                });
+                let desc = pg.build(edge).unwrap_or_else(|e| load(e));
+                let mut sdf_params = desc.sdf.clone();
+                if self.sdf.cell != SdfParams::default().cell {
+                    sdf_params.cell = self.sdf.cell;
+                }
+                let body = match avatar_mesh(doc).unwrap_or_else(|e| load(e)) {
+                    Some(mesh) => {
+                        let name = &doc.project_avatar().unwrap().name;
+                        load_body_cached(name, mesh, &sdf_params)
+                    }
+                    None => load_body_cached("makehuman", test_avatar(), &sdf_params),
+                };
+                (desc, pg.material(), body)
             }
             "garment" => {
                 let g = self.garment();
@@ -394,7 +479,7 @@ impl SceneArgs {
                     sdf_params.cell = self.sdf.cell;
                 }
                 let desc = g.build(edge).unwrap_or_else(|e| load(e));
-                let body = load_body_cached(&read_obj(), &sdf_params);
+                let body = load_body_cached("makehuman", test_avatar(), &sdf_params);
                 (desc, g.fabric(), body)
             }
             other => panic!("unknown --scene {other} (sheet | tshirt | garment)"),
@@ -416,21 +501,92 @@ impl SceneArgs {
 
     fn garment_edge(&self, g: &DxfGarment) -> f32 {
         self.edge.unwrap_or_else(|| {
-            g.edge_for_vertices(self.verts)
+            g.edge_for_vertices(self.verts.unwrap_or(DEFAULT_TARGET_VERTICES))
                 .unwrap_or_else(|e| panic!("{e}"))
         })
     }
 }
 
+/// A project file (zip or folder) rather than a garment.toml.
+fn is_project_file(path: &str) -> bool {
+    let p = std::path::Path::new(path);
+    p.join("manifest.json").is_file()
+        || Kind::ALL
+            .iter()
+            .any(|k| path.trim_end_matches('/').ends_with(k.extension()))
+}
+
+fn open_project(path: &str) -> Document {
+    let opened =
+        Document::open(std::path::Path::new(path)).unwrap_or_else(|e| panic!("{path}: {e}"));
+    for w in &opened.warnings {
+        log::warn!("{path}: {w}");
+    }
+    opened.doc
+}
+
+/// `drape convert`: a garment.toml and its DXF to a project file, with the test avatar.
+fn convert(src: &str, out: &str, include_dxf: bool) {
+    let g = DxfGarment::load_file(src).unwrap_or_else(|e| panic!("{e}"));
+    let dxf_path = std::path::Path::new(src)
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .join(&g.spec.dxf);
+    let body = BodyMesh::from_obj(&std::fs::read_to_string(BODY_OBJ).expect("body obj"))
+        .expect("parse body obj");
+    let mesh = glb::Mesh {
+        positions: body.pos.iter().map(|p| p.to_array()).collect(),
+        indices: body.tris.iter().flatten().copied().collect(),
+    };
+    let opts = ConvertOptions {
+        body_glb: glb::write(&mesh, vitryne_format::GENERATOR),
+        dxf_file_name: dxf_path.file_name().unwrap().to_string_lossy().into_owned(),
+        include_dxf: include_dxf.then(|| std::fs::read(&dxf_path).expect("read dxf")),
+    };
+    let mut doc =
+        drape_assets::convert::convert(&g, &opts).unwrap_or_else(|e| panic!("{src}: {e}"));
+    doc.generator = Some(format!("drape convert ({})", vitryne_format::GENERATOR));
+    let folder = out.ends_with('/') || std::path::Path::new(out).is_dir();
+    let r = if folder {
+        doc.save_folder(std::path::Path::new(out))
+    } else {
+        doc.save(std::path::Path::new(out))
+    };
+    r.unwrap_or_else(|e| panic!("{out}: {e}"));
+    let g = &doc.garments[0];
+    println!(
+        "wrote {out}: {} pieces, {} cuts, {} seams, {} nodes{}",
+        g.pieces.len(),
+        g.cuts().count(),
+        g.seams.len(),
+        g.pieces.iter().map(|p| p.outline.len()).sum::<usize>(),
+        if include_dxf { ", DXF kept" } else { "" }
+    );
+}
+
 const BODY_OBJ: &str = "assets/body/makehuman_body_m.obj";
 
-/// The bake takes seconds, so cache it under target/ keyed by body + SDF parameters.
-fn load_or_bake_sdf(obj: &str, body: &BodyQuery, p: &SdfParams) -> Sdf {
+/// Where a baked SDF is cached: target/sdf-cache/, keyed by the body mesh and the SDF
+/// parameters (so the OBJ and a project's glTF of the same mesh share one bake).
+fn sdf_cache_path(mesh: &BodyMesh, p: &SdfParams) -> String {
     let mut h: u64 = 0xcbf29ce484222325;
-    for b in obj.bytes().chain(serde_json::to_string(p).unwrap().bytes()) {
+    let params = serde_json::to_string(p).unwrap();
+    let bytes = mesh
+        .pos
+        .iter()
+        .flat_map(|v| v.to_array())
+        .flat_map(f32::to_le_bytes)
+        .chain(mesh.tris.iter().flatten().flat_map(|i| i.to_le_bytes()))
+        .chain(params.bytes());
+    for b in bytes {
         h = (h ^ b as u64).wrapping_mul(0x100000001b3);
     }
-    let path = format!("target/sdf-cache/{h:016x}.bin");
+    format!("target/sdf-cache/{h:016x}.bin")
+}
+
+/// The bake takes seconds, so cache it under target/ keyed by body + SDF parameters.
+fn load_or_bake_sdf(body: &BodyQuery, p: &SdfParams) -> Sdf {
+    let path = sdf_cache_path(&body.mesh, p);
     if let Ok(bytes) = std::fs::read(&path)
         && let Some(sdf) = Sdf::from_bytes(&bytes)
     {
@@ -453,17 +609,9 @@ fn load_or_bake_sdf(obj: &str, body: &BodyQuery, p: &SdfParams) -> Sdf {
 }
 
 /// The avatar with its SDF, from the cache under target/ when it has been baked before.
-fn load_body_cached(obj: &str, p: &SdfParams) -> Body {
+fn load_body_cached(name: &str, mesh: BodyMesh, p: &SdfParams) -> Body {
     let t0 = std::time::Instant::now();
-    let mut h: u64 = 0xcbf29ce484222325;
-    for b in obj.bytes().chain(serde_json::to_string(p).unwrap().bytes()) {
-        h = (h ^ b as u64).wrapping_mul(0x100000001b3);
-    }
-    let path = format!("target/sdf-cache/{h:016x}.bin");
-    let avatar = Avatar {
-        name: "makehuman".into(),
-        obj: obj.to_string(),
-    };
+    let path = sdf_cache_path(&mesh, p);
     let cached = std::fs::read(&path)
         .ok()
         .filter(|b| Sdf::from_bytes(b).is_some());
@@ -474,7 +622,7 @@ fn load_body_cached(obj: &str, p: &SdfParams) -> Body {
             None => SdfSource::Bake(p.clone()),
         },
     };
-    let body = Body::load(&avatar, &opts).unwrap_or_else(|e| panic!("{e}"));
+    let body = Body::from_mesh(name, mesh, &opts).unwrap_or_else(|e| panic!("{e}"));
     if !from_cache {
         let _ = std::fs::create_dir_all("target/sdf-cache");
         let _ = std::fs::write(&path, body.sdf().expect("avatar SDF").to_bytes());
@@ -497,13 +645,14 @@ struct Scene {
     body: Arc<Body>,
 }
 
-/// The golden cases: (name, garment sidecar, golden shape tolerance mm, persistent
-/// self-intersection slack, note). The hoodie never rests and its neck junction is chaotic
+/// The golden cases: (name, project file, the garment.toml it was converted from, golden shape
+/// tolerance mm, persistent self-intersection slack, note). Both paths must match one golden. The hoodie never rests and its neck junction is chaotic
 /// (native vs Chrome differ by up to 11 mm at the end, PROGRESS.md M2), so its shape tolerance
 /// is wide and its intersection count has headroom; it still catches a real change.
-const REGRESSION_CASES: [(&str, &str, f32, f32, &str); 3] = [
+const REGRESSION_CASES: [(&str, &str, &str, f32, f32, &str); 3] = [
     (
         "tshirt",
+        "examples/tshirt.vtry",
         "assets/garments/tshirt/garment.toml",
         0.5,
         0.0,
@@ -511,6 +660,7 @@ const REGRESSION_CASES: [(&str, &str, f32, f32, &str); 3] = [
     ),
     (
         "trousers",
+        "examples/trousers.vtry",
         "assets/garments/trousers/garment.toml",
         0.5,
         0.0,
@@ -518,6 +668,7 @@ const REGRESSION_CASES: [(&str, &str, f32, f32, &str); 3] = [
     ),
     (
         "hoodie",
+        "examples/hoodie.vtry",
         "assets/garments/hoodie/garment.toml",
         20.0,
         0.25,
@@ -528,13 +679,13 @@ const REGRESSION_CASES: [(&str, &str, f32, f32, &str); 3] = [
 ];
 
 /// Runs (or, with `update`, records) the cases. Returns true if everything passed.
-fn regress(engine: &Engine, dir: &str, only: Option<&str>, update: bool) -> bool {
+fn regress(engine: &Engine, dir: &str, only: Option<&str>, update: bool, toml: bool) -> bool {
     use drape_core::regress::{
         Golden, observe, positions_from_bytes, positions_to_bytes, shape_diff_mm,
     };
     std::fs::create_dir_all(dir).expect("regression dir");
     let mut all_ok = true;
-    for (name, toml, shape_tol, slack, note) in REGRESSION_CASES {
+    for (name, project, sidecar, shape_tol, slack, note) in REGRESSION_CASES {
         if only.is_some_and(|o| o != name) {
             continue;
         }
@@ -542,7 +693,7 @@ fn regress(engine: &Engine, dir: &str, only: Option<&str>, update: bool) -> bool
             "--scene",
             "garment",
             "--garment",
-            toml,
+            if toml { sidecar } else { project },
             "--verts",
             "10000",
             "--self-collision",

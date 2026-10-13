@@ -2,6 +2,60 @@
 # by tools/patterns/export-aama.mjs. Front and back are cut on the fold (unfolded on import).
 name = "tshirt-teagan"
 dxf = "tshirt.dxf"
+title = "T-shirt (Teagan)"
+
+[attribution]
+title = "Teagan T-shirt"
+creator = "Joost De Cock and FreeSewing contributors"
+license = "MIT"
+source = "https://freesewing.org/designs/teagan"
+notes = "FreeSewing Teagan 4.10.2, drafted at the test avatar's measurements, chest ease 18%."
+
+# For the project file; [material] (or the default jersey) gives the physics.
+[fabric]
+name = "Cotton jersey (placeholder)"
+category = "knit"
+notes = "The engine's spike-1 placeholder (Material::cotton), not calibrated. Stretch from the per-edge stiffness 1e4 N/m: Y = 2k/sqrt(3), shear = 3Y/8 (triangle lattice, Poisson 1/3)."
+
+# Landmark names for the project file (`drape convert`), in landmark order.
+[names]
+front = [
+  "centre front hem",
+  "hem, left side",
+  "underarm, left",
+  "armhole notch, left",
+  "shoulder tip, left",
+  "neck point, left",
+  "centre front neck",
+  "neck point, right",
+  "shoulder tip, right",
+  "armhole notch, right",
+  "underarm, right",
+  "hem, right side",
+]
+back = [
+  "centre back hem",
+  "hem, right side",
+  "underarm, right",
+  "armhole notch, right",
+  "shoulder tip, right",
+  "neck point, right",
+  "centre back neck",
+  "neck point, left",
+  "shoulder tip, left",
+  "armhole notch, left",
+  "underarm, left",
+  "hem, left side",
+]
+sleeve = [
+  "hem, back side",
+  "hem, front side",
+  "underarm, front",
+  "front notch",
+  "back notch",
+  "underarm, back",
+]
+"sleeve:3+0.5" = "cap top (shoulder point)"
 
 [[piece]]
 name = "front"
@@ -15,11 +69,13 @@ place = { frame = "torso", angle = 180, radius = 0.20, top = 1.44 }
 
 [[piece]]
 name = "sleeve_r"
+label = "right sleeve"
 dxf = "sleeve"
 place = { frame = "arm_r", angle = 0, radius = 0.06, top = -0.04 }
 
 [[piece]]
 name = "sleeve_l"
+label = "left sleeve"
 dxf = "sleeve"
 mirror = true
 place = { frame = "arm_l", angle = 0, radius = 0.06, top = -0.04 }
@@ -32,58 +88,68 @@ place = { frame = "arm_l", angle = 0, radius = 0.06, top = -0.04 }
 
 [[seam]]
 name = "side_r"
+label = "right side seam"
 a = "front:10-11"
 b = "back:1-2"
 reverse = true
 
 [[seam]]
 name = "side_l"
+label = "left side seam"
 a = "front:1-2"
 b = "back:10-11"
 reverse = true
 
 [[seam]]
 name = "shoulder_r"
+label = "right shoulder"
 a = "front:7-8"
 b = "back:4-5"
 reverse = true
 
 [[seam]]
 name = "shoulder_l"
+label = "left shoulder"
 a = "front:4-5"
 b = "back:7-8"
 reverse = true
 
 [[seam]]
 name = "armhole_front_r"
+label = "right armhole, front"
 a = "sleeve_r:2-3+0.5"
 b = "front:8-10"
 reverse = true
 
 [[seam]]
 name = "armhole_back_r"
+label = "right armhole, back"
 a = "sleeve_r:3+0.5-5"
 b = "back:2-4"
 reverse = true
 
 [[seam]]
 name = "armhole_front_l"
+label = "left armhole, front"
 a = "sleeve_l:2-3+0.5"
 b = "front:2-4"
 
 [[seam]]
 name = "armhole_back_l"
+label = "left armhole, back"
 a = "sleeve_l:3+0.5-5"
 b = "back:8-10"
 
 [[seam]]
 name = "underarm_r"
+label = "right underarm seam"
 a = "sleeve_r:1-2"
 b = "sleeve_r:5-0"
 reverse = true
 
 [[seam]]
 name = "underarm_l"
+label = "left underarm seam"
 a = "sleeve_l:1-2"
 b = "sleeve_l:5-0"
 reverse = true

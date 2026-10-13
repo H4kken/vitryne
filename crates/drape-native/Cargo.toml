@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 drape-core.workspace = true
 drape-assets.workspace = true
+vitryne-format.workspace = true
 wgpu.workspace = true
 winit = "0.30"
 pollster = "0.4"

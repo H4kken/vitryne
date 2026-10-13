@@ -48,8 +48,8 @@ there when you add an asset.
 **Native:**
 
 ```sh
-cargo run -p drape-native --release -- bench --scene garment --garment assets/garments/tshirt/garment.toml --verts 10000
-cargo run -p drape-native --release -- view --scene garment --garment assets/garments/tshirt/garment.toml
+cargo run -p drape-native --release -- bench --garment examples/tshirt.vtry --verts 10000
+cargo run -p drape-native --release -- view --garment examples/tshirt.vtry
 ```
 
 The first run bakes the body SDF (about 1–2 s) and caches it in `target/sdf-cache/`.

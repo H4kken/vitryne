@@ -3,27 +3,27 @@
   "kind": "project",
   "formatVersion": 1,
   "minReaderVersion": 1,
-  "generator": "hand-written example (docs/FORMAT.md, M4)",
+  "generator": "drape convert (vitryne-format 0.1.0)",
   "parts": [
     {
       "path": "project.json",
       "mediaType": "application/json",
-      "sha256": "6bb97a4aed33bd80319c903f9b5898433f6bed2dbc1df791b42cf7b1da1fd1ca"
+      "sha256": "4bca9736cff8323f9cae446020d27fd8bd0d3cd0ae18a6818e90a452887480eb"
     },
     {
-      "path": "garments/01a13cdb-cc02-7918-aa9f-9eb6980dd3b8.json",
+      "path": "garments/01a13cdb-cc02-7e42-aed0-31730c9cee65.json",
       "mediaType": "application/json",
-      "sha256": "46877377d41d253fef30010b392c6dcc362ba7963e52b6ba3b17adc23af82f49"
+      "sha256": "411567aa6af5f75ee9f5d00697efe195b2df6088c4e21a893354a42e5ab7f758"
     },
     {
-      "path": "fabrics/01a13cdb-cc03-713c-9796-120438b8ba92.json",
+      "path": "fabrics/01a13cdb-cc03-7074-8d2d-01dbf48ff1b2.json",
       "mediaType": "application/json",
-      "sha256": "7228f43e59dc0f6d073b557537637230001a74ca18cbe681ca49db05cc5d1da0"
+      "sha256": "b6f1e045474674e4095badc5ba68bf1af599e03b7559a6ef5f37171ff0476523"
     },
     {
       "path": "avatars/01a13cdb-cc04-728e-9afd-3f992133737d/avatar.json",
       "mediaType": "application/json",
-      "sha256": "646b13a61725b664fa0052f85efd81a5eba01455d45fb9b8b7c60cd6d828e651"
+      "sha256": "93648cfa1b3d16268f32fd78a5c18ca6f5bb616aa472726d288c9b33c5bb2d33"
     },
     {
       "path": "view.json",
@@ -33,7 +33,7 @@
     {
       "path": "avatars/01a13cdb-cc04-728e-9afd-3f992133737d/body.glb",
       "mediaType": "model/gltf-binary",
-      "sha256": "227d788566bb723edc64f28f2948c45648d576fc562a6f12a12ccd9e90cf25ba"
+      "sha256": "f28df65b49ec9f11e73c77a1f210e5a2f350541edd33268e3383870a6c3e5ee4"
     }
   ]
 }

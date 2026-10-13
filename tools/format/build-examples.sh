@@ -1,20 +1,17 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Adds the generated parts to the example projects (examples/*.vtry, folder form), packs each
-# into a .vtry zip under bench-out/examples/, and validates both forms.
-# usage: tools/format/build-examples.sh          (needs python3 with jsonschema)
+# Regenerates the example projects from the sample garments' sidecars (drape convert): the
+# folder form in examples/<garment>.vtry/ (committed, diffable) and the zip form in
+# bench-out/examples/<garment>.vtry, then validates both against the schemas.
+# usage: tools/format/build-examples.sh          (needs cargo; python3 with jsonschema)
 set -eu
 cd "$(dirname "$0")/../.."
+cargo build --release -p drape-native --locked
 out=bench-out/examples
 mkdir -p "$out"
-for dir in examples/*.vtry; do
-  for avatar in "$dir"/avatars/*/; do
-    [ -f "$avatar/body.glb" ] || python3 -I tools/format/obj2glb.py assets/body/makehuman_body_m.obj "$avatar/body.glb"
-  done
-  zip="$out/$(basename "$dir")"
-  rm -f "$zip"
-  # mimetype first and stored (zip -0), like EPUB and ODF; then everything else, binaries stored.
-  (cd "$dir" && zip -q -X -0 "$OLDPWD/$zip" mimetype \
-    && zip -q -X -D -r -n .glb:.bin "$OLDPWD/$zip" . -x mimetype -x '.*')
-  python3 -I tools/format/validate.py "$dir" "$zip"
+for toml in assets/garments/*/garment.toml; do
+  g=$(basename "$(dirname "$toml")")
+  target/release/drape convert "$toml" "examples/$g.vtry/" 2> /dev/null
+  target/release/drape convert "$toml" "$out/$g.vtry" 2> /dev/null
 done
+python3 -I tools/format/validate.py examples/*.vtry "$out"/*.vtry

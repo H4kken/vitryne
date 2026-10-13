@@ -4,6 +4,37 @@
 # both backs), the order a project file has them in, so both paths number vertices the same.
 name = "trousers-titan"
 dxf = "trousers.dxf"
+title = "Trousers (Titan)"
+
+[attribution]
+title = "Titan trousers"
+creator = "Joost De Cock and FreeSewing contributors"
+license = "MIT"
+source = "https://freesewing.org/designs/titan"
+notes = "FreeSewing Titan 4.10.2 (trouser block), drafted at the test avatar's measurements, lengthBonus -6% (ankle length)."
+
+# For the project file; [material] (or the default jersey) gives the physics.
+[fabric]
+name = "Twill (placeholder)"
+category = "woven"
+notes = "Placeholder, not calibrated: a jersey is too soft to hold trousers up on the hips (docs/history/PROGRESS.md S2). Stretch from the per-edge stiffness 1e6 N/m: Y = 2k/sqrt(3), shear = 3Y/8 (triangle lattice, Poisson 1/3)."
+
+# Landmark names for the project file (`drape convert`), in landmark order.
+[names]
+front = [
+  "side waist",
+  "outer hem",
+  "inner hem",
+  "crotch fork",
+  "centre front waist",
+]
+back = [
+  "crotch fork",
+  "inner hem",
+  "outer hem",
+  "side waist",
+  "centre back waist",
+]
 
 # Woven (twill) placeholder: a jersey (the default, 1e4 N/m) is too soft to hold trousers up on
 # the hips; they stretch over them and slide off (docs/history/PROGRESS.md S2). Not calibrated.
@@ -21,22 +52,26 @@ max = [0.40, 1.25, 0.28]
 
 [[piece]]
 name = "front_r"
+label = "right front"
 dxf = "front"
 place = { frame = "leg_r", angle = 0, radius = 0.12, top = 1.12 }
 
 [[piece]]
 name = "front_l"
+label = "left front"
 dxf = "front"
 mirror = true
 place = { frame = "leg_l", angle = 0, radius = 0.12, top = 1.12 }
 
 [[piece]]
 name = "back_r"
+label = "right back"
 dxf = "back"
 place = { frame = "leg_r", angle = 180, radius = 0.12, top = 1.12 }
 
 [[piece]]
 name = "back_l"
+label = "left back"
 dxf = "back"
 mirror = true
 place = { frame = "leg_l", angle = 180, radius = 0.12, top = 1.12 }
@@ -47,34 +82,40 @@ place = { frame = "leg_l", angle = 180, radius = 0.12, top = 1.12 }
 
 [[seam]]
 name = "outseam_r"
+label = "right outseam"
 a = "front_r:0-1"
 b = "back_r:2-3"
 reverse = true
 
 [[seam]]
 name = "inseam_r"
+label = "right inseam"
 a = "front_r:2-3"
 b = "back_r:0-1"
 reverse = true
 
 [[seam]]
 name = "outseam_l"
+label = "left outseam"
 a = "front_l:0-1"
 b = "back_l:2-3"
 reverse = true
 
 [[seam]]
 name = "inseam_l"
+label = "left inseam"
 a = "front_l:2-3"
 b = "back_l:0-1"
 reverse = true
 
 [[seam]]
 name = "centre_front"
+label = "centre front"
 a = "front_r:3-4"
 b = "front_l:3-4"
 
 [[seam]]
 name = "centre_back"
+label = "centre back"
 a = "back_r:4-0"
 b = "back_l:4-0"

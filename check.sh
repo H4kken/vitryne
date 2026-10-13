@@ -52,8 +52,21 @@ echo ok
 step "app: typecheck + lint"
 echo "skipped: app/ arrives in M6"
 
+step "example projects are up to date"
+# examples/*.vtry are `drape convert` output; after a change to the converter or a sidecar,
+# run tools/format/build-examples.sh and commit the result.
+cargo build --release -p drape-native --locked
+rm -rf bench-out/examples-check && mkdir -p bench-out/examples-check
+for toml in assets/garments/*/garment.toml; do
+  g=$(basename "$(dirname "$toml")")
+  target/release/drape convert "$toml" "bench-out/examples-check/$g.vtry/" > /dev/null 2>&1
+  diff -r "examples/$g.vtry" "bench-out/examples-check/$g.vtry" > /dev/null \
+    || fail "examples/$g.vtry differs from drape convert's output (run tools/format/build-examples.sh)"
+done
+echo ok
+
 step "regression drapes (golden suite)"
-# Three garments at 10k vertices, 600 frames each, against tests/regression/*.json and *.pos:
+# The three example projects at 10k vertices, 600 frames each, against tests/regression/*.json and *.pos:
 # rest frame, final shape, penetration, self-intersections, strain, seam gap. After an
 # intended change: `target/release/drape regress --update`, and say why in the commit.
 cargo build --release -p drape-native --locked

@@ -90,16 +90,21 @@ impl Body {
     /// it isn't given), so it can run before there is a device; the result is shared between
     /// simulations.
     pub fn load(avatar: &Avatar, opts: &BodyOptions) -> Result<Body, String> {
-        let query = Arc::new(BodyQuery::new(
-            BodyMesh::from_obj(&avatar.obj).map_err(|e| format!("avatar {}: {e}", avatar.name))?,
-        ));
+        let mesh =
+            BodyMesh::from_obj(&avatar.obj).map_err(|e| format!("avatar {}: {e}", avatar.name))?;
+        Self::from_mesh(&avatar.name, mesh, opts)
+    }
+
+    /// As `load`, from a mesh already read (a project's glTF avatar).
+    pub fn from_mesh(name: &str, mesh: BodyMesh, opts: &BodyOptions) -> Result<Body, String> {
+        let query = Arc::new(BodyQuery::new(mesh));
         let sdf = match &opts.sdf {
             SdfSource::Bake(p) => p.bake(&query),
             SdfSource::Bytes(b) => Sdf::from_bytes(b).ok_or("bad SDF bytes")?,
         };
         let bm = &query.mesh;
         Ok(Body {
-            name: avatar.name.clone(),
+            name: name.to_string(),
             collider: Collider::Sdf(Arc::new(sdf)),
             render: RenderMesh {
                 pos: bm.pos.clone(),

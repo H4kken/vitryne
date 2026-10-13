@@ -1,13 +1,14 @@
 # The Vitryne file format, version 1
 
-**Status: approved design (MVP milestone M4, 2026-10-13). Nothing reads or writes it yet; `vitryne-format`
-implements it in M5.**
+**Status: approved design (MVP milestone M4, 2026-10-13), implemented in M5 by
+[crates/vitryne-format](../crates/vitryne-format/) (reading, writing, validation, migrations) and
+`drape-assets` (`project`: a file to the engine; `convert`: `garment.toml` + DXF to a file).**
 
 A Vitryne file holds a garment project: pattern pieces, how they're sewn, where they start around
 the body, the fabrics, the avatar and the simulation settings, plus optionally a cached drape so
 the file opens without simulating. This document is the specification; the JSON Schemas in
 [format/schema/](format/schema/) are its machine-readable part, and
-[examples/tshirt.vtry/](../examples/tshirt.vtry/) is a complete example.
+[examples/](../examples/) holds three complete projects (T-shirt, trousers, hoodie).
 
 Each section gives the rules, then **Why** for the choices that weren't obvious.
 
@@ -18,8 +19,7 @@ Each section gives the rules, then **Why** for the choices that weren't obvious.
 [Simulation cache](#simulation-cache) · [Versions and migrations](#versions-and-migrations) ·
 [Extensions and future features](#extensions-and-future-features) · [Interop](#interop) ·
 [From garment.toml](#from-garmenttoml) · [Cloud storage](#cloud-storage) ·
-[What M5 has to change in the engine](#what-m5-has-to-change-in-the-engine) ·
-[Decisions](#decisions)
+[In the engine](#in-the-engine) · [Decisions](#decisions)
 
 ## Principles
 
@@ -84,11 +84,12 @@ view.json                         optional: camera
 - **Entity parts live at fixed paths:** a garment with id X is `garments/X.json`. References in
   the JSON are ids; the path follows from the id.
 - **Compression:** writers deflate JSON and store binaries (`.glb` is already compact, and stored
-  entries can be read without inflating).
+  entries can be read without inflating). `vitryne-format` writes fixed timestamps, so the same
+  document always gives the same bytes.
 - **Paths:** relative, `/`-separated, no `..`, case-sensitive.
 - **Folder form:** the same layout unzipped, in a directory named like the file
   (`tshirt.vtry/`), is a valid file too. The repository keeps examples this way so their JSON is
-  diffable; `tools/format/build-examples.sh` packs them.
+  diffable; `tools/format/build-examples.sh` regenerates them and writes the zips.
 
 **Why a zip of parts:** like `.docx` and `.3mf`, it is one file for users, and any tool can open
 it. Per-part JSON gives small diffs and maps directly onto cloud object storage (each part a
@@ -179,7 +180,7 @@ for that, and tools print them (the example's seams are readable through the nod
 ```json
 {
   "id": "01a13cdb-cc01-7c75-b193-e1f5e9b453f4",
-  "name": "T-shirt on the test avatar",
+  "name": "T-shirt (Teagan)",
   "garments": ["01a13cdb-cc02-7918-aa9f-9eb6980dd3b8"],
   "avatar": "01a13cdb-cc04-728e-9afd-3f992133737d",
   "fabrics": ["01a13cdb-cc03-713c-9796-120438b8ba92"],
@@ -362,7 +363,7 @@ side, write its runs the other way.
 - `simulation`: overrides the project's `targetVertices` and `engine`, plus
   **`collisionBounds`** `{min, max}` (mm, avatar space): the box the cloth can reach, where the
   body's collision field is built. Optional; when absent the engine derives one (see
-  [M5](#what-m5-has-to-change-in-the-engine)).
+  [In the engine](#in-the-engine)).
 - `sources[]`: imported originals (`id`, `type` such as `dxf-aama`, `fileName`, optional `part`
   if the original is kept in the container with role `source`). Pieces point back with
   `source: {source, piece}`. For reference and re-import only: nothing is read from a source when
@@ -412,7 +413,7 @@ side, write its runs the other way.
 **Why these quantities:** they're the ones fabric testing reports (tensile, shear and bending
 tests, like KES-F or FAST), and the ones published presets (M9, `docs/FABRICS.md`) will cite.
 They're independent of mesh resolution and of the solver. Anisotropy (warp ≠ weft) is in the
-format from the start, even though the v1 engine is isotropic (see [M5](#what-m5-has-to-change-in-the-engine)).
+format from the start, even though the v1 engine is isotropic (see [In the engine](#in-the-engine)).
 **Why appearance isn't here:** colour and texture change per colourway while the physics stays
 the same. They'll be a separate entity (see [Extensions](#extensions-and-future-features)).
 
@@ -479,7 +480,9 @@ In `project.json` `simulation`, overridable per garment:
   keyed by the engine's own setting names (`drape-core` `SimSettings`, e.g.
   `{"substeps": 30, "self_collision": false}`). **This object uses the engine's units (SI,
   metres) and naming, the one exception to the format's conventions.** Unknown keys are kept
-  and ignored.
+  and ignored (with a warning). Three keys aren't `SimSettings` fields: `schedule` (the
+  garment's sewing and gravity ramp, `drape-core` `Schedule`), and `sdf_cell`, `sdf_band` (the
+  collision field's cell size and band, m). The garment's values win over the project's.
 
 **Why sparse:** a file that doesn't override a value gets the engine's improvements to that
 value, and the file states only what the author chose. Reproducing an exact drape is the cache's
@@ -593,6 +596,8 @@ Converters, not the format:
   `grain`; internal lines → `lines` (both ends and every turn over 15° become nodes). DXF
   quantity gives the default number of cuts. Arcs are imported as chords (as today). Anything
   ignored is reported at import and not stored. The original may be kept as a `source` part.
+  The importer puts every point on the format's 0.001 mm grid, so an imported piece is exactly
+  the piece a saved file holds.
 - **Out: glTF 2.0 and OBJ** (M10): the draped mesh in metres, UVs from pattern coordinates (the
   `_PATTERN` data of the cache), one material per fabric.
 - **Out: DXF-AAMA** (later): re-folds pieces along their `folds` when the halves are still
@@ -600,20 +605,26 @@ Converters, not the format:
 
 ## From garment.toml
 
-The M5 converter (`drape-native convert`) turns each `assets/garments/*/garment.toml` plus its
-DXF into a project, so the three samples become `examples/*.vtry`. The T-shirt example in this
-repository was produced the same way by a throwaway script (geometry from the importer, names
-written by hand) and is what M5's converter must reproduce, up to ids.
+`drape convert <garment.toml> <out.vtry>` (`drape-assets` `convert`) turns a sidecar plus its
+DXF into a project with the test avatar. The three samples in [examples/](../examples/) are its
+output (`tools/format/build-examples.sh`), and `./check.sh` fails if they drift from it. Ids are
+version 7 from a fixed time and the garment's name, so converting again gives the same file.
+Only the DXF pieces the sidecar uses become pieces (the hoodie's waistband, cuffs, binding and
+pocket facing are left out); `--include-dxf` keeps the DXF as a `source` part.
 
 | `garment.toml` | Vitryne file |
 |---|---|
 | `name` | `garment.name` |
 | `dxf`, `units_m` | imported once into pieces (mm); recorded in `garment.sources[]`; the DXF may be kept as a `source` part |
 | `[sdf]` `min`, `max` | `garment.simulation.collisionBounds`, in mm; without `[sdf]`, the engine's default box (`SdfParams::default`), written out so the drape doesn't change |
-| `[sdf]` `cell`, `band` | dropped when they equal the engine defaults (4 mm, 120 mm: true for all three samples), else `garment.simulation.engine` |
+| `[sdf]` `cell`, `band` | dropped when they equal the engine defaults (4 mm, 120 mm: true for all three samples), else `garment.simulation.engine` `sdf_cell`, `sdf_band` (m) |
 | `schedule` | `garment.simulation.engine.schedule` (no sample sets it) |
+| `title`, `[attribution]` | `garment.name` (default: `name`), `garment.attribution` |
+| `[fabric]` `name`, `category`, `notes` | the fabric's (default: a knit placeholder named after the garment) |
+| `[names]` `front = [...]`, `"sleeve:3+0.5" = "..."`, `"front:L0" = [...]` | node names: landmarks in order, a fractional point, an internal line's landmarks |
+| `label` on `[[piece]]`, `[[seam]]` | the cut's and the seam's name (default: `name`) |
 | `[material]` (or the default `Material::cotton`) | a fabric part: `density` as is; `stretch.warp` = `weft` = 2k/√3 and `shear` = 3/8 of that, from `stretch_k` (see below); `bending.warp` = `weft` = `bend_kb`; `friction` = 0.3 (the engine's current value); `category` by sample (T-shirt and hoodie `knit`, trousers `woven`) |
-| `camera = [x, y, z, d]` | `view.json` camera: `target` = (x, y, z) in mm, `distance` = d in mm |
+| `camera = [x, y, z, d]` | `view.json` camera: `target` = (x, y, z) in mm, `distance` = d in mm (the default camera when absent) |
 | `[[piece]]` with the same `dxf` | one **piece**, with one **cut** per `[[piece]]` entry (`name` → cut name) |
 | `mirror` | `cut.mirrored` |
 | `rotate` (degrees) | `cut.placement.rotation` (radians) |
@@ -642,7 +653,10 @@ placeholders under a physical name, not calibrated values (M9 does that).
 each; sleeve with 6 nodes plus the cap-top `point`), 4 cuts (the left sleeve mirrored),
 10 seams. The sidecar's `side_r` (`a = "front:10-11"`, `b = "back:1-2"`, `reverse = true`)
 becomes side a "front, underarm right → hem right side, ccw", side b "back, underarm right → hem
-right side, cw". See [the example](../examples/tshirt.vtry/).
+right side, cw". See [the example](../examples/tshirt.vtry/). (The M4 example was written by a
+script by hand and had one seam wrong: its "left armhole, back" ran counter-clockwise from the
+underarm to the shoulder tip, the long way round the back. The converter writes what the sidecar
+says, shoulder tip to underarm.)
 
 ## Cloud storage
 
@@ -657,23 +671,29 @@ by its SHA-256. That gives, for free:
 Local mode (no backend configured) makes no network calls; the app reads and writes files on the
 user's disk. How accounts and storage work is an app concern (M6 onward), not a format one.
 
-## What M5 has to change in the engine
+## In the engine
 
-Reading this format into the engine needs these changes, which are M5 work:
+What reading a file into the engine takes (`drape-assets` `project`, done in M5):
 
-1. **Fabric from physical values.** `Material` is built from a fabric: k = (√3/2) · mean(warp,
-   weft), `bend_kb` = mean(warp, weft), and `friction` from the fabric. The engine stays
-   isotropic until M9; anisotropy and shear are ignored, and a load warns if warp ≠ weft.
-2. **Region frames from the avatar.** `Frame::named` goes away; frames are built from
-   `avatar.regions` (mm → m).
-3. **One fabric per garment.** The engine takes one `Material` per garment. Per-cut fabrics are
-   in the format; until the engine supports them, a garment whose cuts use different fabrics is
-   refused with a clear message.
-4. **Collision bounds.** Used from `collisionBounds` when present; derived otherwise (the placed
-   garment's bounding box plus a margin). The samples carry theirs, so they drape exactly as now.
-5. **Identical drapes.** The done-when for M5 is that the `.vtry` path drapes like the
-   `garment.toml` path. Rounding to 0.001 mm and the stretch round trip (k → Y → k in f32) are
-   below what the golden suite can see, and M5 checks this.
+1. **Fabric from physical values.** `Material` is built from the fabric: k = (√3/2) · mean(warp,
+   weft), `bend_kb` = mean(warp, weft), and the friction setting from `friction`. The engine
+   stays isotropic until M9; shear is ignored, and opening warns if warp ≠ weft.
+2. **Region frames from the avatar.** Frames are built from `avatar.regions` (mm → m). The test
+   avatar's regions are in `assets/body/avatar.json`, which the `garment.toml` path uses too
+   (`Frame::named` is gone). A garment file (no avatar) is placed on the test avatar.
+3. **One fabric per garment.** The engine takes one `Material` per garment; a garment whose cuts
+   use different fabrics is refused with a clear message until it doesn't.
+4. **Collision bounds.** From `collisionBounds` when present; otherwise the placed garment's
+   bounding box plus 150 mm on every side (not below the floor). The samples carry theirs.
+5. **Identical drapes.** Each cut is a panel (pieces in order, then their cuts), its outline
+   split into edges at every node, so a `.vtry` and the `garment.toml` it came from give the
+   same engine garment, bit for bit (`drape-assets` test `project_matches_sidecar`), and drape
+   the same (`drape regress` and `drape regress --toml` share one set of goldens). Two things
+   made that exact: the importer's 0.001 mm grid (above), and the mesher listing triangles in a
+   canonical order (it used to follow the triangulation library's internal order, which
+   sub-micrometre input changes can reorder, and triangle order is constraint order).
+6. **The avatar mesh** comes from the file's `body.glb`; the drape cache isn't implemented yet
+   (cache parts are kept and written back unread).
 
 ## Decisions
 

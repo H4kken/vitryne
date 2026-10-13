@@ -1,0 +1,17 @@
+[package]
+name = "vitryne-format"
+description = "The Vitryne project file format (.vtry, .vtryg, .vtryf, .vtrya): types, reading and writing, validation, migrations."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }
+sha2 = "0.11"
+# Deflate and Store only (FORMAT.md, Container), in pure Rust so it builds for wasm32.
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[dev-dependencies]
+jsonschema = { version = "0.58", default-features = false }

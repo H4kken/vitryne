@@ -3,9 +3,12 @@
 //! the garment scenes.
 
 pub mod aama;
+pub mod convert;
 pub mod dxf;
 pub mod garment;
 pub mod meshing;
 pub mod pattern;
+pub mod placement;
 pub mod preview;
+pub mod project;
 pub mod tshirt;

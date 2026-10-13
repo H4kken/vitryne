@@ -15,10 +15,14 @@
 //! `drape garment-svg <garment.toml>` draws every piece with its landmark numbers.
 //!
 //! Placement: each piece is wrapped on a cylinder around a body frame (torso, arm_l, arm_r,
-//! longarm_l, longarm_r, leg_l, leg_r, head, head_over; `_l` = the wearer's left = world +X). Pieces are drawn as seen from outside,
-//! right side up, so the piece's x runs around the cylinder and its y along the axis.
+//! bentarm_l, bentarm_r, longarm_l, longarm_r, leg_l, leg_r, head, head_over; `_l` = the
+//! wearer's left = world +X), which are the test avatar's regions under their sidecar names
+//! (`placement::SIDECAR_REGIONS`).
+//!
+//! `drape convert` turns a sidecar and its DXF into a project file (`convert`); the optional
+//! `title`, `[attribution]`, `[fabric]`, `[names]` and `label`s are only used there.
 
-use std::sync::Arc;
+use std::collections::BTreeMap;
 
 use glam::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
@@ -29,6 +33,7 @@ use crate::{
     aama::{self, ImportReport, Piece},
     meshing::{MeshedPattern, mesh_pattern},
     pattern::{EdgeRef, Panel, Pattern, PatternEdge, Seam},
+    placement::{PlaceSpec, default_avatar, place, region_frame, sidecar_region},
     tshirt::{SdfParams, tshirt_schedule},
 };
 
@@ -52,9 +57,50 @@ pub struct GarmentSpec {
     /// Viewer camera target (x, y, z) and distance.
     #[serde(default)]
     pub camera: Option<[f32; 4]>,
+    /// The garment's name in a project file (default: `name`).
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub attribution: Option<AttributionSpec>,
+    /// What the project file says about the fabric (`[material]` gives its physics).
+    #[serde(default)]
+    pub fabric: Option<FabricSpec>,
+    /// Names of the landmarks in a project file, by DXF piece: `front = ["centre front hem",
+    /// ...]` in landmark order, `"sleeve:3+0.5" = "cap top"` for a fractional landmark,
+    /// `"front:L0" = [...]` for the landmarks of internal line 0.
+    #[serde(default)]
+    pub names: BTreeMap<String, Names>,
     pub piece: Vec<PieceSpec>,
     #[serde(default)]
     pub seam: Vec<SeamSpec>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AttributionSpec {
+    pub title: Option<String>,
+    pub creator: Option<String>,
+    /// SPDX licence expression.
+    pub license: String,
+    pub source: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FabricSpec {
+    pub name: String,
+    /// woven | knit | nonwoven
+    pub category: String,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum Names {
+    List(Vec<String>),
+    One(String),
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
@@ -82,6 +128,9 @@ pub struct PieceSpec {
     #[serde(default)]
     pub rotate: f32,
     pub place: Place,
+    /// The cut's name in a project file (default: `name`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -128,6 +177,9 @@ pub struct SeamSpec {
     /// edges (by default equal edge counts are paired edge by edge, so notches meet).
     #[serde(default)]
     pub by_length: bool,
+    /// The seam's name in a project file (default: `name`).
+    #[serde(default)]
+    pub label: Option<String>,
 }
 
 /// One run ("front:3-5") or several, sewn as one chain (e.g. a hood neckline that spans the
@@ -145,162 +197,6 @@ impl Runs {
             Runs::One(r) => vec![r.as_str()],
             Runs::Many(v) => v.iter().map(String::as_str).collect(),
         }
-    }
-}
-
-/// A body frame: origin, axis (towards the top of the pieces), and the angle-0 direction.
-/// A bent frame also has a centreline below the origin (dense samples, see `bent`).
-#[derive(Debug, Clone)]
-struct Frame {
-    o: Vec3,
-    a: Vec3,
-    e0: Vec3,
-    path: Option<Arc<Vec<PathSample>>>,
-}
-
-/// One sample of a bent frame's centreline, every `PATH_STEP` along it from the origin.
-#[derive(Debug, Clone, Copy)]
-struct PathSample {
-    c: Vec3,
-    /// Axis (towards the origin) and angle-0 direction, parallel-transported along the path.
-    a: Vec3,
-    e0: Vec3,
-}
-
-const PATH_STEP: f32 = 0.005;
-
-impl Frame {
-    fn new(o: Vec3, a: Vec3, up_hint: Vec3) -> Self {
-        let a = a.normalize();
-        let e0 = (up_hint - up_hint.dot(a) * a).normalize();
-        Self {
-            o,
-            a,
-            e0,
-            path: None,
-        }
-    }
-
-    /// A frame whose axis follows `pts` (first = origin) below the origin, as a Catmull-Rom
-    /// curve, and continues straight past the last point; straight above the origin.
-    fn bent(pts: &[Vec3], up_hint: Vec3) -> Self {
-        let mut f = Self::new(pts[0], pts[0] - pts[1], up_hint);
-        let p = |i: isize| pts[i.clamp(0, pts.len() as isize - 1) as usize];
-        let mut dense = vec![pts[0]];
-        for i in 0..pts.len() as isize - 1 {
-            let (p0, p1, p2, p3) = (p(i - 1), p(i), p(i + 1), p(i + 2));
-            for k in 1..=20 {
-                let t = k as f32 / 20.0;
-                let (t2, t3) = (t * t, t * t * t);
-                dense.push(
-                    0.5 * (2.0 * p1
-                        + (p2 - p0) * t
-                        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
-                        + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t3),
-                );
-            }
-        }
-        let tail = (pts[pts.len() - 1] - pts[pts.len() - 2]).normalize();
-        dense.push(pts[pts.len() - 1] + tail * 0.3);
-        // Resample at PATH_STEP by arc length, transporting e0 (project the previous e0 onto
-        // the new normal plane; turns are gentle, so this is close to parallel transport).
-        let mut out = vec![PathSample {
-            c: f.o,
-            a: f.a,
-            e0: f.e0,
-        }];
-        let (mut seg, mut u, mut left) = (0usize, 0.0f32, PATH_STEP);
-        while seg + 1 < dense.len() {
-            let (a, b) = (dense[seg], dense[seg + 1]);
-            let l = a.distance(b);
-            if (1.0 - u) * l >= left {
-                u += left / l;
-                left = PATH_STEP;
-                let c = a.lerp(b, u);
-                let ax = (a - b).normalize();
-                let pe = out.last().unwrap().e0;
-                out.push(PathSample {
-                    c,
-                    a: ax,
-                    e0: (pe - pe.dot(ax) * ax).normalize(),
-                });
-            } else {
-                left -= (1.0 - u) * l;
-                seg += 1;
-                u = 0.0;
-            }
-        }
-        f.path = Some(Arc::new(out));
-        f
-    }
-
-    /// Measured on the MakeHuman base mesh (assets/body/README.md, measurements.json).
-    fn named(name: &str) -> Result<Self, String> {
-        let side = if name.ends_with("_l") { 1.0 } else { -1.0 };
-        Ok(match name {
-            "torso" => Self::new(Vec3::new(0.0, 0.0, 0.03), Vec3::Y, Vec3::Z),
-            // From the shoulder joint up the arm; angle 0 = the top of the arm.
-            "arm_l" | "arm_r" => Self::new(
-                Vec3::new(0.182 * side, 1.36, 0.006),
-                -Vec3::new(0.544 * side, -0.837, 0.061),
-                Vec3::Y,
-            ),
-            // Leg axis through the slice centres at y = 0.14 and 0.70, extended to the floor.
-            "leg_l" | "leg_r" => Self::new(
-                Vec3::new(0.240 * side, 0.0, -0.005),
-                Vec3::new(-0.095 * side, 0.56, 0.03),
-                Vec3::Z,
-            ),
-            // Long sleeves: from the shoulder joint towards the wrist (the forearm bends forward
-            // in this A-pose); the arm centreline stays within 6.3 cm of this axis.
-            "longarm_l" | "longarm_r" => Self::new(
-                Vec3::new(0.182 * side, 1.36, 0.006),
-                -Vec3::new(0.543 * side, -0.753, 0.373),
-                Vec3::Y,
-            ),
-            // The arm's centreline, bent at the elbow: shoulder joint, then centroids of slices
-            // perpendicular to the arm (traced on the mesh, S3), to the wrist.
-            "bentarm_l" | "bentarm_r" => Self::bent(
-                &[
-                    [0.182, 1.36, 0.006],
-                    [0.297, 1.179, 0.012],
-                    [0.335, 1.143, 0.048],
-                    [0.366, 1.113, 0.090],
-                    [0.428, 1.058, 0.177],
-                ]
-                .map(|[x, y, z]| Vec3::new(x * side, y, z)),
-                Vec3::Y,
-            ),
-            // Vertical axis through the head (slice centres at y = 1.54-1.58).
-            "head" => Self::new(Vec3::new(0.0, 0.0, 0.055), Vec3::Y, Vec3::Z),
-            // Left-right axis through the head centre: a strip wraps over the top of the head
-            // (angle 0 = top, positive towards the face).
-            "head_over" => Self::new(Vec3::new(0.0, 1.50, 0.055), Vec3::X, Vec3::Y),
-            other => {
-                return Err(format!(
-                    "unknown frame {other} (torso | arm_l | arm_r | longarm_l | longarm_r | bentarm_l | bentarm_r | leg_l | leg_r | head | head_over)"
-                ));
-            }
-        })
-    }
-
-    fn place(&self, angle: f32, radius: f32, along: f32) -> Vec3 {
-        let (c, a, e0) = match &self.path {
-            Some(path) if along < 0.0 => {
-                let x = -along / PATH_STEP;
-                let k = (x.floor() as usize).min(path.len() - 2);
-                let u = (x - k as f32).min(1.0);
-                let (s0, s1) = (path[k], path[k + 1]);
-                (
-                    s0.c.lerp(s1.c, u),
-                    s0.a.lerp(s1.a, u).normalize(),
-                    s0.e0.lerp(s1.e0, u).normalize(),
-                )
-            }
-            _ => (self.o + along * self.a, self.a, self.e0),
-        };
-        let e1 = a.cross(e0);
-        c + radius * (angle.cos() * e0 + angle.sin() * e1)
     }
 }
 
@@ -428,10 +324,9 @@ impl Garment {
                 let l = p.boundary[w[0]].distance(p.boundary[w[1]]);
                 if acc + l >= target {
                     let u = ((target - acc) / l.max(1e-12)).clamp(0.0, 1.0);
-                    marks.push((
-                        t(p.boundary[w[0]].lerp(p.boundary[w[1]], u)),
-                        format!("{k}+{f}"),
-                    ));
+                    // On the format's grid, as `drape convert` stores it.
+                    let q = aama::on_grid(p.boundary[w[0]].lerp(p.boundary[w[1]], u).as_dvec2());
+                    marks.push((t(q), format!("{k}+{f}")));
                     break;
                 }
                 acc += l;
@@ -647,100 +542,44 @@ impl Garment {
         Ok((2.0 * area / (3f32.sqrt() * verts as f32)).sqrt())
     }
 
-    /// Initial placement: every panel wrapped on its cylinder.
-    fn place(&self, mp: &mut MeshedPattern, pat: &Pattern) -> Result<(), String> {
-        struct Resolved {
-            frame: Frame,
-            angle: f32,
-            radius: f32,
-            top: f32,
-            anchor: Vec2,
-            /// Tube radius by pattern y (lo, step, radii); None = constant `radius`.
-            tube: Option<(f32, f32, Vec<f32>)>,
-        }
-        let mut resolved: Vec<Resolved> = Vec::new();
-        for (pi, ps) in self.spec.piece.iter().enumerate() {
-            let outline = pat.panels[pi].outline();
-            let (lo, hi) = outline.iter().fold(
-                (Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)),
-                |(lo, hi), q| (lo.min(*q), hi.max(*q)),
-            );
-            let own_anchor = Vec2::new(0.5 * (lo.x + hi.x), hi.y);
-            let r = match &ps.place.like {
-                Some(other) => {
-                    let k = self
-                        .spec
-                        .piece
-                        .iter()
-                        .position(|p| &p.name == other)
-                        .filter(|&k| k < pi)
-                        .ok_or_else(|| {
-                            format!("{}: like = {other}: must name an earlier piece", ps.name)
-                        })?;
-                    let base = &resolved[k];
-                    Resolved {
-                        frame: base.frame.clone(),
-                        angle: ps.place.angle.map(f32::to_radians).unwrap_or(base.angle),
-                        radius: base.radius + ps.place.lift,
-                        top: base.top,
-                        anchor: base.anchor,
-                        tube: base.tube.clone(),
+    /// Where each panel starts: wrapped around the test avatar's regions (`placement`).
+    fn place_specs(&self) -> Result<Vec<PlaceSpec>, String> {
+        let regions = &default_avatar().regions;
+        self.spec
+            .piece
+            .iter()
+            .map(|ps| {
+                Ok(match &ps.place.like {
+                    Some(other) => PlaceSpec::Follow {
+                        of: self
+                            .spec
+                            .piece
+                            .iter()
+                            .position(|p| &p.name == other)
+                            .ok_or_else(|| format!("{}: like = {other}: no such piece", ps.name))?,
+                        angle: ps.place.angle.map(f32::to_radians),
+                        lift: ps.place.lift,
+                    },
+                    None => {
+                        let need = |v: Option<f32>, what: &str| {
+                            v.ok_or_else(|| format!("{}: place.{what} missing", ps.name))
+                        };
+                        let frame = ps
+                            .place
+                            .frame
+                            .as_deref()
+                            .ok_or_else(|| format!("{}: place.frame missing", ps.name))?;
+                        PlaceSpec::Wrap {
+                            frame: region_frame(regions, sidecar_region(frame)?)?,
+                            angle: ps.place.angle.unwrap_or(0.0).to_radians(),
+                            radius: need(ps.place.radius, "radius")? + ps.place.lift,
+                            top: need(ps.place.top, "top")?,
+                            tube: ps.place.tube,
+                        }
                     }
-                }
-                None => {
-                    let need = |v: Option<f32>, what: &str| {
-                        v.ok_or_else(|| format!("{}: place.{what} missing", ps.name))
-                    };
-                    Resolved {
-                        frame: Frame::named(
-                            ps.place
-                                .frame
-                                .as_deref()
-                                .ok_or_else(|| format!("{}: place.frame missing", ps.name))?,
-                        )?,
-                        angle: ps.place.angle.unwrap_or(0.0).to_radians(),
-                        radius: need(ps.place.radius, "radius")? + ps.place.lift,
-                        top: need(ps.place.top, "top")?,
-                        anchor: own_anchor,
-                        tube: ps.place.tube.map(|ease| {
-                            let radius = ps.place.radius.unwrap_or(0.0) + ps.place.lift;
-                            tube_profile(&outline, lo.y, hi.y, ease, radius)
-                        }),
-                    }
-                }
-            };
-            for v in mp.panel_vertices[pi].clone() {
-                let q = mp.uv[v as usize] - r.anchor;
-                let radius = match &r.tube {
-                    Some((lo, step, radii)) => {
-                        let x = ((mp.uv[v as usize].y - lo) / step)
-                            .clamp(0.0, (radii.len() - 1) as f32);
-                        let k = (x.floor() as usize).min(radii.len() - 2);
-                        radii[k] + (radii[k + 1] - radii[k]) * (x - k as f32)
-                    }
-                    None => r.radius,
-                };
-                mp.mesh.pos[v as usize] =
-                    r.frame.place(r.angle + q.x / radius, radius, r.top + q.y);
-            }
-            // Render-only: front faces point away from the axis (mirrored pieces flip winding).
-            let f = r.frame.clone();
-            let score: f32 = mp.mesh.tris[mp.panel_tris[pi].clone()]
-                .iter()
-                .map(|t| {
-                    let [a, b, c] = t.map(|k| mp.mesh.pos[k as usize]);
-                    let q = (a + b + c) / 3.0 - f.o;
-                    (b - a).cross(c - a).dot(q - q.dot(f.a) * f.a)
                 })
-                .sum();
-            if score < 0.0 {
-                for t in &mut mp.mesh.tris[mp.panel_tris[pi].clone()] {
-                    t.swap(1, 2);
-                }
-            }
-            resolved.push(r);
-        }
-        Ok(())
+            })
+            .collect()
     }
 
     pub fn sdf_params(&self) -> SdfParams {
@@ -764,117 +603,103 @@ impl Garment {
         let gp = self.pattern()?;
         let pat = &gp.pattern;
         let mut mp = mesh_pattern(pat, edge);
-        self.place(&mut mp, pat)?;
+        place(&mut mp, pat, &self.place_specs()?)?;
         let material = self.fabric();
-
-        // Diagnostics: initial seam gaps, both pairing directions (a wrong `reverse` shows up
-        // as the other direction being much shorter), and initial penetration.
-        let pos = &mp.mesh.pos;
-        let gap = |pairs: &[(u32, u32)]| {
-            pairs
-                .iter()
-                .map(|&(i, j)| (pos[i as usize] - pos[j as usize]).length())
-                .sum::<f32>()
-                / pairs.len().max(1) as f32
-        };
-        let mut seam_info = Vec::new();
-        for (s, (_, pairs)) in pat.seams.iter().zip(&mp.seam_pairs) {
-            let mean = gap(pairs);
-            // The other direction: pair a[k] with the b vertex at the mirrored index.
-            let bs: Vec<u32> = pairs.iter().map(|p| p.1).collect();
-            let flipped: Vec<(u32, u32)> = pairs
-                .iter()
-                .zip(bs.iter().rev())
-                .map(|(p, &b)| (p.0, b))
-                .collect();
-            let other = gap(&flipped);
-            if other < 0.5 * mean {
-                log::warn!(
-                    "seam {}: mean initial gap {:.0} mm, but {:.0} mm with `reverse` flipped: check the seam's direction",
-                    s.name,
-                    mean * 1e3,
-                    other * 1e3
-                );
-            }
-            seam_info.push(serde_json::json!({ "seam": s.name, "pairs": pairs.len(), "initial_gap_mean_mm": mean * 1e3, "flipped_gap_mean_mm": other * 1e3,
-                "length_a_m": pat.chain_length(&s.a), "length_b_m": pat.chain_length(&s.b) }));
-        }
-        let gaps: Vec<f32> = mp
-            .sew_pairs
-            .iter()
-            .map(|&(i, j)| (pos[i as usize] - pos[j as usize]).length())
-            .collect();
-        log::info!(
-            "{}: {} verts, {} tris, {} panels, {} seams, {} sew pairs (initial gap max {:.0} mm, mean {:.0} mm)",
-            self.spec.name,
-            mp.mesh.n_verts(),
-            mp.mesh.tris.len(),
-            pat.panels.len(),
-            pat.seams.len(),
-            mp.sew_pairs.len(),
-            gaps.iter().cloned().fold(0.0, f32::max) * 1000.0,
-            gaps.iter().sum::<f32>() / gaps.len().max(1) as f32 * 1000.0,
-        );
-
-        let groups = pat
-            .panels
-            .iter()
-            .zip(&mp.panel_vertices)
-            .map(|(p, r)| (p.name.clone(), r.clone()))
-            .collect();
         let camera = self
             .spec
             .camera
             .map(|c| (Vec3::new(c[0], c[1], c[2]), c[3]))
-            .unwrap_or((Vec3::new(0.0, 1.12, 0.03), 1.5));
-        Ok(GarmentDesc {
-            name: self.spec.name.clone(),
-            description: serde_json::json!({ "garment": self.spec.name, "edge": edge, "dxf": self.spec.dxf, "import": self.report,
-                "pieces": self.spec.piece, "material": { "density": material.density, "stretch_k": material.stretch_k, "bend_kb": material.bend_kb }, "seams": seam_info }),
-            mesh: mp.mesh,
-            sew_pairs: mp.sew_pairs,
-            seams: mp.seam_pairs,
-            groups,
-            schedule: Some(self.spec.schedule.unwrap_or_else(tshirt_schedule)),
-            sdf: self.sdf_params(),
+            .unwrap_or(DEFAULT_CAMERA);
+        let description = serde_json::json!({ "garment": self.spec.name, "edge": edge, "dxf": self.spec.dxf, "import": self.report,
+            "pieces": self.spec.piece, "material": { "density": material.density, "stretch_k": material.stretch_k, "bend_kb": material.bend_kb } });
+        Ok(garment_desc(
+            &self.spec.name,
+            description,
+            pat,
+            mp,
+            Some(self.spec.schedule.unwrap_or_else(tshirt_schedule)),
+            self.sdf_params(),
             camera,
-        })
+        ))
     }
 }
 
-/// Tube radius along a piece (see `Place::tube`): `ease` x width / 2 pi below the widest row,
-/// then linear up to `top_radius` at the top edge. Returns (lo y, step, radius per step).
-fn tube_profile(
-    outline: &[Vec2],
-    lo: f32,
-    hi: f32,
-    ease: f32,
-    top_radius: f32,
-) -> (f32, f32, Vec<f32>) {
-    let n = 200;
-    let step = (hi - lo) / n as f32;
-    let width = |y: f32| {
-        let xs: Vec<f32> = (0..outline.len())
-            .filter_map(|i| {
-                let (a, b) = (outline[i], outline[(i + 1) % outline.len()]);
-                ((a.y - y) * (b.y - y) < 0.0).then(|| a.x + (y - a.y) / (b.y - a.y) * (b.x - a.x))
-            })
-            .collect();
-        xs.iter().cloned().fold(f32::MIN, f32::max) - xs.iter().cloned().fold(f32::MAX, f32::min)
+/// The viewer camera when a garment doesn't give one: target and distance, m.
+pub const DEFAULT_CAMERA: (Vec3, f32) = (Vec3::new(0.0, 1.12, 0.03), 1.5);
+
+/// The engine's description of a meshed, placed garment, after logging the initial seam gaps:
+/// a seam sewn the wrong way round shows up as the opposite pairing being much shorter.
+/// `description` gets the per-seam numbers added under "seams".
+pub(crate) fn garment_desc(
+    name: &str,
+    mut description: serde_json::Value,
+    pat: &Pattern,
+    mp: MeshedPattern,
+    schedule: Option<Schedule>,
+    sdf: SdfParams,
+    camera: (Vec3, f32),
+) -> GarmentDesc {
+    let pos = &mp.mesh.pos;
+    let gap = |pairs: &[(u32, u32)]| {
+        pairs
+            .iter()
+            .map(|&(i, j)| (pos[i as usize] - pos[j as usize]).length())
+            .sum::<f32>()
+            / pairs.len().max(1) as f32
     };
-    let w: Vec<f32> = (0..=n)
-        .map(|k| width(lo + (k as f32 + 0.5).min(n as f32 - 0.5) * step).max(0.0))
+    let mut seam_info = Vec::new();
+    for (s, (_, pairs)) in pat.seams.iter().zip(&mp.seam_pairs) {
+        let mean = gap(pairs);
+        // The other direction: pair a[k] with the b vertex at the mirrored index.
+        let bs: Vec<u32> = pairs.iter().map(|p| p.1).collect();
+        let flipped: Vec<(u32, u32)> = pairs
+            .iter()
+            .zip(bs.iter().rev())
+            .map(|(p, &b)| (p.0, b))
+            .collect();
+        let other = gap(&flipped);
+        if other < 0.5 * mean {
+            log::warn!(
+                "seam {}: mean initial gap {:.0} mm, but {:.0} mm with side b reversed: check the seam's direction",
+                s.name,
+                mean * 1e3,
+                other * 1e3
+            );
+        }
+        seam_info.push(serde_json::json!({ "seam": s.name, "pairs": pairs.len(), "initial_gap_mean_mm": mean * 1e3, "flipped_gap_mean_mm": other * 1e3,
+            "length_a_m": pat.chain_length(&s.a), "length_b_m": pat.chain_length(&s.b) }));
+    }
+    let gaps: Vec<f32> = mp
+        .sew_pairs
+        .iter()
+        .map(|&(i, j)| (pos[i as usize] - pos[j as usize]).length())
         .collect();
-    let widest = (0..=n).max_by(|&i, &j| w[i].total_cmp(&w[j])).unwrap();
-    let r_wide = ease * w[widest] / std::f32::consts::TAU;
-    let radii = (0..=n)
-        .map(|k| {
-            if k <= widest {
-                ease * w[k] / std::f32::consts::TAU
-            } else {
-                r_wide + (top_radius - r_wide) * (k - widest) as f32 / (n - widest) as f32
-            }
-        })
+    log::info!(
+        "{name}: {} verts, {} tris, {} panels, {} seams, {} sew pairs (initial gap max {:.0} mm, mean {:.0} mm)",
+        mp.mesh.n_verts(),
+        mp.mesh.tris.len(),
+        pat.panels.len(),
+        pat.seams.len(),
+        mp.sew_pairs.len(),
+        gaps.iter().cloned().fold(0.0, f32::max) * 1000.0,
+        gaps.iter().sum::<f32>() / gaps.len().max(1) as f32 * 1000.0,
+    );
+    description["seams"] = seam_info.into();
+    let groups = pat
+        .panels
+        .iter()
+        .zip(&mp.panel_vertices)
+        .map(|(p, r)| (p.name.clone(), r.clone()))
         .collect();
-    (lo, step, radii)
+    GarmentDesc {
+        name: name.to_string(),
+        description,
+        mesh: mp.mesh,
+        sew_pairs: mp.sew_pairs,
+        seams: mp.seam_pairs,
+        groups,
+        schedule,
+        sdf,
+        camera,
+    }
 }

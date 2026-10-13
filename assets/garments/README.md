@@ -15,6 +15,9 @@
   Seam allowance 0, so the boundary is the sewing line.
 - **Sidecar:** each `garment.toml` says which pieces are cut, where they start around the avatar,
   and which landmark runs are sewn (DXF carries no sewing information). Draw the landmark
-  numbers with `drape garment-svg out.svg --garment <dir>/garment.toml`.
+  numbers with `drape garment-svg out.svg --garment <dir>/garment.toml`. Its `title`,
+  `[attribution]`, `[fabric]`, `[names]` and `label`s only name things in the project file.
+- **Project files:** `drape convert` turns each sidecar into `examples/<garment>.vtry`
+  (`tools/format/build-examples.sh` does all three); the drapes, benchmarks and goldens use those.
 - **Regenerate:** `cd tools/patterns && npm install && ./export-all.sh`.
 - **Not used:** Hugo's rib waistband, cuffs and neck binding (folded rib knit), and the pocket facing.

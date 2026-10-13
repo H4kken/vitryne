@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/drape-core", "crates/drape-assets", "crates/drape-native", "crates/drape-web"]
+members = [
+    "crates/drape-core",
+    "crates/drape-assets",
+    "crates/drape-native",
+    "crates/drape-web",
+    "crates/vitryne-format",
+]
 
 [workspace.package]
 edition = "2024"
@@ -11,6 +17,7 @@ publish = false
 [workspace.dependencies]
 drape-core = { path = "crates/drape-core" }
 drape-assets = { path = "crates/drape-assets" }
+vitryne-format = { path = "crates/vitryne-format" }
 wgpu = { version = "30.0.1", default-features = false }
 glam = { version = "0.34.1", features = ["bytemuck"] }
 bytemuck = { version = "1.25", features = ["derive"] }

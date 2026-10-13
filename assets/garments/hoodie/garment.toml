@@ -4,6 +4,93 @@
 # pocket facing.
 name = "hoodie-hugo"
 dxf = "hoodie.dxf"
+title = "Hoodie (Hugo)"
+
+[attribution]
+title = "Hugo hoodie"
+creator = "Joost De Cock and FreeSewing contributors"
+license = "MIT"
+source = "https://freesewing.org/designs/hugo"
+notes = "FreeSewing Hugo 4.10.2, drafted at the test avatar's measurements. Not used: the rib waistband, cuffs, neck binding and pocket facing."
+
+# For the project file; [material] (or the default jersey) gives the physics.
+[fabric]
+name = "Cotton jersey (placeholder)"
+category = "knit"
+notes = "The engine's spike-1 placeholder (Material::cotton), not calibrated. Stretch from the per-edge stiffness 1e4 N/m: Y = 2k/sqrt(3), shear = 3Y/8 (triangle lattice, Poisson 1/3)."
+
+# Landmark names for the project file (`drape convert`), in landmark order.
+[names]
+front = [
+  "centre front hem",
+  "pocket line end, left",
+  "hem, left side",
+  "underarm, left",
+  "raglan notch, left",
+  "neck point, left",
+  "centre front neck",
+  "neck point, right",
+  "raglan notch, right",
+  "underarm, right",
+  "hem, right side",
+  "pocket line end, right",
+]
+"front:L0" = [
+  "pocket, hem end, left",
+  "pocket, side corner, left",
+  "pocket, top corner, left",
+  "pocket, top corner, right",
+  "pocket, side corner, right",
+  "pocket, hem end, right",
+]
+back = [
+  "centre back hem",
+  "hem, right side",
+  "underarm, right",
+  "raglan notch, right",
+  "neck point, right",
+  "centre back neck",
+  "neck point, left",
+  "raglan notch, left",
+  "underarm, left",
+  "hem, left side",
+]
+"back:4+0.5" = "back neck, halfway right"
+"back:5+0.5" = "back neck, halfway left"
+sleeve = [
+  "top back corner",
+  "shoulder notch",
+  "top front corner",
+  "front notch",
+  "underarm, front",
+  "cuff, front",
+  "cuff, back",
+  "underarm, back",
+  "back notch",
+]
+pocket = [
+  "centre bottom",
+  "bottom corner, left",
+  "side corner, left",
+  "top corner, left",
+  "centre top",
+  "top corner, right",
+  "side corner, right",
+  "bottom corner, right",
+]
+hoodSide = [
+  "neck, centre front",
+  "face opening top",
+  "neck, centre back",
+  "shoulder notch",
+  "centre front notch",
+]
+hoodCenter = [
+  "back end, left",
+  "back end, right",
+  "front end, right",
+  "front end, left",
+]
 
 # Hips to the top of the head (the hood).
 [sdf]
@@ -26,12 +113,14 @@ place = { frame = "torso", angle = 180, radius = 0.20, top = 1.46 }
 # sleeve is the mirrored one.
 [[piece]]
 name = "sleeve_r"
+label = "right sleeve"
 dxf = "sleeve"
 mirror = true
 place = { frame = "bentarm_r", angle = 0, radius = 0.11, top = 0.10, tube = 1.15 }
 
 [[piece]]
 name = "sleeve_l"
+label = "left sleeve"
 dxf = "sleeve"
 place = { frame = "bentarm_l", angle = 0, radius = 0.11, top = 0.10, tube = 1.15 }
 
@@ -44,17 +133,20 @@ place = { like = "front", lift = 0.012 }
 # wrapped over the top from the back of the neck to the forehead.
 [[piece]]
 name = "hood_r"
+label = "right hood side"
 dxf = "hoodSide"
 place = { frame = "head", angle = -90, radius = 0.13, top = 1.71 }
 
 [[piece]]
 name = "hood_l"
+label = "left hood side"
 dxf = "hoodSide"
 mirror = true
 place = { frame = "head", angle = 90, radius = 0.13, top = 1.71 }
 
 [[piece]]
 name = "hood_centre"
+label = "hood centre"
 dxf = "hoodCenter"
 place = { frame = "head_over", angle = 0, radius = 0.15, top = 0.028 }
 
@@ -74,46 +166,54 @@ place = { frame = "head_over", angle = 0, radius = 0.15, top = 0.028 }
 
 [[seam]]
 name = "side_r"
+label = "right side seam"
 a = "front:9-10"
 b = "back:1-2"
 reverse = true
 
 [[seam]]
 name = "side_l"
+label = "left side seam"
 a = "front:2-3"
 b = "back:8-9"
 reverse = true
 
 [[seam]]
 name = "raglan_front_r"
+label = "right raglan, front"
 a = "sleeve_r:2-4"
 b = "front:7-9"
 
 [[seam]]
 name = "raglan_back_r"
+label = "right raglan, back"
 a = "sleeve_r:7-0"
 b = "back:2-4"
 
 [[seam]]
 name = "raglan_front_l"
+label = "left raglan, front"
 a = "sleeve_l:2-4"
 b = "front:3-5"
 reverse = true
 
 [[seam]]
 name = "raglan_back_l"
+label = "left raglan, back"
 a = "sleeve_l:7-0"
 b = "back:6-8"
 reverse = true
 
 [[seam]]
 name = "underarm_r"
+label = "right underarm seam"
 a = "sleeve_r:4-5"
 b = "sleeve_r:6-7"
 reverse = true
 
 [[seam]]
 name = "underarm_l"
+label = "left underarm seam"
 a = "sleeve_l:4-5"
 b = "sleeve_l:6-7"
 reverse = true
@@ -122,21 +222,25 @@ reverse = true
 # slanted sides to the line's ends; the curved hand openings stay open.
 [[seam]]
 name = "pocket_top"
+label = "pocket top"
 a = "pocket:3-5"
 b = "front:L0:2-3"
 
 [[seam]]
 name = "pocket_bottom"
+label = "pocket bottom"
 a = "pocket:7-1"
 b = "front:11-1"
 
 [[seam]]
 name = "pocket_side_r"
+label = "pocket side, right"
 a = "pocket:1-2"
 b = "front:L0:0-1"
 
 [[seam]]
 name = "pocket_side_l"
+label = "pocket side, left"
 a = "pocket:6-7"
 b = "front:L0:4-5"
 
@@ -144,6 +248,7 @@ b = "front:L0:4-5"
 # back across front, raglan sleeve top and back; the strip's end closes the back neck.
 [[seam]]
 name = "crown_r"
+label = "right crown seam"
 a = "hood_r:1-2"
 b = "hood_centre:1-2"
 reverse = true
@@ -151,24 +256,28 @@ by_length = true
 
 [[seam]]
 name = "crown_l"
+label = "left crown seam"
 a = "hood_l:1-2"
 b = "hood_centre:3-0"
 by_length = true
 
 [[seam]]
 name = "hood_neck_r"
+label = "hood neckline, right"
 a = "!hood_r:2-0"
 b = ["front:6-7", "!sleeve_r:0-2", "back:4-4+0.5"]
 by_length = true
 
 [[seam]]
 name = "hood_neck_l"
+label = "hood neckline, left"
 a = "hood_l:2-0"
 b = ["back:5+0.5-6", "sleeve_l:0-2", "front:5-6"]
 by_length = true
 
 [[seam]]
 name = "hood_neck_centre"
+label = "hood neckline, centre back"
 a = "hood_centre:0-1"
 b = ["back:4+0.5-5", "back:5-5+0.5"]
 by_length = true

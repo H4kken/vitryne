@@ -44,11 +44,11 @@ for g in $garments; do
         [ "${SC:-1}" = 1 ] && sc="--self-collision --self-rebuild 4"
         if [ "$mode" = drape ]; then
           # shellcheck disable=SC2086
-          "$bin" bench --scene garment --garment "assets/garments/$g/garment.toml" --verts "$v" $sc \
+          "$bin" bench --scene garment --garment "examples/$g.vtry" --verts "$v" $sc \
             --record-positions "$@" --out "$f" > /dev/null 2> "$out/$name.log"
         else
           # shellcheck disable=SC2086
-          "$bin" bench-drag --scene garment --garment "assets/garments/$g/garment.toml" --verts "$v" $sc \
+          "$bin" bench-drag --scene garment --garment "examples/$g.vtry" --verts "$v" $sc \
             --seed "$s" "$@" --out "$f" > /dev/null 2> "$out/$name.log"
         fi
       elif [ "$target" = chrome ]; then

@@ -1,0 +1,14 @@
+{
+  "id": "01a13cdb-cc01-7090-882b-68d94f7189b0",
+  "name": "Hoodie (Hugo)",
+  "garments": [
+    "01a13cdb-cc02-7534-b5a3-c1fef1731fbf"
+  ],
+  "avatar": "01a13cdb-cc04-728e-9afd-3f992133737d",
+  "fabrics": [
+    "01a13cdb-cc03-7433-bee6-fababed9f2a8"
+  ],
+  "simulation": {
+    "targetVertices": 10000
+  }
+}

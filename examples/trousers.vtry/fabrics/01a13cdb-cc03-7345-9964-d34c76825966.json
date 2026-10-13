@@ -1,0 +1,17 @@
+{
+  "id": "01a13cdb-cc03-7345-9964-d34c76825966",
+  "name": "Twill (placeholder)",
+  "category": "woven",
+  "density": 0.25,
+  "stretch": {
+    "warp": 1154700.5383792517,
+    "weft": 1154700.5383792517,
+    "shear": 433012.70189221937
+  },
+  "bending": {
+    "warp": 0.00002,
+    "weft": 0.00002
+  },
+  "friction": 0.3,
+  "notes": "Placeholder, not calibrated: a jersey is too soft to hold trousers up on the hips (docs/history/PROGRESS.md S2). Stretch from the per-edge stiffness 1e6 N/m: Y = 2k/sqrt(3), shear = 3Y/8 (triangle lattice, Poisson 1/3)."
+}

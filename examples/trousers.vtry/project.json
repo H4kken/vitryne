@@ -1,0 +1,14 @@
+{
+  "id": "01a13cdb-cc01-735e-a4e4-259773ea1788",
+  "name": "Trousers (Titan)",
+  "garments": [
+    "01a13cdb-cc02-764e-a743-af7aaafb002b"
+  ],
+  "avatar": "01a13cdb-cc04-728e-9afd-3f992133737d",
+  "fabrics": [
+    "01a13cdb-cc03-7345-9964-d34c76825966"
+  ],
+  "simulation": {
+    "targetVertices": 10000
+  }
+}

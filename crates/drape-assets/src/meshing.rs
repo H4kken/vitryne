@@ -261,6 +261,15 @@ pub fn mesh_pattern(pat: &Pattern, h: f32) -> MeshedPattern {
             "{}: boundary vertex left without triangles",
             panel.name
         );
+        // A canonical order (smallest index first, winding kept, then sorted): spade lists faces
+        // in an order that depends on its flip history, which sub-micrometre changes to the
+        // input (the project format's 0.001 mm rounding) can change, and triangle order is
+        // constraint order in the solver.
+        for t in &mut local_tris {
+            let k = (0..3).min_by_key(|&k| t[k]).unwrap();
+            t.rotate_left(k);
+        }
+        local_tris.sort_unstable();
         // Drop unused interior points (none expected), compacting indices.
         let mut remap = vec![u32::MAX; points.len()];
         for (k, p) in points.iter().enumerate() {
