@@ -97,7 +97,7 @@ document changes. What keeps the document from silently going wrong:
 8. **Unsaved work.** A dialog before opening another file, the browser's leave-page prompt, and
    a recovery copy in IndexedDB (never sent anywhere) offered on the next start.
 
-Tests (`app/src/**/*.test.ts`, `npm run check`): every command applies, is accepted by Rust (the
+Tests (`app/src/**/*.test.ts`, `pnpm run check`): every command applies, is accepted by Rust (the
 worker's wasm built for Node) and reverts to the identical document; the store's undo,
 coalescing, rollback, restart and debounce; and fast-check sessions of random edits, undos and
 redos on the three examples, with Rust holding the UI's document after every step and undo-all
@@ -137,7 +137,7 @@ picker) and a file input and a download elsewhere. Folder projects are written l
 ## Checking the editor in a browser
 
 `./check` covers the Rust, the TypeScript and the guardrails, but not a real browser with a GPU.
-Before a milestone, open the app (`cd app && npm run dev`) in Chrome and Safari: open each
+Before a milestone, open the app (`cd app && pnpm run dev`) in Chrome and Safari: open each
 example, drag the cloth, edit a fabric value and undo it, save (unedited, and after edits undone:
 the file must be byte-identical to the example), and reload with unsaved changes to see the
 recovery offer.

@@ -19,5 +19,5 @@
   `[attribution]`, `[fabric]`, `[names]` and `label`s only name things in the project file.
 - **Project files:** `drape convert` turns each sidecar into `examples/<garment>.vtry`
   (`tools/format/build-examples.sh` does all three); the drapes, benchmarks and goldens use those.
-- **Regenerate:** `cd tools/patterns && npm install && ./export-all.sh`.
+- **Regenerate:** `cd tools/patterns && pnpm install && ./export-all.sh`.
 - **Not used:** Hugo's rib waistband, cuffs and neck binding (folded rib knit), and the pocket facing.

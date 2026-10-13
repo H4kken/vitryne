@@ -9,7 +9,7 @@
 #   GARMENTS="tshirt trousers hoodie"  VERTS="10000 20000"  SEEDS="1 2 3 4 5 6" (drag only)
 #   SC=1          self-collision on, rebuilt every 4th substep (SC=0: off)
 #   TARGET=native, or TARGET=chrome: needs the page served with COOP/COEP on PORT (default 5173),
-#                 e.g. `cd app && npm run dev`; QUERY="&ut=0" adds bench.html URL parameters
+#                 e.g. `cd app && pnpm run dev`; QUERY="&ut=0" adds bench.html URL parameters
 #   DRAPE_BIN=target/release/drape (native; built first if it's the default)
 #
 # Output: <out-dir>/<target>_<garment>_<N>k[_s<seed>].json, plus a .log per native run.

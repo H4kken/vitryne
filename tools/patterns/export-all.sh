@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Regenerates the spike-2 test garments (assets/garments/*/*.dxf) from FreeSewing.
-# Needs: cd tools/patterns && npm install
+# Needs: cd tools/patterns && pnpm install
 set -e
 cd "$(dirname "$0")"
 M=../../assets/body/measurements.json

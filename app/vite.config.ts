@@ -35,7 +35,7 @@ const benchSink: Plugin = {
   },
 };
 
-// TUNNEL=1 npm run dev: serve through a Cloudflare quick tunnel (https://*.trycloudflare.com) so
+// TUNNEL=1 pnpm run dev: serve through a Cloudflare quick tunnel (https://*.trycloudflare.com) so
 // another machine can run the bench with WebGPU (it needs https or localhost). Hot reload is off
 // then, because its websocket doesn't go through the tunnel.
 const tunnel = process.env.TUNNEL === '1';

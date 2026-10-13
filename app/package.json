@@ -6,14 +6,14 @@
   "scripts": {
     "wasm": "cd .. && cargo build -p drape-web --target wasm32-unknown-unknown --profile release-wasm && wasm-bindgen --target web --out-dir app/pkg target/wasm32-unknown-unknown/release-wasm/drape_web.wasm && wasm-bindgen --target nodejs --out-dir app/pkg-node target/wasm32-unknown-unknown/release-wasm/drape_web.wasm && node -e \"require('fs').writeFileSync('app/pkg-node/package.json', '{\\\"type\\\": \\\"commonjs\\\"}')\"",
     "assets": "cd .. && cargo build --release -p drape-native && target/release/drape export-app-assets app/public && target/release/drape export-bench-assets app/public/bench-assets",
-    "dev": "npm run wasm && npm run assets && vite",
-    "build": "npm run wasm && npm run assets && tsc -b && vite build",
+    "dev": "pnpm run wasm && pnpm run assets && vite",
+    "build": "pnpm run wasm && pnpm run assets && tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest run",
     "gen:format": "node scripts/gen-format.mjs",
-    "check": "npm run gen:format -- --check && tsc -b && eslint . && vitest run"
+    "check": "pnpm run gen:format --check && tsc -b && eslint . && vitest run"
   },
   "dependencies": {
     "ajv": "8.20.0",
@@ -43,5 +43,6 @@
     "typescript-eslint": "8.71.0",
     "vite": "8.3.1",
     "vitest": "5.0.2"
-  }
+  },
+  "packageManager": "pnpm@10.11.1"
 }

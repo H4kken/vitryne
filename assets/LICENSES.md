@@ -20,7 +20,7 @@ placement sidecars, `body/measurements.json` (measured on the CC0 mesh by
 export-app-assets` and `drape export-bench-assets`.
 
 **Build-time dependencies, not in the repository:** `tools/patterns` drafts the DXFs with the
-FreeSewing npm packages (MIT). Rust crates and npm packages are fetched by `cargo` and `npm`
+FreeSewing npm packages (MIT). Rust crates and npm packages are fetched by `cargo` and `pnpm`
 under their own licences.
 
 ## Adding an asset

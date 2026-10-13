@@ -119,7 +119,7 @@ for (const [p, text] of Object.entries(out)) {
   else writeFileSync(path, text);
 }
 if (stale.length) {
-  console.error(`stale: ${stale.join(', ')} (run: npm run gen:format)`);
+  console.error(`stale: ${stale.join(', ')} (run: pnpm run gen:format)`);
   process.exit(1);
 }
 console.log(check ? 'format types and validators are up to date' : 'wrote ' + Object.keys(out).join(', '));

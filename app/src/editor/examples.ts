@@ -9,7 +9,7 @@ export interface Example {
 
 export async function listExamples(): Promise<Example[]> {
   const r = await fetch(`${import.meta.env.BASE_URL}examples/index.json`);
-  if (!r.ok) throw new Error('the examples are missing (run `npm run assets`)');
+  if (!r.ok) throw new Error('the examples are missing (run `pnpm run assets`)');
   return (await r.json()) as Example[];
 }
 

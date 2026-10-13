@@ -40,7 +40,7 @@ downloads the file.
 ## Try it locally
 
 ```sh
-cd app && npm ci && npm run dev       # then open http://localhost:5173
+cd app && pnpm install --frozen-lockfile && pnpm run dev       # then open http://localhost:5173
 ```
 
 You need Rust, the wasm target, `wasm-bindgen-cli` and Node; see

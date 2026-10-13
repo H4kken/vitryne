@@ -1,6 +1,6 @@
 # Hosting the editor
 
-`cd app && npm run build` writes a static site to `app/dist/`: no server code, nothing to run.
+`cd app && pnpm run build` writes a static site to `app/dist/`: no server code, nothing to run.
 Any static host can serve it, as long as it sends two headers on every response.
 
 ## The two headers

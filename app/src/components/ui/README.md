@@ -27,5 +27,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-Add more with `npx shadcn@4.21.0 add <name>` from `app/`, then fix the `cn` import to
+Add more with `pnpm dlx shadcn@4.21.0 add <name>` from `app/`, then fix the `cn` import to
 `@/lib/utils` if the CLI gets it wrong, and add the two header lines the other files have.

@@ -11,5 +11,6 @@
     "@freesewing/plugin-transform": "4.10.2",
     "@freesewing/teagan": "4.10.2",
     "@freesewing/titan": "4.10.2"
-  }
+  },
+  "packageManager": "pnpm@10.11.1"
 }

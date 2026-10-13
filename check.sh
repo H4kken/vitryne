@@ -3,7 +3,7 @@
 # The local check. It must pass before every milestone commit (there is no CI).
 # usage: ./check [--quick]      --quick: Rust only (fmt, clippy, tests), no web build or regression drapes
 # Needs: cargo with clippy + rustfmt, the wasm32-unknown-unknown target, wasm-bindgen-cli 0.2.129,
-# Node 22+, python3, and a GPU for the drapes. See CONTRIBUTING.md.
+# Node 22+ with pnpm 10, python3, and a GPU for the drapes. See CONTRIBUTING.md.
 set -eu
 cd "$(dirname "$0")"
 
@@ -41,15 +41,15 @@ if [ "$quick" = 1 ]; then
 fi
 
 step "app: wasm, assets, production bundle"
-# npm run build: the wasm (browser + Node), the bundled examples and SDFs, tsc, vite build.
-[ -d app/node_modules ] || (cd app && npm ci)
-(cd app && npm run build)
+# pnpm run build: the wasm (browser + Node), the bundled examples and SDFs, tsc, vite build.
+(cd app && pnpm install --frozen-lockfile)
+(cd app && pnpm run build)
 
 step "app: format types up to date, typecheck, lint, tests"
 # The TypeScript types and validators are generated from docs/format/schema/; the tests run
 # the commands and guardrails against the worker's Rust (Node build of the same wasm),
 # including random edit sessions on the three examples (fast-check).
-(cd app && npm run check)
+(cd app && pnpm run check)
 
 step "tools: syntax check"
 for f in $(git ls-files 'tools/*.mjs'); do node --check "$f"; done

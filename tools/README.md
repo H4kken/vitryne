@@ -12,7 +12,7 @@ which git ignores.
 | [strain.py](bench/strain.py) | Edge-strain tables from drape and drag JSON (`--regions --groups --seams --hotspots`). |
 | [format/validate.py](format/validate.py) | Checks a Vitryne file (`.vtry` zip or folder) against `docs/format/schema/` and the reference rules of [docs/FORMAT.md](../docs/FORMAT.md). Needs `pip install jsonschema`. |
 | [format/build-examples.sh](format/build-examples.sh) | Regenerates `examples/*.vtry` (folder form) from the sample garments' sidecars with `drape convert`, writes the zips to `bench-out/examples/`, and validates both forms. Run it after changing the converter or a sidecar; `./check.sh` fails until you do. |
-| [patterns/](patterns/) | Measures the avatar and drafts the sample garments with FreeSewing into DXF-AAMA (`cd tools/patterns && npm install && ./export-all.sh`). |
+| [patterns/](patterns/) | Measures the avatar and drafts the sample garments with FreeSewing into DXF-AAMA (`cd tools/patterns && pnpm install && ./export-all.sh`). |
 
 ## Examples
 
@@ -20,7 +20,7 @@ which git ignores.
 # Drape matrix, native: 3 garments x {10k, 20k}, self-collision on
 tools/bench/run.sh drape bench-out/drape/native
 
-# The same in Chrome (serve the page first: cd app && npm run dev)
+# The same in Chrome (serve the page first: cd app && pnpm run dev)
 TARGET=chrome tools/bench/run.sh drape bench-out/drape/chrome
 python3 tools/bench/compare.py bench-out/drape/native bench-out/drape/chrome
 
