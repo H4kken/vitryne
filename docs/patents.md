@@ -69,6 +69,11 @@ review.
 6. **Fit stays parametric** (sliders on width, length, sleeve). No automatic grading based on
    avatar strain ratios.
 
+**Decision (2026-10-14, product owner; for counsel to confirm):** an *automatic suggestion* may
+propose a seam made of a chain of runs or ending at a mid-edge `point` node (the hood's crown
+seams, a sleeve cap top). The user only accepts or rejects it; they never place or drag a
+sub-segment endpoint. Rule 1 still binds anything the user picks by hand: whole edges only.
+
 **Not covered by the rules, so allowed:** a seam list showing a static length difference for an
 existing whole-edge seam (see below); suggestions computed from piece geometry; picking whole
 edges by two clicks; a seam highlighted in 2D and 3D.
@@ -88,4 +93,5 @@ the claims above, but confirm it with counsel before shipping it.
 - [ ] Attorney review of rules 1 to 6 against the full claim text.
 - [ ] Read the claims of US20240411956A1 and US20230290100A1.
 - [ ] Wider search beyond CLO (other assignees, EP/KR/CN family members).
+- [ ] Ask counsel whether suggestions that emit chains or mid-edge points (decision above) stay outside the claims.
 - [ ] Decide whether to ask counsel about a prior-art search on the '773 family.
