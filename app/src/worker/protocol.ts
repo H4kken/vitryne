@@ -61,6 +61,8 @@ export type Input =
   /** The scene's colours (`Viewport::set_style`): background, cloth front, cloth back, body. */
   | { kind: 'style'; rgb: number[] }
   | { kind: 'wheel'; steps: number }
+  /** The camera turned by a two-finger trackpad drag, in the same units as a pointer drag (px). */
+  | { kind: 'orbit'; dx: number; dy: number }
   /** `placing`: the cloth stays where it starts while pieces are placed. `seams`: seams drawn on the cloth. */
   | { kind: 'controls'; fast?: boolean; paused?: boolean; placing?: boolean; seams?: boolean; reset?: true }
   /** Shows cut `cut` (panel index) at `placement` (JSON), while placing: a handle being dragged. */

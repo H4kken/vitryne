@@ -46,7 +46,7 @@ type Mode = '3d' | 'flat';
 
 const HINTS: Record<string, string> = {
   '3d:select': 'Select: click a piece, then drag its handles to move it on the body. The drape waits until you pick another tool.',
-  '3d:turn': 'Turn: drag to look around, scroll to zoom.',
+  '3d:turn': 'Turn: drag to look around, scroll to zoom. On a trackpad, drag with two fingers to turn and pinch to zoom.',
   '3d:pinch': 'Pinch: drag the fabric to pull it. It settles when you let go.',
   'flat:select': 'Select: click a piece to pick it, drag its round handle to turn it. Drag the background to look around.',
   'flat:move': 'Move: drag a piece to place it.',

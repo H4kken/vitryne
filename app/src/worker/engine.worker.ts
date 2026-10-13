@@ -327,6 +327,9 @@ function input(m: Input) {
     case 'wheel':
       v.zoom(m.steps);
       return;
+    case 'orbit':
+      v.orbit(m.dx, m.dy);
+      return;
 
     case 'controls':
       if (m.fast !== undefined) v.set_fast(m.fast);

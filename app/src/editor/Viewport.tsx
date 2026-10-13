@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The 3D view: a canvas whose drawing is handed to the engine worker. Pointer input goes to
 // the worker with the active tool (turn: orbit; pinch: pull the cloth, or orbit off it;
-// select: pick a piece with a click, orbit with a drag).
+// select: pick a piece with a click, orbit with a drag). On a trackpad a two-finger drag turns
+// the camera and a pinch zooms, whatever the tool.
 
 import { useEffect, useRef } from 'react';
 import type { PointerTool } from '@/worker/protocol';
@@ -37,9 +38,18 @@ function ViewportCanvas({ session, tool }: { session: EngineSession; tool: Point
       session.resize(s.width, s.height);
     });
     ro.observe(canvas);
+    // A wheel notch zooms. On a trackpad a two-finger drag turns the camera and a pinch (which
+    // browsers send as a wheel with ctrl held) zooms. Trackpads send small, often fractional
+    // deltas or sideways ones; a wheel notch is a big, whole, vertical one.
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
-      session.wheel(-e.deltaY / 100);
+      if (e.ctrlKey) {
+        session.wheel(-e.deltaY / 15);
+        return;
+      }
+      const trackpad = e.deltaMode === 0 && (e.deltaX !== 0 || Math.abs(e.deltaY) < 50 || !Number.isInteger(e.deltaY));
+      if (trackpad) session.orbit(-e.deltaX, -e.deltaY);
+      else session.wheel(-e.deltaY / 100);
     };
     canvas.addEventListener('wheel', wheel, { passive: false });
     return () => {

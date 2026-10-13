@@ -302,6 +302,11 @@ export class EngineSession {
     this.client?.send({ kind: 'wheel', steps });
   }
 
+  /** Turns the camera, as a pointer drag of (`dx`, `dy`) px would. */
+  orbit(dx: number, dy: number) {
+    this.client?.send({ kind: 'orbit', dx, dy });
+  }
+
   setControls(c: Partial<EngineState['controls']>) {
     this.set({ controls: { ...this.state.controls, ...c } });
     this.client?.send({ kind: 'controls', ...c });
