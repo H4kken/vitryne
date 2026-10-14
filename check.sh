@@ -55,6 +55,13 @@ step "tools: syntax check"
 for f in $(git ls-files 'tools/*.mjs'); do node --check "$f"; done
 echo ok
 
+step "cloud: syntax check"
+# The backend and the web image are checked by tests/cloud/ and deploy/smoke.sh (they need
+# Docker and the local Supabase stack; docs/CLOUD.md, Checking).
+for f in $(git ls-files 'tests/cloud/*.mjs' 'app/scripts/*.mjs'); do node --check "$f"; done
+for f in $(git ls-files 'deploy/*.sh'); do bash -n "$f"; done
+echo ok
+
 step "example projects are up to date"
 # examples/*.vtry are `drape convert` output; after a change to the converter or a sidecar,
 # run tools/format/build-examples.sh and commit the result.

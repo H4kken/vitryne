@@ -32,6 +32,9 @@ export function StartScreen(props: {
   onOpenFolder: (() => void) | null;
   busy: string | null;
   banner?: React.ReactNode;
+  /** Cloud mode: the account button, and the person's cloud projects if they have any. */
+  account?: React.ReactNode;
+  cloudProjects?: React.ReactNode;
 }) {
   const [examplesOpen, setExamplesOpen] = useState(true);
   return (
@@ -40,7 +43,7 @@ export function StartScreen(props: {
         <Logo />
         <span className="font-display text-xl font-bold tracking-[-0.01em]">Vitryne</span>
         <span className="grow" />
-        <span className="text-muted-foreground text-sm">Free · runs in your browser · no account</span>
+        {props.account ?? <span className="text-muted-foreground text-sm">Free · runs in your browser · no account</span>}
       </div>
       {props.banner}
 
@@ -93,6 +96,15 @@ export function StartScreen(props: {
           <button type="button" onClick={props.onOpenFolder} className="text-muted-foreground hover:text-foreground text-sm underline underline-offset-4">
             Open a project saved as a folder
           </button>
+        </div>
+      )}
+
+      {props.cloudProjects && (
+        <div className="mx-auto w-full max-w-[1120px] px-8 pt-1 pb-4">
+          <div className="flex flex-col gap-2 rounded-[20px] border border-[#E1E4DE] bg-white p-5 shadow-[0_2px_8px_rgba(20,24,31,.04)]">
+            <span className="text-muted-foreground text-sm font-semibold tracking-[0.06em] uppercase">Your cloud projects</span>
+            {props.cloudProjects}
+          </div>
         </div>
       )}
 

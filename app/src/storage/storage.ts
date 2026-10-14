@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Where projects are opened from and saved to (docs/ARCHITECTURE.md, Storage). The editor only
-// talks to `ProjectStorage`; this file has the local one (M12 adds a cloud one beside it):
+// talks to `ProjectStorage`; this file has the local one (the cloud one is src/cloud/, M12):
 // the File System Access API where the browser has it (Chrome, Edge: save in place, folders),
 // else a file input to open and a download to save (Firefox, Safari).
 
+import type { CloudRef } from '@/cloud/projects';
 import type { FileData } from '@/worker/protocol';
 
 export interface FileRef {
@@ -11,6 +12,8 @@ export interface FileRef {
   form: FileData['form'];
   /** Where to save in place, when the browser gave us one. */
   handle?: FileSystemFileHandle | FileSystemDirectoryHandle;
+  /** A cloud project (always the folder form): saves go back to it. */
+  cloud?: CloudRef;
 }
 
 export interface Opened {

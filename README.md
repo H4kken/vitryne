@@ -9,7 +9,8 @@ sew it, pick a fabric, and watch it drape in 3D, on your own GPU, for free.
 
 Vitryne runs a real-time GPU cloth solver (XPBD) directly in your web browser using WebGPU and
 WebAssembly, backed by the same Rust codebase and WGSL shaders that run natively. Everything stays
-on your machine: no accounts, no cloud servers, and no telemetry.
+on your machine: no account needed, and no telemetry. Cloud storage is optional, on an instance
+anyone can run ([docs/CLOUD.md](docs/CLOUD.md)).
 
 ---
 
@@ -133,6 +134,20 @@ cargo run --release -p drape-native -- bench --scene garment --garment examples/
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, code formatting, and sign-off rules.
+
+### Hosting, with or without accounts
+
+One command runs the editor (no account, nothing stored server-side):
+
+```sh
+docker compose -f deploy/docker-compose.yml up -d --build    # then open http://localhost:8000
+```
+
+Set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in `deploy/.env` to add optional accounts and cloud
+storage on a Supabase project (anonymous first, email later, data export and account deletion
+built in). See [docs/CLOUD.md](docs/CLOUD.md) for the backend, running it on a domain or Coolify,
+and developing with a local Supabase (`pnpm run dev:cloud`). Any other static host works too
+([docs/HOSTING.md](docs/HOSTING.md)).
 
 ---
 

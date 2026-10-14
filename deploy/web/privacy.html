@@ -1,0 +1,148 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later
+     The privacy policy of a Vitryne instance with cloud storage (docs/CLOUD.md). Caddy fills in
+     OPERATOR_NAME, OPERATOR_CONTACT and OPERATOR_HOSTING from deploy/.env.
+     Operators: read it against what your instance actually does (your mail provider, your logs,
+     your host) and have it reviewed before you open the instance to the public. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy policy · Vitryne</title>
+    <style>
+      :root {
+        --bg: #f4f4f1;
+        --fg: #14181f;
+        --muted: #5a6054;
+        --line: #e1e4de;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14181f;
+          --fg: #eef0eb;
+          --muted: #a9b0a3;
+          --line: #2c323b;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.6 system-ui, -apple-system, sans-serif;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 48px 16px 80px;
+      }
+      h1 {
+        font-size: 36px;
+        line-height: 1.1;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 20px;
+        margin: 36px 0 8px;
+      }
+      p,
+      li {
+        color: var(--fg);
+      }
+      .muted {
+        color: var(--muted);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 15px;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 8px 8px 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy policy</h1>
+      <p class="muted">
+        This instance of Vitryne is run by {{if env "OPERATOR_NAME"}}{{env "OPERATOR_NAME"}}{{else}}its operator{{end}}{{if env "OPERATOR_CONTACT"}}
+        (contact: {{env "OPERATOR_CONTACT"}}){{end}}, who is responsible for the data described here.
+      </p>
+
+      <h2>Without the cloud, nothing leaves your browser</h2>
+      <p>
+        Vitryne runs in your browser. Opening examples, importing patterns, designing, saving to your computer and exporting send nothing to us: your
+        patterns and garments stay on your device. There is no analytics, no tracking, no advertising and no cookie. While you work, an unsaved copy
+        of your project is kept in your browser's storage so a crash loses nothing; it never leaves your device.
+      </p>
+
+      <h2>When you save to the cloud</h2>
+      <p>Only if you choose <em>Save to the cloud</em> or sign in, we store:</p>
+      <table>
+        <tr>
+          <th>What</th>
+          <th>Why</th>
+          <th>How long</th>
+        </tr>
+        <tr>
+          <td>Your projects (the pattern pieces, seams, fabrics and avatar in them, and their names)</td>
+          <td>To keep them for you and open them on your devices</td>
+          <td>Until you delete them or your account</td>
+        </tr>
+        <tr>
+          <td>An account identifier, created the first time you save to the cloud</td>
+          <td>To know which projects are yours</td>
+          <td>Until you delete your account</td>
+        </tr>
+        <tr>
+          <td>Your email address and a password (stored only as a hash), if you create an account; or, if you sign in with Google, the email address and name Google shares</td>
+          <td>To let you sign in and open your projects elsewhere, and to send you the codes that confirm your address or reset your password</td>
+          <td>Until you delete your account</td>
+        </tr>
+        <tr>
+          <td>Sign-in records: when you signed in, and the IP address used</td>
+          <td>To keep accounts secure and to limit abuse (for example, how many new accounts one network creates per hour)</td>
+          <td>As long as the account exists</td>
+        </tr>
+      </table>
+      <p>
+        Your browser keeps your sign-in session in its local storage, which is needed for the cloud features you asked for. How much each person
+        can store is shown in their account (the <em>Cloud</em> button).
+      </p>
+      <p>
+        We use this data only to provide cloud storage to you (the legal basis is our agreement with you to provide that service, GDPR art. 6(1)(b),
+        and, for the sign-in records, our legitimate interest in keeping the service secure, art. 6(1)(f)). We don't sell it, don't use it for
+        advertising, and don't count or profile visitors.
+      </p>
+
+      <h2>Where it is stored, and who else handles it</h2>
+      <p>
+        {{if env "OPERATOR_HOSTING"}}The data is stored on servers in {{env "OPERATOR_HOSTING"}}.{{else}}The data is stored on the operator's
+        servers.{{end}} The codes are sent through an email provider, which handles your email address for that purpose only. If you sign in with Google, Google tells us who you are; what Google itself does is covered by its own privacy policy.
+      </p>
+
+      <h2>Your rights</h2>
+      <ul>
+        <li><strong>See and take your data:</strong> in Vitryne, open <em>Cloud</em> and choose <em>Download all my data</em>: every project as a file, and what your account holds.</li>
+        <li><strong>Delete it:</strong> <em>Cloud</em>, then <em>Delete my account</em> removes your account, your projects and their files at once.</li>
+        <li><strong>Correct it, restrict or object to its use:</strong> write to {{if env "OPERATOR_CONTACT"}}{{env "OPERATOR_CONTACT"}}{{else}}the operator{{end}}.</li>
+        <li>
+          <strong>Complain:</strong> you can contact your data protection authority (in France, the CNIL, <a href="https://www.cnil.fr">cnil.fr</a>).
+        </li>
+      </ul>
+
+      <h2>Open source</h2>
+      <p>
+        Vitryne is free software (AGPL-3.0-or-later): anyone can read exactly what it does, or run their own instance. What you design with it is
+        yours.
+      </p>
+    </main>
+  </body>
+</html>

@@ -989,3 +989,94 @@ We validated the end-to-end journey specified in the MVP plan using only the REA
 
 
 
+
+## M12 — Cloud backend and self-hosting (2026-10-15, waiting for review)
+
+**Done-when** ("from a fresh clone, `docker compose up` gives a working instance; a project saved
+to the cloud anonymously reopens after upgrading to an account, in another browser; the RLS tests
+pass; the static build with no `config.json` still works fully local; `./check.sh` passes, plus a
+documented compose smoke test"):
+
+| Criterion | Status |
+|---|---|
+| Fresh clone → `docker compose up` works | **Met, except the first build.** `deploy/docker-compose.yml` is one `web` service built from the checkout; the image (272 MB) runs in local mode with no settings and in cloud mode with `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` (checked with the quick `from-dist` build, `deploy/smoke.sh`). The `from-source` build Compose runs wasn't run end to end here (~10 GB of Docker disk). |
+| Anonymous save reopens in another browser after upgrading | **Met** in real Chrome (`tests/cloud/browser.mjs cloud`), the editor on :8000 talking to the local Supabase on :54321 (cross-origin, under COEP): profile A opens the T-shirt, saves it to the cloud with no account, creates an account (email, password, the emailed code); profile B signs in with the password and opens it, draping. |
+| RLS tests pass | **Met**: 12/12 (`tests/cloud/rls.test.mjs`) on the local Supabase stack, plus the account tests (anonymous → account with the same projects, password sign-in elsewhere, wrong password, taken email, password reset by code, short passwords): 14/14. |
+| No `config.json` → fully local | **Met**: `tests/cloud/browser.mjs local` against the image with no settings: 15 requests, all same-origin, no Supabase chunk, no cloud UI. |
+| Smoke test | **Met**: `deploy/smoke.sh` (headers, local mode, cloud mode, migrations at start agreeing with the CLI, the 14 backend tests). The migrations at start also applied the schema to a database the CLI had never touched (then `supabase migration list` showed it applied). |
+| `./check.sh` | **Met**: all passed (Rust, web build, 53 app tests including the 13 cloud ones, golden drapes unchanged), with a new syntax step for `deploy/`, `tests/cloud/` and `app/scripts/`. |
+
+### Shape (after review of a first version)
+
+The first version ran a Supabase subset inside our compose, behind Caddy as the API gateway, with
+our own secrets script and Mailpit. Reworked after review to follow Twenty's model:
+
+- **Plug and go = one container** (Caddy + the static editor + psql), built from the checkout:
+  `docker compose … up -d --build`. No published image and no versioning for now (your call:
+  revisit once the MVP is out). The backend is a Supabase project (yours: the free plan); the
+  browser only gets the URL and the publishable key.
+- **Migrations at start** when `SUPABASE_DB_URL` is set (Twenty's server does the same),
+  recorded where the Supabase CLI records them, so `supabase db push` is the other way in.
+- **Development = native app + Supabase CLI stack** (`pnpm run dev:cloud`): Postgres, Auth, REST,
+  Storage, **Studio** (:54323) and **Mailpit** (:54324), from `supabase/config.toml`. The CLI is
+  pinned in `app/` (2.118.0).
+
+### What changed
+
+| Path | What |
+|---|---|
+| `supabase/` | `migrations/20261014000000_cloud_storage.sql` (projects, the private `parts` bucket, RLS, quota and project limit, `my_usage`, `my_unused_parts`, `delete_my_account`), `templates/` (code emails), `config.toml` (anonymous sign-ins, confirmations on, code emails, Realtime/Edge/analytics off). |
+| `deploy/` | `docker-compose.yml` (one `web` service, built from the checkout), `web/` (Caddyfile, Dockerfile `from-source`/`from-dist`, `entrypoint.sh`, privacy page), `.env.example`, `smoke.sh`. |
+| `tests/cloud/` | `rls.test.mjs`, `accounts.test.mjs`, `browser.mjs`, `instance.mjs` (the local stack, or `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `MAILPIT_URL`). |
+| `app/src/cloud/` | `config.ts`, `backend.ts`, `supabase.ts` (lazy chunk), `projects.ts` (content-addressed save/open/download/export/delete/move), `zip.ts`, `useCloud.ts`, `CloudDialogs.tsx`; tests `projects.test.ts`, `config.test.ts` (13, on an in-memory backend and the worker's Rust). |
+| `app/src/editor/` | Cloud button, *Save to the cloud* / *Save a copy* / *Open from the cloud…*, "Your cloud projects" on the start screen; cloud projects save back to themselves; the recovery copy remembers them. |
+| `app/` | `pnpm run dev:cloud`, `pnpm run supabase …`; `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY` serve `/config.json` in dev. |
+| `docs/CLOUD.md` | Modes, running, backend setup (hosted steps), developing, design, security, privacy, checks, publishing. HOSTING, FORMAT, ARCHITECTURE and README point to it. |
+
+### Decisions
+
+- **Parts deduplicated per person, not across people:** a shared hash namespace lets anyone who
+  knows a hash read or poison a part. Cost: one avatar (~0.5 MB) per person.
+- **Email and password, or Google** (your choice after review): the anonymous user becomes the
+  account (same id, same projects). Emails carry a 6-digit code typed in the editor (confirming
+  the address, resetting a password), never a link, so nothing leaves the page while work is
+  unsaved; Google is a redirect, after the unsaved-changes question.
+- **Revision check on save:** a save from another tab or browser in between is reported, never
+  overwritten.
+- **Parts up to 50 MB:** the hosted free plan's per-file limit.
+- **Growth metrics: none in the browser** (docs/CLOUD.md, Privacy). **For your review.**
+
+### Plan rules this changes
+
+- *Hosting:* the plan had "an optional backend (self-hosted Supabase) … the same repo self-hosts
+  with `docker compose up`". Now: the repo's compose runs the editor; the backend is any Supabase
+  project (hosted for the main instance, or self-hosted), schema from `supabase/migrations/`.
+- *Privacy:* local mode: no accounts, no telemetry, no network calls except loading the app and
+  its assets (`config.json` included). Cloud mode: calls only for features the person uses, never
+  telemetry; the only browser storage it adds is the session; no identifier to count people.
+  Saving to disk and exporting never need an account.
+
+### Numbers
+
+- T-shirt in the cloud: 6 parts, 515 KB (482 KB of it the avatar). Saving again after a fabric
+  edit uploads 1 part and the row; a second project with the same avatar uploads only its own parts.
+- Cloud code: 57 KB gzipped, a separate chunk; local mode loads none of it.
+- Web image: 272 MB (Caddy, psql, the editor with its three examples' SDFs).
+- The publishable key (`sb_publishable_…`) works in the editor and the tests, sent as `apikey` only.
+- Local Supabase stack: ~4 GB of images, first start a few minutes.
+
+### Open items
+
+- **Before the MVP release: refactor the cloud setup** (agreed 2026-10-15, kept as is for now):
+  the account emails (6-digit codes vs Supabase's default links vs no confirmation, and with it
+  `supabase/templates/`), trimming `supabase/config.toml` to the settings we change (and
+  whether `supabase config push` replaces the dashboard steps), and versioning or publishing
+  the web image.
+
+- **The main instance (free Supabase project):** apply the schema, allow anonymous sign-ins and
+  manual linking, password length 8, Google OAuth client, an SMTP provider and the three email
+  templates, the domain; review the privacy policy and sign Supabase's DPA. The free plan pauses
+  a project after a week without activity and keeps no backups.
+- **Google sign-in untested end to end** (needs an OAuth client): built against Supabase's API, the button only shows when the project has Google on.
+- Stale anonymous users are never cleaned up; changing an account's email in the editor.
+- The `from-source` image build not run end to end; Safari and Firefox not tried with cloud mode.

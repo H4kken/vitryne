@@ -4,6 +4,7 @@
 // nothing. Opened again, the editor offers it back. One record per tab; a clean document or a
 // save removes the tab's record.
 
+import type { CloudRef } from '@/cloud/projects';
 import type { FileData } from '@/worker/protocol';
 
 export interface Recovery {
@@ -16,6 +17,8 @@ export interface Recovery {
   current: string;
   /** Never saved to a file (an imported pattern): recovered, it still needs saving. */
   unsaved?: boolean;
+  /** Opened from the cloud: recovered, it still saves back to that project. */
+  cloud?: CloudRef;
   at: number;
 }
 

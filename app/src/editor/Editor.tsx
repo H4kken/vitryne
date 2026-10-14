@@ -7,7 +7,7 @@
 // selected one's handles.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ellipsis, FastForward, Link2, Pause, Play, RotateCcw, Shapes, SlidersHorizontal, X } from 'lucide-react';
+import { Cloud as CloudIcon, Ellipsis, FastForward, Link2, Pause, Play, RotateCcw, Shapes, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -19,6 +19,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { AccountDialog, CloudProjectList, CloudProjectsDialog } from '@/cloud/CloudDialogs';
+import { moveProjects } from '@/cloud/projects';
+import { useCloud } from '@/cloud/useCloud';
 import { type Addition, addPieces, addSeam, findCut, setLayout, setPlacement, type Bounds } from '@/document/commands';
 import { mainGarment } from '@/document/entities';
 import type { Placement } from '@/format/schema.gen';
@@ -72,7 +75,52 @@ export function Editor() {
   const store = useMemo(() => new DocumentStore(session), [session]);
   const storage = useMemo(() => new LocalStorage(), []);
   const doc = useDocument(store);
-  const files = useFiles(session, store, storage, doc);
+  const cloud = useCloud();
+  const files = useFiles(session, store, storage, doc, cloud);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [cloudOpen, setCloudOpen] = useState(false);
+  const [googleError, setGoogleError] = useState<{ code: string; message: string } | null>(null);
+
+  // Back from Google: say what went wrong, or finish what was left to do (move an anonymous
+  // user's projects into the account reached, reopen the cloud project that was open).
+  const cloudBackend = cloud?.backend;
+  const cloudRefresh = cloud?.refresh;
+  const userId = cloud?.user?.id;
+  const filesNow = useRef(files);
+  useEffect(() => {
+    filesNow.current = files;
+  });
+  useEffect(() => {
+    if (!cloudBackend || !cloudRefresh) return;
+    void cloudBackend().then(async (b) => {
+      if (!b.returned) return;
+      b.returned = false;
+      if (b.returnError) {
+        setGoogleError(b.returnError);
+        setAccountOpen(true);
+        return;
+      }
+      const stash = b.takeReturn();
+      if (!stash || !b.user()) return;
+      const from = b.fromStash(stash);
+      if (from) {
+        const r = await moveProjects(from, b);
+        cloudRefresh();
+        const { showInfo } = filesNow.current;
+        if (r.failed.length) showInfo(`Signed in. These projects could not be moved from this browser and stay there: ${r.failed.join(', ')}.`);
+        else if (r.moved) showInfo(`Signed in. ${r.moved} project${r.moved === 1 ? '' : 's'} from this browser moved to your account.`);
+      } else if (stash.reopen) {
+        filesNow.current.openCloud(stash.reopen);
+      }
+    }, () => undefined);
+    // `userId`: run again once the session from the URL is in.
+  }, [cloudBackend, cloudRefresh, userId]);
+
+  const continueWithGoogle = (signIn: boolean) => {
+    if (!cloud) return;
+    setGoogleError(null);
+    files.leavePage(async () => (await cloud.backend()).continueWithGoogle({ signIn, reopen: files.ref?.cloud?.id }));
+  };
   const [mode, setMode] = useState<Mode>('3d');
   const [panel, setPanel] = useState<PanelId | null>('fabric');
   const [tool, setTool] = useState<PointerTool>('turn');
@@ -404,6 +452,7 @@ export function Editor() {
           {mode === '3d' ? <FlatIcon /> : <CubeIcon />}
           {mode === '3d' ? 'Show flat pieces' : 'Show 3D'}
         </Button>
+        {cloud && <CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />}
         <Button onClick={() => void files.save()} disabled={doc.empty || !!files.busy}>
           Save
         </Button>
@@ -422,6 +471,21 @@ export function Editor() {
             <DropdownMenuItem disabled={doc.empty} onSelect={() => void files.saveAs()}>
               Save as… <DropdownMenuShortcut>⇧{MOD}S</DropdownMenuShortcut>
             </DropdownMenuItem>
+            {cloud && (
+              <>
+                <DropdownMenuSeparator />
+                {files.ref?.cloud ? (
+                  <DropdownMenuItem disabled={doc.empty} onSelect={() => void files.saveCopyToCloud()}>
+                    Save a copy to the cloud
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem disabled={doc.empty} onSelect={() => void files.saveToCloud()}>
+                    Save to the cloud
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => setCloudOpen(true)}>Open from the cloud…</DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={doc.empty} onSelect={() => setExporting(true)}>
               Export 3D model…
@@ -630,6 +694,12 @@ export function Editor() {
           onImport={() => dxfInput.current?.click()}
           dropProps={dropProps}
           onOpenFolder={storage.opensFolders ? () => files.openFolder() : null}
+          account={cloud ? <CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} /> : null}
+          cloudProjects={
+            cloud?.user && cloud.projects?.length ? (
+              <CloudProjectList cloud={cloud} projects={cloud.projects} busy={!!files.busy} onOpen={(id) => files.openCloud(id)} />
+            ) : null
+          }
           banner={
             <>
               {recoveryBanner}
@@ -673,6 +743,25 @@ export function Editor() {
         session={session}
         garmentName={doc.entities.project?.name ?? garment?.name ?? 'garment'}
       />
+
+      {cloud && (
+        <>
+          {accountOpen && (
+            <AccountDialog
+              cloud={cloud}
+              open
+              onOpenChange={(o) => {
+                setAccountOpen(o);
+                if (!o) setGoogleError(null);
+              }}
+              onInfo={files.showInfo}
+              onGoogle={continueWithGoogle}
+              returnError={googleError}
+            />
+          )}
+          <CloudProjectsDialog cloud={cloud} open={cloudOpen} onOpenChange={setCloudOpen} busy={!!files.busy} onOpen={(id) => files.openCloud(id)} />
+        </>
+      )}
 
       <Dialog open={!!files.unsaved} onOpenChange={(open) => !open && files.unsaved?.cancel()}>
         <DialogContent className="rounded-[20px] p-6">
@@ -721,6 +810,22 @@ function StatusPill({ engine, mode, placing }: { engine: EngineState; mode: Mode
         </span>
       </TooltipTrigger>
       <TooltipContent>{detail}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** The cloud account, in the top bar and on the start screen (cloud mode only). */
+function CloudButton(props: { user: { email: string | null; anonymous: boolean } | null; onClick: () => void }) {
+  const label = props.user?.email ?? (props.user ? 'Cloud' : 'Sign in');
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" className="max-w-[220px] gap-1.5 px-3 font-medium" onClick={props.onClick}>
+          <CloudIcon />
+          <span className="truncate max-sm:hidden">{label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{props.user?.anonymous ? 'Cloud projects in this browser: add your email to keep them' : 'Cloud account'}</TooltipContent>
     </Tooltip>
   );
 }

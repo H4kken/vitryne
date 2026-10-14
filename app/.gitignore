@@ -9,3 +9,6 @@
 /public/sdf
 /public/avatar
 /public/bench-assets
+# Local settings (cloud mode in development: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY).
+.env.local
+.env.*.local

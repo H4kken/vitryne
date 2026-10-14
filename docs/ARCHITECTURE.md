@@ -251,11 +251,19 @@ The native CLI uses the same key for its cache in `target/sdf-cache/`.
 
 ### Storage
 
-`app/src/storage/storage.ts` defines `ProjectStorage`; the editor uses nothing else to open or
-save, so a cloud storage (M12) can sit beside the local one. The local one uses the File System
+`app/src/storage/storage.ts` defines `ProjectStorage`, the local storage: the File System
 Access API where the browser has it (save in place, folder projects through a directory
 picker) and a file input and a download elsewhere. Folder projects are written like
 `container::write_dir`: parts, then the manifest, then removal of the parts that are gone.
+
+Cloud storage (M12, [CLOUD.md](CLOUD.md)) sits beside it in `app/src/cloud/`, and only in cloud
+mode (a `config.json` naming a backend; `useCloud` is null otherwise). A cloud project is a
+`FileRef` with a `cloud` field (id, revision, the part hashes the backend holds); `useFiles`
+saves it by asking the worker for the folder form, as for a folder project, and
+`cloud/projects.ts` turns that into content-addressed parts and a row. The rules of the local
+save hold: only a document Rust validated is written, and a save is reported done once the
+backend has every part and the row. `projects.ts` talks to a `CloudBackend` interface
+(`backend.ts`), so its tests run on an in-memory backend and the real Rust validation.
 
 ## Checking the editor in a browser
 

@@ -1,0 +1,14 @@
+target
+bench-out
+.gstack
+**/node_modules
+app/dist/bench-assets
+app/pkg
+app/pkg-node
+app/public/sdf
+app/public/examples
+app/public/avatar
+app/public/bench-assets
+deploy/.env
+deploy/volumes
+.git

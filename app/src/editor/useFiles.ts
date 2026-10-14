@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Opening and saving, and what protects the user's work: the unsaved-changes guard, the save
-// that is only reported once Rust validated the document and the disk gave the bytes back,
-// and the recovery copy.
+// that is only reported once Rust validated the document and the disk (or the cloud) has it,
+// and the recovery copy. Cloud projects (src/cloud/) open and save in the folder form.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CloudBackend } from '@/cloud/backend';
+import { collectUnused, openProject, saveProject } from '@/cloud/projects';
 import { recoverChanges } from '@/document/commands';
 import { parseEntities } from '@/document/entities';
 import type { DocState, DocumentStore } from '@/document/store';
@@ -18,8 +20,21 @@ export type Notice = { kind: 'ok' | 'info' | 'error'; text: string } | null;
 /** How long the document must be still before its recovery copy is written. */
 const RECOVERY_DELAY_MS = 1000;
 
-export function useFiles(session: EngineSession, store: DocumentStore, storage: ProjectStorage, doc: DocState) {
+/** What saving to the cloud needs from cloud mode (null in local mode). */
+export interface CloudAccess {
+  backend(): Promise<CloudBackend>;
+  refresh(): void;
+}
+
+export function useFiles(session: EngineSession, store: DocumentStore, storage: ProjectStorage, doc: DocState, cloud: CloudAccess | null) {
   const [ref, setRef] = useState<FileRef | null>(null);
+  /** `ref` for the recovery copy, which shouldn't restart its timer when a save changes it. */
+  const refNow = useRef<FileRef | null>(null);
+  /** The page is about to be left on purpose (a sign-in redirect): no "leave site?" question. */
+  const leaving = useRef(false);
+  useEffect(() => {
+    refNow.current = ref;
+  }, [ref]);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   /** An action waiting for the user to decide about unsaved changes. */
@@ -92,8 +107,54 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
       }
     });
 
+  /** Saves over the cloud project it came from, or as a new one (`copy`, or not from the cloud). */
+  const saveToCloud = async (copy: boolean) => {
+    if (store.state.empty || busy || !cloud) return;
+    setBusy('Saving to the cloud');
+    try {
+      const { rev, entities } = await store.settled();
+      const data = await session.save(rev, 'folder');
+      if (data.form !== 'folder') throw new Error('internal: the worker did not give the folder form');
+      const b = await cloud.backend();
+      const first = b.user() === null;
+      const name = store.state.entities.project?.name ?? ref?.name.replace(/\.vtry$/, '') ?? 'project';
+      const prev = copy ? null : (ref?.cloud ?? null);
+      const saved = await saveProject(b, name, data.files, prev, (p) => p.total > 1 && setBusy(`Saving to the cloud (${p.done} of ${p.total})`));
+      store.markSaved(name, entities);
+      original.current = copyFileData(data);
+      setRef({ name, form: 'folder', cloud: saved });
+      void dropRecovery();
+      setNotice(
+        first
+          ? { kind: 'info', text: `Saved ${name} to the cloud. To open it on another device too, add your email (Cloud, top right).` }
+          : { kind: 'ok', text: `Saved ${name} to the cloud` },
+      );
+      cloud.refresh();
+      // Parts no project uses any more (older than a day), best effort.
+      void collectUnused(b).catch(() => undefined);
+    } catch (e) {
+      fail('Not saved', e);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openCloud = (id: string) =>
+    guarded(async () => {
+      if (!cloud) return;
+      setBusy('Opening from the cloud');
+      try {
+        const o = await openProject(await cloud.backend(), id);
+        await load({ name: o.name, form: 'folder', cloud: o.ref }, o.data);
+        setNotice(null);
+      } finally {
+        setBusy(null);
+      }
+    });
+
   const saveTo = async (target: 'same' | 'as') => {
     if (store.state.empty || busy) return;
+    if (target === 'same' && ref?.cloud) return saveToCloud(false);
     setBusy('Saving');
     try {
       // Only what Rust accepted is written: wait for edits still being checked.
@@ -134,6 +195,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
       void store.settled().then(({ entities }) =>
         keepRecovery({
           fileName: doc.fileName,
+          cloud: refNow.current?.cloud,
           data,
           saved: JSON.stringify(store.savedEntities),
           current: JSON.stringify(entities),
@@ -155,7 +217,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
     if (!r) return;
     setBusy('Recovering');
     try {
-      await load({ name: r.fileName, form: r.data.form }, r.data, { unsaved: r.unsaved });
+      await load({ name: r.fileName, form: r.data.form, cloud: r.cloud }, r.data, { unsaved: r.unsaved });
       // An import never edited has nothing to put back but itself.
       if (r.current !== r.saved && !store.execute((e) => recoverChanges(e, parseEntities(r.current)))) {
         throw new Error(store.state.refused ?? 'refused');
@@ -177,7 +239,9 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   // Closing or reloading the tab with unsaved changes asks first.
   useEffect(() => {
     if (!doc.dirty) return;
-    const stop = (e: BeforeUnloadEvent) => e.preventDefault();
+    const stop = (e: BeforeUnloadEvent) => {
+      if (!leaving.current) e.preventDefault();
+    };
     window.addEventListener('beforeunload', stop);
     return () => window.removeEventListener('beforeunload', stop);
   }, [doc.dirty]);
@@ -202,8 +266,22 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
         void dropRecovery();
       }),
     importNew,
+    /** Leaves the page (`go`), after the unsaved-changes question if there are changes. */
+    leavePage: (go: () => Promise<void>) =>
+      guarded(async () => {
+        leaving.current = true;
+        try {
+          await go();
+        } catch (e) {
+          leaving.current = false;
+          throw e;
+        }
+      }),
     save: () => saveTo('same'),
     saveAs: () => saveTo('as'),
+    saveToCloud: () => saveToCloud(false),
+    saveCopyToCloud: () => saveToCloud(true),
+    openCloud,
     /** The unsaved-changes question, while one is open. */
     unsaved: pending
       ? {

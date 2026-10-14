@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import type { Plugin } from 'vite';
+import { loadEnv, type Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 // Cross-origin isolation (docs/HOSTING.md): performance.now() at its fine resolution (Chrome
@@ -35,13 +35,35 @@ const benchSink: Plugin = {
   },
 };
 
+// Cloud mode in development (docs/CLOUD.md): SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY, from the
+// environment (`pnpm run dev:cloud` sets them for the local stack) or app/.env.local, are served
+// as /config.json, like the web image does in production. Never in a build: dist/ has no
+// config.json.
+const cloudDev: Plugin = {
+  name: 'cloud-dev',
+  configureServer(server) {
+    const file = loadEnv(server.config.mode, server.config.envDir || import.meta.dirname, 'SUPABASE_');
+    const url = process.env.SUPABASE_URL || file.SUPABASE_URL;
+    const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || file.SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !publishableKey) {
+      server.config.logger.info('  cloud: off (local mode). Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in app/.env.local, or run pnpm run dev:cloud');
+      return;
+    }
+    server.config.logger.info(`  cloud: on, backend ${url}`);
+    server.middlewares.use('/config.json', (_req, res) => {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ backend: { url, publishableKey }, privacyPolicy: null }));
+    });
+  },
+};
+
 // TUNNEL=1 pnpm run dev: serve through a Cloudflare quick tunnel (https://*.trycloudflare.com) so
 // another machine can run the bench with WebGPU (it needs https or localhost). Hot reload is off
 // then, because its websocket doesn't go through the tunnel.
 const tunnel = process.env.TUNNEL === '1';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), benchSink],
+  plugins: [react(), tailwindcss(), benchSink, cloudDev],
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
   server: { headers: isolation, ...(tunnel ? { allowedHosts: ['.trycloudflare.com'], hmr: false } : {}) },
   preview: { headers: isolation },

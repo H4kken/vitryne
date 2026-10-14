@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The editor's static build with the cross-origin isolation headers it needs (docs/HOSTING.md).
+# SITE_ADDRESS is ":80" locally or behind another proxy (Coolify, Traefik, nginx), or a domain
+# name for automatic HTTPS. Cloud mode (docs/CLOUD.md) is on when SUPABASE_URL is set.
+{
+	admin off
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+	header {
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Embedder-Policy require-corp
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	# The editor reads this at start: no file (404) means local mode.
+	@cloud expression `{env.SUPABASE_URL} != "" && {env.SUPABASE_PUBLISHABLE_KEY} != ""`
+	handle /config.json {
+		header Cache-Control no-cache
+		handle @cloud {
+			header Content-Type application/json
+			respond `{"backend":{"url":"{$SUPABASE_URL}","publishableKey":"{$SUPABASE_PUBLISHABLE_KEY}"},"privacyPolicy":"/privacy.html"}`
+		}
+		respond 404
+	}
+	# The operator's details come from the environment.
+	handle /privacy.html {
+		root * /srv/site
+		templates
+		file_server
+	}
+	handle {
+		root * /srv/app
+		file_server
+	}
+}

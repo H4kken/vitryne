@@ -1,0 +1,218 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// M12's done-when in real Chrome (with its GPU), over CDP like tools/bench/chrome-check.mjs:
+//
+//   cloud  <url>   browser A opens the T-shirt example, saves it to the cloud with no account,
+//                  creates an account (email, password, the code from Mailpit: instance.mjs);
+//                  browser B (a fresh profile) signs in with the password and opens the project.
+//   local  <url>   the same build with no config.json: local mode, and every request stays on
+//                  the app's own files (no backend, no cloud code).
+//
+//   node tests/cloud/browser.mjs cloud http://localhost:8000 [shots-dir]   (cloud mode on the local stack)
+//   node tests/cloud/browser.mjs local http://localhost:8000 [shots-dir]   (no SUPABASE_URL)
+import { spawn } from 'node:child_process';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { MAILPIT } from './instance.mjs';
+
+const [mode, url, shots = join(tmpdir(), 'vitryne-browser-check')] = process.argv.slice(2);
+const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+mkdirSync(shots, { recursive: true });
+
+async function browser(label) {
+  const port = 9300 + Math.floor(Math.random() * 500);
+  const chrome = spawn(
+    CHROME,
+    ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'vitryne-chrome-'))}`, '--no-first-run', '--enable-unsafe-webgpu', '--window-size=1400,900', 'about:blank'],
+    { stdio: 'ignore' },
+  );
+  let target;
+  for (let i = 0; i < 50 && !target; i++) {
+    await sleep(200);
+    try {
+      target = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find((t) => t.type === 'page');
+    } catch {
+      // not up yet
+    }
+  }
+  const ws = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise((r) => ws.addEventListener('open', r));
+  let id = 0;
+  const pending = new Map();
+  const logs = [];
+  const requests = [];
+  ws.addEventListener('message', (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.id && pending.has(m.id)) {
+      pending.get(m.id)(m);
+      pending.delete(m.id);
+    }
+    if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') logs.push(m.params.args.map((a) => a.value ?? a.description).join(' '));
+    if (m.method === 'Runtime.exceptionThrown') logs.push(`[exception] ${m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text}`);
+    if (m.method === 'Network.requestWillBeSent') requests.push(m.params.request.url);
+  });
+  const send = (method, params = {}) =>
+    new Promise((r) => {
+      const i = ++id;
+      pending.set(i, r);
+      ws.send(JSON.stringify({ id: i, method, params }));
+    });
+  const evaluate = async (expr) => {
+    const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
+    if (r.result?.exceptionDetails) throw new Error(`${label}: ${r.result.exceptionDetails.exception?.description}`);
+    return r.result?.result?.value;
+  };
+  await send('Runtime.enable');
+  await send('Network.enable');
+  await send('Page.enable');
+
+  const b = {
+    logs,
+    requests,
+    async goto(u) {
+      await send('Page.navigate', { url: u });
+      await sleep(1500);
+    },
+    evaluate,
+    /** Waits for `expr` to be truthy. */
+    async until(what, expr, ms = 60000) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        const v = await evaluate(expr).catch(() => null);
+        if (v) return v;
+        await sleep(250);
+      }
+      await b.shot(`timeout-${what.replace(/\W+/g, '-')}`);
+      throw new Error(`${label}: timed out waiting for ${what}\nconsole: ${logs.join('\n')}`);
+    },
+    text: () => evaluate('document.body.innerText'),
+    /** Clicks the visible button, link or menu item whose text matches, with real input events. */
+    async click(text, { exact = false } = {}) {
+      const box = await b.until(
+        `"${text}"`,
+        `(() => {
+          const want = ${JSON.stringify(text)};
+          const els = [...document.querySelectorAll('button, a, [role=menuitem], [role=button]')].filter((e) => {
+            const t = (e.innerText || e.getAttribute('aria-label') || '').trim();
+            return ${exact} ? t === want : t.includes(want);
+          });
+          // The one on top: the editor's bar is still there under the start screen.
+          const e = els.find((x) => {
+            const r = x.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 && !x.disabled && x.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+          });
+          if (!e) return null;
+          const r = e.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        })()`,
+        20000,
+      );
+      for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased'])
+        await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1, pointerType: 'mouse' });
+      await sleep(400);
+    },
+    async type(selector, value) {
+      await b.until(selector, `!!document.querySelector(${JSON.stringify(selector)})`);
+      await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus()`);
+      await send('Input.insertText', { text: value });
+      await sleep(200);
+    },
+    async shot(name) {
+      const png = (await send('Page.captureScreenshot', { format: 'png' })).result.data;
+      writeFileSync(join(shots, `${label}-${name}.png`), Buffer.from(png, 'base64'));
+    },
+    close() {
+      ws.close();
+      chrome.kill();
+    },
+  };
+  return b;
+}
+
+async function codeFor(to, after) {
+  for (let i = 0; i < 100; i++) {
+    const s = await (await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`)).json();
+    const m = s.messages?.find((x) => Date.parse(x.Created) >= after);
+    if (m) return /\b(\d{6})\b/.exec((await (await fetch(`${MAILPIT}/api/v1/message/${m.ID}`)).json()).Text)[1];
+    await sleep(250);
+  }
+  throw new Error(`no email to ${to}`);
+}
+
+const loaded = `(() => { const t = document.body.innerText; return t.includes('Show flat pieces') && !t.includes('What do you want to make?'); })()`;
+
+async function cloud() {
+  const email = `browser-${Date.now().toString(36)}@example.test`;
+  const password = `pw-${Date.now().toString(36)}-x`;
+  const a = await browser('A');
+  await a.goto(url);
+  await a.until('start screen', `document.body.innerText.includes('What do you want to make?')`);
+  await a.until('cloud button', `document.body.innerText.includes('Sign in')`);
+  await a.click('T-shirt');
+  await a.until('the T-shirt open', loaded);
+  await a.click('More');
+  await a.click('Save to the cloud', { exact: true });
+  await a.until('the cloud save', `document.body.innerText.includes('to the cloud. To open it on another device')`);
+  await a.shot('saved');
+  await a.click('Cloud', { exact: true });
+  await a.click('Create an account', { exact: true });
+  await a.type('#cloud-email', email);
+  await a.type('#cloud-password', password);
+  const t = Date.now() - 1000;
+  await a.click('Create the account');
+  await a.type('#cloud-code', await codeFor(email, t));
+  await a.click('Confirm', { exact: true });
+  await a.until('the account created', `document.body.innerText.includes('Account created')`);
+  await a.until('the email shown', `document.body.innerText.includes(${JSON.stringify(email)})`);
+  await a.shot('upgraded');
+  const aErrors = a.logs;
+  a.close();
+
+  const b = await browser('B');
+  await b.goto(url);
+  await b.until('start screen', `document.body.innerText.includes('What do you want to make?')`);
+  if ((await b.text()).toLowerCase().includes('your cloud projects')) throw new Error('B: a fresh browser shows cloud projects before signing in');
+  await b.click('Sign in', { exact: true });
+  await b.click('Sign in', { exact: true });
+  await b.type('#cloud-email', email);
+  await b.type('#cloud-password', password);
+  await b.click('Sign in', { exact: true });
+  await b.until('B signed in', `document.body.innerText.includes(${JSON.stringify(email)})`);
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await sleep(500);
+  await b.until('the cloud project listed', `document.body.innerText.toLowerCase().includes('your cloud projects') && document.body.innerText.includes('T-shirt (Teagan)')`);
+  await b.shot('listed');
+  await b.click('Open', { exact: true });
+  await b.until('the project open in B', loaded);
+  await sleep(3000);
+  await b.shot('opened');
+  const title = await b.evaluate(`document.querySelector('header')?.innerText ?? ''`);
+  if (!/T-shirt/.test(title)) throw new Error(`B: unexpected title: ${title}`);
+  const bErrors = b.logs;
+  b.close();
+  return { email, aErrors, bErrors, title: title.split('\n').slice(0, 2) };
+}
+
+async function local() {
+  const a = await browser('L');
+  await a.goto(url);
+  await a.until('start screen', `document.body.innerText.includes('What do you want to make?')`);
+  await a.click('T-shirt');
+  await a.until('the T-shirt open', loaded);
+  await sleep(2000);
+  const text = await a.text();
+  await a.shot('local');
+  const origin = new URL(url).origin;
+  const foreign = a.requests.filter((r) => !r.startsWith(origin) && !r.startsWith('data:') && !r.startsWith('blob:'));
+  const backend = a.requests.filter((r) => /\/(auth|rest|storage)\/v1\/|supabase/.test(r));
+  await a.click('More');
+  const menu = await a.text();
+  a.close();
+  if (foreign.length || backend.length) throw new Error(`local mode made requests it shouldn't: ${[...foreign, ...backend].join(', ')}`);
+  if (/Save to the cloud|Sign in/.test(menu + text)) throw new Error('local mode shows cloud features');
+  return { requests: a.requests.length, errors: a.logs };
+}
+
+const result = mode === 'local' ? await local() : await cloud();
+console.log(JSON.stringify({ mode, ok: true, ...result, shots }, null, 2));
