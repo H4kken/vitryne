@@ -723,7 +723,7 @@ change: the gizmo edits the wrap's own fields; FORMAT.md now defines `cut.layout
 - The gizmo is drawn over the canvas, not in the 3D scene, so the cloth never hides it.
 
 
-## M8 — Sewing in the UI (2026-10-14, waiting for review)
+## M8 — Sewing in the UI ⚠️ met for the T-shirt; trousers and hoodie need manual picks (2026-10-14, waiting for review)
 
 **Done-when:** the T-shirt, trousers and hoodie can be fully sewn in the UI from bare DXF
 imports, and drape the same as the sample projects. **T-shirt ✅** (every suggestion accepted:
@@ -784,4 +784,14 @@ armholes); the user only accepts or rejects them. See ARCHITECTURE.md, "Sewing (
 - **Not in M8:** seams on internal lines in suggestions (the hoodie's pocket); a chain across
   three or more cuts is picked by hand; no seam allowance; the 3D view shows seams but picking
   is in the flat view only.
+
+### After the build (2026-10-14)
+
+- **Trackpad in the 3D view:** a two-finger drag turns the camera like a pointer drag, a pinch
+  zooms, a mouse-wheel notch still zooms. A wheel counts as a trackpad when its deltas are
+  sideways, small or fractional (there is no reliable browser signal; a mouse that sends small
+  deltas would turn the camera instead of zooming: the threshold is in `Viewport.tsx`). Not
+  tried on a trackpad by me.
+- **`./check` is `check.sh`** (renamed in the pnpm switch); CLAUDE.md, README and CONTRIBUTING
+  said `./check` and now say `./check.sh`.
 
