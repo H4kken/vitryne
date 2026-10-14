@@ -55,11 +55,15 @@ def self_collision(r):
     return f"k={s['self_rebuild_every']}" if s.get('self_collision') else 'off'
 
 
+def norm_scene(s):
+    return s.lower().replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+
+
 def key(r):
     """What has to match for two runs to be the same benchmark on different targets."""
     return (
         'drag' if is_drag(r) else 'drape',
-        r.get('scene', 'sheet'),
+        norm_scene(r.get('scene', 'sheet')),
         vertices(r),
         sim(r)['substeps'],
         self_collision(r),

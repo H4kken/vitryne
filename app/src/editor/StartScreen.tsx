@@ -33,7 +33,7 @@ export function StartScreen(props: {
   busy: string | null;
   banner?: React.ReactNode;
 }) {
-  const [presetsOpen, setPresetsOpen] = useState(false);
+  const [examplesOpen, setExamplesOpen] = useState(true);
   return (
     <div className="bg-background absolute inset-0 z-30 flex flex-col overflow-y-auto" {...props.dropProps}>
       <div className="flex h-16 shrink-0 flex-wrap items-center gap-3 px-8">
@@ -54,16 +54,16 @@ export function StartScreen(props: {
       <div className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-3.5 px-8 pt-2 pb-4">
         <button
           type="button"
-          onClick={() => setPresetsOpen((o) => !o)}
-          aria-expanded={presetsOpen}
-          className="bg-primary flex min-h-[92px] flex-[1_1_240px] items-center gap-3.5 rounded-2xl border-2 border-[#14181F] px-5 py-4 text-left text-white"
+          onClick={() => setExamplesOpen((o) => !o)}
+          aria-expanded={examplesOpen}
+          className="bg-primary flex min-h-[92px] flex-[1_1_240px] items-center gap-3.5 rounded-2xl border-2 border-[#14181F] px-5 py-4 text-left text-white transition-opacity hover:opacity-95"
         >
           <PresetsIcon className="shrink-0 text-white" />
           <span className="flex grow flex-col gap-0.5">
-            <span className="font-display text-xl font-semibold">Start from our presets</span>
+            <span className="font-display text-xl font-semibold">Start from an example</span>
             <span className="text-on-ink-muted text-sm">Ready-made garments</span>
           </span>
-          <ChevronDown className={cn('size-5 shrink-0 transition-transform', presetsOpen && 'rotate-180')} aria-hidden="true" />
+          <ChevronDown className={cn('size-5 shrink-0 transition-transform', examplesOpen && 'rotate-180')} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -96,10 +96,13 @@ export function StartScreen(props: {
         </div>
       )}
 
-      {presetsOpen && (
+      {examplesOpen && (
         <div className="mx-auto w-full max-w-[1120px] px-8 pt-1 pb-12">
-          <div className="flex flex-col gap-4 rounded-[20px] border border-[#E1E4DE] bg-white p-5">
-            <span className="text-muted-foreground text-sm font-semibold tracking-[0.06em] uppercase">Presets</span>
+          <div className="flex flex-col gap-4 rounded-[20px] border border-[#E1E4DE] bg-white p-5 shadow-[0_2px_8px_rgba(20,24,31,.04)]">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-sm font-semibold tracking-[0.06em] uppercase">Example projects</span>
+              <span className="text-muted-foreground text-xs">Click any garment to drape in 3D</span>
+            </div>
             <div className="flex flex-wrap gap-4">
               {[...props.examples].sort((a, b) => rank(a) - rank(b)).map((ex) => {
                 const id = presetId(ex);
@@ -110,7 +113,7 @@ export function StartScreen(props: {
                     type="button"
                     disabled={!!props.busy}
                     onClick={() => props.onPreset(ex)}
-                    className="flex min-w-0 flex-[1_1_200px] flex-col overflow-hidden rounded-2xl border border-[#E1E4DE] bg-white text-left transition-[transform,box-shadow] duration-150 hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)] disabled:opacity-60"
+                    className="flex min-w-0 flex-[1_1_200px] flex-col overflow-hidden rounded-2xl border border-[#E1E4DE] bg-white text-left transition-[transform,box-shadow] duration-150 hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)] disabled:opacity-60 cursor-pointer"
                   >
                     <span className="flex h-[150px] items-center justify-center" style={{ background: art?.bg ?? '#E8ECE4' }}>
                       {art && (

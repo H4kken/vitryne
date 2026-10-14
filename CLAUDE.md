@@ -79,7 +79,7 @@ assets` once).
   (DXF import dialog, placement by body place + automatic wrap + 3D gizmo, flat layout;
   waiting for review), M8 sewing in the UI (whole-edge seams: suggestions from geometry, two-click picking,
   seam list, seams in 2D and 3D; waiting for review), M9 fabric presets (5 physical presets in docs/FABRICS.md,
-  multi-fabric solver support, per-piece and garment fabric picker with re-drape; waiting for review), M10 export (glTF 2.0 and OBJ export with 2D pattern UVs, multi-fabric PBR materials, avatar node, native CLI and editor UI; waiting for review). **Next:** M11 user testing.
+  multi-fabric solver support, per-piece and garment fabric picker with re-drape; waiting for review), M10 export (glTF 2.0 and OBJ export with 2D pattern UVs, multi-fabric PBR materials, avatar node, native CLI and editor UI; waiting for review), M11 demo readiness and report (start from example screen, first-load & SDF analysis, README with animated GIF & quickstart, benchmark & browser matrix in PROGRESS.md; waiting for review). **Next:** M12 cloud backend and self-hosting.
 - **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
   `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **The `.vtry` and `garment.toml` paths give bit-identical garments** (test

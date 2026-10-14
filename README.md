@@ -3,65 +3,147 @@
 **Open-source garment design in the browser.** Import a sewing pattern, place it around a body,
 sew it, pick a fabric, and watch it drape in 3D, on your own GPU, for free.
 
-> **Status: early development.** The cloth engine works, natively and in the browser, and the
-> editor's first shell opens, edits and saves projects. Importing and sewing patterns in the
-> editor come next. [PROGRESS.md](PROGRESS.md) tracks the work toward the first usable version.
+<p align="center">
+  <img src="docs/media/drape.gif" alt="Vitryne 3D cloth drape in real time" width="512" />
+</p>
 
-<!-- A GIF of the drape goes here (M11). -->
+Vitryne runs a real-time GPU cloth solver (XPBD) directly in your web browser using WebGPU and
+WebAssembly, backed by the same Rust codebase and WGSL shaders that run natively. Everything stays
+on your machine: no accounts, no cloud servers, and no telemetry.
 
-## What works today
+---
 
-- A GPU cloth solver (XPBD) running on WebGPU, with the same Rust code and WGSL shaders natively
-  and in the browser: stretch, bending, sewing, body contact, self-collision and untangling.
-- DXF-AAMA pattern import, with a small sidecar file that says which edges are sewn and where
-  each piece starts around the body.
-- Three sample garments (a T-shirt, trousers and a hoodie, from FreeSewing) and a sample avatar
-  (MakeHuman).
-- The editor shell in the browser: open a `.vtry` project (or a sample), see its pattern in 2D
-  and its drape in 3D, drag the cloth, edit the fabric, names and simulation settings with undo,
-  and save, with a recovery copy if the tab closes.
-- A native viewer and benchmarks. On an Apple M2, a 20k-vertex T-shirt comes
-  to rest in about 1 s, and dragging it runs at 55+ fps in Chrome and Safari.
+## Features
 
-The engine's history and numbers from the original spikes are in [docs/history/](docs/history/).
+- **Real-time GPU Cloth Simulation:** Extended Position Based Dynamics (XPBD) cloth solver with
+  non-linear stretch, bending, sewing springs, SDF avatar collision, and self-collision untangling.
+- **2D & 3D Garment Design:** Interactive 2D pattern inspection and flat arrangement alongside a 3D
+  viewport with orbit camera, interactive cloth pinching/pulling, and placement handles.
+- **Whole-Edge Sewing Engine:** Two-click seam creation with chain detection and automatic geometric
+  seam suggestions that pair matching seams in seconds. Designed deliberately to avoid proprietary
+  free-sewing patent restrictions ([docs/PATENTS.md](docs/PATENTS.md)).
+- **Physical Fabric Presets:** Calibrated physical fabric parameters (weight, directional stretch and
+  bending stiffness, thickness, friction) for Cotton jersey, Denim, Poplin shirting, Fleece, and Wool
+  suiting ([docs/FABRICS.md](docs/FABRICS.md)), with multi-material simulation support.
+- **Production 3D Export:** Export draped 3D garments to standard glTF 2.0 (`.glb`) or Wavefront
+  OBJ (`.obj` + `.mtl`) with real-world 1:1 metre scale, vertex normals, double-sided PBR cloth
+  materials, and UVs mapped directly to 2D pattern coordinates for texture printing.
+- **Local-First & Private:** Saves to standard `.vtry` zip or folder files. Your designs never leave
+  your device.
 
-## Planned for the first version
+---
 
-Open a DXF pattern → place the pieces → sew them → pick a fabric → drape → save the project →
-export glTF or OBJ, all in the browser, with nothing to install and no account.
+## Quickstart: From DXF to 3D Drape in 5 Steps
 
-## Browser requirements
+You can start from one of the bundled example projects (T-shirt, Trousers, Hoodie) or import your
+own DXF pattern (such as an open-source pattern from [FreeSewing](https://freesewing.org/)):
 
-Vitryne needs **WebGPU**. Tested so far: Chrome and Safari on an Apple M2 Mac. Not yet tested:
-Firefox, and Windows. Without WebGPU, the editor says so and names the browsers that work.
-Saving over the opened file needs the File System Access API (Chrome, Edge); elsewhere a save
-downloads the file.
+1. **Launch the Editor:**
+   Open the hosted app or start locally with `cd app && pnpm run dev` and navigate to
+   `http://localhost:5173`.
+2. **Import or Start from an Example:**
+   - On the start screen, click any example garment (e.g., **T-shirt (Teagan)**) to open it immediately.
+   - Or click **Import your own pattern** (or drop a `.dxf` file). To follow along with a raw pattern,
+     select `assets/garments/tshirt/tshirt.dxf`. In the import dialog, preview the pieces and click
+     **Accept and import**.
+3. **Inspect Placement:**
+   - In **3D view** (press `1` or select the 3D tool), the pattern pieces appear positioned around
+     the MakeHuman body avatar. Use the **Select** tool to adjust cylinder wraps or offsets with 3D handles.
+   - Switch to **Flat view** (press `2`) to see the 2D layout and piece boundaries.
+4. **Sew the Seams:**
+   - Open the **Seams** panel on the right rail (the link icon <kbd>🔗</kbd>).
+   - Click **Suggest seams**. Vitryne inspects edge lengths and piece geometry, proposing all 10 seams
+     (side seams, shoulders, armhole sleeve caps, and underarms).
+   - Click **Accept all** to sew them instantly, or use the **Sew** tool in flat view to click matching
+     edge pairs manually.
+5. **Simulate, Adjust Fabric & Export:**
+   - The cloth drapes in real time around the avatar. Use the **Pinch** tool to grab and pull the
+     fabric to check fit and drape.
+   - Open the **Fabric** panel to switch presets (e.g. from Cotton jersey to Heavy denim or Wool) or
+     tune weight and stiffness sliders.
+   - In the top-left Vitryne menu, choose **Export 3D model…**, select **glTF 2.0 (.glb)** or **OBJ**,
+     and download your draped 3D garment ready for Blender, Unreal Engine, or web 3D viewers.
 
-## Try it locally
+---
+
+## Browser Requirements
+
+Vitryne requires **WebGPU** support.
+
+| Browser | Platform | Status | Notes |
+|---|---|---|---|
+| **Google Chrome / Chromium** | macOS, Windows, Linux, Android | ✅ Supported | Chrome 113+ has WebGPU enabled by default. Supports native file picker (`showSaveFilePicker`). |
+| **Microsoft Edge** | Windows, macOS | ✅ Supported | Edge 113+ with WebGPU enabled. |
+| **Apple Safari** | macOS, iOS, iPadOS | ✅ Supported | Safari 18+ (macOS 14.4 Sonoma, macOS 15 Sequoia). Uses standard browser download for saves/exports. |
+| **Mozilla Firefox** | Windows, macOS, Linux | ⚠️ Supported behind flag | Enable `dom.webgpu.enabled = true` in `about:config` (Firefox Nightly / Release). |
+
+If your browser or device lacks WebGPU support, Vitryne displays an informative fallback notice
+explaining the requirement.
+
+---
+
+## Known Limitations (Honestly)
+
+Vitryne is under active development. Here is what does not work yet:
+
+- **Whole-edge seams only:** Seams connect whole boundary edges between corners. Vitryne deliberately
+  avoids free-hand partial seam drafting and notch-to-notch segment sewing in the UI to stay clear of
+  competitor patent claims ([docs/PATENTS.md](docs/PATENTS.md)). Split lines must be in the pattern.
+- **Single-layer garments:** The solver simulates one layer of cloth per panel. Complex multi-layer
+  constructions (linings, fusible interfacings, quilted batting, or pockets sewn on top of bodies)
+  are not yet supported.
+- **Static rigid avatar collider:** The MakeHuman body is baked into a signed distance field (SDF).
+  Dynamic skeletal rigging, avatar posing, and walking animations are planned for future versions.
+- **Woven strain settling:** On high-tension woven garments (like the trousers example), resting edge
+  strain reaches ~5.4% p99 under one XPBD iteration per substep, compared to the ideal 3% woven target.
+- **Hoodie collar junction:** The hoodie test garment features extreme geometry at the back-neck
+  junction and does not come to a static rest; it retains persistent self-intersections in tight folds.
+- **No WebGL fallback:** The solver requires compute shaders and storage buffers available only in
+  WebGPU.
+
+---
+
+## Development & CLI
+
+### Prerequisites
+
+- Rust 1.85+ with `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
+- `wasm-bindgen-cli` 0.2.129: `cargo install wasm-bindgen-cli --version 0.2.129`
+- Node.js 22+ and pnpm 10: `corepack enable`
+- A GPU with Vulkan, Metal, or DirectX 12 drivers.
+
+### Commands
 
 ```sh
-cd app && pnpm install --frozen-lockfile && pnpm run dev       # then open http://localhost:5173
+# Run the complete test suite (Rust fmt, clippy, unit tests, web check, golden drapes)
+./check.sh
+
+# Quick Rust-only check
+./check.sh --quick
+
+# Run the web editor locally
+cd app && pnpm install --frozen-lockfile && pnpm run dev
+# Open http://localhost:5173
+
+# Run the native viewer
+cargo run --release -p drape-native -- view --garment examples/tshirt.vtry
+
+# Run headless native benchmarks
+cargo run --release -p drape-native -- bench --scene garment --garment examples/tshirt.vtry --verts 10000
 ```
 
-You need Rust, the wasm target, `wasm-bindgen-cli` and Node; see
-[CONTRIBUTING.md](CONTRIBUTING.md) for the full list and for the native build.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, code formatting, and sign-off rules.
 
-## Privacy
+---
 
-Vitryne is local-first: no account, no telemetry, and no network requests except loading the
-app and its assets. Your files stay on your machine.
+## Licence & Intellectual Property
 
-## Licence
+Vitryne's source code is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
 
-Vitryne's code is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE).
+### **What you make with Vitryne is yours**
 
-**What you make with Vitryne is yours.** Patterns, garments and other files you create with it
-are not covered by the AGPL, and you can use them however you like, commercially or not.
+**Garments, patterns, 3D meshes, textures, `.vtry` project files, and any other files you create or export with Vitryne are strictly yours.** They are user data and output, not covered by the AGPL, and you retain complete ownership to use, modify, distribute, or sell them commercially or non-commercially without restriction.
 
-The bundled sample assets keep their own licences (MakeHuman avatar: CC0; FreeSewing patterns:
-MIT); see [assets/LICENSES.md](assets/LICENSES.md).
-
-## Contributing
-
-Contributions are welcome. Every commit needs a DCO sign-off (`git commit -s`), and `./check.sh`
-has to pass. [CONTRIBUTING.md](CONTRIBUTING.md) has the details.
+Bundled sample assets preserve their respective open licences:
+- **MakeHuman Avatar Mesh:** [Creative Commons Zero (CC0 1.0)](assets/LICENSES.md).
+- **FreeSewing Patterns (Teagan T-shirt, Titan Trousers, Hugo Hoodie):** [MIT License](assets/LICENSES.md).
