@@ -36,7 +36,7 @@ export function getEntity(e: Entities, s: Slot): unknown {
   return (e[LIST[s.kind]] as { id: string }[]).find((x) => x.id === s.id);
 }
 
-/** A copy of `e` with the entity at `s` replaced (it must exist: commands don't add or remove entities yet). */
+/** A copy of `e` with the entity at `s` replaced, added (if not yet in list), or removed (if value is undefined). */
 export function setEntity(e: Entities, s: Slot, value: unknown): Entities {
   if (s.kind === 'project' || s.kind === 'view') {
     if (value === undefined) throw new Error(`the ${s.kind} can't be removed`);
@@ -44,10 +44,16 @@ export function setEntity(e: Entities, s: Slot, value: unknown): Entities {
   }
   const list = e[LIST[s.kind]] as { id: string }[];
   const i = list.findIndex((x) => x.id === s.id);
-  if (i < 0) throw new Error(`no ${s.kind} ${s.id}`);
-  if (value === undefined || (value as { id?: unknown }).id !== s.id) throw new Error(`a command can't change a ${s.kind}'s id`);
+  if (value === undefined) {
+    if (i < 0) return e;
+    const copy = list.slice();
+    copy.splice(i, 1);
+    return { ...e, [LIST[s.kind]]: copy };
+  }
+  if ((value as { id?: unknown }).id !== s.id) throw new Error(`a command can't change a ${s.kind}'s id`);
   const copy = list.slice();
-  copy[i] = value as { id: string };
+  if (i >= 0) copy[i] = value as { id: string };
+  else copy.push(value as { id: string });
   return { ...e, [LIST[s.kind]]: copy };
 }
 

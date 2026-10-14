@@ -64,7 +64,28 @@ impl ClothMesh {
     }
 
     /// Lumped vertex masses from rest triangle areas. `density` in kg/m².
+    #[allow(clippy::single_range_in_vec_init)]
     pub fn masses(&self, density: f32) -> Vec<f32> {
+        self.masses_per_panel(&[density], &[(0..self.n_verts() as u32)])
+    }
+
+    /// Lumped vertex masses from rest triangle areas with per-panel densities (M9).
+    pub fn masses_per_panel(
+        &self,
+        panel_densities: &[f32],
+        panel_ranges: &[std::ops::Range<u32>],
+    ) -> Vec<f32> {
+        let density_for = |v: u32| -> f32 {
+            if panel_ranges.is_empty() || panel_densities.is_empty() {
+                return *panel_densities.first().unwrap_or(&0.15);
+            }
+            let idx = panel_ranges
+                .iter()
+                .position(|range| range.contains(&v))
+                .unwrap_or(0);
+            panel_densities[idx.min(panel_densities.len() - 1)]
+        };
+
         let mut m = vec![0.0; self.n_verts()];
         for t in &self.tris {
             let a = tri_area(
@@ -72,15 +93,25 @@ impl ClothMesh {
                 self.rest[t[1] as usize],
                 self.rest[t[2] as usize],
             );
+            let d = density_for(t[0]);
             for &v in t {
-                m[v as usize] += density * a / 3.0;
+                m[v as usize] += d * a / 3.0;
             }
         }
         m
     }
 
+    #[allow(clippy::single_range_in_vec_init)]
     pub fn inv_masses(&self, density: f32) -> Vec<f32> {
-        self.masses(density)
+        self.inv_masses_per_panel(&[density], &[(0..self.n_verts() as u32)])
+    }
+
+    pub fn inv_masses_per_panel(
+        &self,
+        panel_densities: &[f32],
+        panel_ranges: &[std::ops::Range<u32>],
+    ) -> Vec<f32> {
+        self.masses_per_panel(panel_densities, panel_ranges)
             .iter()
             .zip(&self.pinned)
             .map(|(&m, &p)| if p || m == 0.0 { 0.0 } else { 1.0 / m })

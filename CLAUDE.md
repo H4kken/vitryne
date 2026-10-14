@@ -78,7 +78,8 @@ without checking them against that file, and say so when a request or the plan c
   properties, storage and save; accepted after a manual Safari check), M7 import and placement
   (DXF import dialog, placement by body place + automatic wrap + 3D gizmo, flat layout;
   waiting for review), M8 sewing in the UI (whole-edge seams: suggestions from geometry, two-click picking,
-  seam list, seams in 2D and 3D; waiting for review). **Next:** M9 fabric presets.
+  seam list, seams in 2D and 3D; waiting for review), M9 fabric presets (5 physical presets in docs/FABRICS.md,
+  multi-fabric solver support, per-piece and garment fabric picker with re-drape; waiting for review). **Next:** M10 user testing.
 - **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
   `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **The `.vtry` and `garment.toml` paths give bit-identical garments** (test

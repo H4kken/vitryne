@@ -438,11 +438,12 @@ export function Editor() {
         {panel && (
           <aside aria-label={PANEL_TITLES[panel]} className="flex w-[300px] shrink-0 flex-col gap-4 overflow-y-auto border-r bg-white p-5">
             <h2 className="font-display m-0 text-xl font-semibold">{PANEL_TITLES[panel]}</h2>
-            {panel === 'fabric' && <FabricPanel store={store} fabric={fabric} />}
+            {panel === 'fabric' && <FabricPanel store={store} fabric={fabric} garment={garment} fabrics={doc.entities.fabrics} />}
             {panel === 'pieces' && (
               <PiecesPanel
                 store={store}
                 garment={garment}
+                fabrics={doc.entities.fabrics}
                 selection={shownSelection}
                 onSelect={select}
                 onRewrap={rewrap}

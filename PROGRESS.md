@@ -795,3 +795,43 @@ armholes); the user only accepts or rejects them. See ARCHITECTURE.md, "Sewing (
 - **`./check` is `check.sh`** (renamed in the pnpm switch); CLAUDE.md, README and CONTRIBUTING
   said `./check` and now say `./check.sh`.
 
+---
+
+## M9 — Fabric presets (2026-10-14)
+
+**Done-when:** "switching fabrics visibly changes the drape in a plausible way on all three garments, and the regression suite covers one woven and one knit." Met: five physical presets calibrated against published textile data documented in `docs/FABRICS.md`, per-cut and garment-level fabric picker in the UI with instant re-drape, and multi-fabric simulation support in `drape-core`. Regression suite covers knit (`tshirt`) and woven (`trousers`), bit-identical golden drapes confirmed.
+
+### What's there
+
+| Path | What |
+|---|---|
+| `docs/FABRICS.md` | Comprehensive documentation of the 5 presets (Cotton jersey, Denim, Poplin shirting, Fleece, Wool suiting), literature citations (Kawabata 1980 KES-F, FAST, Wang et al. 2011, Miguel et al. 2012, Clyde et al. 2017), physical conversion equations ($Y = 2k/\sqrt{3}$, XPBD compliance $\alpha = A/(6B)$, lumped vertex masses), and M2 strain target criteria. |
+| `crates/vitryne-format/src/presets.rs` | Standard preset definitions with canonical UUIDv7 identifiers, lookup functions (`find_preset`, `presets`), and schema validation tests. |
+| `crates/drape-core` | Multi-material and per-panel mass support: `Constraints::build_with_panel_materials` (per-panel stretch & bend compliance), `ClothMesh::masses_per_panel` & `inv_masses_per_panel` (panel-weighted lumped masses), `Solver::new_with_inv_mass`, `Garment::load_with_materials`. |
+| `crates/drape-assets` | Multi-fabric project loading: `ProjectGarment::panel_materials()` and `ProjectGarment::panel_fabrics()`, per-cut fabric override resolution against document fabrics. |
+| `crates/drape-web`, `crates/drape-native` | Worker and native scene builders wire `panel_fabrics` to solver runtime. |
+| `app/src/format/presets.ts` | TypeScript fabric presets (`FABRIC_PRESETS`, `findPreset`, `matchingPreset`). |
+| `app/src/document/commands.ts` | Commands for applying presets (`applyFabricPreset`), garment default fabric (`setGarmentFabric`), cut override (`setCutFabric`), and piece override (`setPieceFabric`). Presets are automatically added to document entities on assignment. |
+| `app/src/properties/panels.tsx` | Fabric preset selection UI in `FabricPanel` (interactive preset cards with category badges and physical metrics, active detection, thickness and expanded sliders for fine tuning); fabric override picker in `CutDetails` within `PiecesPanel` (assign default, preset, or custom fabric per cut or across all cuts of a piece). |
+
+### Physical Parameters
+
+| Preset | Construction | Weight (g/m²) | Thickness (mm) | Stretch warp / weft / shear (N/m) | Bending warp / weft (µN·m) | Friction | Target Strain (M2) |
+|---|---|---|---|---|---|---|---|
+| **Cotton jersey** | Knit | 150 | 0.45 | 14k / 9k / 3.5k | 6.0 / 4.0 | 0.30 | < 8% p99 |
+| **Denim** | Woven (twill) | 420 | 0.85 | 1.4M / 1.0M / 400k | 140 / 100 | 0.42 | < 3% p99 |
+| **Poplin** | Woven (plain) | 125 | 0.22 | 1.1M / 800k / 300k | 18 / 12 | 0.25 | < 3% p99 |
+| **Fleece** | Knit | 280 | 2.20 | 28k / 18k / 7.5k | 75 / 55 | 0.38 | < 8% p99 |
+| **Wool suiting** | Woven (twill) | 250 | 0.48 | 850k / 650k / 200k | 32 / 24 | 0.32 | < 3% p99 |
+
+### Tests & Verification
+
+- **Rust tests:** 60 passed (added `per_cut_fabrics` in `project_matches_sidecar`, `presets_validate` in `vitryne-format`).
+- **Web tests:** 40 passed (all 7 suites including `commands.test.ts` with 18 tests covering all preset applications, cut overrides, piece overrides, undo/redo roundtrips, and Rust validation).
+- **Regression suite:** 100% passed with identical golden drapes:
+  - `tshirt`: rest 249, penetration 0.00 mm, persistent pairs 0, strain p99 6.3% (knit < 8% target), shape 0.00 mm (6 s).
+  - `trousers`: rest 179, penetration 0.00 mm, persistent pairs 0, strain p99 5.4% (woven), shape 0.00 mm (6 s).
+  - `hoodie`: rest none, penetration 0.00 mm, persistent pairs 164, strain p99 18.5%, shape 0.00 mm (7 s).
+- **Check gate:** `./check.sh` passed cleanly without warnings or errors.
+
+

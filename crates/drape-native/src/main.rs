@@ -446,16 +446,23 @@ impl SceneArgs {
             || std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
         let test_avatar =
             || BodyMesh::from_obj(&read_obj()).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
-        let (desc, fabric, body) = match self.kind.as_str() {
-            "sheet" => (
-                self.sheet.garment(),
-                self.sheet.fabric(),
-                Body::sphere(self.sheet.sphere().0, self.sheet.sphere().1),
-            ),
+        let (desc, fabric, panel_fabrics, body) = match self.kind.as_str() {
+            "sheet" => {
+                let d = self.sheet.garment();
+                let f = self.sheet.fabric();
+                (
+                    d,
+                    f,
+                    vec![f],
+                    Body::sphere(self.sheet.sphere().0, self.sheet.sphere().1),
+                )
+            }
             "tshirt" => {
                 let desc = tshirt::build(&self.tshirt);
                 let body = load_body_cached("makehuman", test_avatar(), &self.sdf);
-                (desc, tshirt::fabric(), body)
+                let f = tshirt::fabric();
+                let n = desc.groups.len().max(1);
+                (desc, f, vec![f; n], body)
             }
             "garment" if self.project.is_some() => {
                 let doc = self.project.as_ref().unwrap();
@@ -479,7 +486,7 @@ impl SceneArgs {
                     }
                     None => load_body_cached("makehuman", test_avatar(), &sdf_params),
                 };
-                (desc, pg.material(), body)
+                (desc, pg.material(), pg.panel_materials(), body)
             }
             "garment" => {
                 let g = self.garment();
@@ -490,11 +497,14 @@ impl SceneArgs {
                 }
                 let desc = g.build(edge).unwrap_or_else(|e| load(e));
                 let body = load_body_cached("makehuman", test_avatar(), &sdf_params);
-                (desc, g.fabric(), body)
+                let n = desc.groups.len().max(1);
+                let f = g.fabric();
+                (desc, f, vec![f; n], body)
             }
             other => panic!("unknown --scene {other} (sheet | tshirt | garment)"),
         };
-        let garment = Garment::load(&desc, &fabric).unwrap_or_else(|e| load(e));
+        let garment = Garment::load_with_materials(&desc, &fabric, &panel_fabrics)
+            .unwrap_or_else(|e| load(e));
         Scene {
             garment: Arc::new(garment),
             body: Arc::new(body),

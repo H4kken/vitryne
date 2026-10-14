@@ -4,6 +4,7 @@ import { EXAMPLES, openExample, rustRefuses } from '@/test/rust';
 import {
   addSeam,
   applyCommand,
+  applyFabricPreset,
   type Command,
   CommandError,
   FABRIC_FIELDS,
@@ -18,9 +19,11 @@ import {
   reverseSeam,
   revertCommand,
   selfCollision,
+  setCutFabric,
   setFabricValue,
   setLayout,
   setMirrored,
+  setPieceFabric,
   setPlacement,
   setSelfCollision,
   setTargetVertices,
@@ -28,6 +31,7 @@ import {
 } from './commands';
 import { type Entities, mainGarment } from './entities';
 import { deepFreeze } from './json';
+import { COTTON_JERSEY, DENIM, FLEECE, ID_DENIM, ID_FLEECE, ID_POPLIN, POPLIN, WOOL_SUITING } from '@/format/presets';
 
 /** One of each command, on a document. */
 function everyCommand(e: Entities): Command[] {
@@ -41,6 +45,9 @@ function everyCommand(e: Entities): Command[] {
     renameCut(e, g.id, piece.id, piece.cuts[0]!.id, ''),
     renameSeam(e, g.id, g.seams![0]!.id, 'side'),
     renameFabric(e, fabric.id, 'Denim'),
+    applyFabricPreset(e, fabric.id, DENIM),
+    setCutFabric(e, g.id, piece.cuts[0]!.id, ID_DENIM),
+    setPieceFabric(e, g.id, piece.id, ID_FLEECE),
     // Sewing: the first seam taken out, turned over, and put back as a new one.
     removeSeam(e, g.id, g.seams![0]!.id),
     reverseSeam(e, g.id, g.seams![0]!.id),
@@ -128,5 +135,58 @@ describe('recoverChanges', () => {
     expect(() => recoverChanges(entities, entities)).toThrow(/no changes/);
     const damaged = { ...renamed, fabrics: [{ ...renamed.fabrics[0]!, density: -1 }] };
     expect(() => recoverChanges(entities, damaged)).toThrow(/damaged/);
+  });
+});
+
+describe('fabric presets and overrides', () => {
+  it('applies every preset, validating schema and Rust compatibility', () => {
+    const { file, entities } = openExample('tshirt');
+    const fabric = entities.fabrics[0]!;
+    for (const preset of [COTTON_JERSEY, DENIM, POPLIN, FLEECE, WOOL_SUITING]) {
+      const cmd = applyFabricPreset(entities, fabric.id, preset);
+      const applied = applyCommand(entities, cmd);
+      expect(applied.fabrics[0]?.density).toBe(preset.density);
+      expect(applied.fabrics[0]?.stretch.warp).toBe(preset.stretch.warp);
+      expect(applied.fabrics[0]?.bending.warp).toBe(preset.bending.warp);
+      expect(rustRefuses(file, applied)).toBeNull();
+      const reverted = revertCommand(applied, cmd);
+      expect(JSON.stringify(reverted)).toBe(JSON.stringify(entities));
+    }
+  });
+
+  it('overrides cut and piece fabric, adding preset entity when needed, and undoes cleanly', () => {
+    const { file, entities } = openExample('tshirt');
+    const g = mainGarment(entities)!;
+    const piece = g.pieces[0]!;
+    const cut = piece.cuts[0]!;
+
+    // Override one cut to denim
+    const cutCmd = setCutFabric(entities, g.id, cut.id, ID_DENIM);
+    const cutApplied = applyCommand(entities, cutCmd);
+    expect(cutApplied.fabrics.some((f) => f.id === ID_DENIM)).toBe(true);
+    expect(cutApplied.project?.fabrics.includes(ID_DENIM)).toBe(true);
+    const updatedCut = mainGarment(cutApplied)!.pieces[0]!.cuts[0]!;
+    expect(updatedCut.fabric).toBe(ID_DENIM);
+    expect(rustRefuses(file, cutApplied)).toBeNull();
+
+    // Revert cut override
+    const cutReverted = revertCommand(cutApplied, cutCmd);
+    expect(JSON.stringify(cutReverted)).toBe(JSON.stringify(entities));
+
+    // Override entire piece
+    const pieceCmd = setPieceFabric(entities, g.id, piece.id, ID_POPLIN);
+    const pieceApplied = applyCommand(entities, pieceCmd);
+    for (const c of mainGarment(pieceApplied)!.pieces[0]!.cuts) {
+      expect(c.fabric).toBe(ID_POPLIN);
+    }
+    expect(rustRefuses(file, pieceApplied)).toBeNull();
+
+    // Reset piece fabric to default
+    const resetCmd = setPieceFabric(pieceApplied, g.id, piece.id, undefined);
+    const resetApplied = applyCommand(pieceApplied, resetCmd);
+    for (const c of mainGarment(resetApplied)!.pieces[0]!.cuts) {
+      expect(c.fabric).toBeUndefined();
+    }
+    expect(rustRefuses(file, resetApplied)).toBeNull();
   });
 });

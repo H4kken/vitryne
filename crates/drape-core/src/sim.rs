@@ -449,8 +449,20 @@ impl Solver {
         cfg: SimSettings,
         collider: Collider,
     ) -> Self {
-        let n = mesh.n_verts() as u32;
         let inv_mass = mesh.inv_masses(density);
+        Self::new_with_inv_mass(device, mesh, cons, inv_mass, density, cfg, collider)
+    }
+
+    pub fn new_with_inv_mass(
+        device: &wgpu::Device,
+        mesh: &ClothMesh,
+        cons: &Constraints,
+        inv_mass: Vec<f32>,
+        _density: f32,
+        cfg: SimSettings,
+        collider: Collider,
+    ) -> Self {
+        let n = mesh.n_verts() as u32;
         let init_pos: Vec<[f32; 4]> = mesh
             .pos
             .iter()

@@ -37,6 +37,7 @@ pub struct OpenReport {
 pub struct Prepared {
     pub garment: GarmentDesc,
     pub fabric: Fabric,
+    pub panel_fabrics: Vec<Fabric>,
     pub settings: SimSettings,
     pub avatar: String,
     pub mesh: BodyMesh,
@@ -156,6 +157,7 @@ impl ProjectFile {
             },
             placer,
             fabric: pg.material(),
+            panel_fabrics: pg.panel_materials(),
             garment,
             settings,
             avatar,

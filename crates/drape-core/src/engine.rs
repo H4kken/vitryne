@@ -171,12 +171,23 @@ pub struct GarmentDesc {
 pub struct Garment {
     pub desc: GarmentDesc,
     pub fabric: Fabric,
+    pub panel_fabrics: Vec<Fabric>,
     pub constraints: Constraints,
 }
 
 impl Garment {
     /// Builds the solver constraints (graph-coloured stretch and bend, sewing).
     pub fn load(desc: &GarmentDesc, fabric: &Fabric) -> Result<Garment, String> {
+        let n_panels = desc.groups.len().max(1);
+        Self::load_with_materials(desc, fabric, &vec![*fabric; n_panels])
+    }
+
+    /// Builds solver constraints with per-panel fabrics (M9).
+    pub fn load_with_materials(
+        desc: &GarmentDesc,
+        default_fabric: &Fabric,
+        panel_fabrics: &[Fabric],
+    ) -> Result<Garment, String> {
         let n = desc.mesh.n_verts();
         if let Some(&(a, b)) = desc
             .sew_pairs
@@ -188,11 +199,15 @@ impl Garment {
                 desc.name
             ));
         }
-        let mut constraints = Constraints::build(&desc.mesh, fabric);
+        let panel_ranges: Vec<std::ops::Range<u32>> =
+            desc.groups.iter().map(|(_, r)| r.clone()).collect();
+        let mut constraints =
+            Constraints::build_with_panel_materials(&desc.mesh, panel_fabrics, &panel_ranges);
         constraints.set_sewing(&desc.sew_pairs, n);
         Ok(Garment {
             desc: desc.clone(),
-            fabric: *fabric,
+            fabric: *default_fabric,
+            panel_fabrics: panel_fabrics.to_vec(),
             constraints,
         })
     }
@@ -262,10 +277,21 @@ impl Engine {
         if let Some(s) = garment.desc.schedule {
             settings.schedule = s;
         }
-        let solver = Solver::new(
+        let panel_ranges: Vec<std::ops::Range<u32>> =
+            garment.desc.groups.iter().map(|(_, r)| r.clone()).collect();
+        let panel_densities: Vec<f32> = garment.panel_fabrics.iter().map(|f| f.density).collect();
+        let inv_mass = if garment.panel_fabrics.is_empty() {
+            garment.mesh().inv_masses(garment.fabric.density)
+        } else {
+            garment
+                .mesh()
+                .inv_masses_per_panel(&panel_densities, &panel_ranges)
+        };
+        let solver = Solver::new_with_inv_mass(
             &self.gpu.device,
             garment.mesh(),
             &garment.constraints,
+            inv_mass,
             garment.fabric.density,
             settings,
             body.collider.clone(),
@@ -522,11 +548,29 @@ impl Simulation {
 
     pub fn free_mass(&self) -> f32 {
         let m = self.garment.mesh();
-        m.masses(self.garment.fabric.density)
+        let panel_ranges: Vec<std::ops::Range<u32>> = self
+            .garment
+            .desc
+            .groups
+            .iter()
+            .map(|(_, r)| r.clone())
+            .collect();
+        let panel_densities: Vec<f32> = self
+            .garment
+            .panel_fabrics
+            .iter()
+            .map(|f| f.density)
+            .collect();
+        let masses = if self.garment.panel_fabrics.is_empty() {
+            m.masses(self.garment.fabric.density)
+        } else {
+            m.masses_per_panel(&panel_densities, &panel_ranges)
+        };
+        masses
             .iter()
             .zip(&m.pinned)
             .filter(|(_, p)| !**p)
-            .map(|(m, _)| m)
+            .map(|(m, _)| *m)
             .sum()
     }
 

@@ -72,3 +72,40 @@ fn trousers() {
 fn hoodie() {
     compare("hoodie");
 }
+
+#[test]
+fn per_cut_fabrics() {
+    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
+    let mut doc = Document::open(std::path::Path::new(&format!(
+        "{root}/examples/tshirt.vtry"
+    )))
+    .unwrap()
+    .doc;
+
+    // Add denim preset fabric to the project.
+    let denim = vitryne_format::presets::denim();
+    let denim_id = denim.id.clone();
+    doc.fabrics.push(denim.clone());
+    doc.project.as_mut().unwrap().fabrics.push(denim_id.clone());
+
+    // Set cut 0 (front) to denim, while other cuts keep the garment's cotton jersey default.
+    let garment = &mut doc.garments[0];
+    garment.pieces[0].cuts[0].fabric = Some(denim_id);
+
+    let pg = ProjectGarment::new(&doc).unwrap();
+    let panel_mats = pg.panel_materials();
+    assert_eq!(panel_mats.len(), 4);
+
+    // Cut 0 should have denim density (0.42) and stretch_k (~1.039e6),
+    // while cut 1 should have cotton jersey density (0.15) and stretch_k (~1.0e4).
+    assert!((panel_mats[0].density - 0.42).abs() < 1e-4);
+    assert!((panel_mats[0].stretch_k - 1_039_230.5).abs() < 1e2);
+    assert!((panel_mats[1].density - 0.15).abs() < 1e-4);
+    assert!((panel_mats[1].stretch_k - 10_000.0).abs() < 1e2);
+
+    let edge = pg.edge_for_vertices(10_000).unwrap();
+    let desc = pg.build(edge).unwrap();
+    let g = drape_core::engine::Garment::load_with_materials(&desc, &pg.material(), &panel_mats)
+        .unwrap();
+    assert_eq!(g.panel_fabrics.len(), 4);
+}

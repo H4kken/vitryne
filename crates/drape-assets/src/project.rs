@@ -74,10 +74,21 @@ pub struct ProjectGarment<'a> {
     pub doc: &'a Document,
     pub garment: &'a Garment,
     pub fabric: &'a Fabric,
+    /// The fabrics of each cut in cut order (matching pattern panels).
+    pub cut_fabrics: Vec<&'a Fabric>,
     /// The avatar's regions: the project's avatar, or the test avatar for a garment file.
     pub regions: &'a BTreeMap<String, Region>,
     /// Things the engine ignores or approximates, for the user.
     pub warnings: Vec<String>,
+}
+
+/// Turns a fabric into engine Material parameters (means of warp and weft).
+pub fn fabric_to_material(f: &Fabric) -> Material {
+    Material {
+        density: f.density as f32,
+        stretch_k: (3f64.sqrt() / 2.0 * 0.5 * (f.stretch.warp + f.stretch.weft)) as f32,
+        bend_kb: (0.5 * (f.bending.warp + f.bending.weft)) as f32,
+    }
 }
 
 impl<'a> ProjectGarment<'a> {
@@ -102,43 +113,59 @@ impl<'a> ProjectGarment<'a> {
                 garment.name
             ));
         }
-        for (_, cut) in garment.cuts() {
-            if cut.fabric.as_ref().is_some_and(|f| f != &garment.fabric) {
-                return Err(format!(
-                    "{}: cut {} has its own fabric; the engine takes one fabric per garment for now",
-                    garment.name,
-                    cut.name.as_deref().unwrap_or(cut.id.as_str())
-                ));
-            }
-        }
         let fabric = doc
             .fabric(&garment.fabric)
             .ok_or("the garment's fabric is missing")?;
-        if fabric.stretch.warp != fabric.stretch.weft || fabric.bending.warp != fabric.bending.weft
-        {
-            warnings.push(format!(
-                "fabric {}: warp and weft differ; the engine is isotropic for now and uses their mean",
-                fabric.name
-            ));
+        let mut cut_fabrics = Vec::new();
+        let mut warned = std::collections::BTreeSet::new();
+        for (_, cut) in garment.cuts() {
+            let f = match &cut.fabric {
+                Some(id) => doc.fabric(id).ok_or_else(|| {
+                    format!(
+                        "{}: cut {} fabric {id} is missing",
+                        garment.name,
+                        cut.name.as_deref().unwrap_or(cut.id.as_str())
+                    )
+                })?,
+                None => fabric,
+            };
+            if (f.stretch.warp != f.stretch.weft || f.bending.warp != f.bending.weft)
+                && warned.insert(&f.id)
+            {
+                warnings.push(format!(
+                    "fabric {}: warp and weft differ; the engine is isotropic for now and uses their mean",
+                    f.name
+                ));
+            }
+            cut_fabrics.push(f);
         }
         Ok(Self {
             doc,
             garment,
             fabric,
+            cut_fabrics,
             regions,
             warnings,
         })
     }
 
-    /// The fabric as the engine takes it: per-edge stiffness k = (√3/2)·Y from the membrane
-    /// stiffness Y (FORMAT.md, From garment.toml), means of warp and weft.
+    /// The default garment fabric as the engine takes it: per-edge stiffness k = (√3/2)·Y from
+    /// the membrane stiffness Y (FORMAT.md, From garment.toml), means of warp and weft.
     pub fn material(&self) -> Material {
-        let f = self.fabric;
-        Material {
-            density: f.density as f32,
-            stretch_k: (3f64.sqrt() / 2.0 * 0.5 * (f.stretch.warp + f.stretch.weft)) as f32,
-            bend_kb: (0.5 * (f.bending.warp + f.bending.weft)) as f32,
-        }
+        fabric_to_material(self.fabric)
+    }
+
+    /// The materials for each cut/panel.
+    pub fn panel_materials(&self) -> Vec<Material> {
+        self.cut_fabrics
+            .iter()
+            .map(|&f| fabric_to_material(f))
+            .collect()
+    }
+
+    /// The fabrics for each cut/panel.
+    pub fn panel_fabrics(&self) -> Vec<Fabric> {
+        self.cut_fabrics.iter().map(|&f| f.clone()).collect()
     }
 
     /// `targetVertices`: the garment's, else the project's, else 10,000.

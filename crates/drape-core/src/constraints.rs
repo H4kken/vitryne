@@ -116,18 +116,42 @@ fn cot(a: Vec3, b: Vec3) -> f32 {
 }
 
 impl Constraints {
+    #[allow(clippy::single_range_in_vec_init)]
     pub fn build(mesh: &ClothMesh, mat: &Material) -> Self {
+        Self::build_with_panel_materials(mesh, &[*mat], &[(0..mesh.n_verts() as u32)])
+    }
+
+    /// Builds stretch and bend constraints with per-panel materials (M9).
+    pub fn build_with_panel_materials(
+        mesh: &ClothMesh,
+        panel_mats: &[Material],
+        panel_ranges: &[std::ops::Range<u32>],
+    ) -> Self {
         let n = mesh.n_verts();
         let r = &mesh.rest;
         let edges = mesh.edges();
 
+        let mat_for = |v: u32| -> &Material {
+            if panel_ranges.is_empty() || panel_mats.is_empty() {
+                return &panel_mats[0];
+            }
+            let idx = panel_ranges
+                .iter()
+                .position(|range| range.contains(&v))
+                .unwrap_or(0);
+            &panel_mats[idx.min(panel_mats.len() - 1)]
+        };
+
         let stretch: Vec<Stretch> = edges
             .iter()
-            .map(|e| Stretch {
-                i: e.v[0],
-                j: e.v[1],
-                rest: (r[e.v[0] as usize] - r[e.v[1] as usize]).length(),
-                compliance: 1.0 / mat.stretch_k,
+            .map(|e| {
+                let m = mat_for(e.v[0]);
+                Stretch {
+                    i: e.v[0],
+                    j: e.v[1],
+                    rest: (r[e.v[0] as usize] - r[e.v[1] as usize]).length(),
+                    compliance: 1.0 / m.stretch_k,
+                }
             })
             .collect();
 
@@ -150,10 +174,11 @@ impl Constraints {
                 let a1b = cot(x0 - x1, x3 - x1);
                 let k = [a1a + a1b, a0a + a0b, -(a0a + a1a), -(a0b + a1b)];
                 let area = tri_area(x0, x1, x2) + tri_area(x0, x1, x3);
+                let m = mat_for(i0);
                 Bend {
                     idx: [i0, i1, i2, i3],
                     k,
-                    compliance: area / (6.0 * mat.bend_kb),
+                    compliance: area / (6.0 * m.bend_kb),
                     _pad: [0.0; 3],
                 }
             })

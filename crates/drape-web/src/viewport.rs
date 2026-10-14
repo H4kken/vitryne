@@ -195,7 +195,11 @@ impl Viewport {
             *c.body.borrow_mut() = Some((p.info.sdf_key.clone(), Arc::new(body)));
         }
         let body = c.body.borrow().as_ref().expect("set above").1.clone();
-        let garment = Arc::new(Garment::load(&p.garment, &p.fabric)?);
+        let garment = Arc::new(Garment::load_with_materials(
+            &p.garment,
+            &p.fabric,
+            &p.panel_fabrics,
+        )?);
         // Drop the old drape first: its buffers are freed before the new ones are made.
         c.pulling.set(None);
         *c.live.borrow_mut() = None;

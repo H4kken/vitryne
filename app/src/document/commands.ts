@@ -5,6 +5,7 @@
 // of what they produce, so an invalid value never becomes a command.
 
 import type { Cut, Fabric, Garment, Piece, Placement, Seam, Source, Vec3 } from '@/format/schema.gen';
+import { findPreset } from '@/format/presets';
 import { type Entities, getEntity, mainGarment, setEntity, type Slot, slotKey } from './entities';
 import { deepEqual, getIn, type Path, setIn } from './json';
 import { schemaErrors } from './validate';
@@ -133,6 +134,7 @@ export function renameFabric(e: Entities, fabricId: string, name: string): Comma
 /** The fabric values the properties panel edits, by path in the fabric. */
 export const FABRIC_FIELDS = {
   density: ['density'],
+  thickness: ['thickness'],
   friction: ['friction'],
   stretchWarp: ['stretch', 'warp'],
   stretchWeft: ['stretch', 'weft'],
@@ -144,7 +146,9 @@ export const FABRIC_FIELDS = {
 export type FabricField = keyof typeof FABRIC_FIELDS;
 
 export function fabricValue(f: Fabric, field: FabricField): number {
-  return getIn(f, FABRIC_FIELDS[field]) as number;
+  const v = getIn(f, FABRIC_FIELDS[field]);
+  if (v === undefined && field === 'thickness') return 0.5;
+  return v as number;
 }
 
 export function setFabricValue(e: Entities, fabricId: string, field: FabricField, value: number): Command {
@@ -154,6 +158,127 @@ export function setFabricValue(e: Entities, fabricId: string, field: FabricField
     drape: true,
     coalesce: `fabric:${fabricId}:${field}`,
   });
+}
+
+/** Copies all physical properties of a preset onto an existing fabric. */
+export function applyFabricPreset(e: Entities, fabricId: string, preset: Fabric): Command {
+  const before = e.fabrics.find((f) => f.id === fabricId);
+  if (!before) throw new CommandError(`no fabric ${fabricId}`);
+  const after: Fabric = {
+    ...before,
+    name: preset.name,
+    category: preset.category,
+    density: preset.density,
+    thickness: preset.thickness,
+    stretch: { ...preset.stretch },
+    bending: { ...preset.bending },
+    friction: preset.friction,
+    notes: preset.notes,
+  };
+  const problems = schemaErrors('fabric', after);
+  if (problems.length) throw new CommandError(`Apply preset: ${problems.join('; ')}`);
+  return {
+    label: `Apply ${preset.name} preset`,
+    drape: true,
+    changes: [{ slot: { kind: 'fabric', id: fabricId }, before, after }],
+  };
+}
+
+/** Changes a garment's default fabric. Adds preset fabric if needed. */
+export function setGarmentFabric(e: Entities, garmentId: string, fabricId: string): Command {
+  const g = garment(e, garmentId);
+  if (g.fabric === fabricId) throw new CommandError('garment already has this fabric');
+  const changes: Change[] = [];
+  const preset = findPreset(fabricId);
+  if (!e.fabrics.some((f) => f.id === fabricId) && preset) {
+    changes.push({ slot: { kind: 'fabric', id: preset.id }, before: undefined, after: preset });
+    if (e.project && !e.project.fabrics.includes(preset.id)) {
+      changes.push({
+        slot: { kind: 'project' },
+        before: e.project,
+        after: { ...e.project, fabrics: [...e.project.fabrics, preset.id] },
+      });
+    }
+  }
+  const afterGarment: Garment = { ...g, fabric: fabricId };
+  changes.push({ slot: { kind: 'garment', id: garmentId }, before: g, after: afterGarment });
+  return {
+    label: 'Change garment fabric',
+    drape: true,
+    changes,
+  };
+}
+
+/** Overrides or resets one cut's fabric. Adds preset fabric if needed. */
+export function setCutFabric(e: Entities, garmentId: string, cutId: string, fabricId: string | undefined): Command {
+  const g = garment(e, garmentId);
+  const found = findCut(g, cutId);
+  if (!found) throw new CommandError(`no cut ${cutId}`);
+  if (found.cut.fabric === fabricId) throw new CommandError('cut already has this fabric');
+  const [i, j] = cutAt(g, cutId);
+
+  const changes: Change[] = [];
+  if (fabricId) {
+    const preset = findPreset(fabricId);
+    if (!e.fabrics.some((f) => f.id === fabricId) && preset) {
+      changes.push({ slot: { kind: 'fabric', id: preset.id }, before: undefined, after: preset });
+      if (e.project && !e.project.fabrics.includes(preset.id)) {
+        changes.push({
+          slot: { kind: 'project' },
+          before: e.project,
+          after: { ...e.project, fabrics: [...e.project.fabrics, preset.id] },
+        });
+      }
+    }
+  }
+
+  const afterGarment = setIn(g, ['pieces', i, 'cuts', j, 'fabric'], fabricId);
+  const problems = schemaErrors('garment', afterGarment);
+  if (problems.length) throw new CommandError(`Change cut fabric: ${problems.join('; ')}`);
+  changes.push({ slot: { kind: 'garment', id: garmentId }, before: g, after: afterGarment });
+  return {
+    label: fabricId ? 'Change cut fabric' : 'Reset cut fabric to default',
+    drape: true,
+    changes,
+  };
+}
+
+/** Overrides or resets all cuts of a piece to a fabric. Adds preset fabric if needed. */
+export function setPieceFabric(e: Entities, garmentId: string, pieceId: string, fabricId: string | undefined): Command {
+  const g = garment(e, garmentId);
+  const pieceIndex = indexOf(g.pieces, pieceId, 'piece');
+  const piece = g.pieces[pieceIndex];
+  if (!piece) throw new CommandError(`no piece ${pieceId}`);
+  const allMatch = piece.cuts.every((c) => c.fabric === fabricId);
+  if (allMatch) throw new CommandError('piece already has this fabric');
+
+  const changes: Change[] = [];
+  if (fabricId) {
+    const preset = findPreset(fabricId);
+    if (!e.fabrics.some((f) => f.id === fabricId) && preset) {
+      changes.push({ slot: { kind: 'fabric', id: preset.id }, before: undefined, after: preset });
+      if (e.project && !e.project.fabrics.includes(preset.id)) {
+        changes.push({
+          slot: { kind: 'project' },
+          before: e.project,
+          after: { ...e.project, fabrics: [...e.project.fabrics, preset.id] },
+        });
+      }
+    }
+  }
+
+  let afterGarment = g;
+  for (let j = 0; j < piece.cuts.length; j++) {
+    afterGarment = setIn(afterGarment, ['pieces', pieceIndex, 'cuts', j, 'fabric'], fabricId);
+  }
+  const problems = schemaErrors('garment', afterGarment);
+  if (problems.length) throw new CommandError(`Change piece fabric: ${problems.join('; ')}`);
+  changes.push({ slot: { kind: 'garment', id: garmentId }, before: g, after: afterGarment });
+  return {
+    label: fabricId ? 'Change piece fabric' : 'Reset piece fabric to default',
+    drape: true,
+    changes,
+  };
 }
 
 // ---- simulation settings: the garment's value wins over the project's (FORMAT.md) ----------

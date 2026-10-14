@@ -2,10 +2,13 @@
 // The panels the rail opens: what the editor can change today, in plain words. Every change
 // goes through a command (document/commands.ts) on the store.
 
+import { useState } from 'react';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import type { Cut, Fabric, Garment, Piece } from '@/format/schema.gen';
 import {
+  applyFabricPreset,
   type FabricField,
   fabricValue,
   findCut,
@@ -16,8 +19,10 @@ import {
   renameProject,
   renameSeam,
   selfCollision,
+  setCutFabric,
   setFabricValue,
   setMirrored,
+  setPieceFabric,
   setPlacement,
   setSelfCollision,
   setTargetVertices,
@@ -25,6 +30,7 @@ import {
 } from '@/document/commands';
 import type { Entities } from '@/document/entities';
 import type { DocumentStore } from '@/document/store';
+import { FABRIC_PRESETS, findPreset, matchingPreset } from '@/format/presets';
 import type { Selection } from '@/pattern/PatternPanel';
 import { PlaceSelect } from '@/placement/PlaceSelect';
 import { degrees, type Place, PLACES, placeOf, radians, tidy } from '@/placement/places';
@@ -45,40 +51,124 @@ function Heading({ children }: { children: React.ReactNode }) {
   return <h3 className="text-muted-foreground m-0 text-[13px] font-semibold tracking-[0.06em] uppercase">{children}</h3>;
 }
 
-const FABRIC_UI: { field: FabricField; label: string; unit: string; ends: [string, string]; scale?: number; min: number; max: number; log?: boolean }[] = [
+const FABRIC_UI: { field: FabricField; label: string; unit: string; ends: [string, string]; scale?: number; min: number; max: number; log?: boolean; step?: number }[] = [
   { field: 'density', label: 'Weight', unit: 'g/m²', ends: ['Light', 'Heavy'], scale: 1000, min: 30, max: 600 },
-  { field: 'stretchWarp', label: 'Stretch along the grain', unit: 'N/m', ends: ['Stretchy', 'Firm'], min: 100, max: 1e6, log: true },
-  { field: 'stretchWeft', label: 'Stretch across the grain', unit: 'N/m', ends: ['Stretchy', 'Firm'], min: 100, max: 1e6, log: true },
-  { field: 'stretchShear', label: 'Give on the bias', unit: 'N/m', ends: ['Soft', 'Firm'], min: 10, max: 1e6, log: true },
+  { field: 'thickness', label: 'Thickness', unit: 'mm', ends: ['Thin', 'Thick'], min: 0.1, max: 5.0, step: 0.05 },
+  { field: 'stretchWarp', label: 'Stretch along the grain', unit: 'N/m', ends: ['Stretchy', 'Firm'], min: 100, max: 2e6, log: true },
+  { field: 'stretchWeft', label: 'Stretch across the grain', unit: 'N/m', ends: ['Stretchy', 'Firm'], min: 100, max: 2e6, log: true },
+  { field: 'stretchShear', label: 'Give on the bias', unit: 'N/m', ends: ['Soft', 'Firm'], min: 10, max: 2e6, log: true },
   { field: 'bendingWarp', label: 'Stiffness along the grain', unit: 'µN·m', ends: ['Drapey', 'Stiff'], scale: 1e6, min: 0.1, max: 1000, log: true },
   { field: 'bendingWeft', label: 'Stiffness across the grain', unit: 'µN·m', ends: ['Drapey', 'Stiff'], scale: 1e6, min: 0.1, max: 1000, log: true },
   { field: 'friction', label: 'Grip on the body', unit: '', ends: ['Slides', 'Grips'], min: 0, max: 1.5 },
 ];
 
-export function FabricPanel({ store, fabric }: { store: DocumentStore; fabric: Fabric | undefined }) {
+export function FabricPanel({
+  store,
+  fabric: initialFabric,
+  garment,
+  fabrics,
+}: {
+  store: DocumentStore;
+  fabric: Fabric | undefined;
+  garment?: Garment;
+  fabrics?: readonly Fabric[];
+}) {
+  const [selectedFabricId, setSelectedFabricId] = useState<string | null>(null);
+  const activeId = selectedFabricId ?? initialFabric?.id;
+  const fabric = fabrics?.find((f) => f.id === activeId) ?? initialFabric;
+
   if (!fabric) return <Intro>This garment has no fabric.</Intro>;
+
+  const activePreset = matchingPreset(fabric);
+
   return (
     <div className="flex flex-col gap-5">
-      <Intro>Changes how it hangs, folds and stretches. Move a slider and watch it settle.</Intro>
-      <TextField label="Name" value={fabric.name} onCommit={(v) => store.execute((e) => renameFabric(e, fabric.id, v))} />
-      {FABRIC_UI.map((f) => (
-        <NumberField
-          key={f.field}
-          {...f}
-          value={fabricValue(fabric, f.field)}
-          onChange={(v, dragging) => {
-            if (dragging) store.beginGesture(`fabric:${fabric.id}:${f.field}`);
-            store.execute((e) => setFabricValue(e, fabric.id, f.field, v));
-          }}
-          onDragEnd={() => store.endGesture()}
-        />
-      ))}
-      {fabric.notes && (
-        <details className="text-muted-foreground text-[13px] leading-snug">
-          <summary className="text-foreground cursor-pointer font-semibold">About these values</summary>
-          <p className="mt-1.5 mb-0">{fabric.notes}</p>
-        </details>
+      <Intro>Changes how it hangs, folds and stretches. Pick a physical preset or fine tune below.</Intro>
+
+      {fabrics && fabrics.length > 1 && (
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-[13px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Fabric to edit</Label>
+          <Select value={fabric.id} onValueChange={(id) => setSelectedFabricId(id)}>
+            <SelectTrigger className="h-10 w-full rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white text-[14px]">
+              <SelectValue placeholder="Choose fabric" />
+            </SelectTrigger>
+            <SelectContent>
+              {fabrics.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name} {f.id === garment?.fabric ? '(Default)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <Heading>Presets</Heading>
+          {activePreset ? (
+            <span className="rounded-full bg-[#E1E4DE] px-2 py-0.5 text-[11px] font-medium text-foreground">
+              {activePreset.category}
+            </span>
+          ) : (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+              Custom
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-1.5">
+          {FABRIC_PRESETS.map((p) => {
+            const isSelected = activePreset?.id === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => store.execute((e) => applyFabricPreset(e, fabric.id, p))}
+                className={`flex flex-col items-start rounded-[10px] border p-2.5 text-left transition-all ${
+                  isSelected
+                    ? 'border-[#14181F] bg-[#14181F] text-white shadow-sm'
+                    : 'border-[#E1E4DE] bg-white hover:border-[#B5B9B0] hover:bg-[#F9FAF8]'
+                }`}
+              >
+                <div className="flex w-full items-center justify-between">
+                  <span className={`text-[13px] font-semibold ${isSelected ? 'text-white' : 'text-foreground'}`}>
+                    {p.name}
+                  </span>
+                  <span className={`text-[10px] uppercase font-medium tracking-wide ${isSelected ? 'text-white/70' : 'text-muted-foreground'}`}>
+                    {p.category}
+                  </span>
+                </div>
+                <span className={`text-[11px] mt-0.5 ${isSelected ? 'text-white/80' : 'text-muted-foreground'}`}>
+                  {Math.round(p.density * 1000)} g/m² · {p.thickness ? `${p.thickness} mm · ` : ''}{p.friction > 0.35 ? 'Sturdy' : 'Soft'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 border-t pt-4">
+        <Heading>Fine tune</Heading>
+        <TextField label="Name" value={fabric.name} onCommit={(v) => store.execute((e) => renameFabric(e, fabric.id, v))} />
+        {FABRIC_UI.map((f) => (
+          <NumberField
+            key={f.field}
+            {...f}
+            value={fabricValue(fabric, f.field)}
+            onChange={(v, dragging) => {
+              if (dragging) store.beginGesture(`fabric:${fabric.id}:${f.field}`);
+              store.execute((e) => setFabricValue(e, fabric.id, f.field, v));
+            }}
+            onDragEnd={() => store.endGesture()}
+          />
+        ))}
+        {fabric.notes && (
+          <details className="text-muted-foreground text-[13px] leading-snug">
+            <summary className="text-foreground cursor-pointer font-semibold">About these values</summary>
+            <p className="mt-1.5 mb-0">{fabric.notes}</p>
+          </details>
+        )}
+      </div>
     </div>
   );
 }
@@ -110,6 +200,7 @@ function whereLabel(g: Garment, cut: Cut): string {
 export function PiecesPanel(props: {
   store: DocumentStore;
   garment: Garment | undefined;
+  fabrics?: readonly Fabric[];
   selection: Selection;
   onSelect: (s: Selection) => void;
   /** Asks Rust for a fresh wrap of the cut at `place`, then makes it an edit. */
@@ -130,21 +221,36 @@ export function PiecesPanel(props: {
           <Intro>Pick a piece to name it and choose where it starts on the body: here, in the flat view, or with Select in 3D.</Intro>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {garment.pieces.flatMap((piece) =>
-              piece.cuts.map((cut) => (
-                <li key={cut.id}>
-                  <button
-                    type="button"
-                    onClick={() => props.onSelect({ kind: 'cut', pieceId: piece.id, cutId: cut.id })}
-                    className="flex w-full flex-col items-start rounded-[10px] px-3 py-2 text-left hover:bg-[#F4F5F2]"
-                  >
-                    <span className="text-[15px] font-semibold">
-                      {cutName(piece, cut)}
-                      {cut.mirrored ? ' (mirrored)' : ''}
-                    </span>
-                    <span className="text-muted-foreground text-[13px]">{whereLabel(garment, cut)}</span>
-                  </button>
-                </li>
-              )),
+              piece.cuts.map((cut) => {
+                const cutFabric = cut.fabric
+                  ? props.fabrics?.find((f) => f.id === cut.fabric) ?? findPreset(cut.fabric)
+                  : undefined;
+                return (
+                  <li key={cut.id}>
+                    <button
+                      type="button"
+                      onClick={() => props.onSelect({ kind: 'cut', pieceId: piece.id, cutId: cut.id })}
+                      className="flex w-full flex-col items-start rounded-[10px] px-3 py-2 text-left hover:bg-[#F4F5F2]"
+                    >
+                      <span className="text-[15px] font-semibold">
+                        {cutName(piece, cut)}
+                        {cut.mirrored ? ' (mirrored)' : ''}
+                      </span>
+                      <div className="flex items-center gap-1.5 text-muted-foreground text-[13px]">
+                        <span>{whereLabel(garment, cut)}</span>
+                        {cutFabric && (
+                          <>
+                            <span>·</span>
+                            <span className="rounded bg-[#E1E4DE] px-1.5 py-0.5 text-[11px] font-medium text-foreground">
+                              {cutFabric.name}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                );
+              }),
             )}
           </ul>
         </div>
@@ -172,6 +278,7 @@ function CutDetails(props: {
   garment: Garment;
   piece: Piece;
   cut: Cut;
+  fabrics?: readonly Fabric[];
   onSelect: (s: Selection) => void;
   onRewrap: (cutId: string, place: Place) => void;
   onPlaceIn3d: (() => void) | null;
@@ -184,6 +291,9 @@ function CutDetails(props: {
     pc.cuts.filter((c) => !blocked.has(c.id)).map((c) => ({ key: c.id, label: cutName(pc, c) })),
   );
   const value = p.type === 'follow' ? `on:${p.cut}` : place ? `one:${place}` : null;
+  const defaultFabric = props.fabrics?.find((f) => f.id === g.fabric) ?? findPreset(g.fabric);
+  const defaultFabricName = defaultFabric?.name ?? 'Garment default';
+
   /** A slider or box for one number of the wrap. */
   const wrapField = (field: 'angle' | 'top' | 'radius' | 'rotation', v: number, dragging: boolean) => {
     if (dragging) store.beginGesture(`placement:${cut.id}:${field}`);
@@ -211,6 +321,57 @@ function CutDetails(props: {
           <span className="text-muted-foreground text-[13px] leading-snug">The other one of a left and right pair.</span>
         </div>
         <Switch id="cut-mirrored" checked={!!cut.mirrored} onCheckedChange={(v) => store.execute((e) => setMirrored(e, g.id, cut.id, v))} />
+      </div>
+
+      <div className="flex flex-col gap-2 border-t pt-4">
+        <Heading>Fabric</Heading>
+        <Select
+          value={cut.fabric ?? 'default'}
+          onValueChange={(val) => {
+            const nextId = val === 'default' ? undefined : val;
+            store.execute((e) => setCutFabric(e, g.id, cut.id, nextId));
+          }}
+        >
+          <SelectTrigger aria-label="Piece fabric" className="h-11 w-full rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white text-[15px]">
+            <SelectValue placeholder="Choose fabric" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">Default ({defaultFabricName})</SelectItem>
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel>Presets</SelectLabel>
+              {FABRIC_PRESETS.map((pr) => (
+                <SelectItem key={pr.id} value={pr.id}>
+                  {pr.name} ({pr.category}, {Math.round(pr.density * 1000)} g/m²)
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            {props.fabrics && props.fabrics.some((f) => f.id !== g.fabric && !FABRIC_PRESETS.some((pr) => pr.id === f.id)) && (
+              <>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel>Custom fabrics in project</SelectLabel>
+                  {props.fabrics
+                    .filter((f) => f.id !== g.fabric && !FABRIC_PRESETS.some((pr) => pr.id === f.id))
+                    .map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name}
+                      </SelectItem>
+                    ))}
+                </SelectGroup>
+              </>
+            )}
+          </SelectContent>
+        </Select>
+        {piece.cuts.length > 1 && (
+          <button
+            type="button"
+            onClick={() => store.execute((e) => setPieceFabric(e, g.id, piece.id, cut.fabric))}
+            className="text-muted-foreground hover:text-foreground self-start text-xs underline underline-offset-4"
+          >
+            Apply {cut.fabric ? 'this fabric' : 'default'} to all {piece.cuts.length} cuts of {piece.name}
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col gap-4 border-t pt-4">
