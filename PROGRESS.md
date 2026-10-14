@@ -834,4 +834,36 @@ armholes); the user only accepts or rejects them. See ARCHITECTURE.md, "Sewing (
   - `hoodie`: rest none, penetration 0.00 mm, persistent pairs 164, strain p99 18.5%, shape 0.00 mm (7 s).
 - **Check gate:** `./check.sh` passed cleanly without warnings or errors.
 
+---
+
+## M10 — Export (2026-10-14)
+
+**Done-when:** "glTF 2.0 (`.glb`) and OBJ of the draped garment: positions, normals, UVs from the 2D pattern coordinates (so textures map like printed fabric), one material per fabric. Optionally include the avatar as a separate node. Exports open correctly in Blender and a glTF viewer, with correct scale (metres) and orientation." Met: native and browser export for both `.glb` and `.obj` (+ `.mtl`), 2D pattern coordinates mapped directly to UVs (`TEXCOORD_0` and `_PATTERN`) in metres, double-sided PBR cloth materials per fabric, optional avatar mesh export, and export dialog in the editor.
+
+### What's there
+
+| Path | What |
+|---|---|
+| `crates/vitryne-format/src/glb.rs` | glTF 2.0 binary (`.glb`) scene writer (`write_scene`): multi-mesh, multi-primitive scene generation with accessors for `POSITION`, `NORMAL`, `TEXCOORD_0`, and `_PATTERN`, node hierarchy, and PBR materials (`pbrMetallicRoughness` with base color factor, metallic, roughness, and double-sided flags). |
+| `crates/drape-assets/src/export.rs` | Complete export module: `GarmentExportData`, `PanelExportData`, `AvatarExportData`, `export_glb`, and `export_obj`. Generates `.glb` bytes and `.obj`/`.mtl` string pairs with 1-based indexing and material assignments. |
+| `crates/drape-native/src/main.rs` | CLI subcommand `drape export <garment> [--out <file.glb\|file.obj>] [--avatar] [--frames N]`: drapes the garment and exports to standard `.glb` or `.obj`. |
+| `crates/drape-web` | `project.rs` populates `export_fabrics` from project documents; `viewport.rs` exposes `export_glb(include_avatar)` and `export_obj(include_avatar)` returning Promises that read GPU positions asynchronously. |
+| `app/src/worker/` | `protocol.ts` defines `exportGlb` and `exportObj` request/reply types; `engine.worker.ts` handles export calls with transferable `ArrayBuffer`; `session.ts` exposes typed client methods. |
+| `app/src/editor/ExportDialog.tsx` | Export modal dialog: format selection (glTF 2.0 binary vs Wavefront OBJ), include avatar toggle, metadata callout, and file downloading via File System Access API (`showSaveFilePicker`) or browser download. |
+| `app/src/editor/Editor.tsx` | "Export 3D model…" menu item in the main editor dropdown. |
+
+### Technical Details
+
+- **Orientation & Scale:** Both glTF 2.0 and Wavefront OBJ adhere to the standard right-handed coordinate system (+Y up, +Z facing) in exact metres (1:1 with simulation space).
+- **Pattern UVs:** UV coordinates in `TEXCOORD_0` and `_PATTERN` preserve the 2D flat pattern coordinates in metres `(x, y)` directly from `mesh.rest`. This ensures textures applied in external tools (Blender, game engines, 3D viewers) tile and scale exactly to the real-world fabric print scale without stretching.
+- **Materials:** Each distinct fabric in the garment is exported as a separate PBR material with its calibrated base color and roughness factor. Cloth primitives have `doubleSided: true` to properly render hems, collars, and interiors. The avatar is exported with `doubleSided: false`.
+
+### Tests & Verification
+
+- **Rust unit tests:** Passing in `glb.rs` (scene writing and attribute verification) and `export.rs` (round-trip, material generation, OBJ/MTL formatting).
+- **TypeScript tests:** 40 passed across all suites (`pnpm run check`).
+- **End-to-end native test:** Tested with `examples/tshirt.vtry` and verified glTF 2.0 chunks, accessor types, bounding box extents, and primitives using python glTF inspection.
+- **Gate:** `./check.sh` passed cleanly (Rust fmt, clippy native + wasm32, cargo tests, web build, 40 web tests, golden drapes).
+
+
 

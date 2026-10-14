@@ -149,6 +149,19 @@ const handlers: Handlers = {
   async seamDifferences() {
     return { differences: needFile().seam_differences() };
   },
+
+  async exportGlb({ includeAvatar }) {
+    const v = needViewport();
+    const bytes: Uint8Array = await v.export_glb(includeAvatar);
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    return { glb: buffer };
+  },
+
+  async exportObj({ includeAvatar }) {
+    const v = needViewport();
+    const res: { obj: string; mtl: string } = JSON.parse(await v.export_obj(includeAvatar));
+    return res;
+  },
 };
 
 function needFile(): VtryFile {
@@ -181,7 +194,9 @@ function request(m: RequestMessage) {
           ? fileDataBuffers((value as Requests['save']['reply']).data)
           : m.op === 'importNew'
             ? [(value as Requests['importNew']['reply']).zip]
-            : [];
+            : m.op === 'exportGlb'
+              ? [(value as Requests['exportGlb']['reply']).glb]
+              : [];
       post({ kind: 'reply', id: m.id, ok: true, value }, transfer);
     } catch (e) {
       if (crashed) return;

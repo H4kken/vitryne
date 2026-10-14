@@ -280,6 +280,17 @@ export class EngineSession {
     return data;
   }
 
+  /** glTF 2.0 binary (.glb) export of the draped garment, with UVs and PBR materials. */
+  async exportGlb(includeAvatar = false): Promise<ArrayBuffer> {
+    const { glb } = await this.need().request('exportGlb', { includeAvatar });
+    return glb;
+  }
+
+  /** Wavefront OBJ (.obj + .mtl) export of the draped garment, with UVs and PBR materials. */
+  async exportObj(includeAvatar = false): Promise<{ obj: string; mtl: string }> {
+    return await this.need().request('exportObj', { includeAvatar });
+  }
+
   // ---- inputs ---------------------------------------------------------------------------
 
   resize(width: number, height: number) {

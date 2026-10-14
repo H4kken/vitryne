@@ -114,6 +114,10 @@ export interface Requests {
   joinEdges: { args: { a: string; b: string }; reply: { proposal: string } };
   /** Each seam's length difference in percent, by seam id (JSON object). */
   seamDifferences: { args: Record<string, never>; reply: { differences: string } };
+  /** glTF 2.0 binary (.glb) export of the draped garment, with UVs and PBR materials. */
+  exportGlb: { args: { includeAvatar: boolean }; reply: { glb: ArrayBuffer } };
+  /** Wavefront OBJ (.obj + .mtl) export of the draped garment, with UVs and PBR materials. */
+  exportObj: { args: { includeAvatar: boolean }; reply: { obj: string; mtl: string } };
 }
 
 export type Op = keyof Requests;

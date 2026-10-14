@@ -35,6 +35,7 @@ import { type EngineState, EngineSession, useEngine } from '@/worker/session';
 import { type Example, fetchAvatar, fetchExample, listExamples } from './examples';
 import { Gizmo } from './Gizmo';
 import { CubeIcon, FabricIcon, FlatIcon, Logo, MoveIcon, PinchIcon, RedoIcon, SelectIcon, TurnIcon, UndoIcon } from './icons';
+import { ExportDialog } from './ExportDialog';
 import { ImportDialog, type TextFile } from './ImportDialog';
 import { StartScreen } from './StartScreen';
 import { useFiles } from './useFiles';
@@ -78,6 +79,7 @@ export function Editor() {
   const [flatTool, setFlatTool] = useState<FlatTool>('select');
   const [importing, setImporting] = useState<TextFile | null>(null);
   const [importKey, setImportKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const dxfInput = useRef<HTMLInputElement>(null);
   const canvasBox = useRef<HTMLElement>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 1, h: 1 });
@@ -421,6 +423,10 @@ export function Editor() {
               Save as… <DropdownMenuShortcut>⇧{MOD}S</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={doc.empty} onSelect={() => setExporting(true)}>
+              Export 3D model…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => files.close()}>Close the project</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -660,6 +666,12 @@ export function Editor() {
         projectName={doc.empty ? null : (doc.entities.project?.name ?? doc.fileName)}
         onClose={() => setImporting(null)}
         onImport={runImport}
+      />
+      <ExportDialog
+        open={exporting}
+        onOpenChange={setExporting}
+        session={session}
+        garmentName={doc.entities.project?.name ?? garment?.name ?? 'garment'}
       />
 
       <Dialog open={!!files.unsaved} onOpenChange={(open) => !open && files.unsaved?.cancel()}>

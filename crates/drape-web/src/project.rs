@@ -43,6 +43,8 @@ pub struct Prepared {
     pub mesh: BodyMesh,
     pub sdf: SdfParams,
     pub info: PreparedInfo,
+    /// Fabrics for 3D export (M10).
+    pub export_fabrics: Vec<drape_assets::export::ExportFabric>,
     /// Places the meshed garment again for the editor's placement preview.
     pub placer: Placer,
 }
@@ -155,6 +157,11 @@ impl ProjectFile {
                 warnings,
                 cuts: placer.cut_ids(),
             },
+            export_fabrics: pg
+                .panel_fabrics()
+                .iter()
+                .map(drape_assets::export::ExportFabric::from)
+                .collect(),
             placer,
             fabric: pg.material(),
             panel_fabrics: pg.panel_materials(),

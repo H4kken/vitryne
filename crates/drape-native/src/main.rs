@@ -17,6 +17,8 @@
 //!                           for the editor: examples/*.vtry as zips (+ examples/index.json)
 //!                           and each one's body SDF, sdf/<key>.bin (see SdfParams::cache_key);
 //!                           the test avatar's mesh (avatar/body.glb) and the SDF imports use
+//!   drape export <garment> [--out <file.glb|file.obj>] [--avatar] [--frames N]
+//!                           drape and export garment as glTF 2.0 (.glb) or Wavefront OBJ (.obj)
 //!   drape frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
 //!                           headless: render the sim at those frames to PNGs
 //!   drape info              print adapter report as JSON and exit
@@ -140,6 +142,110 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        "export" => {
+            let out = take_value(&mut args, "--out");
+            let frames: u32 = take_value(&mut args, "--frames")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(400);
+            let include_avatar = take_flag(&mut args, "--avatar");
+            let mut scene_args = scene_args;
+            if scene_args.garment.is_none() && args.len() > 1 && !args[1].starts_with("--") {
+                let g = args.remove(1);
+                let project = if is_project_file(&g) {
+                    Some(Arc::new(open_project(&g)))
+                } else {
+                    None
+                };
+                if let Some(doc) = &project {
+                    let pg = ProjectGarment::new(doc).unwrap_or_else(|e| panic!("{e}"));
+                    for w in pg.apply_settings(&mut scene_args.sim) {
+                        log::warn!("{w}");
+                    }
+                }
+                scene_args.garment = Some(g);
+                scene_args.project = project;
+                scene_args.kind = "garment".into();
+            }
+            let engine = Engine::new(headless_gpu());
+            let scene = scene_args.build();
+            let sim = engine.simulate(&scene.garment, &scene.body, &scene_args.sim);
+            log::info!("draping {} for {} frames...", scene.garment.name(), frames);
+            sim.step(frames);
+            let positions = pollster::block_on(sim.read_positions());
+            let normals = scene.garment.mesh().vertex_normals(&positions);
+            let uvs: Vec<glam::Vec2> = scene
+                .garment
+                .desc
+                .mesh
+                .rest
+                .iter()
+                .map(|p| glam::Vec2::new(p.x, p.y))
+                .collect();
+
+            let fabrics: Vec<drape_assets::export::ExportFabric> =
+                if let Some(doc) = &scene_args.project {
+                    let pg = ProjectGarment::new(doc).unwrap_or_else(|e| panic!("{e}"));
+                    pg.panel_fabrics()
+                        .iter()
+                        .map(drape_assets::export::ExportFabric::from)
+                        .collect()
+                } else {
+                    vec![
+                        drape_assets::export::ExportFabric::default_cloth(scene.garment.name());
+                        scene.garment.desc.groups.len().max(1)
+                    ]
+                };
+
+            let export_data = drape_assets::export::GarmentExportData::new(
+                &scene.garment.desc,
+                &positions,
+                &normals,
+                &uvs,
+                &fabrics,
+            );
+
+            let mut av_tris_storage = Vec::new();
+            let av_export = if include_avatar {
+                Some(drape_assets::export::AvatarExportData::from_body(
+                    &scene.body,
+                    &mut av_tris_storage,
+                ))
+            } else {
+                None
+            };
+
+            let default_out = format!("{}.glb", scene.garment.name());
+            let out_path = out.as_deref().unwrap_or(&default_out);
+            let is_obj = out_path.ends_with(".obj");
+
+            if is_obj {
+                let mtl_path = if let Some(base) = out_path.strip_suffix(".obj") {
+                    format!("{base}.mtl")
+                } else {
+                    format!("{out_path}.mtl")
+                };
+                let mtl_filename = std::path::Path::new(&mtl_path)
+                    .file_name()
+                    .and_then(|f| f.to_str())
+                    .unwrap_or("garment.mtl");
+                let obj_export = drape_assets::export::export_obj(
+                    &export_data,
+                    av_export.as_ref(),
+                    Some(mtl_filename),
+                );
+                std::fs::write(out_path, &obj_export.obj)
+                    .unwrap_or_else(|e| panic!("write {out_path}: {e}"));
+                std::fs::write(&mtl_path, &obj_export.mtl)
+                    .unwrap_or_else(|e| panic!("write {mtl_path}: {e}"));
+                println!("Exported OBJ to {out_path} and {mtl_path}");
+            } else {
+                let glb_bytes = drape_assets::export::export_glb(&export_data, av_export.as_ref())
+                    .unwrap_or_else(|e| panic!("glb export: {e}"));
+                std::fs::write(out_path, &glb_bytes)
+                    .unwrap_or_else(|e| panic!("write {out_path}: {e}"));
+                println!("Exported glTF to {out_path} ({} bytes)", glb_bytes.len());
+            }
+        }
         "export-app-assets" => {
             let dir = args.get(1).cloned().unwrap_or_else(|| "app/public".into());
             export_app_assets(&dir);
@@ -259,7 +365,7 @@ fn main() {
         }
         other => {
             eprintln!(
-                "unknown command '{other}' (view | bench | bench-drag | regress | frames | export-bench-assets | export-app-assets | convert | garment-svg | pattern-svg | info | snapshot)"
+                "unknown command '{other}' (view | bench | bench-drag | regress | export | frames | export-bench-assets | export-app-assets | convert | garment-svg | pattern-svg | info | snapshot)"
             );
             std::process::exit(2);
         }

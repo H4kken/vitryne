@@ -13,7 +13,7 @@ use std::{
     },
 };
 
-use drape_assets::project::Placer;
+use drape_assets::{export::ExportFabric, project::Placer};
 use drape_core::{
     body::Sdf,
     engine::{Body, BodyOptions, Engine, Garment, SdfSource, Simulation},
@@ -41,6 +41,7 @@ struct Live {
     moved: RefCell<Option<(usize, Placement)>>,
     /// Each panel's (cut's) vertices.
     panels: Vec<std::ops::Range<u32>>,
+    export_fabrics: Vec<ExportFabric>,
 }
 
 struct Core {
@@ -228,6 +229,7 @@ impl Viewport {
             placer: p.placer.clone(),
             moved: RefCell::new(None),
             panels: garment.desc.groups.iter().map(|(_, r)| r.clone()).collect(),
+            export_fabrics: p.export_fabrics.clone(),
         }));
         Ok(baked)
     }
@@ -608,5 +610,100 @@ impl Viewport {
 
     pub fn adapter_report(&self) -> String {
         serde_json::to_string(&self.core.engine.gpu().report).unwrap_or_default()
+    }
+
+    /// Exports the current drape as a glTF 2.0 binary (`.glb`), returning a `Uint8Array`.
+    pub fn export_glb(&self, include_avatar: bool) -> js_sys::Promise {
+        let c = self.core.clone();
+        wasm_bindgen_futures::future_to_promise(async move {
+            let Some(live) = c.live.borrow().clone() else {
+                return Err(JsValue::from_str("no garment loaded"));
+            };
+            let positions = live.sim.read_positions().await;
+            let normals = live.sim.garment().mesh().vertex_normals(&positions);
+            let uvs: Vec<glam::Vec2> = live
+                .sim
+                .garment()
+                .desc
+                .mesh
+                .rest
+                .iter()
+                .map(|p| glam::Vec2::new(p.x, p.y))
+                .collect();
+            let export_data = drape_assets::export::GarmentExportData::new(
+                &live.sim.garment().desc,
+                &positions,
+                &normals,
+                &uvs,
+                &live.export_fabrics,
+            );
+            let mut av_tris_storage = Vec::new();
+            let av_export = if include_avatar {
+                Some(drape_assets::export::AvatarExportData::from_body(
+                    live.sim.body(),
+                    &mut av_tris_storage,
+                ))
+            } else {
+                None
+            };
+            let glb_bytes = drape_assets::export::export_glb(&export_data, av_export.as_ref())
+                .map_err(|e| JsValue::from_str(&e))?;
+            let array = js_sys::Uint8Array::from(&glb_bytes[..]);
+            Ok(JsValue::from(array))
+        })
+    }
+
+    /// Exports the current drape as Wavefront OBJ (`.obj` + `.mtl`), returning JSON
+    /// string `{"obj": "...", "mtl": "..."}`.
+    pub fn export_obj(&self, include_avatar: bool) -> js_sys::Promise {
+        let c = self.core.clone();
+        wasm_bindgen_futures::future_to_promise(async move {
+            let Some(live) = c.live.borrow().clone() else {
+                return Err(JsValue::from_str("no garment loaded"));
+            };
+            let positions = live.sim.read_positions().await;
+            let normals = live.sim.garment().mesh().vertex_normals(&positions);
+            let uvs: Vec<glam::Vec2> = live
+                .sim
+                .garment()
+                .desc
+                .mesh
+                .rest
+                .iter()
+                .map(|p| glam::Vec2::new(p.x, p.y))
+                .collect();
+            let export_data = drape_assets::export::GarmentExportData::new(
+                &live.sim.garment().desc,
+                &positions,
+                &normals,
+                &uvs,
+                &live.export_fabrics,
+            );
+            let mut av_tris_storage = Vec::new();
+            let av_export = if include_avatar {
+                Some(drape_assets::export::AvatarExportData::from_body(
+                    live.sim.body(),
+                    &mut av_tris_storage,
+                ))
+            } else {
+                None
+            };
+            let obj_export = drape_assets::export::export_obj(
+                &export_data,
+                av_export.as_ref(),
+                Some("garment.mtl"),
+            );
+            #[derive(Serialize)]
+            struct ObjResult<'a> {
+                obj: &'a str,
+                mtl: &'a str,
+            }
+            let json = serde_json::to_string(&ObjResult {
+                obj: &obj_export.obj,
+                mtl: &obj_export.mtl,
+            })
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            Ok(JsValue::from_str(&json))
+        })
     }
 }
