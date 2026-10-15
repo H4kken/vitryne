@@ -39,7 +39,6 @@
   --live: #1f9d6b;
   --canvas-3d: #ecefe9;
   --canvas-flat: #fafbf8;
-  --grid: #e3e7df;
   --on-ink-muted: #c9cec6;
 }
 
@@ -76,7 +75,6 @@
   --color-live: var(--live);
   --color-canvas-3d: var(--canvas-3d);
   --color-canvas-flat: var(--canvas-flat);
-  --color-grid: var(--grid);
   --color-on-ink-muted: var(--on-ink-muted);
 }
 
@@ -117,6 +115,4 @@
 
 @utility flat-grid {
   background-color: var(--canvas-flat);
-  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 32px 32px;
 }

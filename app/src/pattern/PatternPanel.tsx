@@ -74,6 +74,52 @@ function svgTransform(t: Transform, mirrored: boolean): string {
 }
 
 /** The piece drawn in its own frame (the group around it mirrors, turns and moves it). */
+/** The grid's steps, in millimetres, like millimetre paper: 1, 5 and 10 mm, then on by 5 and 2. */
+const GRID_STEPS_MM = [1, 5, 10, 50, 100, 500, 1000, 5000];
+/** A step's lines show from this spacing on screen, and reach full strength at the second. */
+const GRID_MIN_PX = 5;
+const GRID_FULL_PX = 80;
+
+/**
+ * Millimetre paper under the pieces, in pattern millimetres (the origin is the layout's): each
+ * step fades in as zooming spreads its lines, and the coarser steps fall on the finer ones' lines
+ * so every 5th and 10th line reads darker.
+ */
+function Grid({ box, mmPerPx }: { box: Box; mmPerPx: number }) {
+  if (!Number.isFinite(mmPerPx) || mmPerPx <= 0) return null;
+  return (
+    <g fill="none" stroke="#7F8B78" strokeWidth={1} vectorEffect="non-scaling-stroke" shapeRendering="crispEdges" pointerEvents="none">
+      {GRID_STEPS_MM.map((step) => {
+        const px = step / mmPerPx;
+        if (px < GRID_MIN_PX || px > Math.max(box.maxX - box.minX, box.maxY - box.minY) / mmPerPx) return null;
+        const strength = Math.min(1, (px - GRID_MIN_PX) / (GRID_FULL_PX - GRID_MIN_PX));
+        let d = '';
+        for (let x = Math.ceil(box.minX / step) * step; x <= box.maxX; x += step) d += `M${x} ${box.minY}V${box.maxY}`;
+        for (let y = Math.ceil(box.minY / step) * step; y <= box.maxY; y += step) d += `M${box.minX} ${y}H${box.maxX}`;
+        return <path key={step} d={d} vectorEffect="non-scaling-stroke" strokeOpacity={0.06 + 0.3 * strength} />;
+      })}
+    </g>
+  );
+}
+
+/** The scale bar's longest length on screen, pixels. */
+const SCALE_MAX_PX = 120;
+
+/** A map's scale bar: the longest round length (1, 2 or 5 times a power of ten mm) that fits. */
+function ScaleBar({ mmPerPx }: { mmPerPx: number }) {
+  if (!Number.isFinite(mmPerPx) || mmPerPx <= 0) return null;
+  const most = SCALE_MAX_PX * mmPerPx;
+  const pow = 10 ** Math.floor(Math.log10(most));
+  const mm = [5, 2, 1].map((k) => k * pow).find((v) => v <= most) ?? pow;
+  const label = mm >= 1000 ? `${mm / 1000} m` : mm >= 10 ? `${mm / 10} cm` : `${+mm.toPrecision(3)} mm`;
+  return (
+    <div className="pointer-events-none absolute right-4 bottom-[68px] flex flex-col items-end gap-1 text-[12px] font-medium text-[#4A514B]">
+      <span>{label}</span>
+      <span className="h-1.5 border-x-[1.5px] border-b-[1.5px] border-[#4A514B]" style={{ width: mm / mmPerPx }} />
+    </div>
+  );
+}
+
 function PieceDrawing({ piece }: { piece: Piece }) {
   const outline = outlinePoints(piece);
   const nodes = piece.outline;
@@ -251,7 +297,7 @@ export function PatternPanel({
   return (
     <div
       ref={host}
-      className={`flat-grid h-full w-full touch-none overflow-hidden ${tool === 'move' ? 'cursor-move' : tool === 'sew' ? 'cursor-crosshair' : 'cursor-default'}`}
+      className={`flat-grid relative h-full w-full touch-none overflow-hidden ${tool === 'move' ? 'cursor-move' : tool === 'sew' ? 'cursor-crosshair' : 'cursor-default'}`}
       onPointerDown={(e) => {
         try {
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -341,6 +387,7 @@ export function PatternPanel({
             <path d="M1 1 L9 5 L1 9" fill="none" stroke="#8E968A" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
           </marker>
         </defs>
+        <Grid box={vb} mmPerPx={mmPerPx} />
         {cuts.map((v) => {
           const on = selection?.cutId === v.cut.id;
           return (
@@ -434,6 +481,7 @@ export function PatternPanel({
           </g>
         )}
       </svg>
+      {garment && <ScaleBar mmPerPx={mmPerPx} />}
     </div>
   );
 }
