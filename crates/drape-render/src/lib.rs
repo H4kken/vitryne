@@ -14,6 +14,9 @@ pub const NORMALS_SHADER: &str = include_str!("../shaders/normals.wgsl");
 pub const SHADER: &str = include_str!("../shaders/render.wgsl");
 pub const SEAMS_SHADER: &str = include_str!("../shaders/seams.wgsl");
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+/// Multisample antialiasing: the scene is drawn with 4 samples per pixel, then resolved into the
+/// caller's view. 4 is the count WebGPU guarantees for render formats without any feature.
+pub const MSAA_SAMPLES: u32 = 4;
 /// The background.
 pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
     r: 0.09,
@@ -209,6 +212,13 @@ struct DrawMesh {
     material_buf: wgpu::Buffer,
 }
 
+struct Targets {
+    color: wgpu::TextureView,
+    depth: wgpu::TextureView,
+    w: u32,
+    h: u32,
+}
+
 pub struct Renderer {
     camera_buf: wgpu::Buffer,
     camera_bg: wgpu::BindGroup,
@@ -218,7 +228,9 @@ pub struct Renderer {
     normals_groups: u32,
     cloth: DrawMesh,
     collider: Option<DrawMesh>,
-    depth: Option<(wgpu::TextureView, u32, u32)>,
+    /// The multisampled colour and depth targets, at the last drawn size.
+    targets: Option<Targets>,
+    format: wgpu::TextureFormat,
     background: wgpu::Color,
     seam_pipeline: wgpu::RenderPipeline,
     seam_bg: wgpu::BindGroup,
@@ -420,7 +432,10 @@ impl Renderer {
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
-            multisample: Default::default(),
+            multisample: wgpu::MultisampleState {
+                count: MSAA_SAMPLES,
+                ..Default::default()
+            },
             multiview_mask: None,
             cache: None,
         });
@@ -565,7 +580,10 @@ impl Renderer {
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
-            multisample: Default::default(),
+            multisample: wgpu::MultisampleState {
+                count: MSAA_SAMPLES,
+                ..Default::default()
+            },
             multiview_mask: None,
             cache: None,
         });
@@ -584,30 +602,47 @@ impl Renderer {
             normals_groups: n.div_ceil(64),
             cloth,
             collider,
-            depth: None,
+            targets: None,
+            format,
             background: CLEAR_COLOR,
         }
     }
 
-    fn depth_view(&mut self, device: &wgpu::Device, w: u32, h: u32) -> wgpu::TextureView {
-        if !matches!(&self.depth, Some((_, dw, dh)) if *dw == w && *dh == h) {
-            let tex = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("depth"),
-                size: wgpu::Extent3d {
-                    width: w,
-                    height: h,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: DEPTH_FORMAT,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
+    /// The multisampled colour and depth views for a `w` × `h` view (made again on a resize).
+    fn targets(
+        &mut self,
+        device: &wgpu::Device,
+        w: u32,
+        h: u32,
+    ) -> (wgpu::TextureView, wgpu::TextureView) {
+        if !matches!(&self.targets, Some(t) if t.w == w && t.h == h) {
+            let make = |label, format| {
+                device
+                    .create_texture(&wgpu::TextureDescriptor {
+                        label: Some(label),
+                        size: wgpu::Extent3d {
+                            width: w,
+                            height: h,
+                            depth_or_array_layers: 1,
+                        },
+                        mip_level_count: 1,
+                        sample_count: MSAA_SAMPLES,
+                        dimension: wgpu::TextureDimension::D2,
+                        format,
+                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                        view_formats: &[],
+                    })
+                    .create_view(&Default::default())
+            };
+            self.targets = Some(Targets {
+                color: make("msaa-color", self.format),
+                depth: make("depth", DEPTH_FORMAT),
+                w,
+                h,
             });
-            self.depth = Some((tex.create_view(&Default::default()), w, h));
         }
-        self.depth.as_ref().unwrap().0.clone()
+        let t = self.targets.as_ref().unwrap();
+        (t.color.clone(), t.depth.clone())
     }
 
     /// The seams to draw on the cloth: segments between two cloth vertices, each with a colour
@@ -685,16 +720,17 @@ impl Renderer {
             pass.set_bind_group(0, &self.normals_bg, &[]);
             pass.dispatch_workgroups(self.normals_groups, 1, 1);
         }
-        let depth = self.depth_view(device, w, h);
+        let (color, depth) = self.targets(device, w, h);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
+            // Drawn multisampled, resolved into `view`; the samples aren't kept.
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
+                view: &color,
                 depth_slice: None,
-                resolve_target: None,
+                resolve_target: Some(view),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(self.background),
-                    store: wgpu::StoreOp::Store,
+                    store: wgpu::StoreOp::Discard,
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
