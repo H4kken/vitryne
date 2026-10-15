@@ -3,8 +3,6 @@
 </p>
 <h2 align="center">The #1 Open-Source Clothes Modelling Software</h2>
 
-<br />
-
 <p align="center">
   <img src="docs/media/drape.gif" alt="Vitryne 3D cloth drape in real time" width="512" />
 </p>
