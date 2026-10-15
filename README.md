@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="app/public/images/vitryne-logo.png" alt="Vitryne logo" width="120" />
+  <img src="app/public/images/vitryne-logo.png" alt="Vitryne logo" width="100" />
 </p>
 <h2 align="center">The #1 Open-Source Clothes Modelling Software</h2>
----
+
 <br />
 
 <p align="center">
@@ -27,7 +27,6 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
 
 🏗️ Documentation Work in progress
 
----
 
 # Features
 
@@ -55,32 +54,18 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
 
 # Requirements
 
-### Browser
+Vitryne runs in any browser with **WebGPU**. The cloth simulation runs on your graphics card, so
+the GPU matters most. The CPU only does real work once, when you import your own pattern.
 
-Vitryne works on all major browsers that support **WebGPU**.
+| | Browser | GPU | CPU | RAM | OS |
+|---|---|---|---|---|---|
+| **Minimum** | Chrome or Edge 113+, Safari 18+, or Firefox with `dom.webgpu.enabled = true` in `about:config` | A GPU your browser can use through WebGPU: Apple silicon (M1 or later), or a dedicated card from about 2018 on | Any 64-bit CPU from the last ~6 years | 8 GB | macOS 14.4+, Windows 10/11, or Linux |
+| **Recommended** | Up-to-date Chrome, Edge or Safari | Apple M2 or later, or a dedicated card with 4 GB of video memory or more | 4 cores or more | 16 GB | The latest macOS or Windows 11 |
 
-| Browser | Platform | Status | Notes |
-|---|---|---|---|
-| **Google Chrome / Chromium** | macOS, Windows, Linux, Android | ✅ Supported | Chrome 113+ has WebGPU enabled by default. Supports native file picker (`showSaveFilePicker`). |
-| **Microsoft Edge** | Windows, macOS | ✅ Supported | Edge 113+ with WebGPU enabled. |
-| **Apple Safari** | macOS, iOS, iPadOS | ✅ Supported | Safari 18+ (macOS 14.4 Sonoma, macOS 15 Sequoia). Uses standard browser download for saves/exports. |
-| **Mozilla Firefox** | Windows, macOS, Linux | ⚠️ Supported behind flag | Enable `dom.webgpu.enabled = true` in `about:config` (Firefox Nightly / Release). |
+Chrome and Edge save straight to a file you pick; Safari and Firefox save through a download. If
+your browser or device has no WebGPU, Vitryne shows a page explaining what's missing.
 
-If your browser or device lacks WebGPU support, Vitryne displays an informative fallback notice
-explaining the requirement.
-
-### Hardware
-
-The cloth simulation runs on your graphics card, so the GPU matters most. The CPU only does real
-work once, when you import your own pattern: it computes the body's collision field in about
-15–30 seconds (the examples ship with theirs precomputed).
-
-| | GPU | CPU | RAM | OS |
-|---|---|---|---|---|
-| **Minimum** | A GPU your browser can use through WebGPU: Apple silicon (M1 or later), or a dedicated card from about 2018 on | Any 64-bit CPU from the last ~6 years | 8 GB | macOS 14.4+, Windows 10/11, or Linux, with a browser from the table above |
-| **Recommended** | Apple M2 or later, or a dedicated card with 4 GB of video memory or more | 4 cores or more | 16 GB | The latest macOS or Windows 11, with up-to-date Chrome, Edge or Safari |
-
----
+<br />
 
 ## Known Limitations (Honestly)
 
