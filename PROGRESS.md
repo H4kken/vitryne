@@ -1137,3 +1137,50 @@ our own secrets script and Mailpit. Reworked after review to follow Twenty's mod
   white), as the source DXFs do. As far as I know, Seamly2D and Valentina write DXF-AAMA but
   don't open it as a pattern; if so, LibreCAD (or another CAD viewer) is the meaningful check.
 - Text on a thin piece (the hood centre, 6 cm wide) overlaps its outline; cosmetic.
+
+## MVP fixes — Projects in the cloud (2026-10-15, waiting for review)
+
+**The change** (your decision, 2026-10-15): like Figma or Canva, projects live in the backend and
+save by themselves; nothing is saved to disk. Anyone can try the editor without an account, and
+their work is kept as one draft; keeping more projects and exporting need a free account. This
+replaces rule 7's "local-first" (CLAUDE.md) and M12's "local mode unchanged", and M13's "export
+needs no account". **Why:** collaboration on a project comes later, and it is simpler when the
+project is in one place rather than passed around as files.
+
+| Criterion | Status |
+|---|---|
+| Without an account: try everything but export; one draft, autosaved | **Met**: the draft limit is in the database (`max_anonymous_projects`, `rls.test.mjs`) and the editor (Export opens the account dialog; a second project asks before replacing the draft). Real Chrome (`browser.mjs cloud`): an edit is autosaved, the draft is listed after a reload, Export asks for an account, a second example asks first. |
+| Autosave, never to disk | **Met**: ~2 s after the last confirmed edit and when the tab is hidden; retried while offline (the title says the changes are kept in this browser), saved once back (real Chrome, offline emulation). No Save, Save as or per-project download. |
+| One tab per project; another browser is a conflict | **Met**: a second tab asks before taking over, the first is told (real Chrome, two tabs); a save over a newer revision stops with *open the other version* / *keep mine* (as a copy for an account). |
+| With an account: every project, any device, export, duplicate | **Met**: the draft becomes the account's (same user), Duplicate makes "(copy)", a fresh browser B signs in, lists both and opens the original with its edit (real Chrome). |
+| Stale anonymous users cleaned up | **Met locally**: the `clean-anonymous` Edge Function, daily via pg_cron; `cleanup.test.mjs` (31 days idle: gone with draft and parts; 29 days, or an account: kept; no secret: refused). **On your hosted project: your step** (deploy the function, two Vault secrets, CLOUD.md step 6). |
+| No backend | **Met**: the editor says so (`browser.mjs none`); the web image doesn't start (`smoke.sh`). |
+| `./check.sh`, cloud tests, smoke | **Met**: all passed (61 app tests, golden drapes unchanged); `tests/cloud/` 17/17; `deploy/smoke.sh` ok. |
+
+### What changed
+
+| Commit | What |
+|---|---|
+| 1/4 anonymous drafts | Migration (draft limit by the owner's state, limits only on the caller's own rows, `stale_anonymous_users`, pg_cron + Vault call), `supabase/functions/clean-anonymous`, Edge Functions on locally, `duplicateProject`, `CloudError` kind `account`, tests, privacy page (30 days). |
+| 2/4 autosave | `app/src/cloud/autosave.ts` (fake-timer tests), `lock.ts` (Web Locks), `useFiles` saving by itself, recovery copies of open tabs not offered and put back at start when nobody saved since, conflict and account cards, `moveProjects` returning new ids so an open draft follows a sign-in. |
+| 3/4 cloud only | No local mode (`App.tsx` no-backend page, entrypoint refuses), `storage.ts` only opens files (`DiskFiles`; a file opens as a new project), export and duplicate gated, replace-draft question, start screen, project list without download; `pnpm run dev` starts the backend (`--local` forces the local stack), `dev:app` for the bench. |
+| 4/4 docs | CLOUD.md (the backend, accounts, privacy, checks), ARCHITECTURE (storage), FORMAT, README, CONTRIBUTING, CLAUDE.md rule 7. |
+
+### Decisions
+
+- **A project is made at the first edit** (an import counts), not when an example is opened:
+  trying the examples costs no storage (a draft from an example is ~0.5 MB, mostly the avatar).
+- **Duplicate rewrites project.json** with the new name (the name lives there, and autosave
+  would rename the row back otherwise); every other part is shared. The copy keeps the original's
+  project id inside its files; the cloud row's id is what tells them apart.
+- **"Download all my data" stays** for everyone, anonymous users included: it is the GDPR right
+  of access, not the export feature.
+- **Second tab:** a dialog (*Open here instead* / *Close the project*) rather than a read-only
+  mode: simpler, and nobody edits something that won't be saved.
+
+### Open
+
+- Your hosted project: push the migration, deploy `clean-anonymous`, set the two Vault secrets
+  (CLOUD.md, Setting up the backend, step 6).
+- Google sign-in still untested end to end (as in M12).
+- Sharing a project with someone else is the next step this prepares; not started.

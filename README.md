@@ -47,8 +47,9 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
   DXF-AAMA (ASTM D6673), in millimetres, with corners, notches, grain lines, internal lines,
   quantities and cut-on-fold pieces as halves with a mirror line. Outlines are sewing lines (no
   seam allowance yet).
-- **Local-First & Private:** Saves to standard `.vtry` zip or folder files. Your designs never leave
-  your device.
+- **Saved as You Go:** Projects autosave to the cloud, like Figma or Canva. Try everything
+  without an account (your work is kept as a draft); a free account keeps every project and
+  exports. No telemetry.
 
 <br />
 
@@ -106,7 +107,7 @@ Vitryne is under active development. Here is what does not work yet:
 # Quick Rust-only check
 ./check.sh --quick
 
-# Run the web editor locally
+# Run the web editor locally (it starts a local Supabase in Docker to save projects to)
 cd app && pnpm install --frozen-lockfile && pnpm run dev
 # Open http://localhost:5173
 
@@ -119,19 +120,20 @@ cargo run --release -p drape-native -- bench --scene garment --garment examples/
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, code formatting, and sign-off rules.
 
-### Hosting, with or without accounts
+### Hosting
 
-One command runs the editor (no account, nothing stored server-side):
+Projects are saved to a Supabase project (hosted by Supabase, or your own). Set `SUPABASE_URL` and
+`SUPABASE_PUBLISHABLE_KEY` in `deploy/.env`, then one command runs the editor:
 
 ```sh
 docker compose -f deploy/docker-compose.yml up -d --build    # then open http://localhost:8000
 ```
 
-Set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in `deploy/.env` to add optional accounts and cloud
-storage on a Supabase project (anonymous first, email later, data export and account deletion
-built in). See [docs/CLOUD.md](docs/CLOUD.md) for the backend, running it on a domain or Coolify,
-and developing with a local Supabase (`pnpm run dev:cloud`). Any other static host works too
-([docs/HOSTING.md](docs/HOSTING.md)).
+Anyone can try it without an account (their work is kept as one draft); a free account (email and
+password, or Google) keeps every project and exports, with data export and account deletion built
+in. See [docs/CLOUD.md](docs/CLOUD.md) for setting up the backend, running it on a domain or
+Coolify, and developing with a local Supabase (`pnpm run dev`). Any other static host works too,
+with a `config.json` naming the backend ([docs/HOSTING.md](docs/HOSTING.md)).
 
 ---
 

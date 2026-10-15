@@ -27,13 +27,13 @@ How Vitryne is put together, and the rules that keep it that way. For the solver
  │  properties, toolbar         │   replies, events  │ (open, validate, save) and   │
  │ EngineSession: the worker,   │                    │ drape-assets (mesh, place)   │
  │  restarts                    │                    └──────────────────────────────┘
- │ ProjectStorage: open, save   │
+ │ useFiles: open, autosave     │
  └──────────────────────────────┘
 ```
 
 **The engine runs in a Web Worker** and draws into an `OffscreenCanvas`, so the UI never
-freezes while the cloth simulates. The worker also holds the file: the browser opens and saves
-`.vtry` with the same Rust code as the CLI. Frames come from `requestAnimationFrame` inside the
+freezes while the cloth simulates. The worker also holds the file: the browser opens `.vtry`
+and writes a project's parts with the same Rust code as the CLI. Frames come from `requestAnimationFrame` inside the
 worker, or from ticks the UI sends where workers lack it.
 
 ### Look
@@ -269,24 +269,31 @@ The native CLI uses the same key for its cache in `target/sdf-cache/`.
 
 ### Storage
 
-`app/src/storage/storage.ts` defines `ProjectStorage`, the local storage: the File System
-Access API where the browser has it (save in place, folder projects through a directory
-picker) and a file input and a download elsewhere. Folder projects are written like
-`container::write_dir`: parts, then the manifest, then removal of the parts that are gone.
+Projects live in the backend ([CLOUD.md](CLOUD.md), `app/src/cloud/`) and save by themselves;
+nothing is written to disk. A project is a `FileRef` with a `cloud` field (id, revision, the part
+hashes the backend holds). `useFiles` saves it by asking the worker for the folder form, and
+`cloud/projects.ts` turns that into content-addressed parts and a row. Only a document Rust
+validated is saved, and a save counts once the backend has every part and the row. `projects.ts`
+talks to a `CloudBackend` interface (`backend.ts`), so its tests run on an in-memory backend and
+the real Rust validation.
 
-Cloud storage (M12, [CLOUD.md](CLOUD.md)) sits beside it in `app/src/cloud/`, and only in cloud
-mode (a `config.json` naming a backend; `useCloud` is null otherwise). A cloud project is a
-`FileRef` with a `cloud` field (id, revision, the part hashes the backend holds); `useFiles`
-saves it by asking the worker for the folder form, as for a folder project, and
-`cloud/projects.ts` turns that into content-addressed parts and a row. The rules of the local
-save hold: only a document Rust validated is written, and a save is reported done once the
-backend has every part and the row. `projects.ts` talks to a `CloudBackend` interface
-(`backend.ts`), so its tests run on an in-memory backend and the real Rust validation.
+- **Autosave** (`cloud/autosave.ts`): about 2 s after the last confirmed edit, and when the tab
+  is hidden; one save at a time; network failures retried with a growing delay; a conflict, a
+  refusal that needs an account, or a quota stops it until the person decides. The scheduling is
+  a plain class with fake-timer tests; `useFiles` connects it to the store and the worker.
+- **One tab per project** (`cloud/lock.ts`, Web Locks): a second tab asks before taking a project
+  over. Another browser is caught by the revision check.
+- **The recovery copy** (`storage/recovery.ts`, IndexedDB) keeps what hasn't reached the backend.
+  A copy whose tab is still open isn't offered; at start a copy nobody saved over since is put
+  back and saved, otherwise offered.
+- **Files from disk** (`storage/storage.ts`, `DiskFiles`): a `.vtry` file, or a project folder
+  where the browser has a directory picker, opens as a new project.
 
 ## Checking the editor in a browser
 
 `./check` covers the Rust, the TypeScript and the guardrails, but not a real browser with a GPU.
 Before a milestone, open the app (`cd app && pnpm run dev`) in Chrome and Safari: open each
-example, drag the cloth, edit a fabric value and undo it, save (unedited, and after edits undone:
-the file must be byte-identical to the example), and reload with unsaved changes to see the
-recovery offer.
+example, drag the cloth, edit a fabric value and undo it, see it saved, go offline and edit (the
+title says the changes are kept in this browser), close the tab, and reopen it online: the
+changes are put back and saved.
+`tests/cloud/browser.mjs` drives most of this in Chrome.

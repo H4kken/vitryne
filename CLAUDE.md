@@ -28,11 +28,11 @@ without checking them against that file, and say so when a request or the plan c
 | `crates/drape-assets`                   | DXF-AAMA import and export (`aama.rs`, `aama_export.rs`), `garment.toml` sidecar, meshing, placement (`placement.rs`, regions from `assets/body/avatar.json`); `project.rs` turns a `.vtry` into a `GarmentDesc`, `convert.rs` a sidecar into a `.vtry`; `suggest.rs` + `seams.rs` are sewing in the editor (whole edges only, docs/PATENTS.md). Its `garment::Garment` is the DXF garment, not the engine's (`drape_core::engine::Garment`); alias one of them on import. |
 | `crates/drape-native`                   | The `drape` CLI and the winit viewer (`view`, `bench`, `bench-drag`, `regress`, `frames`, `convert`, `export-app-assets`, `export-bench-assets`, ...).                                                                                                                                                                                                                                                                            |
 | `crates/drape-web`                      | The wasm build: the editor worker's API (`project.rs`: `VtryFile` open/validate/save, `PreparedScene`; `viewport.rs`: `Viewport` on an OffscreenCanvas) and the bench page's (`run_bench`, ...).                                                                                                                                                                                                                                  |
-| `app/`                                  | The editor (TypeScript, React, Tailwind + shadcn/ui, Vite) and `bench.html`. `src/worker/` (protocol, worker, session with restarts), `src/document/` (the file's JSON, commands, store; tests), `src/format/*.gen.*` (generated from the schemas: `pnpm run gen:format`), `src/pattern/` (2D SVG), `src/properties/`, `src/storage/` (storage interface, recovery copy), `src/cloud/` (cloud mode: config, backend, content-addressed projects, dialogs), `src/bench/`.                                           |
+| `app/`                                  | The editor (TypeScript, React, Tailwind + shadcn/ui, Vite) and `bench.html`. `src/worker/` (protocol, worker, session with restarts), `src/document/` (the file's JSON, commands, store; tests), `src/format/*.gen.*` (generated from the schemas: `pnpm run gen:format`), `src/pattern/` (2D SVG), `src/properties/`, `src/storage/` (files from disk, recovery copy), `src/cloud/` (backend config, autosave, one tab per project, content-addressed projects, dialogs), `src/bench/`.                                           |
 | `assets/`                               | Avatar (CC0 MakeHuman), three FreeSewing garments with their licences. `tools/patterns` re-drafts them (`./export-all.sh`; the T-shirt is at chest ease 18%, on purpose).                                                                                                                                                                                                                                                         |
 | `docs/FORMAT.md`, `docs/format/schema/` | The project file format (`.vtry` family): spec with rationale, and a JSON Schema per part. Approved in M4; `vitryne-format` implements it in M5.                                                                                                                                                                                                                                                                                  |
-| `deploy/`                               | The web image and plug-and-go compose ([docs/CLOUD.md](docs/CLOUD.md)): `docker-compose.yml` (one `web` service built from the checkout, cloud mode from `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY`), `web/` (Caddyfile, Dockerfile with `from-source`/`from-dist`, `entrypoint.sh` running migrations when `SUPABASE_DB_URL` is set, privacy page), `smoke.sh`. No published image or versioning yet (ask the user once the MVP is out). `deploy/.env` is git-ignored. |
-| `supabase/`                             | The backend schema and local stack: `migrations/` (projects, parts bucket, RLS, limits), `templates/` (code emails), `config.toml` (`pnpm run supabase start` in `app/`). Tests in `tests/cloud/`. |
+| `deploy/`                               | The web image and plug-and-go compose ([docs/CLOUD.md](docs/CLOUD.md)): `docker-compose.yml` (one `web` service built from the checkout, its backend from `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY`, required), `web/` (Caddyfile, Dockerfile with `from-source`/`from-dist`, `entrypoint.sh` running migrations when `SUPABASE_DB_URL` is set, privacy page), `smoke.sh`. No published image or versioning yet (ask the user once the MVP is out). `deploy/.env` is git-ignored. |
+| `supabase/`                             | The backend schema and local stack: `migrations/` (projects, parts bucket, RLS, limits, anonymous drafts), `functions/clean-anonymous` (deletes stale anonymous users, daily via pg_cron), `templates/` (code emails), `config.toml` (`pnpm run supabase start` in `app/`). Tests in `tests/cloud/`. |
 | `examples/`                             | The three sample projects in folder form (`tshirt.vtry/`, `trousers.vtry/`, `hoodie.vtry/`): `drape convert` output, regenerated by `tools/format/build-examples.sh`. Don't edit them by hand; edit the sidecar or the converter.                                                                                                                                                                                                 |
 | `tests/regression/`                     | Golden results for `drape regress`.                                                                                                                                                                                                                                                                                                                                                                                               |
 | `tools/bench/`                          | `run.sh` (drape/drag matrices, native or Chrome), `summary.py`, `compare.py`, `strain.py`, `chrome-check.mjs`. Output goes to `bench-out/` (git-ignored).                                                                                                                                                                                                                                                                         |
@@ -47,16 +47,17 @@ without checking them against that file, and say so when a request or the plan c
   say why in the commit message. Compare builds with `tools/bench/compare.py <dir> <dir>`.
 - Viewer: `cargo run --release -p drape-native -- view --garment examples/trousers.vtry` (the
   examples carry self-collision; a `garment.toml` needs `--self-collision --self-rebuild 4`), or
-  the editor: `cd app && pnpm run dev` and open http://localhost:5173 (`/bench.html` for the
-  bench). `pnpm run check` in `app/` is the TypeScript gate (needs `pnpm run wasm` and `pnpm run
+  the editor: `cd app && pnpm run dev` (it starts the local Supabase stack, or uses the backend in
+  `app/.env.local`) and open http://localhost:5173; `pnpm run dev:app` is the dev server alone,
+  enough for `/bench.html`. `pnpm run check` in `app/` is the TypeScript gate (needs `pnpm run wasm` and `pnpm run
 assets` once).
 - Editor in a real browser: a headless browser without a GPU only shows the no-WebGPU page. Drive
   real Chrome over CDP like `tools/bench/chrome-check.mjs` does; use `Input.dispatch*` events
-  (synthetic DOM events can't capture pointers), and point `showSaveFilePicker` at OPFS to test
-  saves.
-- Cloud mode: `pnpm run dev:cloud` in `app/` (local Supabase stack: Studio on :54323, emails on
-  :54324); `node --test 'tests/cloud/*.test.mjs'` (RLS, accounts); `deploy/smoke.sh` (the web image);
-  `node tests/cloud/browser.mjs cloud|local <url>` (real Chrome). The Supabase CLI is pinned in
+  (synthetic DOM events can't capture pointers). Projects save to the backend: test against the
+  local stack only (`pnpm run dev --local`), never the hosted project `app/.env.local` names.
+- Backend: `pnpm run dev --local` in `app/` (local Supabase stack: Studio on :54323, emails on
+  :54324); `node --test 'tests/cloud/*.test.mjs'` (RLS, accounts, cleanup); `deploy/smoke.sh` (the
+  web image); `node tests/cloud/browser.mjs cloud|none <url>` (real Chrome). The Supabase CLI is pinned in
   `app/` (`pnpm run supabase …`); the Homebrew one on this Mac has a broken signature.
 - After changing the converter, the importer or a sidecar: `tools/format/build-examples.sh` and
   commit `examples/` (`./check.sh` diffs them against `drape convert`).
@@ -73,9 +74,11 @@ assets` once).
 6. Every commit is signed off (`git commit -s`, identity `Mathis Grimberg
 <mathis.grimberg@protonmail.com>`); end a milestone with a commit, PROGRESS.md numbers, and a
    stop for review. The only branch is `main` (remote `origin`); the user pushes.
-7. Local-first: no accounts, telemetry or network calls beyond loading the app and its assets. Cloud
-   mode (a `config.json` naming a backend) adds calls only for features the person uses, never
-   telemetry, and no identifier to count people (docs/CLOUD.md, Privacy).
+7. Projects live in the backend, like Figma or Canva (changed in the MVP fixes, PROGRESS.md): a
+   backend is required, projects autosave there, nothing is saved to disk. Anyone can try the
+   editor without an account (one draft); keeping more projects and exporting need a free
+   account. Network calls only for the app, its assets and what the person does (save, open,
+   sign in); never telemetry, and no identifier to count people (docs/CLOUD.md, Privacy).
 
 ## State and things that surprise
 
@@ -87,7 +90,7 @@ assets` once).
   (DXF import dialog, placement by body place + automatic wrap + 3D gizmo, flat layout;
   waiting for review), M8 sewing in the UI (whole-edge seams: suggestions from geometry, two-click picking,
   seam list, seams in 2D and 3D; waiting for review), M9 fabric presets (5 physical presets in docs/FABRICS.md,
-  multi-fabric solver support, per-piece and garment fabric picker with re-drape; waiting for review), M10 export (glTF 2.0 and OBJ export with 2D pattern UVs, multi-fabric PBR materials, avatar node, native CLI and editor UI; waiting for review), M11 demo readiness and report (start from example screen, first-load & SDF analysis, README with animated GIF & quickstart, benchmark & browser matrix in PROGRESS.md; waiting for review), M12 cloud backend and self-hosting (plug-and-go `web` container + a Supabase project, schema in `supabase/`, anonymous-first accounts (email + password with emailed codes, or Google), content-addressed parts per person, RLS tests, local mode unchanged; waiting for review), M13 DXF-AAMA export (`aama_export.rs`: cut-on-fold pieces re-folded when exact, round trip through the sample sidecars in `tests/aama_round_trip.rs`, CLI `drape export x.vtry --out x.dxf` and *Export… → Pattern (.dxf)*; waiting for review and your Seamly2D/LibreCAD check). **Next:** MVP fixes.
+  multi-fabric solver support, per-piece and garment fabric picker with re-drape; waiting for review), M10 export (glTF 2.0 and OBJ export with 2D pattern UVs, multi-fabric PBR materials, avatar node, native CLI and editor UI; waiting for review), M11 demo readiness and report (start from example screen, first-load & SDF analysis, README with animated GIF & quickstart, benchmark & browser matrix in PROGRESS.md; waiting for review), M12 cloud backend and self-hosting (plug-and-go `web` container + a Supabase project, schema in `supabase/`, anonymous-first accounts (email + password with emailed codes, or Google), content-addressed parts per person, RLS tests, local mode unchanged; waiting for review), M13 DXF-AAMA export (`aama_export.rs`: cut-on-fold pieces re-folded when exact, round trip through the sample sidecars in `tests/aama_round_trip.rs`, CLI `drape export x.vtry --out x.dxf` and *Export… → Pattern (.dxf)*; waiting for review and your Seamly2D/LibreCAD check). MVP fixes in progress: projects in the cloud (autosave, anonymous drafts, an account to export or keep more projects, no local mode; 4 commits, waiting for review). **Next:** the remaining MVP fixes, then the architecture refactor.
 - **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
   `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **The `.vtry` and `garment.toml` paths give bit-identical garments** (test

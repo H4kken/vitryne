@@ -1,36 +1,39 @@
 # Cloud storage and self-hosting
 
-Vitryne works with no backend at all: the editor is static files, and projects live on the
-person's disk. A backend adds **accounts** and **cloud storage** for projects. The backend is a
-**Supabase project**: hosted by Supabase, or one you run. This page covers both modes, the design,
-running the editor, and developing against a backend.
+Like Figma or Canva, projects live in the cloud and save by themselves; nothing is saved to disk.
+The editor is static files plus a backend, a **Supabase project** (hosted by Supabase, or one you
+run), which holds **accounts** and **projects**. Anyone can try the editor without an account: their
+work is kept as one draft. A free account keeps every project, opens them anywhere, and exports.
+This page covers the design, running the editor, and developing against a backend.
 
-[Two modes](#two-modes) · [Running the editor](#running-the-editor) ·
+[The backend](#the-backend) · [Running the editor](#running-the-editor) ·
 [Setting up the backend](#setting-up-the-backend) · [Developing](#developing) ·
 [Accounts](#accounts) · [Storage](#storage) · [Security](#security) · [Privacy](#privacy) ·
 [Checking](#checking) · [Not done yet](#not-done-yet)
 
-## Two modes
+## The backend
 
-| | Local mode | Cloud mode |
-|---|---|---|
-| When | No `config.json` next to `index.html` | `config.json` names a Supabase project |
-| Network | The app and its assets only | Also sign-in and cloud storage, **only when the person uses them** |
-| Accounts | None | Optional; never needed to design, save to disk or export |
-| Telemetry | None | None |
+| | |
+|---|---|
+| Where it's named | `config.json` next to `index.html` (no usable file: the editor says the instance has no backend) |
+| Network | The app and its assets; the backend when the person saves, opens or signs in |
+| Without an account | Everything but export; one project, the draft, autosaved |
+| With a free account | Every project, on any device; export (glTF, OBJ, DXF); duplicate |
+| Telemetry | None |
 
-**One build serves both.** At start the editor fetches `config.json`:
+**One build serves every instance.** At start the editor fetches `config.json`:
 
 ```json
 { "backend": { "url": "https://abcd.supabase.co", "publishableKey": "sb_publishable_…" }, "privacyPolicy": "/privacy.html" }
 ```
 
-Absent, not JSON (a static host answering with `index.html`), or incomplete: local mode. The web
-image writes it from `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`; any other static host can
-serve the file itself. The publishable key (Supabase's replacement for the anon key) only ever
-goes in the `apikey` header; a signed-in person's token goes in `Authorization`. In cloud mode the Supabase client (`app/src/cloud/supabase.ts`, 57 KB gzipped) is a
-separate chunk, loaded only when the person uses a cloud feature or already has a session from an
-earlier visit; local mode never downloads it.
+Absent, not JSON (a static host answering with `index.html`), or incomplete: the editor shows a
+page saying the instance has no backend, and stops there. The web image writes the file from
+`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`; any other static host can serve it itself. The
+publishable key (Supabase's replacement for the anon key) only ever goes in the `apikey` header; a
+signed-in person's token goes in `Authorization`. The Supabase client (`app/src/cloud/supabase.ts`,
+57 KB gzipped) is a separate chunk, loaded at the first save or open, or at start when the
+browser has a session from an earlier visit: trying an example doesn't download it.
 
 The browser talks to Supabase directly (another origin): Supabase answers with CORS headers, and
 a CORS fetch is allowed under the editor's cross-origin isolation (COEP).
@@ -49,12 +52,12 @@ examples and their SDFs on the CPU, the Vite build): ~10 GB of Docker disk, ~4 G
 10-20 minutes the first time; later builds reuse what didn't change. **To update:** `git pull`,
 then the same command.
 
-With no settings it is local mode. Settings go in `deploy/.env` (copy `.env.example`; every line
-is optional):
+Settings go in `deploy/.env` (copy `.env.example`). The backend's two are required: without them
+the container logs why and stops.
 
 | Setting | What |
 |---|---|
-| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Cloud mode: the project's URL and publishable key (`sb_publishable_…`, Project Settings, API Keys). **Never a secret key**: the browser gets these. |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Required: the project's URL and publishable key (`sb_publishable_…`, Project Settings, API Keys). **Never a secret key**: the browser gets these. |
 | `SUPABASE_DB_URL` | Optional: the container applies `supabase/migrations/` at start, like Twenty's server does. Use the project's *Session pooler* connection string (on the free plan the direct one is IPv6 only). Without it, run `pnpm run supabase db push` after a schema change. |
 | `SITE_ADDRESS`, `HTTP_PORT`, `HTTPS_PORT` | `:80` behind a proxy (Coolify, Traefik, nginx) or locally; a domain name (`vitryne.example.org`, with ports 80 and 443) and Caddy gets the HTTPS certificate itself. |
 | `OPERATOR_NAME`, `OPERATOR_CONTACT`, `OPERATOR_HOSTING` | Shown in the privacy policy at `/privacy.html` (GDPR: who runs the service, how to reach them, where the data is). |
@@ -123,7 +126,9 @@ Like Twenty's local setup: the app runs natively, its backend in Docker.
 
 ```sh
 cd app
-pnpm run dev:cloud        # starts the local Supabase stack if needed, then the editor in cloud mode
+pnpm run dev              # starts the local Supabase stack if needed, then the editor against it
+pnpm run dev --local      # the same, even when app/.env.local names another backend (tests)
+pnpm run dev:app          # the dev server alone: the bench page, no backend
 ```
 
 The local stack (`supabase/config.toml`, started by the Supabase CLI pinned in `app/`) is
@@ -139,8 +144,9 @@ Realtime and analytics are off (the editor uses neither). The first start
 downloads ~4 GB of images. `pnpm run supabase stop` stops it.
 
 Against any other project (your hosted one, say): put `SUPABASE_URL=…` and
-`SUPABASE_PUBLISHABLE_KEY=…` in `app/.env.local` (git-ignored), then `pnpm run dev`. The dev
-server says `cloud: on` or `cloud: off` when it starts. `deploy/.env` is only for the container.
+`SUPABASE_PUBLISHABLE_KEY=…` in `app/.env.local` (git-ignored), then `pnpm run dev`; it uses that
+one instead of starting the local stack. **Tests never run against it**: use `--local`. The dev
+server says which backend it serves when it starts. `deploy/.env` is only for the container.
 For Google sign-in in development, add `http://localhost:5173` to the project's redirect URLs.
 
 **A schema change** is a new file in `supabase/migrations/` (`pnpm run supabase migration new
@@ -149,32 +155,39 @@ container at its next start).
 
 ## Accounts
 
-**No sign-up wall.** The first time someone chooses *Save to the cloud*, Auth creates an
-**anonymous user** (rate-limited per IP). Their projects are tied to that browser's session. The
-editor then offers an account, for what it adds: opening the projects on another device, and
-keeping them if the browser's data is cleared.
+**No sign-up wall.** Anyone can try everything but export. Their first edit (an import counts;
+opening an example doesn't) makes an **anonymous user** (rate-limited per IP), and their work is
+kept as **one draft**, autosaved, tied to that browser's session. Starting another project asks
+first: it replaces the draft as soon as it is changed, unless they create an account.
+
+**A free account** keeps every project, opens them on any device, exports (glTF, OBJ, DXF), and
+duplicates. Export and Duplicate open the account dialog with the reason, and go on once there
+is an account. The database enforces the draft limit (`max_anonymous_projects`, Security), not
+just the editor. An anonymous user nobody came back to is deleted after `anonymous_days` (30),
+with their draft.
 
 **Email and password, or Google.**
 
 - **Create an account:** email and password (8 characters or more). The email gets the current
   user (anonymous, or a new anonymous one), confirmed by a **6-digit code** sent to it
   (`updateUser({ email })` → `verifyOtp` type `email_change`), then the password is set. The
-  **same user** becomes the account: same id, same projects.
+  **same user** becomes the account: same id, the draft is now one of its projects.
 - **Sign in:** email and password. **Forgot password:** a code by email (`resetPasswordForEmail`
   → `verifyOtp` type `recovery`), then a new password.
 - **Codes, not links,** in every email: a link opens another tab or a redirect, and could lose
-  unsaved work. The code is typed in the dialog.
-- **Google** (when the project has it on): a redirect, PKCE flow. Unsaved changes are asked
-  about first (the usual *Save your changes?*). An anonymous user is **linked** to the Google
-  identity (same user, same projects); a cloud project that was open reopens on return. If that
-  Google account already has a Vitryne account, the editor says so on return and offers to sign
-  in to it instead.
+  work not saved yet. The code is typed in the dialog.
+- **Google** (when the project has it on): a redirect, PKCE flow. What is waiting is saved first
+  (or the person decides, if it can't be). An anonymous user is **linked** to the Google identity
+  (same user, same projects); a project that was open reopens on return. If that Google account
+  already has a Vitryne account, the editor says so on return and offers to sign in to it
+  instead.
 
 **Reaching an existing account from an anonymous session** (signing in, an email already taken,
 or a Google account that has one): the editor keeps the anonymous session's token (across the
-Google redirect, in `sessionStorage`), signs in, copies each anonymous project to the account
-(`moveProjects` in `app/src/cloud/projects.ts`), then deletes the anonymous user. A project that
-fails to copy stays with the anonymous user, which is then kept.
+Google redirect, in `sessionStorage`), signs in, copies the draft to the account
+(`moveProjects` in `app/src/cloud/projects.ts`; an open draft follows its new id and keeps
+saving), then deletes the anonymous user. A draft that fails to copy stays with the anonymous
+user, which is then kept.
 
 ## Storage
 
@@ -199,8 +212,9 @@ As [FORMAT.md](FORMAT.md#cloud-storage) planned: **the same format on disk and i
 - **One tab per project** in a browser (Web Locks, `app/src/cloud/lock.ts`): a second tab asks
   before taking the project over, and the first is told.
 - **An open** downloads the manifest's parts and checks every hash before the worker sees them.
-- **A download is an export:** the parts zipped as a `.vtry` (`app/src/cloud/zip.ts`, stored
-  entries, `mimetype` first), which Rust opens like any file.
+- **No per-project download:** a project is shared in the app, not as files passed around (that
+  comes with sharing). *Download all my data* (Privacy) zips every project as a `.vtry`
+  (`app/src/cloud/zip.ts`, stored entries, `mimetype` first), which Rust opens like any file.
 - **Unused parts** (no project of the person's lists them, and older than a day, since another
   tab may be mid-save) are deleted after each save.
 
@@ -248,13 +262,15 @@ and parts, and keeps one idle for 29 days and an idle account.
 
 ## Privacy
 
-- **Local mode:** no accounts, no telemetry, no network calls except loading the app and its
-  assets (`config.json` included).
-- **Cloud mode:** network calls only for features the person uses (cloud save and open, sign-in),
-  never telemetry. Saving to disk and exporting never need an account.
-- **Storage in the browser:** the cloud session (`localStorage`, `vitryne-cloud-session`), only
-  once the person used a cloud feature. It is needed for the feature they asked for, so it needs
-  no consent under ePrivacy art. 5(3). The recovery copy and the SDF cache stay local as before.
+- **Network:** the app and its assets (`config.json` included), and the backend only when the
+  person saves, opens or signs in. Never telemetry. Opening an example without changing it sends
+  nothing.
+- **Without an account:** an anonymous user (an id, no email) and their draft, deleted 30 days
+  after their last visit. The privacy page says so.
+- **Storage in the browser:** the session (`localStorage`, `vitryne-cloud-session`), from the
+  first save or sign-in, and the recovery copy (IndexedDB, what hasn't reached the backend yet).
+  Both are needed for the feature the person uses, so they need no consent under ePrivacy art.
+  5(3). The SDF cache stays local as before.
 - **Growth metrics: none in the browser.** No identifier is stored or sent to count people, so
   nothing needs a consent banner. The operator counts from the database: accounts (anonymous and
   with email), projects, storage used, sign-ups per day. Adding anything that tracks visitors
@@ -276,20 +292,25 @@ node --test 'tests/cloud/*.test.mjs'     # the backend: RLS, accounts and the cl
                                          # the local stack (or SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
                                          # MAILPIT_URL, CLEANUP_SECRET)
 deploy/smoke.sh                          # the web image (built from this machine's app/dist):
-                                         # local mode, then cloud mode on the local stack with
-                                         # migrations at start, then the tests above
-node tests/cloud/browser.mjs cloud <url> # real Chrome: A's edit is autosaved as a draft (offline,
-                                         # then back), a second tab takes it over and back, A
-                                         # creates an account; B (a fresh profile) signs in and
-                                         # opens the project
-node tests/cloud/browser.mjs local <url> # no backend: every request stays on the app's origin
+                                         # refuses to start without a backend, then on the local
+                                         # stack with migrations at start, then the tests above
+node tests/cloud/browser.mjs cloud <url> # real Chrome (`pnpm run dev --local`): A's edit is
+                                         # autosaved as a draft (offline, then back), a second tab
+                                         # takes it over and back, Export asks for an account, a
+                                         # second example asks before replacing the draft, A
+                                         # creates an account and duplicates; B (a fresh profile)
+                                         # signs in and opens the original
+node tests/cloud/browser.mjs none <url>  # a build with no config.json: the no-backend page
 ```
 
 ## Not done yet
 
 - **A refactor before the MVP release** (see PROGRESS.md, M12): the account emails (codes or
   links), a trimmed `supabase/config.toml`, versioning the web image.
+- **Sharing a project** with someone else, and real-time editing together: the reason projects
+  stay in the cloud. Until then one tab edits a project at a time, and another browser's save is
+  a conflict the person settles.
 - **Google sign-in is untested end to end:** it needs an OAuth client; the redirect, the linking
   of an anonymous user and the return handling were written against Supabase's API but not run.
 - **Changing the account's email** in the editor (Auth supports it; write to the operator for now).
-- **Sharing and workspaces:** later; nothing in the schema prevents them.
+- **Workspaces:** later; nothing in the schema prevents them.

@@ -45,13 +45,14 @@ without checking them against that file, and say so when a request or the plan c
   say why in the commit message. Compare builds with `tools/bench/compare.py <dir> <dir>`.
 - Viewer: `cargo run --release -p drape-native -- view --garment examples/trousers.vtry` (the
   examples carry self-collision; a `garment.toml` needs `--self-collision --self-rebuild 4`), or
-  the editor: `cd app && pnpm run dev` and open http://localhost:5173 (`/bench.html` for the
-  bench). `pnpm run check` in `app/` is the TypeScript gate (needs `pnpm run wasm` and `pnpm run
+  the editor: `cd app && pnpm run dev` (it starts the local Supabase stack, or uses the backend in
+  `app/.env.local`) and open http://localhost:5173; `pnpm run dev:app` is the dev server alone,
+  enough for `/bench.html`. `pnpm run check` in `app/` is the TypeScript gate (needs `pnpm run wasm` and `pnpm run
   assets` once).
 - Editor in a real browser: a headless browser without a GPU only shows the no-WebGPU page. Drive
   real Chrome over CDP like `tools/bench/chrome-check.mjs` does; use `Input.dispatch*` events
-  (synthetic DOM events can't capture pointers), and point `showSaveFilePicker` at OPFS to test
-  saves.
+  (synthetic DOM events can't capture pointers). Projects save to the backend: test against the
+  local stack only (`pnpm run dev --local`), never the hosted project `app/.env.local` names.
 - After changing the converter, the importer or a sidecar: `tools/format/build-examples.sh` and
   commit `examples/` (`./check.sh` diffs them against `drape convert`).
 
@@ -67,7 +68,11 @@ without checking them against that file, and say so when a request or the plan c
 6. Every commit is signed off (`git commit -s`, identity `Mathis Grimberg
    <mathis.grimberg@protonmail.com>`); end a milestone with a commit, PROGRESS.md numbers, and a
    stop for review. The only branch is `main` (remote `origin`); the user pushes.
-7. Local-first: no accounts, telemetry or network calls beyond loading the app and its assets.
+7. Projects live in the backend, like Figma or Canva (changed in the MVP fixes, PROGRESS.md): a
+   backend is required, projects autosave there, nothing is saved to disk. Anyone can try the
+   editor without an account (one draft); keeping more projects and exporting need a free
+   account. Network calls only for the app, its assets and what the person does (save, open,
+   sign in); never telemetry, and no identifier to count people (docs/CLOUD.md, Privacy).
 
 ## State and things that surprise
 

@@ -672,8 +672,9 @@ by its SHA-256. That gives, for free:
 - **Small uploads:** saving after a fabric change uploads one small JSON part and a new manifest.
 - **Downloads are exports:** a `.vtry` is the manifest and its parts, zipped.
 
-Local mode (no backend configured) makes no network calls; the app reads and writes files on the
-user's disk. How accounts and storage work is an app concern, not a format one: see
+The editor saves projects to its backend, never to disk (since the MVP fixes): a `.vtry` file is
+what the CLI writes, what *Download all my data* gives, and what the editor opens as a new
+project. How accounts and storage work is an app concern, not a format one: see
 [CLOUD.md](CLOUD.md) (M12). There, parts are deduplicated per person rather than across people
 (an avatar is stored once per person, whatever the number of their projects), so that knowing a
 hash never gives access to someone else's part.

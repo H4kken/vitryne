@@ -61,7 +61,9 @@ The first run bakes the body SDF (about 1–2 s) and caches it in `target/sdf-ca
 ```sh
 cd app
 pnpm install --frozen-lockfile
-pnpm run dev        # builds the wasm, exports the examples and SDFs, serves http://localhost:5173
+pnpm run dev        # starts a local Supabase (Docker), builds the wasm, exports the examples and SDFs,
+                    # serves http://localhost:5173 (`--local`: that Supabase even if app/.env.local names another)
+pnpm run dev:app    # the same without a backend: enough for the bench page
 pnpm run build      # production build in app/dist
 pnpm run check      # format types up to date, tsc, eslint, vitest (needs `pnpm run wasm` and `pnpm run assets` once)
 ```
