@@ -158,6 +158,21 @@ export async function collectUnused(b: CloudBackend): Promise<number> {
   return unused.length;
 }
 
+/** A project's copy name, within the 200 characters the backend allows. */
+export function copyName(name: string): string {
+  const suffix = ' (copy)';
+  return [...name].slice(0, 200 - suffix.length).join('') + suffix;
+}
+
+/**
+ * A new project with the same content as `id`, named "<name> (copy)". Its manifest names the same
+ * parts, so nothing is uploaded: the copy is one row. An anonymous user can't (one draft).
+ */
+export async function duplicateProject(b: CloudBackend, id: string): Promise<ProjectRow> {
+  const row = await b.getProject(id);
+  return b.insertProject({ name: copyName(row.name), manifest: row.manifest, bytes: row.bytes });
+}
+
 /** Deletes a project; its parts go with the next collection (they may be shared). */
 export async function deleteProject(b: CloudBackend, id: string): Promise<void> {
   await b.deleteProject(id);

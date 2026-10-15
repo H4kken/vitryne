@@ -2,7 +2,8 @@
 // Which Supabase the cloud tests run against: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and MAILPIT_URL
 // from the environment, else the local stack (`supabase status`, started with
 // `pnpm run supabase start` in app/). `sql()` changes the limits for a moment; it needs the local
-// stack's database container (or SUPABASE_DB_CONTAINER).
+// stack's database container (or SUPABASE_DB_CONTAINER). `sql(q, 'supabase_admin')` runs as the
+// superuser, for what the tests fake (dates, with triggers off).
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 
@@ -24,6 +25,10 @@ export const KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? s.PUBLISHABLE_KEY;
 export const MAILPIT = process.env.MAILPIT_URL ?? s?.MAILPIT_URL ?? 'http://127.0.0.1:54324';
 const container = process.env.SUPABASE_DB_CONTAINER ?? 'supabase_db_vitryne';
 
-export function sql(q) {
-  return execFileSync('docker', ['exec', '-i', container, 'psql', '-U', 'postgres', '-d', 'postgres', '-tAc', q], { encoding: 'utf8' }).trim();
+export const FUNCTIONS = `${URL_}/functions/v1`;
+/** The local stack's (supabase/config.toml); another instance's from the environment. */
+export const CLEANUP_SECRET = process.env.CLEANUP_SECRET ?? 'local-cleanup-secret';
+
+export function sql(q, user = 'postgres') {
+  return execFileSync('docker', ['exec', '-i', container, 'psql', '-U', user, '-d', 'postgres', '-tAc', q], { encoding: 'utf8' }).trim();
 }

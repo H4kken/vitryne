@@ -45,6 +45,7 @@ const full = (r: Row): ProjectRow => ({ ...summary(r), owner: r.owner, manifest:
 
 function fail(what: string, e: { message?: string; hint?: string | null; status?: number; statusCode?: string } | null): never {
   const msg = e?.message ?? 'unknown error';
+  if (e?.hint === 'account') throw new CloudError(`${what}: create a free account to keep more than one project`, 'account');
   if (e?.hint === 'quota' || /project limit/.test(msg)) throw new CloudError(`${what}: you have reached the number of projects this instance allows`, 'quota');
   if (/JWT|not signed in|401/.test(msg) || e?.status === 401) throw new CloudError(`${what}: you are signed out; sign in again`, 'auth');
   throw new CloudError(`${what}: ${msg}`);

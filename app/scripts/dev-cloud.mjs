@@ -21,8 +21,8 @@ function status() {
 let s = status();
 if (!s?.API_URL) {
   console.log('dev:cloud: starting the local Supabase stack…');
-  // Services the editor doesn't use stay off (Realtime, Edge Functions and analytics are off in
-  // supabase/config.toml).
+  // Services the editor doesn't use stay off (Realtime and analytics are off in
+  // supabase/config.toml; Edge Functions are on, for the cleanup of stale anonymous users).
   execFileSync(cli, ['start', ...workdir, '-x', 'imgproxy,supavisor,vector,logflare'], { stdio: 'inherit' });
   s = status();
 }

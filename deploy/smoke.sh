@@ -52,5 +52,5 @@ logs=$(compose logs web)
 grep -q 'migrate: up to date' <<<"$logs" || fail "the migrations at start didn't run"
 if grep -q 'migrate: applying' <<<"$logs"; then fail "the migrations at start re-applied what the CLI had applied"; fi
 
-node --test tests/cloud/rls.test.mjs tests/cloud/accounts.test.mjs
+node --test tests/cloud/rls.test.mjs tests/cloud/accounts.test.mjs tests/cloud/cleanup.test.mjs
 echo "smoke: ok"

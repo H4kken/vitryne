@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Row-level security and quotas, against a running Supabase with the schema (instance.mjs says
 // which): two anonymous users, A and B, and everything B tries on A's projects and parts must
-// fail. Needs Node 20+ and nothing else. Changes the limits for a moment (`sql` in instance.mjs).
+// fail. An anonymous user keeps one draft; an account keeps up to the project limit. Needs Node 20+ and nothing else. Changes the limits for a moment (`sql` in instance.mjs).
 //
 //   node --test 'tests/cloud/*.test.mjs'          (the local stack: `pnpm run supabase start` in app/)
 
@@ -163,6 +163,8 @@ describe('row-level security', () => {
     const ua = (await call('/rest/v1/rpc/my_usage', { token: A.token, method: 'POST', body: {} })).json[0];
     assert.equal(ua.used_bytes, partA.length);
     assert.equal(ua.projects, 1);
+    // An anonymous user's project limit is their draft.
+    assert.equal(ua.max_projects, 1);
     const ub = (await call('/rest/v1/rpc/my_usage', { token: B.token, method: 'POST', body: {} })).json[0];
     assert.equal(ub.used_bytes, 0);
     assert.equal(ub.projects, 0);
@@ -171,7 +173,7 @@ describe('row-level security', () => {
   });
 
   describe('limits', () => {
-    after(() => sql('update vitryne_private.limits set quota_bytes = 1073741824, max_projects = 500'));
+    after(() => sql('update vitryne_private.limits set quota_bytes = 1073741824, max_projects = 500, max_anonymous_projects = 1'));
 
     test('a new part is refused once the quota is used', async () => {
       sql(`update vitryne_private.limits set quota_bytes = ${partA.length}`);
@@ -183,9 +185,25 @@ describe('row-level security', () => {
       assert.equal((await upload(B, `${B.id}/${sha(b)}`, b)).status, 200);
     });
 
-    test('a new project is refused at the project limit', async () => {
-      sql('update vitryne_private.limits set max_projects = 1');
+    test('an anonymous user keeps one draft; a second project needs an account', async () => {
       const r = await insertProject(A, { name: 'second', manifest: manifest(sha(partA)), bytes: 1 });
+      assert.ok(r.status >= 400, r.text);
+      assert.match(r.text, /account/);
+      assert.equal((await projects(A)).json.length, 1);
+    });
+
+    test('an account keeps several projects, up to the project limit', async () => {
+      // B becomes an account (what confirming an email does; accounts.test.mjs has the real flow).
+      // Its token still says anonymous: the user's state decides, not the token's.
+      sql(`update auth.users set is_anonymous = false, email = 'b-${B.id}@example.test' where id = '${B.id}'`);
+      for (const name of ['one', 'two']) {
+        const r = await insertProject(B, { name, manifest: manifest(sha(partA)), bytes: 1 });
+        assert.equal(r.status, 201, r.text);
+      }
+      const ub = (await call('/rest/v1/rpc/my_usage', { token: B.token, method: 'POST', body: {} })).json[0];
+      assert.equal(ub.max_projects, 500);
+      sql('update vitryne_private.limits set max_projects = 2');
+      const r = await insertProject(B, { name: 'three', manifest: manifest(sha(partA)), bytes: 1 });
       assert.ok(r.status >= 400, r.text);
       assert.match(r.text, /project limit/);
     });

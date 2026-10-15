@@ -68,11 +68,14 @@ export interface CloudBackend {
   deleteUser(): Promise<void>;
 }
 
-/** Something the person can act on: a quota, a conflict, a network failure, a refusal. */
+/**
+ * Something the person can act on: a quota, a conflict, a network failure, a refusal. `account`:
+ * an anonymous user tried what needs an account (a second project).
+ */
 export class CloudError extends Error {
   constructor(
     message: string,
-    readonly kind: 'conflict' | 'quota' | 'damaged' | 'auth' | 'other' = 'other',
+    readonly kind: 'conflict' | 'quota' | 'account' | 'damaged' | 'auth' | 'other' = 'other',
     options?: { cause?: unknown },
   ) {
     super(message, options);

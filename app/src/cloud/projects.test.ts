@@ -2,10 +2,10 @@
 import { describe, expect, it } from 'vitest';
 import { exampleZip, EXAMPLES, wasm } from '@/test/rust';
 import { type CloudBackend, CloudError, type CloudUser, type Manifest, type ProjectRow } from './backend';
-import { collectUnused, deleteAccount, exportAll, fileName, moveProjects, openProject, projectZip, saveProject, sha256Hex } from './projects';
+import { collectUnused, copyName, deleteAccount, duplicateProject, exportAll, fileName, moveProjects, openProject, projectZip, saveProject, sha256Hex } from './projects';
 import { crc32 } from './zip';
 
-/** A backend in memory, shaped like the real one (RLS: each user sees only their own). */
+/** A backend in memory, shaped like the real one (RLS: each user sees only their own; an anonymous user keeps one draft). */
 class MemBackend implements CloudBackend {
   static objects = new Map<string, ArrayBuffer>();
   static rows = new Map<string, ProjectRow>();
@@ -30,6 +30,7 @@ class MemBackend implements CloudBackend {
     return structuredClone(r);
   }
   async insertProject(p: { name: string; manifest: Manifest; bytes: number }) {
+    if (this.me?.anonymous && this.mine().length >= 1) throw new CloudError('an account is needed', 'account');
     const r: ProjectRow = { ...structuredClone(p), id: crypto.randomUUID(), owner: this.me!.id, revision: 1, updatedAt: new Date().toISOString() };
     MemBackend.rows.set(r.id, r);
     return structuredClone(r);
@@ -79,6 +80,9 @@ class MemBackend implements CloudBackend {
   }
 }
 
+/** A backend signed in to an account (several projects). */
+const account = () => new MemBackend({ id: crypto.randomUUID(), email: 'a@b.c', anonymous: false });
+
 /** The folder form of an example, as the worker's save gives it. */
 function folder(name: string): [string, ArrayBuffer][] {
   const f = wasm.VtryFile.open(exampleZip(name));
@@ -110,7 +114,7 @@ describe('cloud projects', () => {
   });
 
   it('uploads only the parts the backend does not have', async () => {
-    const b = new MemBackend();
+    const b = account();
     const files = folder('tshirt');
     const first = await saveProject(b, 'one', files, null);
     expect(b.uploads.length).toBe(first.parts.length);
@@ -164,7 +168,7 @@ describe('cloud projects', () => {
   });
 
   it('exports every project and the account', async () => {
-    const b = new MemBackend();
+    const b = account();
     await saveProject(b, 'Same', folder('tshirt'), null);
     await saveProject(b, 'Same', folder('trousers'), null);
     const z = new Uint8Array(await exportAll(b, { email: 'a@b.c' }));
@@ -175,7 +179,7 @@ describe('cloud projects', () => {
   });
 
   it('collects parts no project uses, and deletes an account with everything in it', async () => {
-    const b = new MemBackend();
+    const b = account();
     const t = await saveProject(b, 't', folder('tshirt'), null);
     await saveProject(b, 'h', folder('hoodie'), null);
     await b.deleteProject(t.id);
@@ -195,11 +199,39 @@ describe('cloud projects', () => {
   it("moves an anonymous user's projects to the account they sign in to", async () => {
     const anon = new MemBackend();
     await saveProject(anon, 'mine', folder('tshirt'), null);
-    const account = new MemBackend({ id: crypto.randomUUID(), email: 'a@b.c', anonymous: false });
-    const r = await moveProjects(anon, account);
+    const to = account();
+    const r = await moveProjects(anon, to);
     expect(r).toEqual({ moved: 1, failed: [] });
-    expect((await account.listProjects()).map((p) => p.name)).toEqual(['mine']);
+    expect((await to.listProjects()).map((p) => p.name)).toEqual(['mine']);
     expect(anon.me).toBeNull();
+  });
+
+  it('keeps one draft for an anonymous user', async () => {
+    const anon = new MemBackend();
+    await saveProject(anon, 'draft', folder('tshirt'), null);
+    await expect(saveProject(anon, 'second', folder('trousers'), null)).rejects.toMatchObject({ kind: 'account' });
+    expect((await anon.listProjects()).map((p) => p.name)).toEqual(['draft']);
+  });
+
+  it('duplicates a project as one new row, uploading nothing', async () => {
+    const b = account();
+    const ref = await saveProject(b, 'T-shirt', folder('tshirt'), null);
+    b.uploads = [];
+    const copy = await duplicateProject(b, ref.id);
+    expect(copy.name).toBe('T-shirt (copy)');
+    expect(copy.id).not.toBe(ref.id);
+    expect(b.uploads).toEqual([]);
+    const [a, c] = await Promise.all([openProject(b, ref.id), openProject(b, copy.id)]);
+    expect(c.data).toEqual(a.data);
+    // An anonymous user's draft can't be duplicated.
+    const anon = new MemBackend();
+    const draft = await saveProject(anon, 'draft', folder('tshirt'), null);
+    await expect(duplicateProject(anon, draft.id)).rejects.toMatchObject({ kind: 'account' });
+  });
+
+  it('keeps copy names within the backend limit', () => {
+    expect(copyName('x'.repeat(200))).toHaveLength(200);
+    expect(copyName('x'.repeat(200)).endsWith(' (copy)')).toBe(true);
   });
 
   it('names files safely and uniquely', () => {

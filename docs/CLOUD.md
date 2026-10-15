@@ -93,8 +93,26 @@ has no backups, so use Pro for a public instance):
    (subject: "Your Vitryne code"). They show the 6-digit code; the defaults show a link.
 4. **Authentication, URL configuration:** the site URL and the redirect URLs are the editor's
    address (Google comes back there).
-5. **Limits** (optional): `update vitryne_private.limits set quota_bytes = …, max_projects = …;`
-   in the SQL editor. Parts are capped at 50 MB each, the free plan's file limit.
+5. **Limits** (optional): `update vitryne_private.limits set quota_bytes = …, max_projects = …,
+   max_anonymous_projects = …, anonymous_days = …;` in the SQL editor. Parts are capped at 50 MB
+   each, the free plan's file limit.
+6. **Stale anonymous users:** deploy the cleanup function and give pg_cron its address and a
+   secret (the migration schedules the daily call; it does nothing until both are in Vault):
+
+   ```sh
+   secret=$(openssl rand -hex 32)
+   pnpm run supabase functions deploy clean-anonymous --no-verify-jwt
+   pnpm run supabase secrets set CLEANUP_SECRET=$secret
+   ```
+
+   then in the SQL editor:
+
+   ```sql
+   select vault.create_secret('https://<ref>.supabase.co/functions/v1', 'vitryne_functions_url');
+   select vault.create_secret('<the same secret>', 'vitryne_cleanup_secret');
+   ```
+
+   Check it with `select vitryne_private.clean_anonymous();` and the function's logs.
 
 Self-hosting Supabase too: Supabase's own Docker setup or Coolify's Supabase template, then the
 same steps (the settings are environment variables there, `GOTRUE_*`).
@@ -109,14 +127,15 @@ pnpm run dev:cloud        # starts the local Supabase stack if needed, then the 
 ```
 
 The local stack (`supabase/config.toml`, started by the Supabase CLI pinned in `app/`) is
-Postgres, Auth, the REST API and Storage, plus:
+Postgres, Auth, the REST API, Storage and Edge Functions (`supabase/functions/`, served as they are
+edited; the cleanup secret is `local-cleanup-secret`), plus:
 
 - **Studio**, the Supabase dashboard: http://127.0.0.1:54323
 - **Mailpit**, every email Auth sends (the codes): http://127.0.0.1:54324
 - Postgres on `127.0.0.1:54322` (user and password `postgres`) for your own SQL tools.
 
 It applies `supabase/migrations/` on start; `pnpm run supabase db reset` starts the database over.
-Realtime, Edge Functions and analytics are off (the editor uses none of them). The first start
+Realtime and analytics are off (the editor uses neither). The first start
 downloads ~4 GB of images. `pnpm run supabase stop` stops it.
 
 Against any other project (your hosted one, say): put `SUPABASE_URL=…` and
@@ -190,11 +209,22 @@ Row-level security on everything a client can reach (`supabase/migrations/`):
 | `projects` rows | their owner | `owner = auth.uid()` for select, insert, update, delete; `owner`, `id`, `revision`, dates are server-kept (column grants and a trigger) |
 | `parts` objects | their owner | the first path segment is `auth.uid()`; names must be `<uuid>/<64 hex>`; no updates |
 | `my_usage`, `my_unused_parts`, `delete_my_account` | signed-in users, about themselves | functions on `auth.uid()`, not callable by `anon` |
+| `stale_anonymous_users` | the service role only | what `clean-anonymous` deletes |
+| `clean-anonymous` (Edge Function) | pg_cron | refuses any call without the `x-cleanup-secret` header |
 | `vitryne_private.*` (limits, helpers) | nobody | not in the API's schemas, no grants |
 
 **Limits** (`vitryne_private.limits`): bytes per person (a new part is refused once the quota is
-reached, so the overshoot is at most one part) and projects per person; the bucket caps each part
-at 50 MB. The quota counts the person's objects, not what the client reports.
+reached, so the overshoot is at most one part) and projects per person: `max_projects` for an
+account, `max_anonymous_projects` (1, their draft) for an anonymous user. The trigger checks the
+user's state, not the token's, so a user who just became an account gets the account's limit. The
+bucket caps each part at 50 MB. The quota counts the person's objects, not what the client
+reports.
+
+**Stale anonymous users** (no sign-in, token refresh or save for `anonymous_days`, 30 by default)
+are deleted once a day: pg_cron calls `vitryne_private.clean_anonymous()`, which posts to the
+`clean-anonymous` Edge Function with the secret kept in Vault; the function deletes their parts
+through the Storage API (SQL can't remove the files), then the user, which takes the draft with
+it. A user whose parts fail to go is kept for the next run.
 
 **Keys:** the editor only ever gets the anon (publishable) key, which grants nothing without a
 user. The service-role key and the database password stay with the operator.
@@ -203,8 +233,10 @@ user. The service-role key and the database password stay with the operator.
 change, delete or forge A's projects, and can't read, list, upload into, overwrite or delete A's
 parts; the anon key alone reaches nothing; parts are immutable and must be named by their hash;
 the server keeps owner, dates and revision, and a stale revision changes nothing; the quota and
-the project limit refuse; account deletion is refused while parts remain, then removes the user
-and their projects and leaves B alone.
+the project limit refuse; an anonymous user keeps one draft and an account several; account deletion is refused while parts remain, then removes the user
+and their projects and leaves B alone. `tests/cloud/cleanup.test.mjs`: the cleanup function
+refuses a call without its secret, deletes an anonymous user idle for 31 days with their draft
+and parts, and keeps one idle for 29 days and an idle account.
 
 ## Privacy
 
@@ -232,8 +264,9 @@ and their projects and leaves B alone.
 No CI, so documented checks instead:
 
 ```sh
-node --test 'tests/cloud/*.test.mjs'     # the backend: RLS and accounts, on the local stack
-                                         # (or SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, MAILPIT_URL)
+node --test 'tests/cloud/*.test.mjs'     # the backend: RLS, accounts and the cleanup function, on
+                                         # the local stack (or SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
+                                         # MAILPIT_URL, CLEANUP_SECRET)
 deploy/smoke.sh                          # the web image (built from this machine's app/dist):
                                          # local mode, then cloud mode on the local stack with
                                          # migrations at start, then the tests above
@@ -246,9 +279,6 @@ node tests/cloud/browser.mjs local <url> # no backend: every request stays on th
 
 - **A refactor before the MVP release** (see PROGRESS.md, M12): the account emails (codes or
   links), a trimmed `supabase/config.toml`, versioning the web image.
-- **Stale anonymous users:** anonymous users who never add an email and never come back keep
-  their projects until the operator removes them. A cleanup job and a retention period in the
-  privacy policy are still to do.
 - **Google sign-in is untested end to end:** it needs an OAuth client; the redirect, the linking
   of an anonymous user and the return handling were written against Supabase's API but not run.
 - **Changing the account's email** in the editor (Auth supports it; write to the operator for now).
