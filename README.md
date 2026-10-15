@@ -1,20 +1,35 @@
-# Vitryne
-
-**Open-source garment design in the browser.** Import a sewing pattern, place it around a body,
-sew it, pick a fabric, and watch it drape in 3D, on your own GPU, for free.
+<p align="center">
+  <img src="app/public/images/vitryne-logo.png" alt="Vitryne logo" width="120" />
+</p>
+<h2 align="center">The #1 Open-Source Clothes Modelling Software</h2>
+---
+<br />
 
 <p align="center">
   <img src="docs/media/drape.gif" alt="Vitryne 3D cloth drape in real time" width="512" />
 </p>
 
-Vitryne runs a real-time GPU cloth solver (XPBD) directly in your web browser using WebGPU and
-WebAssembly, backed by the same Rust codebase and WGSL shaders that run natively. Everything stays
-on your machine: no account needed, and no telemetry. Cloud storage is optional, on an instance
-anyone can run ([docs/CLOUD.md](docs/CLOUD.md)).
+<br />
+
+# Why Vitryne
+
+Vitryne gives clothing enthusiasts, small and mature clothing brands the tool they need to easily create clothes before manufacturing. Vitryne is the software for creatives that saves you time and boost your creativity.
+
+<br />
+
+# Installation
+
+### Cloud
+
+The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryne.app) and start creating in under a minute, with no infrastructure to manage and always up to date.
+
+### Self-hosting
+
+🏗️ Documentation Work in progress
 
 ---
 
-## Features
+# Features
 
 - **Real-time GPU Cloth Simulation:** Extended Position Based Dynamics (XPBD) cloth solver with
   non-linear stretch, bending, sewing springs, SDF avatar collision, and self-collision untangling.
@@ -36,46 +51,13 @@ anyone can run ([docs/CLOUD.md](docs/CLOUD.md)).
 - **Local-First & Private:** Saves to standard `.vtry` zip or folder files. Your designs never leave
   your device.
 
----
+<br />
 
-## Quickstart: From DXF to 3D Drape in 5 Steps
+# Requirements
 
-You can start from one of the bundled example projects (T-shirt, Trousers, Hoodie) or import your
-own DXF pattern (such as an open-source pattern from [FreeSewing](https://freesewing.org/)):
+### Browser
 
-1. **Launch the Editor:**
-   Open the hosted app or start locally with `cd app && pnpm run dev` and navigate to
-   `http://localhost:5173`.
-2. **Import or Start from an Example:**
-   - On the start screen, click any example garment (e.g., **T-shirt (Teagan)**) to open it immediately.
-   - Or click **Import your own pattern** (or drop a `.dxf` file). To follow along with a raw pattern,
-     select `assets/garments/tshirt/tshirt.dxf`. In the import dialog, preview the pieces and click
-     **Accept and import**.
-3. **Inspect Placement:**
-   - In **3D view** (press `1` or select the 3D tool), the pattern pieces appear positioned around
-     the MakeHuman body avatar. Use the **Select** tool to adjust cylinder wraps or offsets with 3D handles.
-   - Switch to **Flat view** (press `2`) to see the 2D layout and piece boundaries.
-4. **Sew the Seams:**
-   - Open the **Seams** panel on the right rail (the link icon <kbd>🔗</kbd>).
-   - Click **Suggest seams**. Vitryne inspects edge lengths and piece geometry, proposing all 10 seams
-     (side seams, shoulders, armhole sleeve caps, and underarms).
-   - Click **Accept all** to sew them instantly, or use the **Sew** tool in flat view to click matching
-     edge pairs manually.
-5. **Simulate, Adjust Fabric & Export:**
-   - The cloth drapes in real time around the avatar. Use the **Pinch** tool to grab and pull the
-     fabric to check fit and drape.
-   - Open the **Fabric** panel to switch presets (e.g. from Cotton jersey to Heavy denim or Wool) or
-     tune weight and stiffness sliders.
-   - In the **⋯** menu (top right), choose **Export…**, select **glTF 2.0 (.glb)** or **OBJ**,
-     and download your draped 3D garment ready for Blender, Unreal Engine, or web 3D viewers; or
-     select **Pattern (.dxf)** for the pieces as DXF-AAMA, for cutting and CAD tools. From the
-     command line: `drape export examples/tshirt.vtry --out tshirt.dxf`.
-
----
-
-## Browser Requirements
-
-Vitryne requires **WebGPU** support.
+Vitryne works on all major browsers that support **WebGPU**.
 
 | Browser | Platform | Status | Notes |
 |---|---|---|---|
@@ -86,6 +68,17 @@ Vitryne requires **WebGPU** support.
 
 If your browser or device lacks WebGPU support, Vitryne displays an informative fallback notice
 explaining the requirement.
+
+### Hardware
+
+The cloth simulation runs on your graphics card, so the GPU matters most. The CPU only does real
+work once, when you import your own pattern: it computes the body's collision field in about
+15–30 seconds (the examples ship with theirs precomputed).
+
+| | GPU | CPU | RAM | OS |
+|---|---|---|---|---|
+| **Minimum** | A GPU your browser can use through WebGPU: Apple silicon (M1 or later), or a dedicated card from about 2018 on | Any 64-bit CPU from the last ~6 years | 8 GB | macOS 14.4+, Windows 10/11, or Linux, with a browser from the table above |
+| **Recommended** | Apple M2 or later, or a dedicated card with 4 GB of video memory or more | 4 cores or more | 16 GB | The latest macOS or Windows 11, with up-to-date Chrome, Edge or Safari |
 
 ---
 

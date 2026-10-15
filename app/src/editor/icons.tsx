@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The concept's own drawings (logo, preset garments, its tool icons), as inline SVG. Other
-// icons come from lucide, drawn with the same stroke.
+// The logo (an image in public/images), and the concept's own drawings (preset garments, its
+// tool icons) as inline SVG. Other icons come from lucide, drawn with the same stroke.
 
 type IconProps = { className?: string };
 
 export function Logo({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">
-      <rect width="28" height="28" rx="8" fill="#14181F" />
-      <path d="M8 20 L14 8 L20 20" fill="none" stroke="#F4F5F2" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="14" cy="8" r="2.4" fill="#E4572E" />
-    </svg>
-  );
+  return <img src={`${import.meta.env.BASE_URL}images/vitryne-logo-192.png`} width={size} height={size} alt="" aria-hidden="true" />;
 }
 
 function Stroke({ d, size = 20, className }: IconProps & { d: string; size?: number }) {
