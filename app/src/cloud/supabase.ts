@@ -197,7 +197,8 @@ export class SupabaseBackend implements CloudBackend {
    * the anonymous user's projects move to it on return (`takeReturn`).
    */
   async continueWithGoogle(o: { signIn?: boolean; reopen?: string } = {}): Promise<void> {
-    const redirectTo = location.origin + location.pathname;
+    // Always the start page (one URL to allow in the backend); the stash reopens the project.
+    const redirectTo = location.origin + import.meta.env.BASE_URL;
     const from = this.current?.anonymous && this.lastSession ? { token: this.lastSession.access_token, user: this.current } : undefined;
     try {
       sessionStorage.setItem(RETURN_KEY, JSON.stringify({ reopen: o.reopen, from } satisfies Stash));

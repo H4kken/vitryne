@@ -64,6 +64,9 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
   const original = useRef<FileData | null>(null);
   /** Bumped by every open and close: a save that finishes after one is about another document. */
   const generation = useRef(0);
+  /** `generation` for rendering: what the URL follows (a new document, or the same one saved). */
+  const [opened, setOpened] = useState(0);
+  const nextDocument = () => setOpened(++generation.current);
   /** Which project this tab can't edit, and why. */
   const [blockedOn, setBlockedOn] = useState<{ id: string; why: Exclude<Blocked, null> } | null>(null);
   const blockedNow = useRef<Blocked>(null);
@@ -169,7 +172,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
       // Revisions keep growing across files, so a drape of the previous file is never newer.
       const rev = store.state.rev + 1;
       const { entities, warnings } = await session.open(copyFileData(data), rev);
-      generation.current++;
+      nextDocument();
       autosave.reset();
       store.load(r.name, parseEntities(entities), warnings, rev, opts);
       original.current = copyFileData(data);
@@ -198,7 +201,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
           setBusy('Importing');
           const rev = store.state.rev + 1;
           const m = await make(rev);
-          generation.current++;
+          nextDocument();
           autosave.reset();
           store.load(m.name, parseEntities(m.entities), m.notes, rev, { unsaved: true });
           original.current = { form: 'zip', bytes: m.zip.slice(0) };
@@ -276,7 +279,16 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     }
   };
 
-  const openCloud = (id: string) => guarded(() => loadCloud(id));
+  /** `undone`: called when the project isn't opened (the user cancelled, or it failed). */
+  const openCloud = (id: string, undone?: () => void) =>
+    guarded(
+      () =>
+        loadCloud(id).catch((e: unknown) => {
+          undone?.();
+          throw e;
+        }),
+      undone,
+    );
 
   // The recovery copy follows the confirmed document while it has changes not saved.
   useEffect(() => {
@@ -325,21 +337,22 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
 
   // A copy left by a crash, a closed tab or a lost connection, once at start: put back by itself
   // when nothing else saved the project since (or it never reached the cloud), otherwise offered.
-  const started = useRef(false);
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    void findRecovery().then(async (r) => {
+  const started = useRef<Promise<void> | null>(null);
+  const startup = () =>
+    (started.current ??= findRecovery().then(async (r) => {
       if (!r) return;
       try {
         const current = r.cloud ? (await (await cloudNow.current.backend()).getProject(r.cloud.id)).revision : null;
-        if (!r.cloud || current === r.cloud.revision) return void recoverNow(r, true);
+        if (!r.cloud || current === r.cloud.revision) return recoverNow(r, true);
       } catch {
         // Offline, or the project is gone: ask.
       }
       setRecovery(r);
-    });
-  }, [recoverNow]);
+    }));
+  const startupNow = useRef(startup);
+  useEffect(() => {
+    void startupNow.current();
+  }, []);
 
   const discardRecovery = () => {
     if (recovery) void dropRecovery(recovery.tab);
@@ -381,6 +394,10 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
 
   return {
     ref,
+    /** Changes with every open and close (not with a save). */
+    opened,
+    /** Resolves once the recovery copy left at start was put back (or offered). */
+    started: () => startupNow.current(),
     busy,
     notice,
     /** Where autosave is. */
@@ -394,9 +411,9 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     openFile: () => openWith(() => disk.openFile(), true),
     openFolder: () => openWith(() => disk.openFolder(), true),
     openData: (r: FileRef, data: () => Promise<FileData>) => openWith(async () => ({ ref: r, data: await data() })),
-    close: () =>
+    close: (undone?: () => void) =>
       guarded(() => {
-        generation.current++;
+        nextDocument();
         autosave.reset();
         store.close();
         session.closeDocument();
@@ -404,7 +421,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
         setRef(null);
         setNotice(null);
         void dropRecovery();
-      }),
+      }, undone),
     /** This tab takes the open project over from another (and reopens it as last saved). */
     takeOver: async () => {
       const id = refNow.current?.cloud?.id;

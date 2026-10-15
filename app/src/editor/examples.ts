@@ -13,10 +13,21 @@ export async function listExamples(): Promise<Example[]> {
   return (await r.json()) as Example[];
 }
 
+const fetched = new Map<string, Promise<ArrayBuffer>>();
+
+/** An example's file, downloaded once per page (`fetchExample` early: pointing at it). */
 export async function fetchExample(e: Example): Promise<ArrayBuffer> {
-  const r = await fetch(`${import.meta.env.BASE_URL}${e.file}`);
-  if (!r.ok) throw new Error(`${e.file}: ${r.status} ${r.statusText}`);
-  return r.arrayBuffer();
+  let got = fetched.get(e.file);
+  if (!got) {
+    got = fetch(`${import.meta.env.BASE_URL}${e.file}`).then((r) => {
+      if (!r.ok) throw new Error(`${e.file}: ${r.status} ${r.statusText}`);
+      return r.arrayBuffer();
+    });
+    got.catch(() => fetched.delete(e.file));
+    fetched.set(e.file, got);
+  }
+  // A copy each time: an open may hand its bytes on.
+  return (await got).slice(0);
 }
 
 /** The test avatar's mesh (glTF binary), which projects made from an imported pattern use. */

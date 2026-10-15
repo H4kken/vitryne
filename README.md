@@ -58,8 +58,8 @@ the GPU matters most. The CPU only does real work once, when you import your own
 
 | | Browser | GPU | CPU | RAM | OS |
 |---|---|---|---|---|---|
-| **Minimum** | Chrome or Edge 113+, Safari 18+, or Firefox with `dom.webgpu.enabled = true` in `about:config` | A GPU your browser can use through WebGPU: Apple silicon (M1 or later), or a dedicated card from about 2018 on | Any 64-bit CPU from the last ~6 years | 8 GB | macOS 14.4+, Windows 10/11, or Linux |
-| **Recommended** | Up-to-date Chrome, Edge or Safari | Apple M2 or later, or a dedicated card with 4 GB of video memory or more | 4 cores or more | 16 GB | The latest macOS or Windows 11 |
+| **Minimum** | Chrome or Edge 113+, Safari 18+, or Firefox with `dom.webgpu.enabled = true` in `about:config` | A GPU your browser can use through WebGPU: Apple silicon (M1 or later), or a dedicated card from about 2018 on | Any 64-bit CPU from the last ~6 years | 8 GB | Any |
+| **Recommended** | Up-to-date Chrome, Edge or Safari | Apple M2 or later, or a dedicated card with 4 GB of video memory or more | 4 cores or more | 16 GB | Any |
 
 Chrome and Edge save straight to a file you pick; Safari and Firefox save through a download. If
 your browser or device has no WebGPU, Vitryne shows a page explaining what's missing.

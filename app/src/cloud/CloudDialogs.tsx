@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { ProjectSummary, Usage } from './backend';
-import { deleteAccount, deleteProject, duplicateProject, exportAll, moveProjects } from './projects';
+import { deleteAccount, deleteProject, duplicateProject, exportAll, fetchAhead, moveProjects } from './projects';
 import type { Cloud } from './useCloud';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -76,6 +76,9 @@ export function CloudProjectList(props: { cloud: Cloud; projects: ProjectSummary
               type="button"
               disabled={props.busy || working !== null}
               onClick={() => props.onOpen(p.id)}
+              // Pointing at a project starts its download, so the click opens it sooner.
+              onPointerEnter={() => void props.cloud.backend().then((b) => fetchAhead(b, p.id), () => undefined)}
+              onFocus={() => void props.cloud.backend().then((b) => fetchAhead(b, p.id), () => undefined)}
               className="flex min-w-0 grow flex-col text-left disabled:opacity-60"
             >
               <span className="truncate text-[15px] font-semibold">{p.name}</span>

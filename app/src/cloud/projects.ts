@@ -99,16 +99,25 @@ async function folderOf(b: CloudBackend, row: ProjectRow): Promise<[string, Arra
     ['mimetype', enc(MIMETYPE)],
     ['manifest.json', enc(JSON.stringify(row.manifest, null, 2))],
   ];
-  for (const p of row.manifest.parts) {
-    if (!p.sha256 || !/^[0-9a-f]{64}$/.test(p.sha256)) throw new CloudError(`${p.path} has no hash in the stored manifest`, 'damaged');
-    const bytes = await b.downloadPart(`${row.owner}/${p.sha256}`);
-    if ((await sha256Hex(bytes)) !== p.sha256) throw new CloudError(`${p.path} came back damaged; try again`, 'damaged');
-    files.push([p.path, bytes]);
-  }
-  return files;
+  // All at once: one round trip for the parts, not one each.
+  const parts = await Promise.all(
+    row.manifest.parts.map(async (p): Promise<[string, ArrayBuffer]> => {
+      if (!p.sha256 || !/^[0-9a-f]{64}$/.test(p.sha256)) throw new CloudError(`${p.path} has no hash in the stored manifest`, 'damaged');
+      const bytes = await b.downloadPart(`${row.owner}/${p.sha256}`);
+      if ((await sha256Hex(bytes)) !== p.sha256) throw new CloudError(`${p.path} came back damaged; try again`, 'damaged');
+      return [p.path, bytes];
+    }),
+  );
+  return [...files, ...parts];
 }
 
-export async function openProject(b: CloudBackend, id: string): Promise<{ name: string; ref: CloudRef; data: FileData }> {
+type Opened = { name: string; ref: CloudRef; data: FileData };
+
+/** How long a project fetched ahead (the pointer over it in a list) waits to be opened. */
+const AHEAD_MS = 10_000;
+const ahead = new Map<string, { at: number; got: Promise<Opened> }>();
+
+async function fetchProject(b: CloudBackend, id: string): Promise<Opened> {
   const row = await b.getProject(id);
   const files = await folderOf(b, row);
   return {
@@ -116,6 +125,23 @@ export async function openProject(b: CloudBackend, id: string): Promise<{ name: 
     ref: { id: row.id, revision: row.revision, parts: row.manifest.parts.flatMap((p) => (p.sha256 ? [p.sha256] : [])) },
     data: { form: 'folder', files },
   };
+}
+
+/** Starts downloading a project the person is about to open, so the open finds it here. */
+export function fetchAhead(b: CloudBackend, id: string): void {
+  const a = ahead.get(id);
+  if (a && Date.now() - a.at < AHEAD_MS) return;
+  const got = fetchProject(b, id);
+  got.catch(() => ahead.delete(id));
+  ahead.set(id, { at: Date.now(), got });
+}
+
+export async function openProject(b: CloudBackend, id: string): Promise<Opened> {
+  const a = ahead.get(id);
+  ahead.delete(id);
+  // Taken once: a failed fetch ahead is tried again.
+  if (a && Date.now() - a.at < AHEAD_MS) return a.got.catch(() => fetchProject(b, id));
+  return fetchProject(b, id);
 }
 
 /** A cloud project as a .vtry file (the parts zipped, mimetype first). */

@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { ChevronDown, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Example } from './examples';
+import { type Example, fetchExample } from './examples';
 import { ImportIcon, Logo, PRESET_ART, PresetsIcon } from './icons';
 
 /** What each bundled example is made of. */
@@ -127,6 +127,8 @@ export function StartScreen(props: {
                     type="button"
                     disabled={!!props.busy}
                     onClick={() => props.onPreset(ex)}
+                    onPointerEnter={() => void fetchExample(ex).catch(() => undefined)}
+                    onFocus={() => void fetchExample(ex).catch(() => undefined)}
                     className="flex min-w-0 flex-[1_1_200px] flex-col overflow-hidden rounded-2xl border border-[#E1E4DE] bg-white text-left transition-[transform,box-shadow] duration-150 hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)] disabled:opacity-60 cursor-pointer"
                   >
                     <span className="flex h-[150px] items-center justify-center" style={{ background: art?.bg ?? '#E8ECE4' }}>

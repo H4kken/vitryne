@@ -43,6 +43,7 @@ import { ExportDialog } from './ExportDialog';
 import { ImportDialog, type TextFile } from './ImportDialog';
 import { StartScreen } from './StartScreen';
 import { useFiles } from './useFiles';
+import { useProjectRoute } from './useProjectRoute';
 import { Viewport } from './Viewport';
 
 const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
@@ -77,6 +78,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const disk = useMemo(() => new DiskFiles(), []);
   const doc = useDocument(store);
   const files = useFiles(session, store, disk, doc, cloud);
+  useProjectRoute(files, doc.empty);
   const [accountOpen, setAccountOpen] = useState(false);
   const [cloudOpen, setCloudOpen] = useState(false);
   /** Why the account dialog was opened, and what to do once there is an account. */
