@@ -408,7 +408,8 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     dismissNotice: () => setNotice(null),
     showError: fail,
     showInfo: (text: string) => setNotice({ kind: 'info', text }),
-    openFile: () => openWith(() => disk.openFile(), true),
+    /** A .vtry picked or dropped: a new project. */
+    openVtry: (file: File) => openWith(async () => ({ ref: { name: file.name, form: 'zip' }, data: { form: 'zip', bytes: await file.arrayBuffer() } }), true),
     openFolder: () => openWith(() => disk.openFolder(), true),
     openData: (r: FileRef, data: () => Promise<FileData>) => openWith(async () => ({ ref: r, data: await data() })),
     close: (undone?: () => void) =>

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // What the editor shows with nothing open: the person's projects (or draft), start from a preset
-// (the bundled examples), import a DXF pattern (picked or dropped anywhere here), or open a
-// project file, which becomes a new project. Starting from scratch comes later.
+// (the bundled examples), or import a file, picked or dropped anywhere here: a DXF pattern, or a
+// .vtry project, which becomes a new project. Starting from scratch comes later.
 
 import { useState } from 'react';
-import { ChevronDown, FolderOpen } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type Example, fetchExample } from './examples';
 import { ImportIcon, Logo, PRESET_ART, PresetsIcon } from './icons';
@@ -25,9 +25,9 @@ const rank = (e: Example) => (ORDER.indexOf(presetId(e)) + ORDER.length + 1) % (
 export function StartScreen(props: {
   examples: Example[];
   onPreset: (e: Example) => void;
-  onOpen: () => void;
+  /** Picks a DXF pattern or a .vtry project. */
   onImport: () => void;
-  /** Dropping a DXF (and its garment.toml) here imports it. */
+  /** Dropping a DXF (and its garment.toml), or a .vtry, here imports it. */
   dropProps: { onDragOver: (e: React.DragEvent) => void; onDrop: (e: React.DragEvent) => void };
   onOpenFolder: (() => void) | null;
   busy: string | null;
@@ -77,19 +77,8 @@ export function StartScreen(props: {
         >
           <ImportIcon className="text-foreground shrink-0" />
           <span className="flex flex-col gap-0.5">
-            <span className="font-display text-xl font-semibold">Import your own pattern</span>
-            <span className="text-muted-foreground text-sm">Drop a DXF file</span>
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={props.onOpen}
-          className="flex min-h-[92px] flex-[1_1_240px] items-center gap-3.5 rounded-2xl border-2 border-[#CFD4CB] bg-white px-5 py-4 text-left transition-colors hover:border-[#14181F]"
-        >
-          <FolderOpen className="text-foreground size-[30px] shrink-0" strokeWidth={1.8} />
-          <span className="flex flex-col gap-0.5">
-            <span className="font-display text-xl font-semibold">Open a project</span>
-            <span className="text-muted-foreground text-sm">A .vtry file, as a new project</span>
+            <span className="font-display text-xl font-semibold">Import a file</span>
+            <span className="text-muted-foreground text-sm">A DXF pattern or a .vtry project, or drop it here</span>
           </span>
         </button>
       </div>

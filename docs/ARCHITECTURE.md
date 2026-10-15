@@ -39,7 +39,7 @@ worker, or from ticks the UI sends where workers lack it.
 ### Look
 
 The editor follows the "Vitryne editor concept" design canvas (claude.ai artifact
-`Ci1MyouGsSDARsvNGrZ7WM`): a start screen (presets, import a pattern, open a project), then a top bar, an icon rail
+`Ci1MyouGsSDARsvNGrZ7WM`): a start screen (presets, import a file, the person's projects), then a top bar, an icon rail
 that opens one panel at a time, and one canvas showing either the 3D drape or the flat pieces,
 with a status pill, a hint, zoom and a floating tool bar. Its colours, radii and type are the
 tokens in `app/src/index.css` (light only); the fonts, Bricolage Grotesque and DM Sans (OFL),
@@ -286,8 +286,10 @@ the real Rust validation.
 - **The recovery copy** (`storage/recovery.ts`, IndexedDB) keeps what hasn't reached the backend.
   A copy whose tab is still open isn't offered; at start a copy nobody saved over since is put
   back and saved, otherwise offered.
-- **Files from disk** (`storage/storage.ts`, `DiskFiles`): a `.vtry` file, or a project folder
-  where the browser has a directory picker, opens as a new project.
+- **Files from disk**: one file input (*Import a file*, ⌘O, or a drop) takes a DXF pattern, which
+  goes to the import dialog, or a `.vtry` file, which opens as a new project. A project folder
+  opens the same way where the browser has a directory picker (`storage/storage.ts`, `DiskFiles`).
+  *Export… → Project (.vtry)* writes the open project as one file.
 
 ## Checking the editor in a browser
 

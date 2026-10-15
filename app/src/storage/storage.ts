@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Opening project files from disk (docs/ARCHITECTURE.md, Storage). Projects live in the cloud
-// (src/cloud/) and save there by themselves; a .vtry file, or a project folder, from disk opens as a
-// new cloud project. Nothing is written to disk. The File System Access API where the browser has
-// it (Chrome, Edge: folders too), else a file input (Firefox, Safari).
+// Opening project folders from disk (docs/ARCHITECTURE.md, Storage). Projects live in the cloud
+// (src/cloud/) and save there by themselves; a project folder from disk opens as a new cloud
+// project (a .vtry file comes through the editor's file input, with DXF patterns). Nothing is
+// written to disk. Folders need the File System Access API (Chrome, Edge).
 
 import type { CloudRef } from '@/cloud/projects';
 import type { FileData } from '@/worker/protocol';
@@ -23,15 +23,11 @@ export interface Opened {
 export interface FileOpener {
   readonly opensFolders: boolean;
   /** Null when the user cancels. */
-  openFile(): Promise<Opened | null>;
   openFolder(): Promise<Opened | null>;
 }
 
-const VTRY_TYPES = [{ description: 'Vitryne project', accept: { 'application/vnd.vitryne.project+zip': ['.vtry'] } }];
-
 // The File System Access API isn't in TypeScript's DOM library yet.
 interface PickerWindow {
-  showOpenFilePicker?(o: unknown): Promise<FileSystemFileHandle[]>;
   showDirectoryPicker?(o: unknown): Promise<FileSystemDirectoryHandle>;
 }
 type IterableDirectory = FileSystemDirectoryHandle & { entries(): AsyncIterable<[string, FileSystemHandle]> };
@@ -55,36 +51,8 @@ async function readFolder(dir: FileSystemDirectoryHandle, prefix = ''): Promise<
   return out;
 }
 
-function pickWithInput(): Promise<File | null> {
-  return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.vtry';
-    input.onchange = () => resolve(input.files?.[0] ?? null);
-    input.oncancel = () => resolve(null);
-    input.click();
-  });
-}
-
 export class DiskFiles implements FileOpener {
   readonly opensFolders = typeof picker.showDirectoryPicker === 'function';
-
-  async openFile(): Promise<Opened | null> {
-    const show = picker.showOpenFilePicker;
-    if (typeof show !== 'function') {
-      const f = await pickWithInput();
-      return f ? { ref: { name: f.name, form: 'zip' }, data: { form: 'zip', bytes: await f.arrayBuffer() } } : null;
-    }
-    try {
-      const [handle] = await show.call(globalThis, { types: VTRY_TYPES, excludeAcceptAllOption: false });
-      if (!handle) return null;
-      const f = await handle.getFile();
-      return { ref: { name: f.name, form: 'zip' }, data: { form: 'zip', bytes: await f.arrayBuffer() } };
-    } catch (e) {
-      if (cancelled(e)) return null;
-      throw e;
-    }
-  }
 
   async openFolder(): Promise<Opened | null> {
     const show = picker.showDirectoryPicker;
@@ -97,5 +65,4 @@ export class DiskFiles implements FileOpener {
       throw e;
     }
   }
-
 }

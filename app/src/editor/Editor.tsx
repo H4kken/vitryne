@@ -155,7 +155,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const [importing, setImporting] = useState<TextFile | null>(null);
   const [importKey, setImportKey] = useState(0);
   const [exporting, setExporting] = useState(false);
-  const dxfInput = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const canvasBox = useRef<HTMLElement>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 1, h: 1 });
   const [selection, setSelection] = useState<Selection>(null);
@@ -353,12 +353,17 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     [garment, session, store, files],
   );
 
-  /** A DXF picked or dropped: the import dialog (a garment.toml with it is kept for it). */
+  /**
+   * A file picked or dropped: a .vtry opens as a new project; a DXF goes to the import dialog (a
+   * garment.toml with it is kept for it).
+   */
   const [droppedSidecar, setDroppedSidecar] = useState<TextFile | null>(null);
   const startImport = async (list: FileList | File[]) => {
+    const vtry = [...list].find((f) => /\.vtry$/i.test(f.name));
+    if (vtry) return startNew(() => files.openVtry(vtry));
     const r = await readPattern(list);
     if (!r) {
-      files.showError('Not imported', new Error('pick a DXF-AAMA pattern (.dxf)'));
+      files.showError('Not imported', new Error('pick a DXF-AAMA pattern (.dxf) or a Vitryne project (.vtry)'));
       return;
     }
     // Pieces added to the open project aren't a new project; a new one replaces the draft.
@@ -404,16 +409,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
 
   const openPreset = (ex: Example) =>
     startNew(() => files.openData({ name: ex.file.split('/').pop() ?? ex.file, form: 'zip' }, async () => ({ form: 'zip', bytes: await fetchExample(ex) })));
-  const openFile = () => startNew(() => files.openFile());
+  const importFile = () => fileInput.current?.click();
   const openFolder = () => startNew(() => files.openFolder());
   const exportIt = () => needAccount('Create a free account to export.', () => setExporting(true));
 
   const { save } = files;
-  /** The newest `openFile` for the shortcut (it asks about the draft, so it changes with it). */
-  const openFileNow = useRef(openFile);
-  useEffect(() => {
-    openFileNow.current = openFile;
-  });
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
@@ -428,7 +428,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       }
       if (mod && k === 'o') {
         e.preventDefault();
-        openFileNow.current();
+        fileInput.current?.click();
         return;
       }
       if (mod && !typing && (k === 'z' || k === 'y')) {
@@ -506,11 +506,10 @@ export function Editor({ cloud }: { cloud: Cloud }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuItem onSelect={openFile}>
-              Open… <DropdownMenuShortcut>{MOD}O</DropdownMenuShortcut>
+            <DropdownMenuItem onSelect={importFile}>
+              Import a file… <DropdownMenuShortcut>{MOD}O</DropdownMenuShortcut>
             </DropdownMenuItem>
             {disk.opensFolders && <DropdownMenuItem onSelect={openFolder}>Open a folder project…</DropdownMenuItem>}
-            <DropdownMenuItem onSelect={() => dxfInput.current?.click()}>Import a pattern (DXF)…</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setCloudOpen(true)}>Your projects…</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -761,8 +760,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           examples={examples}
           busy={files.busy}
           onPreset={openPreset}
-          onOpen={openFile}
-          onImport={() => dxfInput.current?.click()}
+          onImport={importFile}
           dropProps={dropProps}
           onOpenFolder={disk.opensFolders ? openFolder : null}
           account={<CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />}
@@ -789,9 +787,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       {!doc.empty && files.recovery && <div className="absolute inset-x-0 top-16 z-20">{recoveryBanner}</div>}
 
       <input
-        ref={dxfInput}
+        ref={fileInput}
         type="file"
-        accept=".dxf,.toml"
+        accept=".dxf,.toml,.vtry"
         multiple
         className="hidden"
         onChange={(e) => {
@@ -814,6 +812,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         onOpenChange={setExporting}
         session={session}
         garmentName={doc.entities.project?.name ?? garment?.name ?? 'garment'}
+        projectFile={async () => {
+          const data = await session.save((await store.settled()).rev, 'zip');
+          if (data.form !== 'zip') throw new Error('internal: the worker did not give the zip form');
+          return data.bytes;
+        }}
       />
 
       {accountOpen && (
