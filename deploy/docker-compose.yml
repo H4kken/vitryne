@@ -3,10 +3,9 @@
 #
 #   docker compose -f deploy/docker-compose.yml up -d --build      then open http://localhost:8000
 #
-# Builds the editor from this checkout and serves it. With no settings it runs in local mode (no
-# accounts, nothing stored server-side). Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (in
-# deploy/.env, see .env.example) for accounts and cloud storage on a Supabase project. To
-# update: `git pull`, then the same command.
+# Builds the editor from this checkout and serves it. Projects are saved to a Supabase project:
+# set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (in deploy/.env, see .env.example); the container
+# doesn't start without them. To update: `git pull`, then the same command.
 
 name: vitryne
 

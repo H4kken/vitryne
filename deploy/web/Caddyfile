@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # The editor's static build with the cross-origin isolation headers it needs (docs/HOSTING.md).
 # SITE_ADDRESS is ":80" locally or behind another proxy (Coolify, Traefik, nginx), or a domain
-# name for automatic HTTPS. Cloud mode (docs/CLOUD.md) is on when SUPABASE_URL is set.
+# name for automatic HTTPS. The backend (docs/CLOUD.md) is SUPABASE_URL; entrypoint.sh doesn't
+# start without it.
 {
 	admin off
 }
@@ -16,7 +17,7 @@
 		-Server
 	}
 
-	# The editor reads this at start: no file (404) means local mode.
+	# The editor reads this at start: no file (404) means no backend, which it says.
 	@cloud expression `{env.SUPABASE_URL} != "" && {env.SUPABASE_PUBLISHABLE_KEY} != ""`
 	handle /config.json {
 		header Cache-Control no-cache

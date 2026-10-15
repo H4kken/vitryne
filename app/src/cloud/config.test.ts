@@ -11,7 +11,7 @@ describe('config.json', () => {
       privacyPolicy: 'https://vitryne.example/app/privacy.html',
     });
   });
-  it('means local mode when absent, not JSON, or incomplete', () => {
+  it('names no backend when absent, not JSON, or incomplete', () => {
     expect(parseConfig('<!doctype html>', base)).toBeNull();
     expect(parseConfig('{}', base)).toBeNull();
     expect(parseConfig('{"backend":{"url":"https://x"}}', base)).toBeNull();

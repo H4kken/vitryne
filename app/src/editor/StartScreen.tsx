@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// What the editor shows with nothing open: start from a preset (the bundled examples), import
-// a DXF pattern (picked or dropped anywhere here), or open a project file. Starting from
-// scratch comes later.
+// What the editor shows with nothing open: the person's projects (or draft), start from a preset
+// (the bundled examples), import a DXF pattern (picked or dropped anywhere here), or open a
+// project file, which becomes a new project. Starting from scratch comes later.
 
 import { useState } from 'react';
 import { ChevronDown, FolderOpen } from 'lucide-react';
@@ -32,9 +32,10 @@ export function StartScreen(props: {
   onOpenFolder: (() => void) | null;
   busy: string | null;
   banner?: React.ReactNode;
-  /** Cloud mode: the account button, and the person's cloud projects if they have any. */
-  account?: React.ReactNode;
-  cloudProjects?: React.ReactNode;
+  /** The account button, and the person's projects if they have any. */
+  account: React.ReactNode;
+  projects: React.ReactNode;
+  projectsTitle: string;
 }) {
   const [examplesOpen, setExamplesOpen] = useState(true);
   return (
@@ -43,14 +44,15 @@ export function StartScreen(props: {
         <Logo />
         <span className="font-display text-xl font-bold tracking-[-0.01em]">Vitryne</span>
         <span className="grow" />
-        {props.account ?? <span className="text-muted-foreground text-sm">Free · runs in your browser · no account</span>}
+        <span className="text-muted-foreground text-sm max-sm:hidden">Free · no account needed to try</span>
+        {props.account}
       </div>
       {props.banner}
 
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-3.5 px-8 pt-14 pb-7">
         <h1 className="font-display m-0 text-[52px] leading-[1.05] font-bold tracking-[-0.025em] max-sm:text-[38px]">What do you want to make?</h1>
         <p className="text-body-text m-0 max-w-[620px] text-[19px] leading-normal">
-          Start from something that already works, bring your own pattern, or open a project you saved. You can change anything later.
+          Start from something that already works, or bring your own pattern. Your work is saved as you go, and you can change anything later.
         </p>
       </div>
 
@@ -87,7 +89,7 @@ export function StartScreen(props: {
           <FolderOpen className="text-foreground size-[30px] shrink-0" strokeWidth={1.8} />
           <span className="flex flex-col gap-0.5">
             <span className="font-display text-xl font-semibold">Open a project</span>
-            <span className="text-muted-foreground text-sm">A .vtry file from your computer</span>
+            <span className="text-muted-foreground text-sm">A .vtry file, as a new project</span>
           </span>
         </button>
       </div>
@@ -99,11 +101,11 @@ export function StartScreen(props: {
         </div>
       )}
 
-      {props.cloudProjects && (
+      {props.projects && (
         <div className="mx-auto w-full max-w-[1120px] px-8 pt-1 pb-4">
           <div className="flex flex-col gap-2 rounded-[20px] border border-[#E1E4DE] bg-white p-5 shadow-[0_2px_8px_rgba(20,24,31,.04)]">
-            <span className="text-muted-foreground text-sm font-semibold tracking-[0.06em] uppercase">Your cloud projects</span>
-            {props.cloudProjects}
+            <span className="text-muted-foreground text-sm font-semibold tracking-[0.06em] uppercase">{props.projectsTitle}</span>
+            {props.projects}
           </div>
         </div>
       )}

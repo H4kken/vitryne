@@ -5,12 +5,13 @@
 //                  it is autosaved as A's draft (this tab holds its lock); an edit while offline
 //                  is kept and saved once back online; after a reload the draft is listed; A
 //                  creates an account (email, password, the code from Mailpit: instance.mjs).
+//                  Export and Duplicate ask for an account first, and a second example asks
+//                  before replacing the draft; with the account, Duplicate makes "(copy)".
 //                  Browser B (a fresh profile) signs in and opens the project, Denim and all.
-//   local  <url>   the same build with no config.json: local mode, and every request stays on
-//                  the app's own files (no backend, no cloud code).
+//   none   <url>   the same build with no config.json: the editor says it has no backend.
 //
-//   node tests/cloud/browser.mjs cloud http://localhost:8000 [shots-dir]   (cloud mode on the local stack)
-//   node tests/cloud/browser.mjs local http://localhost:8000 [shots-dir]   (no SUPABASE_URL)
+//   node tests/cloud/browser.mjs cloud http://localhost:8000 [shots-dir]   (the local stack)
+//   node tests/cloud/browser.mjs none http://localhost:5174 [shots-dir]    (`pnpm run dev:app`)
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -40,7 +41,18 @@ async function browser(label) {
   }
   const b = await connect(target, label);
   /** Another tab of the same browser (same profile). */
-  b.tab = async (name) => connect(await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json(), `${label}-${name}`);
+  b.tab = async (name) => {
+    const t = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
+    const tab = await connect(t, `${label}-${name}`);
+    const closeWs = tab.close;
+    // Closes the tab itself, so the first one is in front again.
+    tab.close = async () => {
+      closeWs();
+      await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`);
+      await sleep(300);
+    };
+    return tab;
+  };
   const close = b.close;
   b.close = () => {
     close();
@@ -126,6 +138,13 @@ async function connect(target, label) {
         await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1, pointerType: 'mouse' });
       await sleep(400);
     },
+    /** Clicks the element matching `selector`, with real input events. */
+    async clickAt(selector) {
+      const box = await b.until(selector, `(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+      for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased'])
+        await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1, pointerType: 'mouse' });
+      await sleep(400);
+    },
     async type(selector, value) {
       await b.until(selector, `!!document.querySelector(${JSON.stringify(selector)})`);
       await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus()`);
@@ -197,12 +216,24 @@ async function cloud() {
   await a.shot('taken');
   await a.click('Open here instead');
   await a.until('the first tab back', `!document.body.innerText.includes('was opened in another tab')`);
-  a2.close();
+  await a2.close();
 
-  // A reload: the draft is in the project list.
+  // Without an account: Export asks for one, and a second project would replace the draft.
+  await a.click('More');
+  await a.click('Export…');
+  await a.until('the account asked for', `document.body.innerText.includes('Create a free account to export.')`);
+  await a.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await sleep(500);
+
+  // A reload: the draft is in the list.
   await a.goto(url);
-  await a.until('the draft listed', `document.body.innerText.toLowerCase().includes('your cloud projects') && document.body.innerText.includes('T-shirt (Teagan)')`);
+  await a.until('the draft listed', `document.body.innerText.toLowerCase().includes('your draft') && document.body.innerText.includes('T-shirt (Teagan)')`);
   await a.shot('reloaded');
+  await a.click('Trousers');
+  await a.until('the replace question', `document.body.innerText.includes('Replace your draft?')`);
+  await a.shot('replace');
+  await a.click('Cancel', { exact: true });
+  await a.until('still the start screen', `!document.body.innerText.includes('Replace your draft?') && document.body.innerText.includes('What do you want to make?')`);
   await a.click('Cloud', { exact: true });
   await a.click('Create an account', { exact: true });
   await a.type('#cloud-email', email);
@@ -214,6 +245,17 @@ async function cloud() {
   await a.until('the account created', `document.body.innerText.includes('Account created')`);
   await a.until('the email shown', `document.body.innerText.includes(${JSON.stringify(email)})`);
   await a.shot('upgraded');
+  await a.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await sleep(500);
+
+  // With the account: the draft is a project like any other, and can be duplicated.
+  await a.until('the project listed', `document.body.innerText.toLowerCase().includes('your projects')`);
+  await a.click('Open', { exact: true });
+  await a.until('the project open', loaded);
+  await a.click('More');
+  await a.click('Duplicate', { exact: true });
+  await a.until('the copy open', `(document.querySelector('header')?.innerText ?? '').includes('T-shirt (Teagan) (copy)')`);
+  await a.shot('duplicated');
   const aErrors = a.logs;
   a.close();
 
@@ -229,39 +271,32 @@ async function cloud() {
   await b.until('B signed in', `document.body.innerText.includes(${JSON.stringify(email)})`);
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
   await sleep(500);
-  await b.until('the cloud project listed', `document.body.innerText.toLowerCase().includes('your cloud projects') && document.body.innerText.includes('T-shirt (Teagan)')`);
+  await b.until('both projects listed', `document.body.innerText.toLowerCase().includes('your projects') && document.body.innerText.includes('T-shirt (Teagan) (copy)')`);
   await b.shot('listed');
-  await b.click('Open', { exact: true });
+  // The newest first: the copy; the original is the second.
+  await b.evaluate(`(() => { const o = [...document.querySelectorAll('button')].filter((e) => e.innerText.trim() === 'Open'); o[1].setAttribute('data-original', ''); })()`);
+  await b.clickAt('[data-original]');
   await b.until('the project open in B', loaded);
   await b.until('Denim kept', `[...document.querySelectorAll('button')].some((e) => e.innerText.startsWith('Denim') && e.className.includes('bg-[#14181F]'))`);
   await b.until('B saved', `(document.querySelector('header')?.innerText ?? '').includes('Saved')`);
   await b.shot('opened');
   const title = await b.evaluate(`document.querySelector('header')?.innerText ?? ''`);
-  if (!/T-shirt/.test(title)) throw new Error(`B: unexpected title: ${title}`);
+  if (!/T-shirt \(Teagan\)/.test(title) || /\(copy\)/.test(title)) throw new Error(`B: unexpected title: ${title}`);
   const bErrors = b.logs;
   b.close();
   return { email, aErrors, bErrors, title: title.split('\n').slice(0, 2) };
 }
 
-async function local() {
-  const a = await browser('L');
+async function none() {
+  const a = await browser('N');
   await a.goto(url);
-  await a.until('start screen', `document.body.innerText.includes('What do you want to make?')`);
-  await a.click('T-shirt');
-  await a.until('the T-shirt open', loaded);
-  await sleep(2000);
-  const text = await a.text();
-  await a.shot('local');
-  const origin = new URL(url).origin;
-  const foreign = a.requests.filter((r) => !r.startsWith(origin) && !r.startsWith('data:') && !r.startsWith('blob:'));
+  await a.until('the no-backend page', `document.body.innerText.includes('This Vitryne has no backend')`);
+  await a.shot('none');
   const backend = a.requests.filter((r) => /\/(auth|rest|storage)\/v1\/|supabase/.test(r));
-  await a.click('More');
-  const menu = await a.text();
   a.close();
-  if (foreign.length || backend.length) throw new Error(`local mode made requests it shouldn't: ${[...foreign, ...backend].join(', ')}`);
-  if (/Save to the cloud|Sign in/.test(menu + text)) throw new Error('local mode shows cloud features');
-  return { requests: a.requests.length, errors: a.logs };
+  if (backend.length) throw new Error(`requests to a backend: ${backend.join(', ')}`);
+  return { errors: a.logs };
 }
 
-const result = mode === 'local' ? await local() : await cloud();
+const result = mode === 'none' ? await none() : await cloud();
 console.log(JSON.stringify({ mode, ok: true, ...result, shots }, null, 2));

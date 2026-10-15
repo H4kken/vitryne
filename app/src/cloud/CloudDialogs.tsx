@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Cloud mode's screens (docs/CLOUD.md): the person's cloud projects, and the account dialog. No
-// sign-up wall: the first cloud save makes an anonymous user, and an email is offered for what it
-// adds (opening projects on another device). Codes come by email and are typed here, so no link
-// or redirect can lose unsaved work.
+// The cloud screens (docs/CLOUD.md): the person's projects, and the account dialog. No sign-up
+// wall: anyone can try the editor, and their work is kept as one draft (an anonymous user); a
+// free account keeps every project, opens them anywhere, and exports. Codes come by email and are
+// typed here, so no link or redirect can lose work not saved yet.
 
 import { useEffect, useState } from 'react';
-import { Cloud as CloudIcon, Download, Trash2 } from 'lucide-react';
+import { Cloud as CloudIcon, Copy, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { ProjectSummary, Usage } from './backend';
-import { deleteAccount, deleteProject, exportAll, fileName, moveProjects, projectZip } from './projects';
+import { deleteAccount, deleteProject, duplicateProject, exportAll, moveProjects } from './projects';
 import type { Cloud } from './useCloud';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -32,20 +32,21 @@ function save(name: string, bytes: ArrayBuffer, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-/** The person's cloud projects: open, download as a .vtry, delete. */
+/** The person's projects: open, duplicate (an account), delete. */
 export function CloudProjectList(props: { cloud: Cloud; projects: ProjectSummary[]; busy: boolean; onOpen: (id: string) => void }) {
   const [working, setWorking] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const account = props.cloud.user && !props.cloud.user.anonymous;
 
-  const download = async (p: ProjectSummary) => {
+  const duplicate = async (p: ProjectSummary) => {
     setWorking(p.id);
     setError(null);
     try {
-      const z = await projectZip(await props.cloud.backend(), p.id);
-      save(fileName(z.name, new Set()), z.bytes, 'application/vnd.vitryne.project+zip');
+      await duplicateProject(await props.cloud.backend(), p.id);
+      props.cloud.refresh();
     } catch (e) {
-      setError(`Could not download ${p.name}: ${message(e)}`);
+      setError(`Could not duplicate ${p.name}: ${message(e)}`);
     } finally {
       setWorking(null);
     }
@@ -65,7 +66,7 @@ export function CloudProjectList(props: { cloud: Cloud; projects: ProjectSummary
     }
   };
 
-  if (!props.projects.length) return <p className="text-muted-foreground m-0 text-sm">No projects in the cloud yet. Save one with “Save to the cloud”.</p>;
+  if (!props.projects.length) return <p className="text-muted-foreground m-0 text-sm">No projects yet. Change an example or import a pattern, and it is saved here.</p>;
   return (
     <div className="flex flex-col gap-2">
       <ul className="m-0 flex list-none flex-col divide-y divide-[#E1E4DE] p-0">
@@ -97,9 +98,11 @@ export function CloudProjectList(props: { cloud: Cloud; projects: ProjectSummary
                 <Button size="sm" variant="outline" disabled={props.busy || working !== null} onClick={() => props.onOpen(p.id)}>
                   Open
                 </Button>
-                <Button size="icon-sm" variant="ghost" aria-label={`Download ${p.name} as a file`} disabled={working !== null} onClick={() => void download(p)}>
-                  <Download className="size-4" />
-                </Button>
+                {account && (
+                  <Button size="icon-sm" variant="ghost" aria-label={`Duplicate ${p.name}`} disabled={working !== null} onClick={() => void duplicate(p)}>
+                    <Copy className="size-4" />
+                  </Button>
+                )}
                 <Button size="icon-sm" variant="ghost" aria-label={`Delete ${p.name}`} disabled={working !== null} onClick={() => setConfirm(p.id)}>
                   <Trash2 className="size-4" />
                 </Button>
@@ -124,9 +127,13 @@ export function CloudProjectsDialog(props: { cloud: Cloud; open: boolean; onOpen
     <Dialog open={open} onOpenChange={props.onOpenChange}>
       <DialogContent className="max-w-[560px] rounded-[20px] p-6">
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl font-bold">Your cloud projects</DialogTitle>
+          <DialogTitle className="font-display text-2xl font-bold">Your projects</DialogTitle>
           <DialogDescription className="text-body-text text-[15px]">
-            {cloud.user ? 'Open one, download it as a file, or delete it.' : 'Nothing saved to the cloud from this browser yet. Sign in to see projects saved elsewhere.'}
+            {!cloud.user
+              ? 'Nothing saved from this browser yet. Sign in to see the projects in your account.'
+              : cloud.user.anonymous
+                ? 'Without an account you keep one project, your draft. Create a free account to keep several.'
+                : 'Open one, duplicate it, or delete it.'}
           </DialogDescription>
         </DialogHeader>
         {cloud.user && cloud.projects && (
@@ -168,6 +175,8 @@ export function AccountDialog(props: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onInfo: (text: string) => void;
+  /** Why the dialog was opened (export, a second project): shown first. */
+  reason?: string | null;
   /** Projects moved into the account signed in to (new ids by old ones): an open one follows. */
   onMoved: (ids: Record<string, string>) => void;
   /** Leaves for Google (after the unsaved-changes question). `signIn`: into that Google account's own. */
@@ -397,7 +406,7 @@ export function AccountDialog(props: {
     body = (
       <div className="flex flex-col gap-3 text-[15px]">
         <p className="m-0">
-          This deletes your account and every project stored with it, for good. Files you saved on your computer are not touched. Want a copy first?{' '}
+          This deletes your account and every project stored with it, for good. Files you exported are not touched. Want a copy first?{' '}
           <button type="button" className="underline" onClick={() => void exportData()}>
             Download everything
           </button>
@@ -426,11 +435,12 @@ export function AccountDialog(props: {
             </div>
           </div>
         )}
+        {props.reason && <p className="m-0 font-semibold">{props.reason}</p>}
         {!user && (
           <>
             <p className="m-0">
-              Save a project with <strong>Save to the cloud</strong> and it's kept online, no account needed. Create an account to open your projects
-              on other devices.
+              Without an account you can try everything, and your work is kept as one draft in this browser. A free account keeps all your projects,
+              opens them on any device, and exports them.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => go({ at: 'sign-in' })}>Sign in</Button>
@@ -444,8 +454,8 @@ export function AccountDialog(props: {
         {user?.anonymous && (
           <>
             <p className="m-0">
-              Your cloud projects are tied to this browser for now. Create an account to keep them if this browser's data is cleared, and to open them
-              on other devices.
+              Your draft is kept in this browser for now (30 days after your last visit). Create a free account to keep it for good, keep several
+              projects, open them on any device, and export them.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => go({ at: 'create' })}>Create an account</Button>
@@ -498,7 +508,7 @@ export function AccountDialog(props: {
             <CloudIcon className="size-6" /> Cloud
           </DialogTitle>
           <DialogDescription className="text-body-text text-[15px]">
-            Saving to your computer and exporting never need an account.{' '}
+            Free.{' '}
             {cloud.config.privacyPolicy && (
               <a href={cloud.config.privacyPolicy} target="_blank" rel="noreferrer" className="underline underline-offset-4">
                 Privacy policy

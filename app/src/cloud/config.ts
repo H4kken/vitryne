@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Cloud mode by configuration (docs/CLOUD.md): a `config.json` next to index.html names a
-// backend. Without one the editor is local only: no accounts, and no network calls beyond the
-// app and its assets. One build serves both, so self-hosters never rebuild.
+// The backend by configuration (docs/CLOUD.md): a `config.json` next to index.html names it, so
+// one build serves every instance and self-hosters never rebuild. Without one the editor says so
+// and stops (projects are saved to the backend).
 
 /** Where the cloud session is kept (localStorage), once the person used a cloud feature. */
 export const SESSION_KEY = 'vitryne-cloud-session';
@@ -31,7 +31,7 @@ export interface CloudConfig {
   privacyPolicy: string | null;
 }
 
-/** Null when there is no usable config.json: local mode. */
+/** Null when there is no usable config.json. */
 export function parseConfig(text: string, base: string): CloudConfig | null {
   let j: unknown;
   try {
@@ -52,7 +52,7 @@ export function parseConfig(text: string, base: string): CloudConfig | null {
 export async function loadConfig(): Promise<CloudConfig | null> {
   try {
     const r = await fetch(`${import.meta.env.BASE_URL}config.json`, { cache: 'no-cache' });
-    // A static host without the file may answer with index.html: not JSON, so local mode.
+    // A static host without the file may answer with index.html: not JSON, so no backend.
     if (!r.ok || !(r.headers.get('content-type') ?? '').includes('json')) return null;
     return parseConfig(await r.text(), location.href);
   } catch {

@@ -215,16 +215,21 @@ describe('cloud projects', () => {
     expect((await anon.listProjects()).map((p) => p.name)).toEqual(['draft']);
   });
 
-  it('duplicates a project as one new row, uploading nothing', async () => {
+  it('duplicates a project under a new name, uploading only project.json', async () => {
     const b = account();
     const ref = await saveProject(b, 'T-shirt', folder('tshirt'), null);
     b.uploads = [];
     const copy = await duplicateProject(b, ref.id);
     expect(copy.name).toBe('T-shirt (copy)');
     expect(copy.id).not.toBe(ref.id);
-    expect(b.uploads).toEqual([]);
+    expect(b.uploads).toHaveLength(1);
     const [a, c] = await Promise.all([openProject(b, ref.id), openProject(b, copy.id)]);
-    expect(c.data).toEqual(a.data);
+    if (a.data.form !== 'folder' || c.data.form !== 'folder') throw new Error('folder form expected');
+    const original = JSON.parse(rustOpensFolder(a.data.files).entities()) as { project: { name: string } };
+    const copied = JSON.parse(rustOpensFolder(c.data.files).entities()) as { project: { name: string } };
+    // The name the list shows, in the copy's own project.json too.
+    expect(copied.project.name).toBe('T-shirt (copy)');
+    expect({ ...copied, project: { ...copied.project, name: original.project.name } }).toEqual(original);
     // An anonymous user's draft can't be duplicated.
     const anon = new MemBackend();
     const draft = await saveProject(anon, 'draft', folder('tshirt'), null);

@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Opening and saving, and what protects the user's work: autosave to the cloud (src/cloud/
 // autosave.ts) once Rust validated the document, one tab per cloud project (lock.ts), and the
-// recovery copy, which keeps what hasn't reached the cloud yet. Cloud projects open and save in
-// the folder form. Without a cloud backend (local mode), saving is to disk, by hand.
+// recovery copy, which keeps what hasn't reached the cloud yet. Projects open and save in the
+// folder form; a file from disk opens as a new project. Nothing is saved to disk.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Autosaver, type SaveStatus } from '@/cloud/autosave';
 import type { CloudBackend, CloudUser } from '@/cloud/backend';
 import { ProjectLock } from '@/cloud/lock';
-import { type CloudRef, collectUnused, openProject, saveProject } from '@/cloud/projects';
-import { recoverChanges } from '@/document/commands';
+import { type CloudRef, collectUnused, copyName, duplicateProject, openProject, saveProject } from '@/cloud/projects';
+import { recoverChanges, renameProject } from '@/document/commands';
 import { parseEntities } from '@/document/entities';
 import type { DocState, DocumentStore } from '@/document/store';
 import { dropRecovery, findRecovery, keepRecovery, type Recovery } from '@/storage/recovery';
-import type { FileRef, ProjectStorage } from '@/storage/storage';
+import type { FileOpener, FileRef } from '@/storage/storage';
 import { copyFileData, type FileData } from '@/worker/protocol';
 import type { EngineSession } from '@/worker/session';
 
@@ -25,7 +25,7 @@ const RECOVERY_DELAY_MS = 1000;
 /** Unused parts are looked for at most this often (each look is a query). */
 const COLLECT_EVERY_MS = 10 * 60 * 1000;
 
-/** What saving to the cloud needs from cloud mode (null in local mode). */
+/** What saving needs from the cloud backend. */
 export interface CloudAccess {
   user: CloudUser | null;
   backend(): Promise<CloudBackend>;
@@ -41,8 +41,7 @@ async function draftOf(b: CloudBackend): Promise<CloudRef | null> {
   return d ? { id: d.id, revision: d.revision, parts: [] } : null;
 }
 
-/** `cloud`: null in local mode, undefined while that isn't known yet. */
-export function useFiles(session: EngineSession, store: DocumentStore, storage: ProjectStorage, doc: DocState, cloud: CloudAccess | null | undefined) {
+export function useFiles(session: EngineSession, store: DocumentStore, disk: FileOpener, doc: DocState, cloud: CloudAccess) {
   const [ref, setRefState] = useState<FileRef | null>(null);
   /** `ref` now, for saves and the recovery copy (a state update lands only at the next render). */
   const refNow = useRef<FileRef | null>(null);
@@ -82,7 +81,6 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   const pushToCloud = useCallback(
     async (copy: boolean, progress?: (text: string) => void) => {
       const c = cloudNow.current;
-      if (!c) throw new Error('no cloud backend is configured');
       const gen = generation.current;
       const { rev, entities } = await store.settled();
       const data = await session.save(rev, 'folder');
@@ -116,7 +114,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   useEffect(() => {
     autosave.connect(
       () => pushToCloud(false),
-      () => !!cloudNow.current && !store.state.empty && store.state.dirty && !blockedNow.current,
+      () => !store.state.empty && store.state.dirty && !blockedNow.current,
     );
   }, [autosave, pushToCloud, store]);
   useEffect(() => () => autosave.dispose(), [autosave]);
@@ -142,10 +140,10 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   }, [cloudId, lock]);
   useEffect(() => () => lock.drop(), [lock]);
 
-  // Every change Rust confirmed is autosaved (cloud mode).
+  // Every change Rust confirmed is autosaved.
   useEffect(() => {
-    if (cloud) autosave.changed();
-  }, [cloud, autosave, doc.rev, doc.dirty, doc.syncing, doc.empty, blocked]);
+    autosave.changed();
+  }, [autosave, doc.rev, doc.dirty, doc.syncing, doc.empty, blocked]);
 
   // Leaving the tab (or the page) saves what is waiting.
   useEffect(() => {
@@ -161,7 +159,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   }, [autosave]);
 
   // A project a sign-in stopped (it needed an account): saved once there is one.
-  const accountUser = cloud?.user && !cloud.user.anonymous ? cloud.user.id : null;
+  const accountUser = cloud.user && !cloud.user.anonymous ? cloud.user.id : null;
   useEffect(() => {
     if (accountUser && autosave.status.kind === 'stopped' && autosave.status.reason === 'account') autosave.resume();
   }, [accountUser, autosave]);
@@ -175,7 +173,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
       autosave.reset();
       store.load(r.name, parseEntities(entities), warnings, rev, opts);
       original.current = copyFileData(data);
-      // A never-saved document has no file: saving asks where (local mode) or makes a project.
+      // A document not in the cloud yet becomes a project at its first save.
       setRef(opts.unsaved ? null : r);
       session.drape(rev, true);
       void dropRecovery();
@@ -188,14 +186,11 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   const guarded = (action: () => Promise<void> | void, cancelled?: () => void) => {
     const run = () => void Promise.resolve(action()).catch((e: unknown) => fail('Could not open', e));
     if (!store.state.dirty) return run();
-    if (cloudNow.current && !blockedNow.current) {
-      void autosave.flush().then((saved) => (saved ? run() : setPending(() => ({ run, cancelled }))));
-      return;
-    }
-    setPending(() => ({ run, cancelled }));
+    if (blockedNow.current) return setPending(() => ({ run, cancelled }));
+    void autosave.flush().then((saved) => (saved ? run() : setPending(() => ({ run, cancelled }))));
   };
 
-  /** A project made from an imported pattern: saved at once in cloud mode, by hand in local mode. */
+  /** A project made from an imported pattern: a new cloud project at once. */
   const importNew = (make: (rev: number) => Promise<{ name: string; entities: string; notes: string[]; zip: ArrayBuffer }>) =>
     new Promise<void>((resolve, reject) => {
       guarded(async () => {
@@ -212,7 +207,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
           void dropRecovery();
           setNotice({
             kind: 'info',
-            text: `Imported ${m.name}. Pick Select in the 3D view to move a piece, or the Pieces panel to change where it starts.${cloudNow.current ? '' : ' Save to keep it.'}`,
+            text: `Imported ${m.name}. Pick Select in the 3D view to move a piece, or the Pieces panel to change where it starts.`,
           });
           resolve();
         } catch (e) {
@@ -223,25 +218,45 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
       }, () => reject(new Error('cancelled')));
     });
 
-  const openWith = (pick: () => Promise<{ ref: FileRef; data: FileData } | null>) =>
+  /** `fromDisk`: a file, which becomes a new cloud project at once (an example waits for an edit). */
+  const openWith = (pick: () => Promise<{ ref: FileRef; data: FileData } | null>, fromDisk = false) =>
     guarded(async () => {
       const o = await pick();
       if (!o) return;
       setBusy('Opening');
       try {
-        await load(o.ref, o.data);
+        await load(o.ref, o.data, { unsaved: fromDisk });
         setNotice(null);
       } finally {
         setBusy(null);
       }
     });
 
-  /** By hand (the menu): saves over the cloud project it came from, or as a new one (`copy`, or not from the cloud). */
-  const saveToCloud = async (copy: boolean) => {
-    if (store.state.empty || busy || !cloud) return;
-    setBusy('Saving to the cloud');
+  /** A copy of the open project, opened in its place (an account only); the original keeps its last save. */
+  const duplicate = () =>
+    guarded(async () => {
+      const id = refNow.current?.cloud?.id;
+      if (!id) return;
+      setBusy('Duplicating');
+      try {
+        const copy = await duplicateProject(await cloud.backend(), id);
+        cloud.refresh();
+        await loadCloud(copy.id);
+        setNotice({ kind: 'info', text: `This is ${copy.name}, a copy. The original is in your projects.` });
+      } catch (e) {
+        fail('Not duplicated', e);
+      } finally {
+        setBusy(null);
+      }
+    });
+
+  /** After a conflict: this tab's version as a new project named "(copy)", the other kept. */
+  const saveCopy = async () => {
+    setBusy('Saving a copy');
     try {
-      await pushToCloud(copy, setBusy);
+      const name = store.state.entities.project?.name;
+      if (name) store.execute((e) => renameProject(e, copyName(name)));
+      await pushToCloud(true, setBusy);
       autosave.resume();
     } catch (e) {
       fail('Not saved', e);
@@ -251,11 +266,9 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   };
 
   const loadCloud = async (id: string) => {
-    const c = cloudNow.current;
-    if (!c) return;
     setBusy('Opening from the cloud');
     try {
-      const o = await openProject(await c.backend(), id);
+      const o = await openProject(await cloudNow.current.backend(), id);
       await load({ name: o.name, form: 'folder', cloud: o.ref }, o.data);
       setNotice(null);
     } finally {
@@ -264,40 +277,6 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   };
 
   const openCloud = (id: string) => guarded(() => loadCloud(id));
-
-  const saveTo = async (target: 'same' | 'as') => {
-    if (store.state.empty || busy) return;
-    // Cloud mode saves by itself; a save by hand only says it is done now.
-    if (target === 'same' && cloud) {
-      await autosave.flush();
-      return;
-    }
-    setBusy('Saving');
-    try {
-      // Only what Rust accepted is written: wait for edits still being checked.
-      const { rev, entities } = await store.settled();
-      // In place when the browser gave a handle; a download when it never does (same name);
-      // otherwise (an example, a recovered copy, Save as) the user picks where, as a .vtry.
-      const inPlace = target === 'same' && ref?.handle !== undefined;
-      const download = target === 'same' && ref !== null && !ref.handle && !storage.savesInPlace && ref.form === 'zip';
-      const data = await session.save(rev, inPlace && ref ? ref.form : 'zip');
-      const name = ref?.name ?? `${store.state.entities.project?.name ?? 'project'}.vtry`;
-      const saved =
-        (inPlace || download) && ref
-          ? await storage.save(ref, data)
-          : await storage.saveAs(name.replace(/\.vtry$/, ''), data as Extract<FileData, { form: 'zip' }>);
-      if (!saved) return;
-      store.markSaved(saved.ref.name, entities);
-      original.current = copyFileData(data);
-      setRef(saved.ref);
-      void dropRecovery();
-      setNotice({ kind: 'ok', text: saved.how === 'verified' ? `Saved ${saved.ref.name}` : `Downloaded ${saved.ref.name}` });
-    } catch (e) {
-      fail('Not saved', e);
-    } finally {
-      setBusy(null);
-    }
-  };
 
   // The recovery copy follows the confirmed document while it has changes not saved.
   useEffect(() => {
@@ -334,13 +313,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
           throw new Error(store.state.refused ?? 'refused');
         }
         await dropRecovery(r.tab);
-        const c = cloudNow.current;
-        setNotice({
-          kind: 'info',
-          text: c
-            ? `${auto ? 'Put back' : 'Recovered'} your changes to ${r.fileName} that hadn't reached the cloud yet. They are being saved.`
-            : `Recovered your unsaved changes to ${r.fileName}. Save them to keep them.`,
-        });
+        setNotice({ kind: 'info', text: `${auto ? 'Put back' : 'Recovered'} your changes to ${r.fileName} that hadn't reached the cloud yet. They are being saved.` });
       } catch (e) {
         fail('Could not recover', e);
       } finally {
@@ -350,26 +323,23 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
     [load, store],
   );
 
-  // A copy left by a crash, a closed tab or a lost connection, once at start. In cloud mode it is
-  // put back by itself when nothing else saved the project since (or it never reached the cloud);
-  // otherwise it is offered.
-  const mode = cloud === undefined ? undefined : !!cloud;
+  // A copy left by a crash, a closed tab or a lost connection, once at start: put back by itself
+  // when nothing else saved the project since (or it never reached the cloud), otherwise offered.
   const started = useRef(false);
   useEffect(() => {
-    if (started.current || mode === undefined) return;
+    if (started.current) return;
     started.current = true;
     void findRecovery().then(async (r) => {
-      const c = cloudNow.current;
-      if (!r || !c) return setRecovery(r);
+      if (!r) return;
       try {
-        const current = r.cloud ? (await (await c.backend()).getProject(r.cloud.id)).revision : null;
+        const current = r.cloud ? (await (await cloudNow.current.backend()).getProject(r.cloud.id)).revision : null;
         if (!r.cloud || current === r.cloud.revision) return void recoverNow(r, true);
       } catch {
         // Offline, or the project is gone: ask.
       }
       setRecovery(r);
     });
-  }, [mode, recoverNow]);
+  }, [recoverNow]);
 
   const discardRecovery = () => {
     if (recovery) void dropRecovery(recovery.tab);
@@ -389,7 +359,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
   /** The project saved elsewhere since this tab opened it: the person picks a version. */
   const conflictId = saveStatus.kind === 'stopped' && saveStatus.reason === 'conflict' ? (ref?.cloud?.id ?? null) : null;
   const conflict =
-    conflictId && cloud
+    conflictId
       ? {
           /** The project as saved elsewhere; this tab's changes are dropped. */
           reload: () => void loadCloud(conflictId).catch((e: unknown) => fail('Could not open', e)),
@@ -405,7 +375,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
             }
           },
           /** This tab's version as a new project, the other one kept (an account only). */
-          saveCopy: () => void saveToCloud(true),
+          saveCopy: () => void saveCopy(),
         }
       : null;
 
@@ -413,16 +383,16 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
     ref,
     busy,
     notice,
-    /** Cloud mode: where autosave is. */
+    /** Where autosave is. */
     saveStatus,
-    /** Cloud mode: another tab has the open project. */
+    /** Another tab has the open project. */
     blocked,
     conflict,
     dismissNotice: () => setNotice(null),
     showError: fail,
     showInfo: (text: string) => setNotice({ kind: 'info', text }),
-    openFile: () => openWith(() => storage.openFile()),
-    openFolder: () => openWith(() => storage.openFolder()),
+    openFile: () => openWith(() => disk.openFile(), true),
+    openFolder: () => openWith(() => disk.openFolder(), true),
     openData: (r: FileRef, data: () => Promise<FileData>) => openWith(async () => ({ ref: r, data: await data() })),
     close: () =>
       guarded(() => {
@@ -465,19 +435,15 @@ export function useFiles(session: EngineSession, store: DocumentStore, storage: 
           throw e;
         }
       }),
-    save: () => saveTo('same'),
-    saveAs: () => saveTo('as'),
-    saveToCloud: () => saveToCloud(false),
-    saveCopyToCloud: () => saveToCloud(true),
+    /** Saves what is waiting now (it would be in a moment anyway). */
+    save: () => void autosave.flush(),
+    duplicate,
     openCloud,
-    /** The question about changes not saved (to disk, or not yet to the cloud), while one is open. */
+    /** The question about changes that didn't reach the cloud, while one is open. */
     unsaved: pending
       ? {
-          /** Cloud mode: the changes didn't reach the cloud (they are kept in this browser until the project closes). */
-          cloud: !!cloud,
           save: async () => {
-            if (cloud) await autosave.flush();
-            else await saveTo('same');
+            await autosave.flush();
             if (!store.state.dirty) {
               setPending(null);
               pending.run();

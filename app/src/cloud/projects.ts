@@ -165,12 +165,29 @@ export function copyName(name: string): string {
 }
 
 /**
- * A new project with the same content as `id`, named "<name> (copy)". Its manifest names the same
- * parts, so nothing is uploaded: the copy is one row. An anonymous user can't (one draft).
+ * A new project with the same content as `id`, named "<name> (copy)". The name is in
+ * project.json, so that part is written again (a few hundred bytes); every other part is shared,
+ * so nothing else is uploaded. An anonymous user can't (one draft).
  */
 export async function duplicateProject(b: CloudBackend, id: string): Promise<ProjectRow> {
   const row = await b.getProject(id);
-  return b.insertProject({ name: copyName(row.name), manifest: row.manifest, bytes: row.bytes });
+  const name = copyName(row.name);
+  const manifest = structuredClone(row.manifest);
+  let bytes = row.bytes;
+  const part = manifest.parts.find((p) => p.path === 'project.json');
+  if (part?.sha256) {
+    const old = await b.downloadPart(`${row.owner}/${part.sha256}`);
+    if ((await sha256Hex(old)) !== part.sha256) throw new CloudError('project.json came back damaged; try again', 'damaged');
+    const project = JSON.parse(dec(old)) as Record<string, unknown>;
+    project.name = name;
+    const next = enc(`${JSON.stringify(project, null, 2)}\n`);
+    const sha = await sha256Hex(next);
+    const key = `${row.owner}/${sha}`;
+    if (!(await b.hasPart(key))) await b.uploadPart(key, next, part.mediaType ?? 'application/json');
+    part.sha256 = sha;
+    bytes += next.byteLength - old.byteLength;
+  }
+  return b.insertProject({ name, manifest, bytes });
 }
 
 /** Deletes a project; its parts go with the next collection (they may be shared). */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The backend on Supabase (deploy/, docs/CLOUD.md). Loaded with a dynamic import, only in cloud
-// mode and only once the person uses a cloud feature (or has a session from an earlier visit),
-// so local mode never downloads it. The session is kept in localStorage: it is what the
+// The backend on Supabase (deploy/, docs/CLOUD.md). Loaded with a dynamic import once the person
+// saves or opens a project or their account (or has a session from an earlier visit), so trying
+// an example doesn't download it. The session is kept in localStorage: it is what the
 // requested feature needs, nothing else is stored.
 
 import { createClient, type Session, type SupabaseClient, type User } from '@supabase/supabase-js';

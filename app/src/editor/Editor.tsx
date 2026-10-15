@@ -22,7 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { SaveStatus } from '@/cloud/autosave';
 import { AccountDialog, CloudProjectList, CloudProjectsDialog } from '@/cloud/CloudDialogs';
 import { moveProjects } from '@/cloud/projects';
-import { useCloud } from '@/cloud/useCloud';
+import type { Cloud } from '@/cloud/useCloud';
 import { type Addition, addPieces, addSeam, findCut, setLayout, setPlacement, type Bounds } from '@/document/commands';
 import { mainGarment } from '@/document/entities';
 import type { Placement } from '@/format/schema.gen';
@@ -33,7 +33,7 @@ import { type Place, tidy } from '@/placement/places';
 import { FabricPanel, PANEL_TITLES, type PanelId, PiecesPanel, SettingsPanel } from '@/properties/panels';
 import { type CutEdge, parseDifferences, parseEdges, parseProposals, sameEdge, type SeamProposal } from '@/sewing/api';
 import { SeamsPanel } from '@/sewing/SeamsPanel';
-import { LocalStorage } from '@/storage/storage';
+import { DiskFiles } from '@/storage/storage';
 import type { PointerTool } from '@/worker/protocol';
 import { type EngineState, EngineSession, useEngine } from '@/worker/session';
 import { type Example, fetchAvatar, fetchExample, listExamples } from './examples';
@@ -70,29 +70,53 @@ async function readPattern(files: FileList | File[]): Promise<{ dxf: TextFile; s
   return { dxf: { name: dxf.name, text: await dxf.text() }, sidecar: toml ? { name: toml.name, text: await toml.text() } : null };
 }
 
-export function Editor() {
+export function Editor({ cloud }: { cloud: Cloud }) {
   const session = useMemo(() => new EngineSession(), []);
   const engine = useEngine(session);
   const store = useMemo(() => new DocumentStore(session), [session]);
-  const storage = useMemo(() => new LocalStorage(), []);
+  const disk = useMemo(() => new DiskFiles(), []);
   const doc = useDocument(store);
-  const cloud = useCloud();
-  const files = useFiles(session, store, storage, doc, cloud);
+  const files = useFiles(session, store, disk, doc, cloud);
   const [accountOpen, setAccountOpen] = useState(false);
   const [cloudOpen, setCloudOpen] = useState(false);
+  /** Why the account dialog was opened, and what to do once there is an account. */
+  const [accountReason, setAccountReason] = useState<string | null>(null);
+  const afterAccount = useRef<(() => void) | null>(null);
+  const isAccount = !!cloud.user && !cloud.user.anonymous;
+  /** Runs `then` with an account: at once, or once one is created or signed in to. */
+  const needAccount = (reason: string, then: () => void) => {
+    if (isAccount) return then();
+    afterAccount.current = then;
+    setAccountReason(reason);
+    setAccountOpen(true);
+  };
+  useEffect(() => {
+    if (!isAccount || !afterAccount.current) return;
+    const then = afterAccount.current;
+    afterAccount.current = null;
+    setAccountOpen(false);
+    setAccountReason(null);
+    then();
+  }, [isAccount]);
+
+  /** Without an account, a new project replaces the draft: asked first. */
+  const draft = cloud.user?.anonymous ? (cloud.projects?.[0] ?? null) : null;
+  const [replacing, setReplacing] = useState<{ name: string; answer: (go: boolean) => void } | null>(null);
+  const confirmReplace = (): Promise<boolean> =>
+    draft ? new Promise((resolve) => setReplacing({ name: draft.name, answer: resolve })) : Promise.resolve(true);
+  const startNew = (go: () => void) => void confirmReplace().then((yes) => yes && go());
   const [googleError, setGoogleError] = useState<{ code: string; message: string } | null>(null);
 
   // Back from Google: say what went wrong, or finish what was left to do (move an anonymous
   // user's projects into the account reached, reopen the cloud project that was open).
-  const cloudBackend = cloud?.backend;
-  const cloudRefresh = cloud?.refresh;
-  const userId = cloud?.user?.id;
+  const cloudBackend = cloud.backend;
+  const cloudRefresh = cloud.refresh;
+  const userId = cloud.user?.id;
   const filesNow = useRef(files);
   useEffect(() => {
     filesNow.current = files;
   });
   useEffect(() => {
-    if (!cloudBackend || !cloudRefresh) return;
     void cloudBackend().then(async (b) => {
       if (!b.returned) return;
       b.returned = false;
@@ -119,7 +143,6 @@ export function Editor() {
   }, [cloudBackend, cloudRefresh, userId]);
 
   const continueWithGoogle = (signIn: boolean) => {
-    if (!cloud) return;
     setGoogleError(null);
     files.leavePage(async () => (await cloud.backend()).continueWithGoogle({ signIn, reopen: files.ref?.cloud?.id }));
   };
@@ -336,9 +359,14 @@ export function Editor() {
       files.showError('Not imported', new Error('pick a DXF-AAMA pattern (.dxf)'));
       return;
     }
-    setDroppedSidecar(r.sidecar);
-    setImportKey((k) => k + 1);
-    setImporting(r.dxf);
+    // Pieces added to the open project aren't a new project; a new one replaces the draft.
+    const show = () => {
+      setDroppedSidecar(r.sidecar);
+      setImportKey((k) => k + 1);
+      setImporting(r.dxf);
+    };
+    if (doc.empty) startNew(show);
+    else show();
   };
   const dropProps = {
     onDragOver: (e: React.DragEvent) => {
@@ -358,6 +386,8 @@ export function Editor() {
       if (!store.execute((e) => addPieces(e, garment.id, a))) throw new Error(store.state.refused ?? 'the pieces could not be added');
       if (a.notes.length) files.showInfo(a.notes.join('. '));
     } else {
+      // With nothing open, starting the import already asked.
+      if (!doc.empty && !(await confirmReplace())) return;
       const avatar = await fetchAvatar();
       const name = `${o.dxf.name.replace(/\.dxf$/i, '')}.vtry`;
       await files.importNew(async (rev) => ({
@@ -371,9 +401,17 @@ export function Editor() {
   };
 
   const openPreset = (ex: Example) =>
-    files.openData({ name: ex.file.split('/').pop() ?? ex.file, form: 'zip' }, async () => ({ form: 'zip', bytes: await fetchExample(ex) }));
+    startNew(() => files.openData({ name: ex.file.split('/').pop() ?? ex.file, form: 'zip' }, async () => ({ form: 'zip', bytes: await fetchExample(ex) })));
+  const openFile = () => startNew(() => files.openFile());
+  const openFolder = () => startNew(() => files.openFolder());
+  const exportIt = () => needAccount('Create a free account to export.', () => setExporting(true));
 
-  const { save, saveAs, openFile } = files;
+  const { save } = files;
+  /** The newest `openFile` for the shortcut (it asks about the draft, so it changes with it). */
+  const openFileNow = useRef(openFile);
+  useEffect(() => {
+    openFileNow.current = openFile;
+  });
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
@@ -383,13 +421,12 @@ export function Editor() {
         e.preventDefault();
         // Let a field being edited commit first.
         if (typing) (e.target as HTMLElement).blur();
-        if (e.shiftKey) void saveAs();
-        else void save();
+        save();
         return;
       }
       if (mod && k === 'o') {
         e.preventDefault();
-        openFile();
+        openFileNow.current();
         return;
       }
       if (mod && !typing && (k === 'z' || k === 'y')) {
@@ -408,10 +445,10 @@ export function Editor() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [session, store, save, saveAs, openFile]);
+  }, [session, store, save]);
 
   const message = files.notice?.kind === 'error' ? files.notice.text : (examplesError ?? doc.refused);
-  const saveState = files.busy ? `${files.busy}…` : cloud ? cloudSaveState(files.saveStatus, doc, !!files.ref?.cloud) : doc.dirty ? 'Unsaved changes' : files.notice?.kind === 'ok' ? files.notice.text : doc.fileName;
+  const saveState = files.busy ? `${files.busy}…` : saveStateText(files.saveStatus, doc, !!files.ref?.cloud);
   const stopped = files.saveStatus.kind === 'stopped' ? files.saveStatus : null;
 
   const recoveryBanner = files.recovery && (
@@ -455,12 +492,7 @@ export function Editor() {
           {mode === '3d' ? <FlatIcon /> : <CubeIcon />}
           {mode === '3d' ? 'Show flat pieces' : 'Show 3D'}
         </Button>
-        {cloud && <CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />}
-        {!cloud && (
-          <Button onClick={() => void files.save()} disabled={doc.empty || !!files.busy}>
-            Save
-          </Button>
-        )}
+        <CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="More">
@@ -468,31 +500,20 @@ export function Editor() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuItem onSelect={() => files.openFile()}>
+            <DropdownMenuItem onSelect={openFile}>
               Open… <DropdownMenuShortcut>{MOD}O</DropdownMenuShortcut>
             </DropdownMenuItem>
-            {storage.opensFolders && <DropdownMenuItem onSelect={() => files.openFolder()}>Open a folder project…</DropdownMenuItem>}
+            {disk.opensFolders && <DropdownMenuItem onSelect={openFolder}>Open a folder project…</DropdownMenuItem>}
             <DropdownMenuItem onSelect={() => dxfInput.current?.click()}>Import a pattern (DXF)…</DropdownMenuItem>
-            <DropdownMenuItem disabled={doc.empty} onSelect={() => void files.saveAs()}>
-              Save as… <DropdownMenuShortcut>⇧{MOD}S</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            {cloud && (
-              <>
-                <DropdownMenuSeparator />
-                {files.ref?.cloud ? (
-                  <DropdownMenuItem disabled={doc.empty} onSelect={() => void files.saveCopyToCloud()}>
-                    Save a copy to the cloud
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem disabled={doc.empty} onSelect={() => void files.saveToCloud()}>
-                    Save to the cloud
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onSelect={() => setCloudOpen(true)}>Open from the cloud…</DropdownMenuItem>
-              </>
-            )}
+            <DropdownMenuItem onSelect={() => setCloudOpen(true)}>Your projects…</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled={doc.empty} onSelect={() => setExporting(true)}>
+            <DropdownMenuItem
+              disabled={!files.ref?.cloud || !!files.busy}
+              onSelect={() => needAccount('Create a free account to keep several projects.', files.duplicate)}
+            >
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={doc.empty} onSelect={exportIt}>
               Export…
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -599,7 +620,7 @@ export function Editor() {
                   <Button size="sm" onClick={files.conflict.reload}>
                     Open the other version
                   </Button>
-                  {cloud?.user && !cloud.user.anonymous ? (
+                  {isAccount ? (
                     <Button size="sm" variant="outline" onClick={files.conflict.saveCopy}>
                       Keep mine as a copy
                     </Button>
@@ -734,13 +755,14 @@ export function Editor() {
           examples={examples}
           busy={files.busy}
           onPreset={openPreset}
-          onOpen={() => files.openFile()}
+          onOpen={openFile}
           onImport={() => dxfInput.current?.click()}
           dropProps={dropProps}
-          onOpenFolder={storage.opensFolders ? () => files.openFolder() : null}
-          account={cloud ? <CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} /> : null}
-          cloudProjects={
-            cloud?.user && cloud.projects?.length ? (
+          onOpenFolder={disk.opensFolders ? openFolder : null}
+          account={<CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />}
+          projectsTitle={draft ? 'Your draft' : 'Your projects'}
+          projects={
+            cloud.user && cloud.projects?.length ? (
               <CloudProjectList cloud={cloud} projects={cloud.projects} busy={!!files.busy} onOpen={(id) => files.openCloud(id)} />
             ) : null
           }
@@ -788,34 +810,63 @@ export function Editor() {
         garmentName={doc.entities.project?.name ?? garment?.name ?? 'garment'}
       />
 
-      {cloud && (
-        <>
-          {accountOpen && (
-            <AccountDialog
-              cloud={cloud}
-              open
-              onOpenChange={(o) => {
-                setAccountOpen(o);
-                if (!o) setGoogleError(null);
-              }}
-              onInfo={files.showInfo}
-              onMoved={files.projectsMoved}
-              onGoogle={continueWithGoogle}
-              returnError={googleError}
-            />
-          )}
-          <CloudProjectsDialog cloud={cloud} open={cloudOpen} onOpenChange={setCloudOpen} busy={!!files.busy} onOpen={(id) => files.openCloud(id)} />
-        </>
+      {accountOpen && (
+        <AccountDialog
+          cloud={cloud}
+          open
+          onOpenChange={(o) => {
+            setAccountOpen(o);
+            if (!o) {
+              setGoogleError(null);
+              setAccountReason(null);
+              afterAccount.current = null;
+            }
+          }}
+          reason={accountReason}
+          onInfo={files.showInfo}
+          onMoved={files.projectsMoved}
+          onGoogle={continueWithGoogle}
+          returnError={googleError}
+        />
       )}
+      <CloudProjectsDialog cloud={cloud} open={cloudOpen} onOpenChange={setCloudOpen} busy={!!files.busy} onOpen={(id) => files.openCloud(id)} />
+
+      <Dialog open={!!replacing} onOpenChange={(open) => !open && (replacing?.answer(false), setReplacing(null))}>
+        <DialogContent className="rounded-[20px] p-6">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl font-bold">Replace your draft?</DialogTitle>
+            <DialogDescription className="text-body-text text-[15px]">
+              Without an account you keep one project. Your draft, {replacing?.name}, is replaced as soon as you change the new one. Create a free
+              account to keep both.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => (replacing?.answer(false), setReplacing(null))}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const r = replacing;
+                setReplacing(null);
+                needAccount('Create a free account to keep several projects.', () => r?.answer(true));
+              }}
+            >
+              Create an account
+            </Button>
+            <Button onClick={() => (replacing?.answer(true), setReplacing(null))}>Replace my draft</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!files.unsaved} onOpenChange={(open) => !open && files.unsaved?.cancel()}>
         <DialogContent className="rounded-[20px] p-6">
           <DialogHeader>
-            <DialogTitle className="font-display text-2xl font-bold">{files.unsaved?.cloud ? "Your latest changes aren't saved" : 'Save your changes?'}</DialogTitle>
+            <DialogTitle className="font-display text-2xl font-bold">Your latest changes aren't saved</DialogTitle>
             <DialogDescription className="text-body-text text-[15px]">
-              {files.unsaved?.cloud
-                ? `The latest changes to ${doc.entities.project?.name ?? doc.fileName} haven't reached the cloud (${files.saveStatus.kind === 'offline' || files.saveStatus.kind === 'stopped' ? files.saveStatus.text : 'not saved yet'}). They are lost if you leave without them.`
-                : `${doc.entities.project?.name ?? doc.fileName} has changes that aren't saved. They are lost if you don't save them.`}
+              The latest changes to {doc.entities.project?.name ?? doc.fileName} haven't reached the cloud (
+              {files.saveStatus.kind === 'offline' || files.saveStatus.kind === 'stopped' ? files.saveStatus.text : 'not saved yet'}). They are lost if you
+              leave without them.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -823,9 +874,9 @@ export function Editor() {
               Cancel
             </Button>
             <Button variant="outline" onClick={() => files.unsaved?.discard()}>
-              {files.unsaved?.cloud ? 'Leave without them' : "Don't save"}
+              Leave without them
             </Button>
-            <Button onClick={() => void files.unsaved?.save()}>{files.unsaved?.cloud ? 'Try again' : 'Save'}</Button>
+            <Button onClick={() => void files.unsaved?.save()}>Try again</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -880,7 +931,7 @@ function StatusPill({ engine, mode, placing }: { engine: EngineState; mode: Mode
   );
 }
 
-/** The cloud account, in the top bar and on the start screen (cloud mode only). */
+/** The account, in the top bar and on the start screen. */
 function CloudButton(props: { user: { email: string | null; anonymous: boolean } | null; onClick: () => void }) {
   const label = props.user?.email ?? (props.user ? 'Cloud' : 'Sign in');
   return (
@@ -891,7 +942,7 @@ function CloudButton(props: { user: { email: string | null; anonymous: boolean }
           <span className="truncate max-sm:hidden">{label}</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{props.user?.anonymous ? 'Cloud projects in this browser: add your email to keep them' : 'Cloud account'}</TooltipContent>
+      <TooltipContent>{props.user?.anonymous ? 'Your draft is kept in this browser: create a free account to keep it for good' : 'Your account'}</TooltipContent>
     </Tooltip>
   );
 }
@@ -976,8 +1027,8 @@ function ZoomButton(props: { label: string; onClick: () => void; children: React
   );
 }
 
-/** The title bar's save state in cloud mode. */
-function cloudSaveState(s: SaveStatus, doc: DocState, inCloud: boolean): string {
+/** The title bar's save state. */
+function saveStateText(s: SaveStatus, doc: DocState, inCloud: boolean): string {
   if (doc.empty) return '';
   switch (s.kind) {
     case 'saving':

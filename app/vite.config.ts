@@ -35,9 +35,9 @@ const benchSink: Plugin = {
   },
 };
 
-// Cloud mode in development (docs/CLOUD.md): SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY, from the
-// environment (`pnpm run dev:cloud` sets them for the local stack) or app/.env.local, are served
-// as /config.json, like the web image does in production. Never in a build: dist/ has no
+// The backend in development (docs/CLOUD.md): SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY, from the
+// environment (`pnpm run dev` sets them for the local stack) or app/.env.local, are served as
+// /config.json, like the web image does in production. Never in a build: dist/ has no
 // config.json.
 const cloudDev: Plugin = {
   name: 'cloud-dev',
@@ -46,10 +46,10 @@ const cloudDev: Plugin = {
     const url = process.env.SUPABASE_URL || file.SUPABASE_URL;
     const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || file.SUPABASE_PUBLISHABLE_KEY;
     if (!url || !publishableKey) {
-      server.config.logger.info('  cloud: off (local mode). Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in app/.env.local, or run pnpm run dev:cloud');
+      server.config.logger.info('  backend: none (the bench page works; the editor says it has no backend). Run pnpm run dev, or set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in app/.env.local');
       return;
     }
-    server.config.logger.info(`  cloud: on, backend ${url}`);
+    server.config.logger.info(`  backend: ${url}`);
     server.middlewares.use('/config.json', (_req, res) => {
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ backend: { url, publishableKey }, privacyPolicy: null }));

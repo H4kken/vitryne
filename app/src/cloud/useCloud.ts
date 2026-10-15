@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The editor's view of cloud mode: null in local mode (no config.json), undefined while the
-// config is loading. The backend code loads on first use, or at start when this browser has a
-// session from an earlier visit.
+// The editor's view of its backend (docs/CLOUD.md): null when the instance names none (no usable
+// config.json), undefined while the config is loading. The backend code loads on first use, or at
+// start when this browser has a session from an earlier visit.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CloudUser, ProjectSummary } from './backend';

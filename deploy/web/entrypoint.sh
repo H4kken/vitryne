@@ -1,9 +1,15 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# The web image's start: when SUPABASE_DB_URL is set, apply the migrations in
+# The web image's start: refuse without a backend (projects are saved there); when
+# SUPABASE_DB_URL is set, apply the migrations in
 # supabase/migrations that the database doesn't have yet (each in one transaction), recording
 # them where the Supabase CLI does, so `supabase db push` and this agree. Then serve.
 set -eu
+
+if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+  echo "web: SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are needed: projects are saved to that backend (docs/CLOUD.md)" >&2
+  exit 1
+fi
 
 if [ -n "${SUPABASE_DB_URL:-}" ]; then
   psql_() { psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 --no-psqlrc -q "$@"; }
@@ -22,5 +28,5 @@ if [ -n "${SUPABASE_DB_URL:-}" ]; then
   echo "migrate: up to date"
 fi
 
-if [ -n "${SUPABASE_URL:-}" ]; then echo "web: cloud mode, backend $SUPABASE_URL"; else echo "web: local mode (no SUPABASE_URL)"; fi
+echo "web: backend $SUPABASE_URL"
 exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
