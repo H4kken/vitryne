@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The recovery copy: while a document has unsaved changes, its last state Rust accepted is
 // kept in this browser (IndexedDB, never sent anywhere), so a crash or a closed tab loses
-// nothing. Opened again, the editor offers it back. One record per tab; a clean document or a
-// save removes the tab's record.
+// nothing. Opened again, the editor offers it back (or, for a cloud project nobody saved since,
+// puts it back and saves it). One record per tab; a clean document or a save removes the tab's
+// record. A record whose tab is still open (its Web Lock is held) is that tab's, not offered.
 
 import type { CloudRef } from '@/cloud/projects';
 import type { FileData } from '@/worker/protocol';
@@ -35,6 +36,25 @@ export const TAB_ID = (() => {
     return crypto.randomUUID();
   }
 })();
+
+const tabLock = (tab: string) => `vitryne-tab:${tab}`;
+
+// Held as long as this page lives.
+try {
+  void navigator.locks?.request(tabLock(TAB_ID), () => new Promise<void>(() => undefined));
+} catch {
+  // No Web Locks: every record is offered.
+}
+
+/** The tabs open in this browser now (their locks), this one aside. */
+async function openTabs(): Promise<Set<string>> {
+  try {
+    const q = await navigator.locks.query();
+    return new Set((q.held ?? []).map((l) => l.name ?? '').filter((n) => n !== tabLock(TAB_ID)));
+  } catch {
+    return new Set();
+  }
+}
 
 function db(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -75,11 +95,12 @@ export async function dropRecovery(tab = TAB_ID): Promise<void> {
   }
 }
 
-/** The newest copy left by a tab that isn't this one (or this one before a reload). */
+/** The newest copy left by a tab that is closed now (or this one before a reload). */
 export async function findRecovery(): Promise<Recovery | null> {
   try {
     const all = (await run('readonly', (s) => s.getAll())) as Recovery[];
-    return all.sort((a, b) => b.at - a.at)[0] ?? null;
+    const open = await openTabs();
+    return all.filter((r) => !open.has(tabLock(r.tab))).sort((a, b) => b.at - a.at)[0] ?? null;
   } catch {
     return null;
   }

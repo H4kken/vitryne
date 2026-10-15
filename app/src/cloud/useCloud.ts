@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The editor's view of cloud mode: null in local mode (no config.json). The backend code loads
-// on first use, or at start when this browser has a session from an earlier visit.
+// The editor's view of cloud mode: null in local mode (no config.json), undefined while the
+// config is loading. The backend code loads on first use, or at start when this browser has a
+// session from an earlier visit.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CloudUser, ProjectSummary } from './backend';
@@ -17,8 +18,8 @@ export interface Cloud {
   refresh(): void;
 }
 
-export function useCloud(): Cloud | null {
-  const [config, setConfig] = useState<CloudConfig | null>(null);
+export function useCloud(): Cloud | null | undefined {
+  const [config, setConfig] = useState<CloudConfig | null | undefined>(undefined);
   const [user, setUser] = useState<CloudUser | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const connecting = useRef<Promise<SupabaseBackend> | null>(null);
@@ -59,5 +60,5 @@ export function useCloud(): Cloud | null {
   }, [user, refresh]);
 
   const shown = user ? projects : null;
-  return useMemo(() => (config ? { config, user, projects: shown, backend, refresh } : null), [config, user, shown, backend, refresh]);
+  return useMemo(() => (config ? { config, user, projects: shown, backend, refresh } : config), [config, user, shown, backend, refresh]);
 }

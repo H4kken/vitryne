@@ -188,8 +188,16 @@ As [FORMAT.md](FORMAT.md#cloud-storage) planned: **the same format on disk and i
   parts the backend doesn't have (it asks first, so the avatar shared by all of a person's projects
   is uploaded once), then writes the row. An interrupted save leaves the previous manifest whole.
   A fabric change uploads one small JSON part and the row.
-- **A save names the revision it started from.** If the project was saved from another tab or
-  browser since, nothing changes and the editor says so (*Save a copy to the cloud* keeps both).
+- **A save names the revision it started from.** If the project was saved from another browser
+  since, nothing changes and the editor asks: open the other version, or keep this one (an
+  account keeps it as a copy).
+- **Autosave** (`app/src/cloud/autosave.ts`): about 2 s after the last edit Rust accepted, and when
+  the tab is hidden. A new project is made at the first edit (an import counts), not when an
+  example is merely opened; an anonymous user's new project goes over their draft. A failed save
+  is retried (5 s, doubling, up to a minute) while the recovery copy keeps the changes in the
+  browser; at the next start a copy nobody saved over since is put back and saved.
+- **One tab per project** in a browser (Web Locks, `app/src/cloud/lock.ts`): a second tab asks
+  before taking the project over, and the first is told.
 - **An open** downloads the manifest's parts and checks every hash before the worker sees them.
 - **A download is an export:** the parts zipped as a `.vtry` (`app/src/cloud/zip.ts`, stored
   entries, `mimetype` first), which Rust opens like any file.
@@ -270,8 +278,10 @@ node --test 'tests/cloud/*.test.mjs'     # the backend: RLS, accounts and the cl
 deploy/smoke.sh                          # the web image (built from this machine's app/dist):
                                          # local mode, then cloud mode on the local stack with
                                          # migrations at start, then the tests above
-node tests/cloud/browser.mjs cloud <url> # real Chrome: A saves anonymously and creates an account;
-                                         # B (a fresh profile) signs in and opens the project
+node tests/cloud/browser.mjs cloud <url> # real Chrome: A's edit is autosaved as a draft (offline,
+                                         # then back), a second tab takes it over and back, A
+                                         # creates an account; B (a fresh profile) signs in and
+                                         # opens the project
 node tests/cloud/browser.mjs local <url> # no backend: every request stays on the app's origin
 ```
 

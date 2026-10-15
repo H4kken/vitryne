@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // M12's done-when in real Chrome (with its GPU), over CDP like tools/bench/chrome-check.mjs:
 //
-//   cloud  <url>   browser A opens the T-shirt example, saves it to the cloud with no account,
-//                  creates an account (email, password, the code from Mailpit: instance.mjs);
-//                  browser B (a fresh profile) signs in with the password and opens the project.
+//   cloud  <url>   browser A opens the T-shirt example and changes its fabric with no account:
+//                  it is autosaved as A's draft (this tab holds its lock); an edit while offline
+//                  is kept and saved once back online; after a reload the draft is listed; A
+//                  creates an account (email, password, the code from Mailpit: instance.mjs).
+//                  Browser B (a fresh profile) signs in and opens the project, Denim and all.
 //   local  <url>   the same build with no config.json: local mode, and every request stays on
 //                  the app's own files (no backend, no cloud code).
 //
@@ -36,6 +38,18 @@ async function browser(label) {
       // not up yet
     }
   }
+  const b = await connect(target, label);
+  /** Another tab of the same browser (same profile). */
+  b.tab = async (name) => connect(await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json(), `${label}-${name}`);
+  const close = b.close;
+  b.close = () => {
+    close();
+    chrome.kill();
+  };
+  return b;
+}
+
+async function connect(target, label) {
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((r) => ws.addEventListener('open', r));
   let id = 0;
@@ -118,13 +132,16 @@ async function browser(label) {
       await send('Input.insertText', { text: value });
       await sleep(200);
     },
+    /** Cuts the network off (true) or back on. */
+    async network(offline) {
+      await send('Network.emulateNetworkConditions', { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    },
     async shot(name) {
       const png = (await send('Page.captureScreenshot', { format: 'png' })).result.data;
       writeFileSync(join(shots, `${label}-${name}.png`), Buffer.from(png, 'base64'));
     },
     close() {
       ws.close();
-      chrome.kill();
     },
   };
   return b;
@@ -151,10 +168,41 @@ async function cloud() {
   await a.until('cloud button', `document.body.innerText.includes('Sign in')`);
   await a.click('T-shirt');
   await a.until('the T-shirt open', loaded);
-  await a.click('More');
-  await a.click('Save to the cloud', { exact: true });
-  await a.until('the cloud save', `document.body.innerText.includes('to the cloud. To open it on another device')`);
-  await a.shot('saved');
+  const header = `document.querySelector('header')?.innerText ?? ''`;
+  await a.until('not saved before an edit', `(${header}).includes('change something to keep it')`);
+  await a.click('Denim');
+  await a.until('the autosave', `(${header}).includes('Saved')`, 30000);
+  await a.until('the draft notice', `document.body.innerText.includes('is saved as your draft in this browser')`);
+  await a.until('the project lock', `navigator.locks.query().then((q) => q.held.some((l) => l.name.startsWith('vitryne-project:')))`);
+  await a.shot('autosaved');
+
+  // Offline: the edit waits in this browser, then reaches the cloud.
+  await a.network(true);
+  await a.click('Poplin');
+  await a.until('offline', `(${header}).includes('changes kept in this browser')`, 30000);
+  await a.shot('offline');
+  await a.network(false);
+  await a.click('Denim');
+  await a.until('saved again', `(${header}).includes('Saved')`, 90000);
+
+  // Another tab of the same browser can't edit it too, until it takes it over.
+  const a2 = await a.tab('tab2');
+  await a2.goto(url);
+  await a2.click('Open', { exact: true });
+  await a2.until('the second tab blocked', `document.body.innerText.includes('is open in another tab of this browser')`);
+  await a2.shot('blocked');
+  await a2.click('Open here instead');
+  await a2.until('the second tab editing', `(${header}).includes('Saved') && !document.body.innerText.includes('Open here instead')`);
+  await a.until('the first tab told', `document.body.innerText.includes('was opened in another tab')`);
+  await a.shot('taken');
+  await a.click('Open here instead');
+  await a.until('the first tab back', `!document.body.innerText.includes('was opened in another tab')`);
+  a2.close();
+
+  // A reload: the draft is in the project list.
+  await a.goto(url);
+  await a.until('the draft listed', `document.body.innerText.toLowerCase().includes('your cloud projects') && document.body.innerText.includes('T-shirt (Teagan)')`);
+  await a.shot('reloaded');
   await a.click('Cloud', { exact: true });
   await a.click('Create an account', { exact: true });
   await a.type('#cloud-email', email);
@@ -185,7 +233,8 @@ async function cloud() {
   await b.shot('listed');
   await b.click('Open', { exact: true });
   await b.until('the project open in B', loaded);
-  await sleep(3000);
+  await b.until('Denim kept', `[...document.querySelectorAll('button')].some((e) => e.innerText.startsWith('Denim') && e.className.includes('bg-[#14181F]'))`);
+  await b.until('B saved', `(document.querySelector('header')?.innerText ?? '').includes('Saved')`);
   await b.shot('opened');
   const title = await b.evaluate(`document.querySelector('header')?.innerText ?? ''`);
   if (!/T-shirt/.test(title)) throw new Error(`B: unexpected title: ${title}`);

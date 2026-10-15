@@ -201,8 +201,10 @@ describe('cloud projects', () => {
     await saveProject(anon, 'mine', folder('tshirt'), null);
     const to = account();
     const r = await moveProjects(anon, to);
-    expect(r).toEqual({ moved: 1, failed: [] });
-    expect((await to.listProjects()).map((p) => p.name)).toEqual(['mine']);
+    expect(r).toMatchObject({ moved: 1, failed: [] });
+    const [moved] = await to.listProjects();
+    expect(moved?.name).toBe('mine');
+    expect(Object.values(r.ids)).toEqual([moved?.id]);
     expect(anon.me).toBeNull();
   });
 

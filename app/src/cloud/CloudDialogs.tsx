@@ -168,6 +168,8 @@ export function AccountDialog(props: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onInfo: (text: string) => void;
+  /** Projects moved into the account signed in to (new ids by old ones): an open one follows. */
+  onMoved: (ids: Record<string, string>) => void;
   /** Leaves for Google (after the unsaved-changes question). `signIn`: into that Google account's own. */
   onGoogle: (signIn: boolean) => void;
   /** What a Google sign-in came back with, when it failed. */
@@ -221,6 +223,7 @@ export function AccountDialog(props: {
       const me = b.user();
       if (from && me && from.user()?.id !== me.id) {
         const r = await moveProjects(from, b);
+        props.onMoved(r.ids);
         if (r.failed.length) props.onInfo(`Signed in. These projects could not be moved from this browser and stay there: ${r.failed.join(', ')}.`);
         else if (r.moved) props.onInfo(`Signed in as ${me.email ?? 'you'}. ${r.moved} project${r.moved === 1 ? '' : 's'} from this browser moved to your account.`);
       }

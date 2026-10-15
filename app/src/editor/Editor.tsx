@@ -19,13 +19,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import type { SaveStatus } from '@/cloud/autosave';
 import { AccountDialog, CloudProjectList, CloudProjectsDialog } from '@/cloud/CloudDialogs';
 import { moveProjects } from '@/cloud/projects';
 import { useCloud } from '@/cloud/useCloud';
 import { type Addition, addPieces, addSeam, findCut, setLayout, setPlacement, type Bounds } from '@/document/commands';
 import { mainGarment } from '@/document/entities';
 import type { Placement } from '@/format/schema.gen';
-import { DocumentStore, useDocument } from '@/document/store';
+import { type DocState, DocumentStore, useDocument } from '@/document/store';
 import { cn } from '@/lib/utils';
 import { type FlatTool, PatternPanel, type PatternView, type Selection } from '@/pattern/PatternPanel';
 import { type Place, tidy } from '@/placement/places';
@@ -106,7 +107,8 @@ export function Editor() {
       if (from) {
         const r = await moveProjects(from, b);
         cloudRefresh();
-        const { showInfo } = filesNow.current;
+        const { showInfo, projectsMoved } = filesNow.current;
+        projectsMoved(r.ids);
         if (r.failed.length) showInfo(`Signed in. These projects could not be moved from this browser and stay there: ${r.failed.join(', ')}.`);
         else if (r.moved) showInfo(`Signed in. ${r.moved} project${r.moved === 1 ? '' : 's'} from this browser moved to your account.`);
       } else if (stash.reopen) {
@@ -409,7 +411,8 @@ export function Editor() {
   }, [session, store, save, saveAs, openFile]);
 
   const message = files.notice?.kind === 'error' ? files.notice.text : (examplesError ?? doc.refused);
-  const saveState = files.busy ? `${files.busy}…` : doc.dirty ? 'Unsaved changes' : files.notice?.kind === 'ok' ? files.notice.text : doc.fileName;
+  const saveState = files.busy ? `${files.busy}…` : cloud ? cloudSaveState(files.saveStatus, doc, !!files.ref?.cloud) : doc.dirty ? 'Unsaved changes' : files.notice?.kind === 'ok' ? files.notice.text : doc.fileName;
+  const stopped = files.saveStatus.kind === 'stopped' ? files.saveStatus : null;
 
   const recoveryBanner = files.recovery && (
     <div className="mx-auto mt-2 flex w-[calc(100%-64px)] max-w-[1056px] flex-wrap items-center gap-3 rounded-2xl border border-[#E1E4DE] bg-white px-5 py-3 text-[15px]" role="status">
@@ -453,9 +456,11 @@ export function Editor() {
           {mode === '3d' ? 'Show flat pieces' : 'Show 3D'}
         </Button>
         {cloud && <CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />}
-        <Button onClick={() => void files.save()} disabled={doc.empty || !!files.busy}>
-          Save
-        </Button>
+        {!cloud && (
+          <Button onClick={() => void files.save()} disabled={doc.empty || !!files.busy}>
+            Save
+          </Button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="More">
@@ -587,6 +592,45 @@ export function Editor() {
             </div>
             {engine.notice && <Card onDismiss={() => session.clearNotice()}>{engine.notice}</Card>}
             {files.notice?.kind === 'info' && <Card onDismiss={() => files.dismissNotice()}>{files.notice.text}</Card>}
+            {files.conflict && (
+              <Card tone="error">
+                <span className="block">This project was changed in another browser since you opened it. Your latest changes aren't saved.</span>
+                <span className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={files.conflict.reload}>
+                    Open the other version
+                  </Button>
+                  {cloud?.user && !cloud.user.anonymous ? (
+                    <Button size="sm" variant="outline" onClick={files.conflict.saveCopy}>
+                      Keep mine as a copy
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => void files.conflict?.keepMine()}>
+                      Keep mine
+                    </Button>
+                  )}
+                </span>
+              </Card>
+            )}
+            {stopped?.reason === 'account' && (
+              <Card tone="error">
+                <span className="block">Your draft is the one project you can keep without an account. Create a free account to keep this one too.</span>
+                <span className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => setAccountOpen(true)}>
+                    Create an account
+                  </Button>
+                </span>
+              </Card>
+            )}
+            {stopped?.reason === 'error' && (
+              <Card tone="error">
+                <span className="block">Not saved: {stopped.text}</span>
+                <span className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={files.retrySave}>
+                    Try again
+                  </Button>
+                </span>
+              </Card>
+            )}
             {engine.drapeError && <Card tone="error">The drape could not be built: {engine.drapeError}</Card>}
             {message && (
               <Card
@@ -755,6 +799,7 @@ export function Editor() {
                 if (!o) setGoogleError(null);
               }}
               onInfo={files.showInfo}
+              onMoved={files.projectsMoved}
               onGoogle={continueWithGoogle}
               returnError={googleError}
             />
@@ -766,9 +811,11 @@ export function Editor() {
       <Dialog open={!!files.unsaved} onOpenChange={(open) => !open && files.unsaved?.cancel()}>
         <DialogContent className="rounded-[20px] p-6">
           <DialogHeader>
-            <DialogTitle className="font-display text-2xl font-bold">Save your changes?</DialogTitle>
+            <DialogTitle className="font-display text-2xl font-bold">{files.unsaved?.cloud ? "Your latest changes aren't saved" : 'Save your changes?'}</DialogTitle>
             <DialogDescription className="text-body-text text-[15px]">
-              {doc.entities.project?.name ?? doc.fileName} has changes that aren't saved. They are lost if you don't save them.
+              {files.unsaved?.cloud
+                ? `The latest changes to ${doc.entities.project?.name ?? doc.fileName} haven't reached the cloud (${files.saveStatus.kind === 'offline' || files.saveStatus.kind === 'stopped' ? files.saveStatus.text : 'not saved yet'}). They are lost if you leave without them.`
+                : `${doc.entities.project?.name ?? doc.fileName} has changes that aren't saved. They are lost if you don't save them.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -776,9 +823,28 @@ export function Editor() {
               Cancel
             </Button>
             <Button variant="outline" onClick={() => files.unsaved?.discard()}>
-              Don't save
+              {files.unsaved?.cloud ? 'Leave without them' : "Don't save"}
             </Button>
-            <Button onClick={() => void files.unsaved?.save()}>Save</Button>
+            <Button onClick={() => void files.unsaved?.save()}>{files.unsaved?.cloud ? 'Try again' : 'Save'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!files.blocked && !doc.empty}>
+        <DialogContent className="rounded-[20px] p-6" showCloseButton={false} onEscapeKeyDown={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl font-bold">Open in another tab</DialogTitle>
+            <DialogDescription className="text-body-text text-[15px]">
+              {files.blocked === 'taken'
+                ? `${doc.entities.project?.name ?? doc.fileName} was opened in another tab, which now saves it. Changes made here from now on wouldn't be saved.`
+                : `${doc.entities.project?.name ?? doc.fileName} is open in another tab of this browser. One tab at a time edits a project.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => files.close()}>
+              Close the project
+            </Button>
+            <Button onClick={() => void files.takeOver()}>Open here instead</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -908,4 +974,21 @@ function ZoomButton(props: { label: string; onClick: () => void; children: React
       {props.children}
     </button>
   );
+}
+
+/** The title bar's save state in cloud mode. */
+function cloudSaveState(s: SaveStatus, doc: DocState, inCloud: boolean): string {
+  if (doc.empty) return '';
+  switch (s.kind) {
+    case 'saving':
+      return 'Saving…';
+    case 'offline':
+      return 'Not saved yet: changes kept in this browser, trying again';
+    case 'stopped':
+      return 'Not saved';
+    case 'waiting':
+      return 'Changes not saved yet';
+    case 'saved':
+      return doc.dirty ? 'Changes not saved yet' : inCloud ? 'Saved' : 'Not saved: change something to keep it';
+  }
 }

@@ -191,21 +191,21 @@ export async function deleteAccount(b: CloudBackend): Promise<void> {
 /**
  * Moves every project of `from` (an anonymous user, before they signed in to an existing
  * account) to `to`, then deletes `from`. A project that fails stays with `from`, which is kept.
+ * `ids`: each moved project's new id, by its old one (an open project follows it).
  */
-export async function moveProjects(from: CloudBackend, to: CloudBackend): Promise<{ moved: number; failed: string[] }> {
+export async function moveProjects(from: CloudBackend, to: CloudBackend): Promise<{ moved: number; failed: string[]; ids: Record<string, string> }> {
   const failed: string[] = [];
-  let moved = 0;
+  const ids: Record<string, string> = {};
   for (const p of await from.listProjects()) {
     try {
       const o = await openProject(from, p.id);
       if (o.data.form !== 'folder') throw new Error('internal');
-      await saveProject(to, o.name, o.data.files, null);
+      ids[p.id] = (await saveProject(to, o.name, o.data.files, null)).id;
       await from.deleteProject(p.id);
-      moved++;
     } catch {
       failed.push(p.name);
     }
   }
   if (!failed.length) await deleteAccount(from);
-  return { moved, failed };
+  return { moved: Object.keys(ids).length, failed, ids };
 }
