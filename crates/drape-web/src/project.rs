@@ -243,6 +243,11 @@ impl ProjectFile {
             .collect())
     }
 
+    /// The garment's pieces as DXF-AAMA, with the export's report (M13). Needs no drape.
+    pub fn export_dxf(&self) -> Result<drape_assets::aama_export::DxfExport, String> {
+        drape_assets::aama_export::export_document(&self.doc)
+    }
+
     /// Cut `cut` started again at `place`: a fresh wrap from its size and the body
     /// (`placement::auto_wrap`), keeping its rotation.
     pub fn rewrap(&self, cut: &str, place: BodyPlace) -> Result<Rewrapped, String> {

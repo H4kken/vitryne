@@ -407,6 +407,12 @@ impl VtryFile {
         Ok(serde_json::to_string(&r).expect("differences serialize"))
     }
 
+    /// The garment's pieces as DXF-AAMA: `{text, report}` as JSON (`aama_export::ExportReport`).
+    pub fn export_dxf(&self) -> Result<String, JsValue> {
+        let r = self.file.export_dxf()?;
+        Ok(serde_json::json!({ "text": r.text, "report": r.report }).to_string())
+    }
+
     /// Cut `cut` (its id) started again at `place` (a `placement::BodyPlace` name, e.g.
     /// "body-front"): `project::Rewrapped` as JSON. The project is unchanged.
     pub fn rewrap(&self, cut: &str, place: &str) -> Result<String, JsValue> {

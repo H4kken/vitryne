@@ -1080,3 +1080,60 @@ our own secrets script and Mailpit. Reworked after review to follow Twenty's mod
 - **Google sign-in untested end to end** (needs an OAuth client): built against Supabase's API, the button only shows when the project has Google on.
 - Stale anonymous users are never cleaned up; changing an account's email in the editor.
 - The `from-source` image build not run end to end; Safari and Firefox not tried with cloud mode.
+
+## M13 — DXF-AAMA export (2026-10-15, waiting for review)
+
+**Done-when** ("the three samples export, re-import identically, and open in the tools above"):
+
+| Criterion | Status |
+|---|---|
+| The three samples export | **Met**: `drape export examples/<g>.vtry --out <g>.dxf` and *Export… → Pattern (.dxf)* in the editor (real Chrome over CDP: the T-shirt's file from the dialog is byte for byte the CLI's, no console errors). |
+| Re-import identically | **Met**: `tests/aama_round_trip.rs` converts each exported DXF with the sample's own `garment.toml` and compares the whole garment with `examples/<g>.vtry`: pieces, node ids, types and names, notches, folds, grain, internal lines, cuts and seams, every length within 0.01 mm. At 0 mm tolerance the trousers are bit-identical; the T-shirt (4 numbers) and hoodie (11) differ by 0.001 mm, in the mirrored halves (the mirror line is now the fold's two nodes, not FreeSewing's fold line). A 0.02 mm shift of one vertex fails the test. Without a sidecar, `aama::read` finds every corner, notch, fold end and line end of the file at the same place (unit test). |
+| Opens in Seamly2D/Valentina and a CAD viewer | **Not checked by hand** (none installed here): **your manual step.** Checked instead with ezdxf 1.4.4: all three files read with 0 audit errors and 0 fixes, R12 (AC1009), `$INSUNITS` 4, and render as expected. |
+| Export needs no account | **Met**: it runs on the worker's document, local or cloud; no network call. |
+| `./check.sh` | **Met**: all passed (Rust incl. the 7 new tests, wasm clippy, 53 app tests, web build, examples, golden drapes unchanged). |
+
+### What changed
+
+| Path | What |
+|---|---|
+| `crates/drape-assets/src/aama_export.rs` | The writer: R12, one BLOCK per piece INSERTed side by side, layer 1 outline + "Piece Name:", "Quantity:" (the number of cuts, a mirrored pair = 2), "Material:" (when every cut is in one fabric), "Annotation:", 2 turn points (`corner` nodes), 4 notches (4 mm slits inwards), 6 mirror line, 7 grain (a +y line when the piece has none), 8 internal lines. Re-folds cut-on-fold pieces; the report lists what the DXF can't hold. 4 unit tests. |
+| `crates/drape-assets/tests/aama_round_trip.rs` | The round trip above, for the three samples. |
+| `crates/drape-native` | `drape export <file.vtry> --out <file.dxf>` (no GPU, no drape; notes on stderr). |
+| `crates/drape-web`, `app/src/worker/` | `VtryFile.export_dxf`, request `exportDxf`. |
+| `app/src/editor/ExportDialog.tsx` | A third format, *Pattern (.dxf)*; after saving, the export's notes. The menu item is now *Export…*. |
+| README, ARCHITECTURE | Pattern export (and the export step's menu, which named an old menu). |
+
+### Decisions
+
+- **Re-fold only when exact:** the halves must mirror within 0.01 mm vertex by vertex, with the
+  same node types, and the internal lines must come in the order the importer recreates them;
+  otherwise the piece is written whole and the dialog says why (test
+  `asymmetric_fold_is_written_unfolded`).
+- **Outline from its first node**, counter-clockwise, so landmark numbers survive and a
+  `garment.toml` written for the original DXF still applies. If the closing segment would be
+  shorter than the importer's 0.5 mm closing tolerance, it starts a few vertices earlier (still
+  after the last node, so the numbering doesn't change).
+- **Mid-edge `point` nodes** (the T-shirt sleeve's cap top, the hoodie back's two neck
+  half-points: seam ends from the sidecars) have no layer in DXF-AAMA (layer 3, curve points,
+  marks every curve vertex in other writers' files). They are written as plain outline vertices
+  and named in the dialog; a sidecar recreates them.
+- **No seam allowance:** the outline is the sewing line until `VTRY_seam_allowance` exists; said
+  in the dialog's notes and in each piece's "Annotation:".
+- **No patent question:** export joins, places, measures and grades nothing (docs/PATENTS.md).
+
+### Numbers
+
+- Export time: under 10 ms per sample (CLI, wall clock including process start).
+- Sizes: T-shirt 21.9 KB, trousers 17.3 KB, hoodie 32.9 KB (the source DXFs: 22.9, 18.2, 40.7
+  KB; 3 decimals instead of 4, and cut-on-fold pieces as halves).
+- Written folded: T-shirt front and back, hoodie front, back and pocket (all five folds of the
+  samples).
+
+### Open items
+
+- **Your manual check:** open the three exports in Seamly2D/Valentina and LibreCAD
+  (`drape export examples/<g>.vtry --out <g>.dxf`). Lines use the default colour (7, black on
+  white), as the source DXFs do. As far as I know, Seamly2D and Valentina write DXF-AAMA but
+  don't open it as a pattern; if so, LibreCAD (or another CAD viewer) is the meaningful check.
+- Text on a thin piece (the hood centre, 6 cm wide) overlaps its outline; cosmetic.

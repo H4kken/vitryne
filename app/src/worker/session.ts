@@ -286,6 +286,11 @@ export class EngineSession {
     return glb;
   }
 
+  /** The garment's pieces as DXF-AAMA (sewing lines, no seam allowance), with the export's notes. */
+  async exportDxf(): Promise<{ text: string; notes: string[] }> {
+    return await this.need().request('exportDxf', {});
+  }
+
   /** Wavefront OBJ (.obj + .mtl) export of the draped garment, with UVs and PBR materials. */
   async exportObj(includeAvatar = false): Promise<{ obj: string; mtl: string }> {
     return await this.need().request('exportObj', { includeAvatar });

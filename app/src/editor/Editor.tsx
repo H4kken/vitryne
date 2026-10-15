@@ -488,7 +488,7 @@ export function Editor() {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={doc.empty} onSelect={() => setExporting(true)}>
-              Export 3D model…
+              Export…
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => files.close()}>Close the project</DropdownMenuItem>

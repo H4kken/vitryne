@@ -29,6 +29,10 @@ anyone can run ([docs/CLOUD.md](docs/CLOUD.md)).
 - **Production 3D Export:** Export draped 3D garments to standard glTF 2.0 (`.glb`) or Wavefront
   OBJ (`.obj` + `.mtl`) with real-world 1:1 metre scale, vertex normals, double-sided PBR cloth
   materials, and UVs mapped directly to 2D pattern coordinates for texture printing.
+- **Pattern Export (DXF-AAMA):** Export the pattern pieces back to cutting and CAD tools as
+  DXF-AAMA (ASTM D6673), in millimetres, with corners, notches, grain lines, internal lines,
+  quantities and cut-on-fold pieces as halves with a mirror line. Outlines are sewing lines (no
+  seam allowance yet).
 - **Local-First & Private:** Saves to standard `.vtry` zip or folder files. Your designs never leave
   your device.
 
@@ -62,8 +66,10 @@ own DXF pattern (such as an open-source pattern from [FreeSewing](https://freese
      fabric to check fit and drape.
    - Open the **Fabric** panel to switch presets (e.g. from Cotton jersey to Heavy denim or Wool) or
      tune weight and stiffness sliders.
-   - In the top-left Vitryne menu, choose **Export 3D model…**, select **glTF 2.0 (.glb)** or **OBJ**,
-     and download your draped 3D garment ready for Blender, Unreal Engine, or web 3D viewers.
+   - In the **⋯** menu (top right), choose **Export…**, select **glTF 2.0 (.glb)** or **OBJ**,
+     and download your draped 3D garment ready for Blender, Unreal Engine, or web 3D viewers; or
+     select **Pattern (.dxf)** for the pieces as DXF-AAMA, for cutting and CAD tools. From the
+     command line: `drape export examples/tshirt.vtry --out tshirt.dxf`.
 
 ---
 

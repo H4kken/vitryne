@@ -235,6 +235,24 @@ differ). The design, and why:
   (near-equal lengths): they, the pocket's internal line and the hood neck chain over three cuts
   are picked by hand. `drape frames --seams` renders the seams natively.
 
+### Pattern export (M13)
+
+**Export… → Pattern (.dxf)** writes the garment's pieces as DXF-AAMA
+(`drape_assets::aama_export`, the same code as `drape export x.vtry --out x.dxf`). It works on
+the worker's document, so it needs no drape and no account. The file has the shape the importer
+reads, so importing it gives the same pieces back (`tests/aama_round_trip.rs`). The parts that
+take care:
+
+- **Cut on the fold.** A piece with one fold is written as the half from the fold's first node,
+  with a mirror line, only if the other half mirrors it within 0.01 mm: its vertices, node
+  types and internal lines, in the order the importer recreates them. Otherwise the piece is
+  written unfolded and the dialog says why.
+- **Landmark order.** Each outline starts at its first node, counter-clockwise, so the importer
+  numbers the landmarks as the file did and the sample `garment.toml`s still apply.
+- **What DXF-AAMA can't hold** is listed in the dialog: no seam allowance (outlines are sewing
+  lines until `VTRY_seam_allowance` exists), mid-edge `point` nodes that are neither fold ends
+  nor internal-line ends (written as plain outline vertices), seams, placement and physics.
+
 ### Drape and body SDF
 
 `VtryFile.prepare` meshes and places the project's first garment (CPU, tens of ms) and names

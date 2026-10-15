@@ -19,6 +19,9 @@
 //!                           the test avatar's mesh (avatar/body.glb) and the SDF imports use
 //!   drape export <garment> [--out <file.glb|file.obj>] [--avatar] [--frames N]
 //!                           drape and export garment as glTF 2.0 (.glb) or Wavefront OBJ (.obj)
+//!   drape export <file.vtry> --out <file.dxf>
+//!                           the garment's pieces as DXF-AAMA (no drape; cut-on-fold pieces
+//!                           folded again), with the export's notes on stderr
 //!   drape frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
 //!                           headless: render the sim at those frames to PNGs
 //!   drape info              print adapter report as JSON and exit
@@ -148,6 +151,29 @@ fn main() {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(400);
             let include_avatar = take_flag(&mut args, "--avatar");
+            if let Some(out) = out.as_deref().filter(|o| o.ends_with(".dxf")) {
+                // Patterns, not a drape: no GPU needed.
+                let g = scene_args
+                    .garment
+                    .clone()
+                    .or_else(|| args.get(1).filter(|a| !a.starts_with("--")).cloned())
+                    .unwrap_or_else(|| panic!("drape export <file.vtry> --out {out}"));
+                if !is_project_file(&g) {
+                    panic!("{g}: DXF export takes a project file (.vtry or .vtryg)");
+                }
+                let dxf = drape_assets::aama_export::export_document(&open_project(&g))
+                    .unwrap_or_else(|e| panic!("{g}: {e}"));
+                std::fs::write(out, &dxf.text).unwrap_or_else(|e| panic!("write {out}: {e}"));
+                for n in &dxf.report.notes {
+                    eprintln!("note: {n}");
+                }
+                let folded = dxf.report.pieces.iter().filter(|p| p.folded).count();
+                println!(
+                    "Exported DXF-AAMA to {out}: {} pieces ({folded} on the fold)",
+                    dxf.report.pieces.len()
+                );
+                return;
+            }
             let mut scene_args = scene_args;
             if scene_args.garment.is_none() && args.len() > 1 && !args[1].starts_with("--") {
                 let g = args.remove(1);

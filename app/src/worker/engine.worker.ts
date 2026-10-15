@@ -157,6 +157,11 @@ const handlers: Handlers = {
     return { glb: buffer };
   },
 
+  async exportDxf() {
+    const { text, report } = JSON.parse(needFile().export_dxf()) as { text: string; report: { notes: string[] } };
+    return { text, notes: report.notes };
+  },
+
   async exportObj({ includeAvatar }) {
     const v = needViewport();
     const res: { obj: string; mtl: string } = JSON.parse(await v.export_obj(includeAvatar));

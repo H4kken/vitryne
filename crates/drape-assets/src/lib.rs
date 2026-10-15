@@ -3,6 +3,7 @@
 //! the garment scenes.
 
 pub mod aama;
+pub mod aama_export;
 pub mod convert;
 pub mod dxf;
 pub mod export;
