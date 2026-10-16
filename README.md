@@ -11,7 +11,7 @@
 
 # Why Vitryne
 
-Vitryne gives clothing enthusiasts, small and mature clothing brands the tool they need to easily create clothes before manufacturing. Vitryne is the software for creatives that saves you time and boost your creativity.
+Vitryne gives indie creators, small and established clothing brands the tool they need to easily create clothes before manufacturing. Vitryne is the software for creatives that saves you time and boost your creativity.
 
 <br />
 
