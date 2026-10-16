@@ -69,17 +69,17 @@ your browser or device has no WebGPU, Vitryne shows a page explaining what's mis
 
 # Development & Contributing
 
-### Tech Stack
+### <img src="./app/public/images/stack.svg" width="14" height="14"/> Tech Stack
 
-- <a href="https://rust-lang.org/">🦀 Rust</a>
-- <a href="https://www.typescriptlang.org/"><img src="./app/public/images/typescript.svg" width="14" height="14"/> TypeScript</a> for <a href="https://vite.dev/"><img src="./app/public/images/vite.svg" width="14" height="14"/> Vite</a>&<a href="https://react.dev/"><img src="./app/public/images/react.svg" width="14" height="14"/> React</a>
-- <a href="https://supabase.com/"><img src="./app/public/images/supabase.svg" width="14" height="14"/> Supabase</a>
+- 🦀 <a href="https://rust-lang.org/">Rust</a>
+- <img src="./app/public/images/typescript.svg" width="14" height="14"/> <a href="https://www.typescriptlang.org/">TypeScript</a> with <img src="./app/public/images/vite.svg" width="14" height="14"/> <a href="https://vite.dev/">Vite</a> & <img src="./app/public/images/react.svg" width="14" height="14"/> <a href="https://react.dev/">React</a>
+- <img src="./app/public/images/supabase.svg" width="14" height="14"/> <a href="https://supabase.com/">Supabase</a>
 
-### Contributing
+### <img src="./app/public/images/handshake.svg" width="14" height="14"/> Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, code formatting, and sign-off rules.
 
-### Prerequisites
+### <img src="./app/public/images/scroll-text.svg" width="14" height="14"/> Prerequisites
 
 - Rust 1.85+ with `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
 - `wasm-bindgen-cli` 0.2.129: `cargo install wasm-bindgen-cli --version 0.2.129`
