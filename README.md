@@ -17,11 +17,11 @@ Vitryne gives clothing enthusiasts, small and mature clothing brands the tool th
 
 # Installation
 
-### Cloud
+### <img src="./app/public/images/cloud.svg" width="14" height="14"/> Cloud
 
 The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryne.app) and start creating in under a minute, with no infrastructure to manage and always up to date.
 
-### Self-hosting
+### <img src="./app/public/images/server.svg" width="14" height="14"/> Self-hosting
 
 🏗️ Documentation Work in progress
 
