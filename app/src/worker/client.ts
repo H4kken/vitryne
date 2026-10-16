@@ -32,6 +32,7 @@ export class WorkerClient {
     };
     this.worker.onmessageerror = () => this.die('a message from the engine worker could not be read');
     const offscreen = canvas.transferControlToOffscreen();
+    (canvas as HTMLCanvasElement & { __transferred?: boolean }).__transferred = true;
     this.send({ kind: 'init', canvas: offscreen, ...size }, [offscreen]);
   }
 

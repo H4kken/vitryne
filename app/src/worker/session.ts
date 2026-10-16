@@ -85,6 +85,10 @@ export class EngineSession {
   attach(canvas: HTMLCanvasElement, size: { width: number; height: number }) {
     clearTimeout(this.detachTimer);
     if (this.client && this.canvas === canvas) return;
+    if ((canvas as HTMLCanvasElement & { __transferred?: boolean }).__transferred) {
+      this.set({ generation: this.state.generation + 1 });
+      return;
+    }
     this.canvas = canvas;
     this.client?.terminate();
     const client = new WorkerClient(canvas, size, (e) => this.onEvent(client, e));
@@ -103,6 +107,7 @@ export class EngineSession {
       this.client?.terminate();
       this.client = null;
       this.canvas = null;
+      this.set({ generation: this.state.generation + 1 });
     }, 0);
   }
 

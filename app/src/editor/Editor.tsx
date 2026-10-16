@@ -1037,6 +1037,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         >
           {/* 2D Window (Left) */}
           <div
+            key="window-2d"
             aria-label="2D Pattern view"
             style={
               show2d && show3d ? { width: `${splitRatio * 100}%` } : undefined
@@ -1148,6 +1149,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           {/* Resize toggle between the 2 windows */}
           {show2d && show3d && (
             <div
+              key="window-splitter"
               role="separator"
               aria-orientation="vertical"
               aria-valuenow={Math.round(splitRatio * 100)}
@@ -1219,6 +1221,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
 
           {/* 3D Window (Right) */}
           <div
+            key="window-3d"
             ref={canvasBox}
             aria-label="3D Drape view"
             className={cn(
