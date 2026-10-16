@@ -712,24 +712,19 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     </div>
   );
 
-  const warningsPill = doc.warnings.length +
-    (engine.drape?.info.warnings.length ?? 0) >
-    0 && (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          tabIndex={0}
-          className="rounded-full border border-[#E9D6A6] bg-[#FBF3DC] px-3.5 py-2 text-sm font-medium"
-        >
-          {doc.warnings.length + (engine.drape?.info.warnings.length ?? 0)}{" "}
-          note(s)
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-80 whitespace-pre-line">
-        {[...doc.warnings, ...(engine.drape?.info.warnings ?? [])].join("\n")}
-      </TooltipContent>
-    </Tooltip>
-  );
+  const lastLoggedWarnings = useRef<string>("");
+  useEffect(() => {
+    const all = [...doc.warnings, ...(engine.drape?.info.warnings ?? [])];
+    const key = all.join("\n");
+    if (key && key !== lastLoggedWarnings.current) {
+      lastLoggedWarnings.current = key;
+      for (const w of all) {
+        console.warn(`[vitryne] ${w}`);
+      }
+    } else if (!key) {
+      lastLoggedWarnings.current = "";
+    }
+  }, [doc.warnings, engine.drape?.info.warnings]);
 
   const cards = (
     <>
@@ -1076,19 +1071,12 @@ export function Editor({ cloud }: { cloud: Cloud }) {
             {/* 2D Window badge and status (notices shown here when 3D is hidden) */}
             <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="pointer-events-none flex items-center gap-1.5 rounded-full border border-[#E1E4DE] bg-white px-3 py-2 text-xs font-semibold text-muted-foreground shadow-2xs">
-                  <FlatIcon className="size-3.5 text-foreground" />
-                  <span>2D Pattern</span>
-                </div>
                 {!show3d && (
-                  <>
-                    <StatusPill
-                      engine={engine}
-                      show3d={show3d}
-                      placing={placing}
-                    />
-                    {warningsPill}
-                  </>
+                  <StatusPill
+                    engine={engine}
+                    show3d={show3d}
+                    placing={placing}
+                  />
                 )}
               </div>
               {!show3d && cards}
@@ -1258,12 +1246,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
             {/* 3D Window badge and status */}
             <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="pointer-events-none flex items-center gap-1.5 rounded-full border border-[#E1E4DE] bg-white px-3 py-2 text-xs font-semibold text-muted-foreground shadow-2xs">
-                  <CubeIcon className="size-3.5 text-foreground" />
-                  <span>3D Drape</span>
-                </div>
                 <StatusPill engine={engine} show3d={show3d} placing={placing} />
-                {warningsPill}
               </div>
               {cards}
             </div>
