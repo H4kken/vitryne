@@ -11,6 +11,10 @@
       "description": "The fabric of every cut that doesn't name its own.",
       "$ref": "common.schema.json#/$defs/id"
     },
+    "appearance": {
+      "description": "The appearance (colour) of every cut that doesn't name its own. Absent: the app's own.",
+      "$ref": "common.schema.json#/$defs/id"
+    },
     "pieces": {
       "type": "array",
       "items": { "$ref": "#/$defs/piece" },
@@ -183,6 +187,10 @@
         "mirrored": { "type": "boolean", "default": false },
         "fabric": {
           "description": "Overrides the garment's fabric for this cut.",
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "appearance": {
+          "description": "Overrides the garment's appearance for this cut.",
           "$ref": "common.schema.json#/$defs/id"
         },
         "placement": { "$ref": "#/$defs/placement" },

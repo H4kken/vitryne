@@ -211,10 +211,7 @@ fn main() {
             let fabrics: Vec<drape_assets::export::ExportFabric> =
                 if let Some(doc) = &scene_args.project {
                     let pg = ProjectGarment::new(doc).unwrap_or_else(|e| panic!("{e}"));
-                    pg.panel_fabrics()
-                        .iter()
-                        .map(drape_assets::export::ExportFabric::from)
-                        .collect()
+                    pg.export_fabrics()
                 } else {
                     vec![
                         drape_assets::export::ExportFabric::default_cloth(scene.garment.name());
@@ -578,6 +575,7 @@ impl SceneArgs {
             || std::fs::read_to_string(BODY_OBJ).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
         let test_avatar =
             || BodyMesh::from_obj(&read_obj()).unwrap_or_else(|e| panic!("{BODY_OBJ}: {e}"));
+        let mut colors = Vec::new();
         let (desc, fabric, panel_fabrics, body) = match self.kind.as_str() {
             "sheet" => {
                 let d = self.sheet.garment();
@@ -618,6 +616,7 @@ impl SceneArgs {
                     }
                     None => load_body_cached("makehuman", test_avatar(), &sdf_params),
                 };
+                colors = pg.panel_colors();
                 (desc, pg.material(), pg.panel_materials(), body)
             }
             "garment" => {
@@ -640,6 +639,7 @@ impl SceneArgs {
         Scene {
             garment: Arc::new(garment),
             body: Arc::new(body),
+            colors,
         }
     }
 
@@ -869,6 +869,22 @@ fn load_body_cached(name: &str, mesh: BodyMesh, p: &SdfParams) -> Body {
 struct Scene {
     garment: Arc<Garment>,
     body: Arc<Body>,
+    /// Each panel's colour (a project's appearances); none: the viewer's cloth colour.
+    colors: Vec<Option<[f32; 3]>>,
+}
+
+impl Scene {
+    /// Gives `renderer` the panels' colours.
+    fn color(&self, renderer: &Renderer, queue: &wgpu::Queue) {
+        let panels: Vec<_> = self
+            .garment
+            .desc
+            .groups
+            .iter()
+            .map(|(_, r)| r.clone())
+            .collect();
+        renderer.set_panel_colors(queue, &panels, &self.colors);
+    }
 }
 
 /// The golden cases: (name, project file, the garment.toml it was converted from, golden shape
@@ -1120,6 +1136,7 @@ fn render_frames(
         sim.solver(),
         &scene.body.render,
     );
+    scene.color(&renderer, &g.queue);
     if seams {
         renderer.set_seams(
             &g.device,
@@ -1255,6 +1272,7 @@ impl ApplicationHandler for Viewer {
             sim.solver(),
             &self.scene.body.render,
         );
+        self.scene.color(&renderer, &engine.gpu().queue);
         log::info!(
             "scene: {} verts, {} stretch colours, {} bend colours, {} dispatches/frame",
             self.scene.garment.mesh().n_verts(),

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vitryne.app/schema/1/project.schema.json",
   "title": "Vitryne format v1: project.json",
-  "description": "The root of a project file: which garments, on which avatar, with which fabrics and simulation settings. Each entity lives in its own part: garments/<id>.json, fabrics/<id>.json, avatars/<id>/avatar.json.",
+  "description": "The root of a project file: which garments, on which avatar, with which fabrics, appearances and simulation settings. Each entity lives in its own part: garments/<id>.json, fabrics/<id>.json, appearances/<id>.json, avatars/<id>/avatar.json.",
   "type": "object",
   "properties": {
     "id": { "$ref": "common.schema.json#/$defs/id" },
@@ -20,6 +20,12 @@
     },
     "fabrics": {
       "description": "Every fabric in the project, used or not (the project's own library).",
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/id" },
+      "uniqueItems": true
+    },
+    "appearances": {
+      "description": "Every appearance in the project, used or not. Absent: none.",
       "type": "array",
       "items": { "$ref": "common.schema.json#/$defs/id" },
       "uniqueItems": true

@@ -20,7 +20,7 @@ use drape_core::{
     sim::{Schedule, SimSettings},
 };
 use vitryne_format::{
-    Direction, Document, Fabric, Garment, Id, Kind, Pairing, Placement, Region, glb,
+    Appearance, Direction, Document, Fabric, Garment, Id, Kind, Pairing, Placement, Region, glb,
 };
 
 use crate::{
@@ -80,6 +80,25 @@ pub struct ProjectGarment<'a> {
     pub regions: &'a BTreeMap<String, Region>,
     /// Things the engine ignores or approximates, for the user.
     pub warnings: Vec<String>,
+}
+
+/// Every cut of `garment` (cut order) with its appearance: its own, else the garment's, else
+/// none.
+pub fn cut_appearances<'a>(
+    doc: &'a Document,
+    garment: &'a Garment,
+) -> Vec<(&'a Id, Option<&'a Appearance>)> {
+    let default = garment
+        .appearance
+        .as_ref()
+        .and_then(|id| doc.appearance(id));
+    garment
+        .cuts()
+        .map(|(_, c)| {
+            let own = c.appearance.as_ref().and_then(|id| doc.appearance(id));
+            (&c.id, own.or(default))
+        })
+        .collect()
 }
 
 /// Turns a fabric into engine Material parameters (means of warp and weft).
@@ -166,6 +185,38 @@ impl<'a> ProjectGarment<'a> {
     /// The fabrics for each cut/panel.
     pub fn panel_fabrics(&self) -> Vec<Fabric> {
         self.cut_fabrics.iter().map(|&f| f.clone()).collect()
+    }
+
+    /// Each cut's appearance, in cut order: its own, else the garment's, else none (the app
+    /// shows its own colour).
+    pub fn panel_appearances(&self) -> Vec<Option<&'a Appearance>> {
+        cut_appearances(self.doc, self.garment)
+            .into_iter()
+            .map(|(_, a)| a)
+            .collect()
+    }
+
+    /// Each cut's colour (sRGB 0..1) in cut order, or none for the app's own.
+    pub fn panel_colors(&self) -> Vec<Option<[f32; 3]>> {
+        self.panel_appearances()
+            .into_iter()
+            .map(|a| a.and_then(Appearance::rgb))
+            .collect()
+    }
+
+    /// The materials for 3D export, one per cut: its fabric, coloured by its appearance.
+    pub fn export_fabrics(&self) -> Vec<crate::export::ExportFabric> {
+        self.cut_fabrics
+            .iter()
+            .zip(self.panel_appearances())
+            .map(|(&f, a)| {
+                let e = crate::export::ExportFabric::from(f);
+                match a {
+                    Some(a) => e.with_appearance(a),
+                    None => e,
+                }
+            })
+            .collect()
     }
 
     /// `targetVertices`: the garment's, else the project's, else 10,000.

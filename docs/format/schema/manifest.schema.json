@@ -7,7 +7,7 @@
   "properties": {
     "format": { "const": "vitryne" },
     "kind": {
-      "description": "project (.vtry): garments + avatar + fabrics + settings. garment (.vtryg): one garment and the fabrics it uses. fabric (.vtryf): one or more fabrics (a library). avatar (.vtrya): one avatar.",
+      "description": "project (.vtry): garments + avatar + fabrics + appearances + settings. garment (.vtryg): one garment and the fabrics and appearances it uses. fabric (.vtryf): one or more fabrics (a library). avatar (.vtrya): one avatar.",
       "enum": ["project", "garment", "fabric", "avatar"]
     },
     "formatVersion": {

@@ -22,6 +22,9 @@ pub struct Entities {
     pub project: Option<Value>,
     pub garments: Vec<Value>,
     pub fabrics: Vec<Value>,
+    /// Absent before format version 2, and when there are none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub appearances: Vec<Value>,
     pub avatars: Vec<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<Value>,
@@ -73,6 +76,7 @@ impl Document {
             project: self.project.as_ref().map(to_value),
             garments: self.garments.iter().map(to_value).collect(),
             fabrics: self.fabrics.iter().map(to_value).collect(),
+            appearances: self.appearances.iter().map(to_value).collect(),
             avatars: self.avatars.iter().map(to_value).collect(),
             view: self.view.as_ref().map(to_value),
         }
@@ -96,6 +100,7 @@ impl Document {
         }
         keep_spelling_by_id(&mut e.garments, &old.garments);
         keep_spelling_by_id(&mut e.fabrics, &old.fabrics);
+        keep_spelling_by_id(&mut e.appearances, &old.appearances);
         keep_spelling_by_id(&mut e.avatars, &old.avatars);
 
         fn parse<T: serde::de::DeserializeOwned>(what: &str, v: Value) -> Result<T, Error> {
@@ -118,6 +123,7 @@ impl Document {
         next.view = e.view.map(|v| parse::<View>("view", v)).transpose()?;
         next.garments = parse_all("garment", e.garments)?;
         next.fabrics = parse_all("fabric", e.fabrics)?;
+        next.appearances = parse_all("appearance", e.appearances)?;
         next.avatars = parse_all("avatar", e.avatars)?;
         let Report { errors, warnings } = next.validate();
         if !errors.is_empty() {

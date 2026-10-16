@@ -17,7 +17,7 @@ use drape_core::{
 use glam::{Vec2, Vec3};
 use serde_json::json;
 use vitryne_format::{
-    Fabric,
+    Appearance, Fabric,
     glb::{self, GltfMaterial, GltfMesh, GltfPrimitive, GltfScene},
 };
 
@@ -25,6 +25,7 @@ use vitryne_format::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExportFabric {
     pub name: String,
+    /// Linear RGBA (glTF's `baseColorFactor`).
     pub color: [f32; 4],
     pub roughness: f32,
 }
@@ -35,6 +36,17 @@ impl ExportFabric {
             name: name.into(),
             color,
             roughness,
+        }
+    }
+
+    /// The fabric in the colour of `a` (named after both, so each colour is its own material).
+    pub fn with_appearance(self, a: &Appearance) -> Self {
+        let Some(rgb) = a.rgb() else { return self };
+        let [r, g, b] = rgb.map(srgb_to_linear);
+        Self {
+            name: format!("{}, {}", self.name, a.name),
+            color: [r, g, b, 1.0],
+            ..self
         }
     }
 
@@ -171,7 +183,16 @@ impl<'a> AvatarExportData<'a> {
     }
 }
 
-/// Plausible PBR base color for a fabric (sRGB floats 0..1).
+/// An sRGB component (0..1) as linear light.
+pub fn srgb_to_linear(c: f32) -> f32 {
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+/// Plausible PBR base color for a fabric, when it has no appearance.
 pub fn fabric_color(fabric: &Fabric) -> [f32; 4] {
     let lower = fabric.name.to_lowercase();
     if lower.contains("denim") {

@@ -201,6 +201,7 @@ mod tests {
                 project: None,
                 garments: Vec::new(),
                 fabrics: vec![preset.clone()],
+                appearances: Vec::new(),
                 avatars: Vec::new(),
                 view: None,
                 files: BTreeMap::new(),

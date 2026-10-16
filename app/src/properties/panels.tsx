@@ -9,16 +9,21 @@ import { Switch } from '@/components/ui/switch';
 import type { Cut, Fabric, Garment, Piece } from '@/format/schema.gen';
 import {
   applyFabricPreset,
+  type ColorTarget,
+  cutColor,
   type FabricField,
   fabricValue,
   findCut,
   followers,
+  garmentColor,
+  pieceColor,
   renameCut,
   renameFabric,
   renamePiece,
   renameProject,
   renameSeam,
   selfCollision,
+  setColor,
   setCutFabric,
   setFabricValue,
   setMirrored,
@@ -34,7 +39,8 @@ import { FABRIC_PRESETS, findPreset, matchingPreset } from '@/format/presets';
 import type { Selection } from '@/pattern/PatternPanel';
 import { PlaceSelect } from '@/placement/PlaceSelect';
 import { degrees, type Place, PLACES, placeOf, radians, tidy } from '@/placement/places';
-import { NumberField, TextField } from './fields';
+import { DEFAULT_CLOTH_COLOR } from '@/format/colors';
+import { ColorField, NumberField, TextField } from './fields';
 
 /** How far a piece placed on another sits off it, mm (Rust `import::ON_TOP_LIFT_MM`). */
 export const ON_TOP_LIFT_MM = 12;
@@ -49,6 +55,16 @@ function Intro({ children }: { children: React.ReactNode }) {
 
 function Heading({ children }: { children: React.ReactNode }) {
   return <h3 className="text-muted-foreground m-0 text-[13px] font-semibold tracking-[0.06em] uppercase">{children}</h3>;
+}
+
+/** Picks a colour for the garment or a piece: a picker's drag is one undo step, a swatch one each. */
+function pickColor(store: DocumentStore, garmentId: string, target: ColorTarget) {
+  return (color: string | undefined, dragging = false) => {
+    const key = `color:${garmentId}:${target.kind === 'piece' ? target.pieceId : 'garment'}`;
+    if (dragging) store.beginGesture(key);
+    else store.endGesture();
+    store.execute((e) => setColor(e, garmentId, target, color));
+  };
 }
 
 const FABRIC_UI: { field: FabricField; label: string; unit: string; ends: [string, string]; scale?: number; min: number; max: number; log?: boolean; step?: number }[] = [
@@ -66,11 +82,13 @@ const FABRIC_UI: { field: FabricField; label: string; unit: string; ends: [strin
 
 export function FabricPanel({
   store,
+  entities,
   fabric: initialFabric,
   garment,
   fabrics,
 }: {
   store: DocumentStore;
+  entities: Entities;
   fabric: Fabric | undefined;
   garment?: Garment;
   fabrics?: readonly Fabric[];
@@ -83,9 +101,24 @@ export function FabricPanel({
 
   const activePreset = matchingPreset(fabric);
 
+  const pick = garment && pickColor(store, garment.id, { kind: 'garment' });
   return (
     <div className="flex flex-col gap-5">
-      <Intro>Changes how it hangs, folds and stretches. Pick a physical preset or fine tune below.</Intro>
+      {garment && pick && (
+        <div className="flex flex-col gap-3 border-b pb-5">
+          <Heading>Colour</Heading>
+          <Intro>How the whole garment looks. A piece can have its own colour too (Pieces). The colour doesn't change the drape.</Intro>
+          <ColorField
+            label="Garment colour"
+            value={garmentColor(entities, garment)}
+            shown={DEFAULT_CLOTH_COLOR}
+            onPick={pick}
+            onDragEnd={() => store.endGesture()}
+            onReset={{ label: 'Remove the colour', run: () => pick(undefined) }}
+          />
+        </div>
+      )}
+      <Intro>The fabric changes how it hangs, folds and stretches. Pick a physical preset or fine tune below.</Intro>
 
       {fabrics && fabrics.length > 1 && (
         <div className="flex flex-col gap-1.5">
@@ -201,6 +234,7 @@ function whereLabel(g: Garment, cut: Cut): string {
 
 export function PiecesPanel(props: {
   store: DocumentStore;
+  entities: Entities;
   garment: Garment | undefined;
   fabrics?: readonly Fabric[];
   selection: Selection;
@@ -234,7 +268,12 @@ export function PiecesPanel(props: {
                       onClick={() => props.onSelect({ kind: 'cut', pieceId: piece.id, cutId: cut.id })}
                       className="flex w-full flex-col items-start rounded-[10px] px-3 py-2 text-left hover:bg-[#F4F5F2]"
                     >
-                      <span className="text-[15px] font-semibold">
+                      <span className="flex items-center gap-2 text-[15px] font-semibold">
+                        <span
+                          aria-hidden
+                          className="size-3 shrink-0 rounded-full border border-black/10"
+                          style={{ background: cutColor(props.entities, garment, cut) ?? DEFAULT_CLOTH_COLOR }}
+                        />
                         {cutName(piece, cut)}
                         {cut.mirrored ? ' (mirrored)' : ''}
                       </span>
@@ -277,6 +316,7 @@ export function PiecesPanel(props: {
 
 function CutDetails(props: {
   store: DocumentStore;
+  entities: Entities;
   garment: Garment;
   piece: Piece;
   cut: Cut;
@@ -374,6 +414,18 @@ function CutDetails(props: {
             Apply {cut.fabric ? 'this fabric' : 'default'} to all {piece.cuts.length} cuts of {piece.name}
           </button>
         )}
+      </div>
+
+      <div className="flex flex-col gap-3 border-t pt-4">
+        <Heading>Colour</Heading>
+        <ColorField
+          label={piece.cuts.length > 1 ? `Colour of all ${piece.cuts.length} ${piece.name}` : 'Piece colour'}
+          value={pieceColor(props.entities, piece)}
+          shown={garmentColor(props.entities, g) ?? DEFAULT_CLOTH_COLOR}
+          onPick={pickColor(store, g.id, { kind: 'piece', pieceId: piece.id })}
+          onDragEnd={() => store.endGesture()}
+          onReset={{ label: 'Use the garment colour', run: () => pickColor(store, g.id, { kind: 'piece', pieceId: piece.id })(undefined) }}
+        />
       </div>
 
       <div className="flex flex-col gap-4 border-t pt-4">

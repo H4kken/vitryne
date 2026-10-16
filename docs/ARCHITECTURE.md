@@ -45,10 +45,12 @@ that opens one panel at a time, and one canvas showing either the 3D drape or th
 with a status pill, a hint, zoom and a floating tool bar. Its colours, radii and type are the
 tokens in `app/src/index.css` (light only); the fonts, Bricolage Grotesque and DM Sans (OFL),
 are bundled from `@fontsource`, never fetched from another site. The 3D scene's colours go to
-the renderer as a `drape_render::Style`. The 3D tool bar has the concept's Select, Turn view
-and Pinch fabric; the flat one its Select and Move. Parts of the concept that belong to later
-milestones (fabric presets, colour and print, fit, export and share, editing points, drawing from
-scratch) are not built yet.
+the renderer as a `drape_render::Style`; a garment or piece with a colour (an appearance,
+FORMAT.md) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour edits
+don't re-drape: after every document update the worker calls `Viewport::set_looks`, which
+recolours the drape shown and its export materials. The 3D tool bar has the concept's Select,
+Turn view and Pinch fabric; the flat one its Select and Move. Parts of the concept that belong
+to later milestones (print, fit, share, editing points, drawing from scratch) are not built yet.
 
 ### Worker protocol
 

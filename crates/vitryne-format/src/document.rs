@@ -34,6 +34,7 @@ pub struct Document {
     /// In manifest order.
     pub garments: Vec<Garment>,
     pub fabrics: Vec<Fabric>,
+    pub appearances: Vec<Appearance>,
     pub avatars: Vec<Avatar>,
     pub view: Option<View>,
     /// Every other part, by path.
@@ -63,6 +64,9 @@ pub fn garment_path(id: &Id) -> String {
 pub fn fabric_path(id: &Id) -> String {
     format!("fabrics/{id}.json")
 }
+pub fn appearance_path(id: &Id) -> String {
+    format!("appearances/{id}.json")
+}
 pub fn avatar_path(id: &Id) -> String {
     format!("avatars/{id}/avatar.json")
 }
@@ -73,6 +77,7 @@ enum Slot {
     View,
     Garment,
     Fabric,
+    Appearance,
     Avatar,
 }
 
@@ -83,6 +88,7 @@ fn slot(path: &str) -> Option<Slot> {
         ["view.json"] => Some(Slot::View),
         ["garments", f] if f.ends_with(".json") => Some(Slot::Garment),
         ["fabrics", f] if f.ends_with(".json") => Some(Slot::Fabric),
+        ["appearances", f] if f.ends_with(".json") => Some(Slot::Appearance),
         [_, _, "avatar.json"] if segs[0] == "avatars" => Some(Slot::Avatar),
         _ => None,
     }
@@ -95,6 +101,7 @@ impl Document {
             project: None,
             garments: Vec::new(),
             fabrics: Vec::new(),
+            appearances: Vec::new(),
             avatars: Vec::new(),
             view: None,
             files: BTreeMap::new(),
@@ -113,6 +120,9 @@ impl Document {
     }
     pub fn fabric(&self, id: &Id) -> Option<&Fabric> {
         self.fabrics.iter().find(|f| &f.id == id)
+    }
+    pub fn appearance(&self, id: &Id) -> Option<&Appearance> {
+        self.appearances.iter().find(|a| &a.id == id)
     }
     pub fn avatar(&self, id: &Id) -> Option<&Avatar> {
         self.avatars.iter().find(|a| &a.id == id)
@@ -179,6 +189,9 @@ impl Document {
             let mut f = f.clone();
             f.round_lengths();
             entity(fabric_path(&f.id), part(&f));
+        }
+        for a in &self.appearances {
+            entity(appearance_path(&a.id), part(a));
         }
         for a in &self.avatars {
             let mut a = a.clone();
@@ -384,6 +397,16 @@ pub(crate) fn read_with(
                     }
                     doc.fabrics.push(f);
                 }
+                Slot::Appearance => {
+                    let a: Appearance = parse(path, v)?;
+                    if path != appearance_path(&a.id) {
+                        return Err(bad(format!(
+                            "{path}: must be at {}",
+                            appearance_path(&a.id)
+                        )));
+                    }
+                    doc.appearances.push(a);
+                }
                 Slot::Avatar => {
                     let a: Avatar = parse(path, v)?;
                     if path != avatar_path(&a.id) {
@@ -453,6 +476,11 @@ mod tests {
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/tshirt.vtry");
         let mut files = container::read_dir(&dir).unwrap().files;
         for (p, b) in &mut files {
+            if p == "manifest.json" {
+                let mut m: Value = serde_json::from_slice(b).unwrap();
+                m["formatVersion"] = 1.into();
+                *b = serde_json::to_vec(&m).unwrap();
+            }
             if p.starts_with("fabrics/") {
                 *b = String::from_utf8(b.clone())
                     .unwrap()

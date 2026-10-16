@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The Vitryne file format, version 1: the specification is [docs/FORMAT.md], the JSON Schemas
+//! The Vitryne file format, version 2: the specification is [docs/FORMAT.md], the JSON Schemas
 //! in docs/format/schema/ check what this crate writes.
 //!
 //! ```ignore
@@ -38,7 +38,7 @@ pub use model::*;
 pub use validate::Report;
 
 /// The version this crate reads and writes.
-pub const FORMAT_VERSION: u32 = 1;
+pub const FORMAT_VERSION: u32 = 2;
 /// The `minReaderVersion` it writes: the oldest reader that can open its files correctly.
 pub const MIN_READER_VERSION: u32 = 1;
 /// The extensions this reader implements (a file requiring any other is refused).

@@ -19,6 +19,9 @@ import {
   reverseSeam,
   revertCommand,
   selfCollision,
+  cutColor,
+  pieceColor,
+  setColor,
   setCutFabric,
   setFabricValue,
   setLayout,
@@ -62,8 +65,14 @@ function everyCommand(e: Entities): Command[] {
     }),
     setMirrored(e, g.id, piece.cuts[0]!.id, !piece.cuts[0]!.mirrored),
     setLayout(e, g.id, piece.cuts[0]!.id, { position: [120, -40], rotation: 0.5 }),
+    setColor(e, g.id, { kind: 'garment' }, '#1F2A44', () => ID_A),
+    setColor(e, g.id, { kind: 'piece', pieceId: piece.id }, '#b5282e', () => ID_B),
   ];
 }
+
+const ID_A = '01a13cdb-cc05-7000-8000-00000000000a';
+const ID_B = '01a13cdb-cc05-7000-8000-00000000000b';
+const ID_C = '01a13cdb-cc05-7000-8000-00000000000c';
 
 describe.each(EXAMPLES)('%s', (name) => {
   const { file, entities } = openExample(name);
@@ -118,6 +127,65 @@ describe.each(EXAMPLES)('%s', (name) => {
     // The examples set it on the garment, so that's where the edit goes.
     expect(mainGarment(off)!.simulation).toMatchObject({ engine: { self_collision: false } });
     expect(off.project).toBe(frozen.project);
+  });
+});
+
+describe('colours', () => {
+  const { file, entities } = openExample('tshirt');
+  const e0 = deepFreeze(entities);
+  const g0 = mainGarment(e0)!;
+  const [front, other] = [g0.pieces[0]!, g0.pieces[1]!];
+  const ids = [ID_A, ID_B, ID_C];
+  const next = () => ids.shift()!;
+  const run = (e: Entities, cmd: Command) => {
+    const after = applyCommand(e, cmd);
+    expect(rustRefuses(file, after), cmd.label).toBeNull();
+    expect(cmd.drape).toBe(false);
+    return after;
+  };
+
+  it('colours the garment, then a piece over it, and takes them away again', () => {
+    expect(cutColor(e0, g0, front.cuts[0]!)).toBeUndefined();
+    let e = run(e0, setColor(e0, g0.id, { kind: 'garment' }, '#1F2A44', next));
+    expect(e.appearances).toEqual([{ id: ID_A, name: 'Navy', color: '#1f2a44' }]);
+    expect(e.project!.appearances).toEqual([ID_A]);
+    let g = mainGarment(e)!;
+    expect(g.pieces.flatMap((p) => p.cuts).every((c) => cutColor(e, g, c) === '#1f2a44')).toBe(true);
+
+    // Only the garment uses it: recoloured in place, no new appearance.
+    e = run(e, setColor(e, g.id, { kind: 'garment' }, '#3b5a80', next));
+    expect(e.appearances).toEqual([{ id: ID_A, name: 'Denim blue', color: '#3b5a80' }]);
+
+    // A piece of the garment's colour shares its appearance; one of its own gets a new one.
+    e = run(e, setColor(e, g.id, { kind: 'piece', pieceId: other.id }, '#3b5a80', next));
+    expect(e.appearances).toHaveLength(1);
+    e = run(e, setColor(e, mainGarment(e)!.id, { kind: 'piece', pieceId: front.id }, '#c0643f', next));
+    g = mainGarment(e)!;
+    expect(e.appearances).toHaveLength(2);
+    expect(pieceColor(e, g.pieces[0]!)).toBe('#c0643f');
+    expect(cutColor(e, g, g.pieces[2]!.cuts[0]!)).toBe('#3b5a80');
+
+    // Now shared, the garment's appearance isn't changed in place: the piece keeps its colour.
+    e = run(e, setColor(e, g.id, { kind: 'garment' }, '#f4f2ec', next));
+    g = mainGarment(e)!;
+    expect(pieceColor(e, g.pieces[1]!)).toBe('#3b5a80');
+    expect(e.appearances!.map((a) => a.color).sort()).toEqual(['#3b5a80', '#c0643f', '#f4f2ec']);
+
+    // Taking colours away removes the appearances nothing uses.
+    for (const p of g.pieces) {
+      if (pieceColor(e, p)) e = run(e, setColor(e, g.id, { kind: 'piece', pieceId: p.id }, undefined));
+    }
+    e = run(e, setColor(e, g.id, { kind: 'garment' }, undefined));
+    expect(e.appearances).toBeUndefined();
+    expect(e.project!.appearances).toBeUndefined();
+    expect(JSON.stringify(e)).toBe(JSON.stringify(e0));
+  });
+
+  it('refuses what is not a colour, or changes nothing', () => {
+    expect(() => setColor(e0, g0.id, { kind: 'garment' }, 'navy')).toThrow(CommandError);
+    expect(() => setColor(e0, g0.id, { kind: 'garment' }, undefined)).toThrow(/nothing changes/);
+    const e = applyCommand(e0, setColor(e0, g0.id, { kind: 'garment' }, '#1f2a44', () => ID_C));
+    expect(() => setColor(e, g0.id, { kind: 'garment' }, '#1F2A44')).toThrow(/nothing changes/);
   });
 });
 

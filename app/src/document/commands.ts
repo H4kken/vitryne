@@ -4,7 +4,8 @@
 // that the document is where it expects before doing either. Builders check the JSON Schema
 // of what they produce, so an invalid value never becomes a command.
 
-import type { Cut, Fabric, Garment, Piece, Placement, Seam, Source, Vec3 } from '@/format/schema.gen';
+import type { Appearance, Cut, Fabric, Garment, Piece, Placement, Project, Seam, Source, Vec3 } from '@/format/schema.gen';
+import { colorName, normalizeColor } from '@/format/colors';
 import { findPreset } from '@/format/presets';
 import { type Entities, getEntity, mainGarment, setEntity, type Slot, slotKey } from './entities';
 import { deepEqual, getIn, type Path, setIn } from './json';
@@ -279,6 +280,119 @@ export function setPieceFabric(e: Entities, garmentId: string, pieceId: string, 
     drape: true,
     changes,
   };
+}
+
+// ---- colours: appearances (FORMAT.md, Appearance), how the fabric looks, not how it drapes --
+
+/** What a colour is given to: the garment (its cuts without their own), or every cut of a piece. */
+export type ColorTarget = { kind: 'garment' } | { kind: 'piece'; pieceId: string };
+
+function appearanceById(e: Entities, id: string | undefined): Appearance | undefined {
+  return id === undefined ? undefined : e.appearances?.find((a) => a.id === id);
+}
+
+/** The colour a cut shows: its own appearance's, else the garment's, else none (the app's). */
+export function cutColor(e: Entities, g: Garment, cut: Cut): string | undefined {
+  return (appearanceById(e, cut.appearance) ?? appearanceById(e, g.appearance))?.color;
+}
+
+/** The garment's own colour (its default), or none. */
+export function garmentColor(e: Entities, g: Garment): string | undefined {
+  return appearanceById(e, g.appearance)?.color;
+}
+
+/** A piece's own colour, if all its cuts have the same one; none if they follow the garment. */
+export function pieceColor(e: Entities, piece: Piece): string | undefined {
+  const ids = new Set(piece.cuts.map((c) => c.appearance));
+  return ids.size === 1 ? appearanceById(e, [...ids][0])?.color : undefined;
+}
+
+/** Every reference to an appearance in the document, by id: how many. */
+function appearanceUses(gs: readonly Garment[]): Map<string, number> {
+  const uses = new Map<string, number>();
+  const count = (id: string | undefined) => id !== undefined && uses.set(id, (uses.get(id) ?? 0) + 1);
+  for (const g of gs) {
+    count(g.appearance);
+    for (const p of g.pieces) for (const c of p.cuts) count(c.appearance);
+  }
+  return uses;
+}
+
+/**
+ * Gives `target` the colour `color` (#rrggbb), or takes its own away (`undefined`: a piece then
+ * follows the garment, the garment shows the app's colour). An appearance only the target uses
+ * is recoloured in place (so dragging a colour picker is one appearance); otherwise one of the
+ * same colour is reused, or a new one made with `newId`. Appearances nothing uses any more are
+ * removed. No re-drape: the worker recolours the drape shown.
+ */
+export function setColor(e: Entities, garmentId: string, target: ColorTarget, color: string | undefined, newId: () => string = () => crypto.randomUUID()): Command {
+  const g = garment(e, garmentId);
+  const c = color === undefined ? undefined : normalizeColor(color);
+  if (color !== undefined && c === undefined) throw new CommandError(`${color} is not a colour (#rrggbb)`);
+  const pieceIndex = target.kind === 'piece' ? indexOf(g.pieces, target.pieceId, 'piece') : -1;
+  const cuts = g.pieces[pieceIndex]?.cuts ?? [];
+  const refs = target.kind === 'garment' ? [g.appearance] : cuts.map((cut) => cut.appearance);
+  const label = c === undefined ? (target.kind === 'garment' ? 'Remove the garment colour' : 'Reset a piece colour') : target.kind === 'garment' ? 'Change the garment colour' : 'Change a piece colour';
+
+  const appearances = (e.appearances ?? []).slice();
+  let id: string | undefined;
+  if (c !== undefined) {
+    // In place: the target's one appearance, used by nothing else.
+    const own = new Set(refs);
+    const only = own.size === 1 ? [...own][0] : undefined;
+    const k = appearances.findIndex((a) => a.id === only);
+    const mine = appearances[k];
+    if (only !== undefined && mine && appearanceUses(e.garments).get(only) === refs.length) {
+      if (mine.color === c) throw new CommandError(`${label}: nothing changes`);
+      appearances[k] = { ...mine, color: c, name: colorName(c) };
+      id = only;
+    } else {
+      id = appearances.find((a) => a.color === c)?.id;
+      if (id === undefined) {
+        id = newId();
+        appearances.push({ id, name: colorName(c), color: c });
+      }
+    }
+  }
+
+  let after: Garment = g;
+  if (target.kind === 'garment') after = setIn(g, ['appearance'], id) as Garment;
+  else for (let j = 0; j < cuts.length; j++) after = setIn(after, ['pieces', pieceIndex, 'cuts', j, 'appearance'], id) as Garment;
+  const garments = e.garments.map((x) => (x.id === g.id ? after : x));
+  const used = appearanceUses(garments);
+  const kept = appearances.filter((a) => used.has(a.id));
+  const unchanged = after === g || deepEqual(after, g);
+  if (unchanged && deepEqual(kept, e.appearances ?? [])) throw new CommandError(`${label}: nothing changes`);
+
+  const changes: Change[] = [];
+  const before = new Map((e.appearances ?? []).map((a) => [a.id, a]));
+  const now = new Map(kept.map((a) => [a.id, a]));
+  for (const a of kept) {
+    if (!deepEqual(before.get(a.id), a)) changes.push({ slot: { kind: 'appearance', id: a.id }, before: before.get(a.id), after: a });
+  }
+  for (const [aid, a] of before) {
+    if (!now.has(aid)) changes.push({ slot: { kind: 'appearance', id: aid }, before: a, after: undefined });
+  }
+  if (!unchanged) {
+    const problems = schemaErrors('garment', after);
+    if (problems.length) throw new CommandError(`${label}: ${problems.join('; ')}`);
+    changes.push({ slot: { kind: 'garment', id: g.id }, before: g, after });
+  }
+  for (const ch of changes) {
+    if (ch.slot.kind === 'appearance' && ch.after !== undefined) {
+      const problems = schemaErrors('appearance', ch.after);
+      if (problems.length) throw new CommandError(`${label}: ${problems.join('; ')}`);
+    }
+  }
+  if (e.project) {
+    const ids = kept.map((a) => a.id);
+    const listed = e.project.appearances ?? [];
+    if (!deepEqual(listed, ids)) {
+      const project: Project = setIn(e.project, ['appearances'], ids.length ? ids : undefined);
+      changes.push({ slot: { kind: 'project' }, before: e.project, after: project });
+    }
+  }
+  return { label, drape: false, changes, coalesce: `color:${g.id}:${target.kind === 'piece' ? target.pieceId : 'garment'}` };
 }
 
 // ---- simulation settings: the garment's value wins over the project's (FORMAT.md) ----------

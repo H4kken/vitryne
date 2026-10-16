@@ -3,7 +3,7 @@
 
 // ---- project.schema.json
 /**
- * The root of a project file: which garments, on which avatar, with which fabrics and simulation settings. Each entity lives in its own part: garments/<id>.json, fabrics/<id>.json, avatars/<id>/avatar.json.
+ * The root of a project file: which garments, on which avatar, with which fabrics, appearances and simulation settings. Each entity lives in its own part: garments/<id>.json, fabrics/<id>.json, appearances/<id>.json, avatars/<id>/avatar.json.
  */
 export interface Project {
   /**
@@ -31,6 +31,12 @@ export interface Project {
    * Items: A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
    */
   fabrics: string[];
+  /**
+   * Every appearance in the project, used or not. Absent: none.
+   *
+   * Items: A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
+   */
+  appearances?: string[];
   simulation?: Simulation;
   extensions?: Extensions;
   /**
@@ -144,6 +150,10 @@ export interface Garment {
    * A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
    */
   fabric: string;
+  /**
+   * A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
+   */
+  appearance?: string;
   /**
    * @minItems 1
    */
@@ -369,6 +379,10 @@ export interface Cut {
    * A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
    */
   fabric?: string;
+  /**
+   * A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
+   */
+  appearance?: string;
   placement: Placement;
   /**
    * Where the cut sits in the 2D pattern view (mm, radians). Display only.
@@ -518,7 +532,7 @@ export interface LibraryRef {
 
 // ---- fabric.schema.json
 /**
- * A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity, added later. 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.
+ * A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity (appearance.schema.json). 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.
  */
 export interface Fabric {
   /**
@@ -579,6 +593,33 @@ export interface Fabric {
    * Where the values come from (measurement, datasheet, paper) or that they're placeholders.
    */
   notes?: string;
+  attribution?: Attribution;
+  libraryRef?: LibraryRef;
+  extensions?: Extensions;
+  /**
+   * Application-specific data with no meaning in the format. Preserved, never interpreted.
+   */
+  extras?: {
+    [k: string]: unknown | undefined;
+  };
+}
+// ---- appearance.schema.json
+/**
+ * How a fabric looks, apart from how it behaves (that is the fabric's): its colour for now; textures and print scale are later additions. Added in format version 2. Garments and cuts refer to appearances the way they refer to fabrics.
+ */
+export interface Appearance {
+  /**
+   * A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
+   */
+  id: string;
+  /**
+   * A label for people. Never used as a reference.
+   */
+  name: string;
+  /**
+   * The colour of the right side, sRGB, as #rrggbb (lowercase).
+   */
+  color: string;
   attribution?: Attribution;
   libraryRef?: LibraryRef;
   extensions?: Extensions;

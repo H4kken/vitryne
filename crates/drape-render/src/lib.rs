@@ -206,6 +206,8 @@ struct MaterialU {
 struct DrawMesh {
     pos: wgpu::Buffer,
     nrm: wgpu::Buffer,
+    /// Per vertex: a colour (rgb, sRGB like `Style`) and how much it replaces the material's (a).
+    tint: wgpu::Buffer,
     index: wgpu::Buffer,
     n_indices: u32,
     material: wgpu::BindGroup,
@@ -428,21 +430,15 @@ impl Renderer {
             bind_group_layouts: &[Some(&cam_bgl), Some(&mat_bgl)],
             immediate_size: 0,
         });
-        let vb = |loc| wgpu::VertexBufferLayout {
+        const ATTRS: [[wgpu::VertexAttribute; 1]; 3] = [
+            wgpu::vertex_attr_array![0 => Float32x4],
+            wgpu::vertex_attr_array![1 => Float32x4],
+            wgpu::vertex_attr_array![2 => Float32x4],
+        ];
+        let vb = |loc: usize| wgpu::VertexBufferLayout {
             array_stride: 16,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: match loc {
-                0 => &[wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: 0,
-                    shader_location: 0,
-                }],
-                _ => &[wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: 0,
-                    shader_location: 1,
-                }],
-            },
+            attributes: &ATTRS[loc],
         };
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("render"),
@@ -450,7 +446,7 @@ impl Renderer {
             vertex: wgpu::VertexState {
                 module: &module,
                 entry_point: Some("vs_main"),
-                buffers: &[Some(vb(0)), Some(vb(1))],
+                buffers: &[Some(vb(0)), Some(vb(1)), Some(vb(2))],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -481,9 +477,17 @@ impl Renderer {
         let style = Style::default();
         let cloth_mat = material(device, &mat_bgl, style.cloth, style.cloth_back);
         let body_mat = material(device, &mat_bgl, style.body, style.body);
+        let no_tint = |label, n: usize| {
+            init(
+                label,
+                bytemuck::cast_slice(&vec![[0f32; 4]; n]),
+                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            )
+        };
         let cloth = DrawMesh {
             pos: solver.pos.clone(),
             nrm,
+            tint: no_tint("cloth-tint", n as usize),
             index: tris_buf,
             n_indices: tris.len() as u32,
             material: cloth_mat.0,
@@ -511,6 +515,7 @@ impl Renderer {
                 bytemuck::cast_slice(&sn),
                 wgpu::BufferUsages::VERTEX,
             ),
+            tint: no_tint("collider-tint", sn.len()),
             index: init(
                 "collider-idx",
                 bytemuck::cast_slice(si),
@@ -731,6 +736,25 @@ impl Renderer {
         }
     }
 
+    /// Colours the cloth by panel: `colors[k]` (sRGB 0..1, as `Style`) for the vertices
+    /// `panels[k]`, or the style's cloth colour where it is none (applies at the next submit).
+    pub fn set_panel_colors(
+        &self,
+        queue: &wgpu::Queue,
+        panels: &[std::ops::Range<u32>],
+        colors: &[Option<[f32; 3]>],
+    ) {
+        let n = (self.cloth.tint.size() / 16) as usize;
+        let mut tint = vec![[0f32; 4]; n];
+        for (r, c) in panels.iter().zip(colors) {
+            if let Some([red, g, b]) = c {
+                let r = r.start as usize..(r.end as usize).min(n);
+                tint[r].fill([*red, *g, *b, 1.0]);
+            }
+        }
+        queue.write_buffer(&self.cloth.tint, 0, bytemuck::cast_slice(&tint));
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &mut self,
@@ -876,6 +900,7 @@ impl Renderer {
             pass.set_bind_group(1, &m.material, &[]);
             pass.set_vertex_buffer(0, m.pos.slice(..));
             pass.set_vertex_buffer(1, m.nrm.slice(..));
+            pass.set_vertex_buffer(2, m.tint.slice(..));
             pass.set_index_buffer(m.index.slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..m.n_indices, 0, 0..1);
         }

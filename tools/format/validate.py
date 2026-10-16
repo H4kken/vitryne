@@ -96,6 +96,7 @@ def check(path, validators):
 
     garments = entities("garments", "garment", lambda i: f"garments/{i}.json")
     fabrics = entities("fabrics", "fabric", lambda i: f"fabrics/{i}.json")
+    appearances = entities("appearances", "appearance", lambda i: f"appearances/{i}.json")
     avatars = entities("avatars", "avatar", lambda i: f"avatars/{i}/avatar.json")
     project = parts.get("project.json")
     if project is not None:
@@ -107,8 +108,8 @@ def check(path, validators):
 
     # What each kind must contain.
     need = {"project": project is not None, "garment": len(garments) == 1 and project is None,
-            "fabric": len(fabrics) >= 1 and not garments and not avatars and project is None,
-            "avatar": len(avatars) == 1 and not garments and project is None}
+            "fabric": len(fabrics) >= 1 and not garments and not avatars and not appearances and project is None,
+            "avatar": len(avatars) == 1 and not garments and not appearances and project is None}
     if not need.get(kind, False):
         errors.append(f"contents don't match kind {kind!r} (FORMAT.md, File kinds)")
 
@@ -145,6 +146,11 @@ def check(path, validators):
             errors.append(f"project.json: avatar {project.get('avatar')} has no part")
         if set(fabrics) - set(project.get("fabrics", [])):
             errors.append("project.json: fabrics must list every fabric part")
+        for a in project.get("appearances", []):
+            if a not in appearances:
+                errors.append(f"project.json: appearance {a} has no part")
+        if set(appearances) - set(project.get("appearances", [])):
+            errors.append("project.json: appearances must list every appearance part")
     avatar = avatars.get(project.get("avatar")) if project else None
     for a in avatars.values():
         if a.get("mesh") not in listed:
@@ -154,6 +160,8 @@ def check(path, validators):
         where = f"garments/{gid}.json"
         if g.get("fabric") not in fabrics:
             errors.append(f"{where}: fabric {g.get('fabric')} has no part")
+        if "appearance" in g and g["appearance"] not in appearances:
+            errors.append(f"{where}: appearance {g['appearance']} has no part")
         cuts, piece_of_cut = {}, {}
         sources = {s["id"] for s in g.get("sources", [])}
         for s in g.get("sources", []):
@@ -178,6 +186,8 @@ def check(path, validators):
                 piece_of_cut[cut["id"]] = (piece, outline, lines)
                 if "fabric" in cut and cut["fabric"] not in fabrics:
                     errors.append(f"{where}: cut {cut.get('name')}: fabric has no part")
+                if "appearance" in cut and cut["appearance"] not in appearances:
+                    errors.append(f"{where}: cut {cut.get('name')}: appearance has no part")
         for cid, cut in cuts.items():
             pl = cut.get("placement", {})
             if pl.get("type") == "wrap" and avatar is not None and pl.get("region") not in avatar.get("regions", {}):

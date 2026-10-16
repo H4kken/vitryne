@@ -43,10 +43,20 @@ pub struct Prepared {
     pub mesh: BodyMesh,
     pub sdf: SdfParams,
     pub info: PreparedInfo,
-    /// Fabrics for 3D export (M10).
+    /// Fabrics for 3D export (M10), coloured by their appearances.
     pub export_fabrics: Vec<drape_assets::export::ExportFabric>,
+    /// Each panel's colour (sRGB 0..1), or none for the scene's cloth colour.
+    pub panel_colors: Vec<Option<[f32; 3]>>,
     /// Places the meshed garment again for the editor's placement preview.
     pub placer: Placer,
+}
+
+/// How one cut looks (`ProjectFile::looks`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Look {
+    /// sRGB 0..1; none: the scene's cloth colour.
+    pub color: Option<[f32; 3]>,
+    pub export: drape_assets::export::ExportFabric,
 }
 
 /// What the UI is told about a prepared drape.
@@ -157,11 +167,8 @@ impl ProjectFile {
                 warnings,
                 cuts: placer.cut_ids(),
             },
-            export_fabrics: pg
-                .panel_fabrics()
-                .iter()
-                .map(drape_assets::export::ExportFabric::from)
-                .collect(),
+            export_fabrics: pg.export_fabrics(),
+            panel_colors: pg.panel_colors(),
             placer,
             fabric: pg.material(),
             panel_fabrics: pg.panel_materials(),
@@ -172,6 +179,19 @@ impl ProjectFile {
             sdf,
         })
     }
+    /// How each cut of the garment looks now, by cut id: its colour (none: the scene's cloth
+    /// colour) and its export material. No meshing, so the viewport can recolour the drape
+    /// after an edit that changes appearances only, without draping again.
+    pub fn looks(&self) -> Result<BTreeMap<String, Look>, String> {
+        let pg = ProjectGarment::new(&self.doc)?;
+        let ids = pg.garment.cuts().map(|(_, c)| c.id.to_string());
+        let looks = pg.panel_colors().into_iter().zip(pg.export_fabrics());
+        Ok(ids
+            .zip(looks)
+            .map(|(id, (color, export))| (id, Look { color, export }))
+            .collect())
+    }
+
     /// A DXF (and its sidecar) as a new project around the test avatar, its pieces placed
     /// as chosen (docs/ARCHITECTURE.md, Import and placement). `body_glb`: the test avatar's
     /// mesh; `now_ms` and `seed` make the ids.
@@ -330,6 +350,47 @@ mod tests {
             file.set_entities_json(&original).unwrap();
             assert_eq!(file.save().unwrap(), zip, "{name}: edited then undone");
         }
+    }
+
+    /// Each cut's colour: its own appearance, else the garment's, else none; export materials
+    /// follow.
+    #[test]
+    fn looks_follow_the_appearances() {
+        let (mut file, _) = ProjectFile::open(&example_zip("tshirt")).unwrap();
+        let none = file.looks().unwrap();
+        assert!(none.values().all(|l| l.color.is_none()));
+        let (navy, red) = (
+            "01a13cdb-cc05-7000-8000-000000000001",
+            "01a13cdb-cc05-7000-8000-000000000002",
+        );
+        let mut e: serde_json::Value = serde_json::from_str(&file.entities_json()).unwrap();
+        e["appearances"] = serde_json::json!([
+            { "id": navy, "name": "Navy", "color": "#000080" },
+            { "id": red, "name": "Red", "color": "#ff0000" },
+        ]);
+        e["project"]["appearances"] = serde_json::json!([navy, red]);
+        e["garments"][0]["appearance"] = navy.into();
+        e["garments"][0]["pieces"][0]["cuts"][0]["appearance"] = red.into();
+        file.set_entities_json(&e.to_string()).unwrap();
+        let first = e["garments"][0]["pieces"][0]["cuts"][0]["id"]
+            .as_str()
+            .unwrap();
+        let looks = file.looks().unwrap();
+        assert_eq!(looks.len(), none.len());
+        for (id, l) in &looks {
+            let want = if id == first {
+                [1.0, 0.0, 0.0]
+            } else {
+                [0.0, 0.0, 128.0 / 255.0]
+            };
+            assert_eq!(l.color, Some(want), "{id}");
+        }
+        let red_export = &looks[first].export;
+        assert!(red_export.name.ends_with(", Red"), "{}", red_export.name);
+        assert_eq!(red_export.color, [1.0, 0.0, 0.0, 1.0]);
+        let prepared = file.prepare().unwrap();
+        assert_eq!(prepared.panel_colors.len(), prepared.info.cuts.len());
+        assert_eq!(prepared.panel_colors[0], Some([1.0, 0.0, 0.0]));
     }
 
     #[test]

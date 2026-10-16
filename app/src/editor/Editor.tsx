@@ -24,7 +24,7 @@ import { AccountDialog, CloudProjectsDialog } from '@/cloud/CloudDialogs';
 import { ProjectGrid } from '@/cloud/ProjectGrid';
 import { moveProjects } from '@/cloud/projects';
 import type { Cloud } from '@/cloud/useCloud';
-import { type Addition, addPieces, addSeam, findCut, renameProject, setLayout, setPlacement, type Bounds } from '@/document/commands';
+import { type Addition, addPieces, addSeam, cutColor, findCut, renameProject, setLayout, setPlacement, type Bounds } from '@/document/commands';
 import { mainGarment } from '@/document/entities';
 import type { Placement } from '@/format/schema.gen';
 import { type DocState, DocumentStore, useDocument } from '@/document/store';
@@ -315,6 +315,18 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     if (session.state.controls.seams !== showSeams) session.setControls({ seams: showSeams });
   }, [showSeams, session]);
 
+  // The flat view shows each cut in its colour.
+  const cutColors = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const p of garment?.pieces ?? []) {
+      for (const c of p.cuts) {
+        const color = garment && cutColor(doc.entities, garment, c);
+        if (color) out.set(c.id, color);
+      }
+    }
+    return out;
+  }, [doc.entities, garment]);
+
   // A click with Select in 3D picks a cut of the drape shown.
   const drapeCuts = engine.drape?.info.cuts;
   useEffect(
@@ -542,10 +554,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         {panel && (
           <aside aria-label={PANEL_TITLES[panel]} className="flex w-[300px] shrink-0 flex-col gap-4 overflow-y-auto border-r bg-white p-5">
             <h2 className="font-display m-0 text-xl font-semibold">{PANEL_TITLES[panel]}</h2>
-            {panel === 'fabric' && <FabricPanel store={store} fabric={fabric} garment={garment} fabrics={doc.entities.fabrics} />}
+            {panel === 'fabric' && <FabricPanel store={store} entities={doc.entities} fabric={fabric} garment={garment} fabrics={doc.entities.fabrics} />}
             {panel === 'pieces' && (
               <PiecesPanel
                 store={store}
+                entities={doc.entities}
                 garment={garment}
                 fabrics={doc.entities.fabrics}
                 selection={shownSelection}
@@ -600,6 +613,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 onSelect={select}
                 tool={flatTool}
                 sewing={{ edges, picked: picks ? [...picks.a, ...picks.b] : [], onPick: pickEdge }}
+                cutColors={cutColors}
                 onArrange={(cutId, t) => garment && store.execute((e) => setLayout(e, garment.id, cutId, { position: [t.x, t.y], rotation: t.rot }))}
               />
             </div>

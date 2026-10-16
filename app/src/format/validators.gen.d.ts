@@ -4,5 +4,6 @@ type Validator = ((value: unknown) => boolean) & { errors?: { instancePath: stri
 export declare const project: Validator;
 export declare const garment: Validator;
 export declare const fabric: Validator;
+export declare const appearance: Validator;
 export declare const avatar: Validator;
 export declare const view: Validator;

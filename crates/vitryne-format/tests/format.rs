@@ -339,6 +339,85 @@ fn hand_edits_and_missing_caches_are_warnings() {
     assert!(w.contains("stray.txt: not listed"), "{w}");
 }
 
+/// The T-shirt with a garment colour and one cut of its own.
+fn with_appearances() -> Document {
+    let mut doc = Document::open(&example("tshirt")).unwrap().doc;
+    let (navy, red) = (
+        "01a13cdb-cc05-7000-8000-000000000001",
+        "01a13cdb-cc05-7000-8000-000000000002",
+    );
+    let mut e = doc.entities();
+    e.appearances = vec![
+        json!({ "id": navy, "name": "Navy", "color": "#1f2a44" }),
+        json!({ "id": red, "name": "Red", "color": "#c0392b" }),
+    ];
+    e.project.as_mut().unwrap()["appearances"] = json!([navy, red]);
+    e.garments[0]["appearance"] = json!(navy);
+    e.garments[0]["pieces"][0]["cuts"][0]["appearance"] = json!(red);
+    doc.set_entities(e).unwrap();
+    doc
+}
+
+/// Appearances (format version 2): written as parts, read back the same, references and
+/// colours checked.
+#[test]
+fn appearances_round_trip_and_are_checked() {
+    let doc = with_appearances();
+    let back = Document::from_zip(&doc.to_zip_checked().unwrap())
+        .unwrap()
+        .doc;
+    assert_eq!(back, doc);
+    assert_eq!(back.appearances.len(), 2);
+    let cut = &back.garments[0].pieces[0].cuts[0];
+    let rgb = back
+        .appearance(cut.appearance.as_ref().unwrap())
+        .unwrap()
+        .rgb();
+    assert_eq!(rgb, Some([192.0 / 255.0, 57.0 / 255.0, 43.0 / 255.0]));
+
+    let refused = |edit: &dyn Fn(&mut vitryne_format::Entities), what: &str| {
+        let mut d = doc.clone();
+        let mut e = d.entities();
+        edit(&mut e);
+        let err = d.set_entities(e).unwrap_err().to_string();
+        assert!(err.contains(what), "{what}: {err}");
+    };
+    refused(
+        &|e| e.garments[0]["appearance"] = json!("01a13cdb-cc05-7000-8000-00000000000f"),
+        "appearance 01a13cdb-cc05-7000-8000-00000000000f has no part",
+    );
+    refused(
+        &|e| {
+            e.garments[0]["pieces"][0]["cuts"][0]["appearance"] =
+                json!("01a13cdb-cc05-7000-8000-00000000000f")
+        },
+        "cut appearance",
+    );
+    refused(&|e| e.appearances[0]["color"] = json!("#1F2A44"), "#rrggbb");
+    refused(&|e| e.appearances[0]["color"] = json!("navy"), "#rrggbb");
+    refused(
+        &|e| e.project.as_mut().unwrap()["appearances"] = json!([]),
+        "appearances must list every appearance part",
+    );
+}
+
+/// A file of every past version opens (migrated) and saves at the current one.
+#[test]
+fn past_versions_open() {
+    let fixture = root().join("crates/vitryne-format/tests/fixtures/v1.vtryf");
+    let opened = Document::open(&fixture).unwrap();
+    assert!(opened.warnings.is_empty(), "{:?}", opened.warnings);
+    let doc = opened.doc;
+    assert_eq!(
+        (doc.kind, doc.format_version),
+        (Kind::Fabric, FORMAT_VERSION)
+    );
+    assert_eq!(doc.fabrics[0].friction, 0.3);
+    let manifest: Value = serde_json::from_slice(&doc.to_entries().unwrap()[1].1).unwrap();
+    assert_eq!(manifest["formatVersion"], FORMAT_VERSION);
+    assert_eq!(manifest["minReaderVersion"], 1);
+}
+
 #[test]
 fn written_parts_match_the_schemas() {
     let dir = root().join("docs/format/schema");
@@ -365,21 +444,21 @@ fn written_parts_match_the_schemas() {
             .build(s)
             .unwrap_or_else(|e| panic!("{name}: {e}"))
     };
-    let (manifest, project, garment, fabric, avatar, view) = (
+    let (manifest, project, garment, fabric, appearance, avatar, view) = (
         validator("manifest"),
         validator("project"),
         validator("garment"),
         validator("fabric"),
+        validator("appearance"),
         validator("avatar"),
         validator("view"),
     );
-    for name in EXAMPLES {
-        for (p, bytes) in Document::open(&example(name))
-            .unwrap()
-            .doc
-            .to_entries()
-            .unwrap()
-        {
+    let docs = EXAMPLES
+        .iter()
+        .map(|name| (*name, Document::open(&example(name)).unwrap().doc))
+        .chain([("tshirt with colours", with_appearances())]);
+    for (name, doc) in docs {
+        for (p, bytes) in doc.to_entries().unwrap() {
             if !p.ends_with(".json") {
                 continue;
             }
@@ -390,6 +469,7 @@ fn written_parts_match_the_schemas() {
                 "view.json" => &view,
                 "garments" => &garment,
                 "fabrics" => &fabric,
+                "appearances" => &appearance,
                 "avatars" => &avatar,
                 other => panic!("{other}"),
             };

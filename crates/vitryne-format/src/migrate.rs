@@ -18,9 +18,14 @@ pub struct Raw {
 /// Migrates a file from version n to n + 1.
 pub type Migration = fn(&mut Raw) -> Result<(), String>;
 
-/// Every migration, in order: `MIGRATIONS[k]` takes a file from version k + 1 to k + 2. Version 1
-/// is the first version, so there are none yet.
-pub const MIGRATIONS: &[Migration] = &[];
+/// Every migration, in order: `MIGRATIONS[k]` takes a file from version k + 1 to k + 2.
+pub const MIGRATIONS: &[Migration] = &[v1_to_v2];
+
+/// Version 2 added appearances (`appearances/<id>.json`, `appearance` on garments and cuts,
+/// `project.appearances`), all optional: a v1 file is already a valid v2 file.
+fn v1_to_v2(_: &mut Raw) -> Result<(), String> {
+    Ok(())
+}
 
 /// Runs the steps from `from` to `migrations.len() + 1` and records the new version in the
 /// manifest. Returns the version reached.

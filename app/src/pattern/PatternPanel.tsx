@@ -120,7 +120,8 @@ function ScaleBar({ mmPerPx }: { mmPerPx: number }) {
   );
 }
 
-function PieceDrawing({ piece }: { piece: Piece }) {
+/** `color`: the cut's own (its appearance), drawn light so the lines stay readable. */
+function PieceDrawing({ piece, color }: { piece: Piece; color?: string }) {
   const outline = outlinePoints(piece);
   const nodes = piece.outline;
   const byId = new Map(nodes.map((n: OutlineNode) => [n.id, n.position]));
@@ -139,7 +140,16 @@ function PieceDrawing({ piece }: { piece: Piece }) {
   });
   return (
     <>
-      <path d={pathData(outline, true)} fill="#FFFFFF" stroke="#14181F" strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <path d={pathData(outline, true)} fill="#FFFFFF" stroke="none" />
+      <path
+        d={pathData(outline, true)}
+        fill={color ?? 'none'}
+        fillOpacity={0.55}
+        stroke="#14181F"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
       {(piece.lines ?? []).map((l) => (
         <path key={l.id} d={pathData(linePoints(l), false)} fill="none" stroke="#8E968A" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
       ))}
@@ -184,6 +194,7 @@ export function PatternPanel({
   tool,
   onArrange,
   sewing,
+  cutColors,
   ref,
 }: {
   garment: Garment | undefined;
@@ -194,6 +205,8 @@ export function PatternPanel({
   onArrange: (cutId: string, t: Transform) => void;
   /** For the sew tool: the whole edges to pick from. */
   sewing?: SewingState;
+  /** Each coloured cut's colour (#rrggbb), by cut id. */
+  cutColors?: ReadonlyMap<string, string>;
   ref?: Ref<PatternView>;
 }) {
   const layout = useMemo(() => layoutCuts(garment), [garment]);
@@ -393,7 +406,7 @@ export function PatternPanel({
           return (
             <g key={v.cut.id}>
               <g transform={svgTransform(v.t, !!v.cut.mirrored)}>
-                <PieceDrawing piece={v.piece} />
+                <PieceDrawing piece={v.piece} color={cutColors?.get(v.cut.id)} />
                 {/* Seams, one colour each, on the edges they sew. */}
                 {(garment?.seams ?? []).flatMap((seam, i) =>
                   [...seam.a, ...seam.b]

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vitryne.app/schema/1/appearance.schema.json",
+  "title": "Vitryne format v1: appearances/<id>.json",
+  "description": "How a fabric looks, apart from how it behaves (that is the fabric's): its colour for now; textures and print scale are later additions. Added in format version 2. Garments and cuts refer to appearances the way they refer to fabrics.",
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "name": { "$ref": "common.schema.json#/$defs/name" },
+    "color": {
+      "description": "The colour of the right side, sRGB, as #rrggbb (lowercase).",
+      "type": "string",
+      "pattern": "^#[0-9a-f]{6}$"
+    },
+    "attribution": { "$ref": "common.schema.json#/$defs/attribution" },
+    "libraryRef": { "$ref": "common.schema.json#/$defs/libraryRef" },
+    "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+    "extras": { "$ref": "common.schema.json#/$defs/extras" }
+  },
+  "required": ["id", "name", "color"],
+  "unevaluatedProperties": false
+}

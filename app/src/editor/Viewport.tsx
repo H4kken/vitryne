@@ -5,6 +5,7 @@
 // the camera and a pinch zooms, whatever the tool.
 
 import { useEffect, useRef } from 'react';
+import { DEFAULT_CLOTH_COLOR } from '@/format/colors';
 import type { PointerTool } from '@/worker/protocol';
 import { type EngineSession, useEngine } from '@/worker/session';
 
@@ -12,7 +13,7 @@ const MAX_DPR = 2;
 
 /** The concept's 3D look: its canvas ground, a sage garment, the mannequin grey. Values 0..1. */
 const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
-export const SCENE_STYLE = [...hex('#ECEFE9'), ...hex('#9DB4A0'), ...hex('#7F9783'), ...hex('#CBD0C6')];
+export const SCENE_STYLE = [...hex('#ECEFE9'), ...hex(DEFAULT_CLOTH_COLOR), ...hex('#7F9783'), ...hex('#CBD0C6')];
 
 function canvasSize(el: HTMLElement) {
   const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);

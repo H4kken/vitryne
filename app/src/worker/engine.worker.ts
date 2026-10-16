@@ -63,6 +63,8 @@ const handlers: Handlers = {
   async update({ rev, entities }) {
     const f = needFile();
     const warnings = JSON.parse(f.set_entities(entities)) as string[];
+    // Colours apply to the drape shown at once: an appearance edit doesn't re-drape.
+    viewport?.set_looks(f);
     return { rev, warnings };
   },
 

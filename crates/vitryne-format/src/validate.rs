@@ -29,17 +29,18 @@ pub(crate) fn check(doc: &Document) -> Report {
         doc.fabrics.len(),
         doc.avatars.len(),
     );
+    let looks = doc.appearances.len();
     let ok = match doc.kind {
         Kind::Project => project,
         Kind::Garment => g == 1 && !project && a == 0,
-        Kind::Fabric => f >= 1 && g == 0 && a == 0 && !project,
-        Kind::Avatar => a == 1 && g == 0 && !project,
+        Kind::Fabric => f >= 1 && g == 0 && a == 0 && !project && looks == 0,
+        Kind::Avatar => a == 1 && g == 0 && !project && looks == 0,
     };
     if !ok {
         err(
             &mut r,
             format!(
-                "a {:?} file can't hold {} project, {g} garments, {f} fabrics, {a} avatars (FORMAT.md, Files and kinds)",
+                "a {:?} file can't hold {} project, {g} garments, {f} fabrics, {looks} appearances, {a} avatars (FORMAT.md, Files and kinds)",
                 doc.kind,
                 if project { "a" } else { "no" }
             ),
@@ -63,6 +64,9 @@ pub(crate) fn check(doc: &Document) -> Report {
     }
     for fab in &doc.fabrics {
         ids.push((&fab.id, format!("fabric {}", fab.name)));
+    }
+    for ap in &doc.appearances {
+        ids.push((&ap.id, format!("appearance {}", ap.name)));
     }
     for av in &doc.avatars {
         ids.push((&av.id, format!("avatar {}", av.name)));
@@ -113,6 +117,11 @@ pub(crate) fn check(doc: &Document) -> Report {
                 .map(|f| crate::document::fabric_path(&f.id)),
         )
         .chain(
+            doc.appearances
+                .iter()
+                .map(|a| crate::document::appearance_path(&a.id)),
+        )
+        .chain(
             doc.avatars
                 .iter()
                 .map(|a| crate::document::avatar_path(&a.id)),
@@ -159,6 +168,7 @@ pub(crate) fn check(doc: &Document) -> Report {
 
     // References.
     let fabrics: BTreeSet<&Id> = doc.fabrics.iter().map(|f| &f.id).collect();
+    let appearances: BTreeSet<&Id> = doc.appearances.iter().map(|a| &a.id).collect();
     if let Some(p) = &doc.project {
         for g in &p.garments {
             if doc.garment(g).is_none() {
@@ -173,6 +183,16 @@ pub(crate) fn check(doc: &Document) -> Report {
         if fabrics.iter().any(|f| !p.fabrics.contains(f)) {
             r.errors
                 .push("project: fabrics must list every fabric part".into());
+        }
+        for ap in &p.appearances {
+            if !appearances.contains(ap) {
+                r.errors
+                    .push(format!("project: appearance {ap} has no part"));
+            }
+        }
+        if appearances.iter().any(|a| !p.appearances.contains(a)) {
+            r.errors
+                .push("project: appearances must list every appearance part".into());
         }
         if doc.avatar(&p.avatar).is_none() {
             r.errors
@@ -206,6 +226,14 @@ pub(crate) fn check(doc: &Document) -> Report {
             ));
         }
     }
+    for ap in &doc.appearances {
+        if !is_hex_color(&ap.color) {
+            r.errors.push(format!(
+                "appearance {}: color must be #rrggbb, lowercase (is {:?})",
+                ap.name, ap.color
+            ));
+        }
+    }
     let low_res = |v: Option<u32>| v.is_some_and(|n| n < 100);
     if low_res(
         doc.project
@@ -227,9 +255,17 @@ pub(crate) fn check(doc: &Document) -> Report {
 
     let regions = doc.project_avatar().map(|a| &a.regions);
     for gar in &doc.garments {
-        check_garment(gar, &fabrics, regions, &mut r);
+        check_garment(gar, &fabrics, &appearances, regions, &mut r);
     }
     r
+}
+
+fn is_hex_color(s: &str) -> bool {
+    s.len() == 7
+        && s.starts_with('#')
+        && s[1..]
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 fn finite(v: &[f64]) -> bool {
@@ -239,6 +275,7 @@ fn finite(v: &[f64]) -> bool {
 fn check_garment(
     g: &Garment,
     fabrics: &BTreeSet<&Id>,
+    appearances: &BTreeSet<&Id>,
     regions: Option<&BTreeMap<String, Region>>,
     r: &mut Report,
 ) {
@@ -246,6 +283,11 @@ fn check_garment(
     if !fabrics.contains(&g.fabric) {
         r.errors
             .push(at(format!("fabric {} has no part", g.fabric)));
+    }
+    if let Some(ap) = &g.appearance
+        && !appearances.contains(ap)
+    {
+        r.errors.push(at(format!("appearance {ap} has no part")));
     }
     let sources: BTreeSet<&Id> = g.sources.iter().map(|s| &s.id).collect();
     // Per cut: its piece's outline node ids (in order) and its lines' node ids.
@@ -312,6 +354,12 @@ fn check_garment(
                 && !fabrics.contains(fab)
             {
                 r.errors.push(pa(format!("cut fabric {fab} has no part")));
+            }
+            if let Some(ap) = &c.appearance
+                && !appearances.contains(ap)
+            {
+                r.errors
+                    .push(pa(format!("cut appearance {ap} has no part")));
             }
         }
     }

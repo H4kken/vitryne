@@ -39,9 +39,13 @@ struct Live {
     /// placement) until the next drape.
     placer: Placer,
     moved: RefCell<Option<(usize, Placement)>>,
-    /// Each panel's (cut's) vertices.
+    /// Each panel's (cut's) vertices, and its cut id.
     panels: Vec<std::ops::Range<u32>>,
-    export_fabrics: Vec<ExportFabric>,
+    cuts: Vec<String>,
+    /// Each panel's colour and export material: from the drape's document, then from
+    /// `set_looks` (an appearance edit doesn't re-drape).
+    colors: RefCell<Vec<Option<[f32; 3]>>>,
+    export_fabrics: RefCell<Vec<ExportFabric>>,
 }
 
 struct Core {
@@ -213,6 +217,8 @@ impl Viewport {
             &body.render,
         );
         renderer.set_style(&c.engine.gpu().queue, &c.style.get());
+        let panels: Vec<_> = garment.desc.groups.iter().map(|(_, r)| r.clone()).collect();
+        renderer.set_panel_colors(&c.engine.gpu().queue, &panels, &p.panel_colors);
         renderer.set_seams(
             &c.engine.gpu().device,
             &drape_render::seam_segments(&garment.desc.seams),
@@ -228,8 +234,10 @@ impl Viewport {
             renderer: RefCell::new(renderer),
             placer: p.placer.clone(),
             moved: RefCell::new(None),
-            panels: garment.desc.groups.iter().map(|(_, r)| r.clone()).collect(),
-            export_fabrics: p.export_fabrics.clone(),
+            panels,
+            cuts: p.info.cuts.clone(),
+            colors: RefCell::new(p.panel_colors.clone()),
+            export_fabrics: RefCell::new(p.export_fabrics.clone()),
         }));
         Ok(baked)
     }
@@ -254,6 +262,35 @@ impl Viewport {
             live.renderer.borrow_mut().set_style(&gpu.queue, &style);
         }
         Ok(())
+    }
+
+    /// Recolours the drape shown (and its export materials) from `file`'s appearances, after
+    /// an edit that changes only them. Cuts the drape doesn't have yet wait for the next drape,
+    /// and a document that can't be draped leaves the colours as they are.
+    pub fn set_looks(&self, file: &crate::VtryFile) {
+        let Some(live) = self.core.live.borrow().clone() else {
+            return;
+        };
+        let Ok(looks) = file.file.looks() else {
+            return;
+        };
+        let mut colors = live.colors.borrow_mut();
+        let mut export = live.export_fabrics.borrow_mut();
+        for (k, id) in live.cuts.iter().enumerate() {
+            if let Some(look) = looks.get(id) {
+                if let Some(c) = colors.get_mut(k) {
+                    *c = look.color;
+                }
+                if let Some(e) = export.get_mut(k) {
+                    *e = look.export.clone();
+                }
+            }
+        }
+        live.renderer.borrow().set_panel_colors(
+            &self.core.engine.gpu().queue,
+            &live.panels,
+            &colors,
+        );
     }
 
     /// Drops the drape (a document that can't be draped); the body stays cached.
@@ -659,7 +696,7 @@ impl Viewport {
                 &positions,
                 &normals,
                 &uvs,
-                &live.export_fabrics,
+                &live.export_fabrics.borrow(),
             );
             let mut av_tris_storage = Vec::new();
             let av_export = if include_avatar {
@@ -701,7 +738,7 @@ impl Viewport {
                 &positions,
                 &normals,
                 &uvs,
-                &live.export_fabrics,
+                &live.export_fabrics.borrow(),
             );
             let mut av_tris_storage = Vec::new();
             let av_export = if include_avatar {

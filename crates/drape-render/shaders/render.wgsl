@@ -18,11 +18,14 @@ struct Material {
 struct VIn {
     @location(0) pos: vec4<f32>,
     @location(1) nrm: vec4<f32>,
+    // A panel's own colour (rgb), and how much it replaces the material's (a: 0 or 1).
+    @location(2) tint: vec4<f32>,
 };
 
 struct VOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) n: vec3<f32>,
+    @location(1) tint: vec4<f32>,
 };
 
 @vertex
@@ -30,16 +33,18 @@ fn vs_main(v: VIn) -> VOut {
     var o: VOut;
     o.clip = cam.view_proj * vec4<f32>(v.pos.xyz, 1.0);
     o.n = v.nrm.xyz;
+    o.tint = v.tint;
     return o;
 }
 
 @fragment
 fn fs_main(in: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4<f32> {
     var n = normalize(in.n);
-    var base = mat.front.rgb;
+    var base = mix(mat.front.rgb, in.tint.rgb, in.tint.a);
     if (!ff) {
         n = -n;
-        base = mat.back.rgb;
+        // The wrong side of a coloured panel: its colour, a little darker.
+        base = mix(mat.back.rgb, in.tint.rgb * 0.8, in.tint.a);
     }
     let l = normalize(cam.light_dir.xyz);
     let diffuse = max(dot(n, l), 0.0);

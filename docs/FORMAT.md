@@ -1,11 +1,13 @@
-# The Vitryne file format, version 1
+# The Vitryne file format, version 2
 
 **Status: approved design (MVP milestone M4, 2026-10-13), implemented in M5 by
 [crates/vitryne-format](../crates/vitryne-format/) (reading, writing, validation, migrations) and
-`drape-assets` (`project`: a file to the engine; `convert`: `garment.toml` + DXF to a file).**
+`drape-assets` (`project`: a file to the engine; `convert`: `garment.toml` + DXF to a file).
+Version 2 (2026-10-16) adds [appearances](#appearance) (fabric colour); a version 1 file is a
+valid version 2 file.**
 
 A Vitryne file holds a garment project: pattern pieces, how they're sewn, where they start around
-the body, the fabrics, the avatar and the simulation settings, plus optionally a cached drape so
+the body, the fabrics and their colours, the avatar and the simulation settings, plus optionally a cached drape so
 the file opens without simulating. This document is the specification; the JSON Schemas in
 [format/schema/](format/schema/) are its machine-readable part, and
 [examples/](../examples/) holds three complete projects (T-shirt, trousers, hoodie).
@@ -14,7 +16,7 @@ Each section gives the rules, then **Why** for the choices that weren't obvious.
 
 **Contents:** [Principles](#principles) · [Files and kinds](#files-and-kinds) ·
 [Container](#container) · [Conventions](#conventions) · [Project](#project) ·
-[Garment](#garment) · [Fabric](#fabric) · [Avatar](#avatar) ·
+[Garment](#garment) · [Fabric](#fabric) · [Appearance](#appearance) · [Avatar](#avatar) ·
 [Simulation settings](#simulation-settings) · [View](#view) ·
 [Simulation cache](#simulation-cache) · [Versions and migrations](#versions-and-migrations) ·
 [Extensions and future features](#extensions-and-future-features) · [Interop](#interop) ·
@@ -43,8 +45,8 @@ for people and operating systems.
 
 | Kind | Extension | Media type | Holds |
 |---|---|---|---|
-| `project` | `.vtry` | `application/vnd.vitryne.project+zip` | `project.json`, its garments, fabrics and avatar, optional view and caches |
-| `garment` | `.vtryg` | `application/vnd.vitryne.garment+zip` | one garment and the fabrics it uses (no avatar) |
+| `project` | `.vtry` | `application/vnd.vitryne.project+zip` | `project.json`, its garments, fabrics, appearances and avatar, optional view and caches |
+| `garment` | `.vtryg` | `application/vnd.vitryne.garment+zip` | one garment and the fabrics and appearances it uses (no avatar) |
 | `fabric` | `.vtryf` | `application/vnd.vitryne.fabric+zip` | one or more fabrics (a fabric library) |
 | `avatar` | `.vtrya` | `application/vnd.vitryne.avatar+zip` | one avatar |
 
@@ -191,6 +193,8 @@ for that, and tools print them (the example's seams are readable through the nod
 - `garments` is in **layering order**, closest to the body first. The MVP drapes one garment;
   the order is defined now so outfits need no format change.
 - `fabrics` lists every fabric part, used or not: the project's own fabric library.
+- `appearances` (version 2, optional) lists every appearance part the same way; absent when
+  there are none.
 - `avatar` is the avatar every garment is draped on.
 
 ## Garment
@@ -198,13 +202,13 @@ for that, and tools print them (the example's seams are readable through the nod
 `garments/<id>.json` ([schema](format/schema/garment.schema.json)). The entity tree:
 
 ```
-garment ── fabric (default for its cuts)
+garment ── fabric (default for its cuts), appearance? (likewise)
  ├─ pieces[]
  │   ├─ outline[]: nodes (corner | notch | point), each with the edge to the next
  │   ├─ lines[]:   internal lines, open paths of nodes
  │   ├─ folds[]:   fold lines, between two outline nodes
  │   ├─ grain
- │   └─ cuts[]:    each copy cut from fabric: mirrored?, fabric?, placement, layout
+ │   └─ cuts[]:    each copy cut from fabric: mirrored?, fabric?, appearance?, placement, layout
  ├─ seams[]:       side a and side b, each a chain of runs (cut, from node, to node)
  ├─ simulation:    overrides of the project's settings
  ├─ sources[]:     imported originals
@@ -281,6 +285,7 @@ A piece is cut one or more times. Each **cut** is one copy in the garment:
 
 - `mirrored`: the mirror image (x → −x in the piece frame), the other one of a left/right pair.
 - `fabric`: overrides the garment's fabric for this cut.
+- `appearance`: overrides the garment's appearance (colour) for this cut.
 - `placement`: where it starts before sewing (below).
 - `layout`: where it sits in the 2D pattern view. Display only. The cut's points (after
   mirroring) are turned by `rotation` (radians, counter-clockwise) about the piece's origin, then
@@ -418,7 +423,44 @@ tests, like KES-F or FAST), and the ones published presets (M9, `docs/FABRICS.md
 They're independent of mesh resolution and of the solver. Anisotropy (warp ≠ weft) is in the
 format from the start, even though the v1 engine is isotropic (see [In the engine](#in-the-engine)).
 **Why appearance isn't here:** colour and texture change per colourway while the physics stays
-the same. They'll be a separate entity (see [Extensions](#extensions-and-future-features)).
+the same. They're a separate entity: [Appearance](#appearance).
+
+## Appearance
+
+`appearances/<id>.json` ([schema](format/schema/appearance.schema.json)), since version 2. How a
+fabric looks, apart from how it behaves:
+
+```json
+{
+  "id": "01a13cdb-cc05-7a1e-9d3c-5b0f2e8c4a11",
+  "name": "Navy",
+  "color": "#1f2a44"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `color` | the colour of the right side: sRGB, `#rrggbb`, lowercase |
+| `attribution`, `libraryRef` | for appearances from a library |
+
+A garment's `appearance` is the default of its cuts, and a cut's own `appearance` overrides it,
+the way `fabric` works. Both are optional: without one, the app shows its own cloth colour. Every
+appearance part is listed in `project.appearances`.
+
+- **The colour is sRGB**, as people pick it. A renderer working in linear light (glTF's
+  `baseColorFactor`) converts it.
+- **Nothing in the drape depends on it.** Changing a colour never needs a new simulation. The
+  [simulation cache](#simulation-cache)'s key leaves appearance parts out, but it hashes whole
+  garment parts, so pointing a cut at another appearance changes the key, as renaming a piece
+  does (a later `keyVersion` can leave such display-only fields out).
+
+**Why an entity and not a `color` on the cut:** a colourway (the same garment in navy, then in
+red) changes which appearance each cut uses while the pattern, fabrics and seams stay the same,
+and textures and print scale belong with the colour. An entity gives both a place without
+another format change: textures become parts an appearance names, and colourways map cuts to
+appearances ([Extensions](#extensions-and-future-features)). **Why a hex string:** it is what
+colour pickers, CSS and design tools read and write, it can't hold an out-of-range value, and it
+diffs well.
 
 ## Avatar
 
@@ -582,7 +624,7 @@ How the planned features fit, without breaking v1 files:
 | Feature | How it's added |
 |---|---|
 | **Sizes and grading** | Per-size offsets of outline **nodes** (by id), the way grade rules work in industry formats. The ids are why nodes exist. A `sizes` list on the garment plus per-node deltas. (Watch [PATENTS.md](PATENTS.md) rule 6 for automatic grading.) |
-| **Colourways and textures** | A new `appearances/<id>.json` entity (colour, texture parts, print scale), and `colourways` on the garment mapping cuts to appearances. Physics stays in fabrics, so nothing existing changes. |
+| **Colourways and textures** | Appearances exist since version 2 (colour only). Next: texture parts and print scale on the appearance, and `colourways` on the garment mapping cuts to appearances. Physics stays in fabrics, so nothing existing changes. |
 | **Multi-garment outfits** | Already there: `project.garments` is in layering order. Per-garment visibility or grouping are additions. |
 | **Avatars from measurements** | `avatar.source = {generator, measurements}`, with `body.glb` as the generated (and regenerable) mesh. |
 | **Animations and poses** | glTF skins and animations in `body.glb`; a project-level `pose` reference. The cache key gains the pose. |

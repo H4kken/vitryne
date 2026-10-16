@@ -51,6 +51,9 @@ pub struct Project {
     pub avatar: Id,
     /// Every fabric part of the file, used or not.
     pub fabrics: Vec<Id>,
+    /// Every appearance part of the file, used or not (format version 2).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub appearances: Vec<Id>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub simulation: Option<ProjectSimulation>,
     #[serde(flatten)]
@@ -82,6 +85,9 @@ pub struct Garment {
     pub library_ref: Option<Value>,
     /// The default fabric of its cuts.
     pub fabric: Id,
+    /// The default appearance of its cuts; absent = the app's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<Id>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub simulation: Option<GarmentSimulation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -264,6 +270,9 @@ pub struct Cut {
     /// Overrides the garment's fabric.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fabric: Option<Id>,
+    /// Overrides the garment's appearance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<Id>,
     pub placement: Placement,
     /// Where it sits in the 2D pattern view. Display only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -477,6 +486,41 @@ pub struct Bending {
     pub bias: Option<f64>,
     #[serde(flatten)]
     pub other: Other,
+}
+
+// ---- appearances/<id>.json ----------------------------------------------------------------
+
+/// How a fabric looks (FORMAT.md, Appearance): its colour for now.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Appearance {
+    pub id: Id,
+    pub name: String,
+    /// sRGB, `#rrggbb`.
+    pub color: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attribution: Option<Attribution>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library_ref: Option<Value>,
+    #[serde(flatten)]
+    pub other: Other,
+}
+
+impl Appearance {
+    /// The colour as sRGB 0..1, or none if it isn't `#rrggbb`.
+    pub fn rgb(&self) -> Option<[f32; 3]> {
+        parse_hex_color(&self.color)
+    }
+}
+
+/// `#rrggbb` (either case) as sRGB 0..1.
+pub fn parse_hex_color(s: &str) -> Option<[f32; 3]> {
+    let hex = s.strip_prefix('#').filter(|h| h.len() == 6)?;
+    let mut out = [0.0; 3];
+    for (i, c) in out.iter_mut().enumerate() {
+        *c = u8::from_str_radix(hex.get(i * 2..i * 2 + 2)?, 16).ok()? as f32 / 255.0;
+    }
+    Some(out)
 }
 
 // ---- avatars/<id>/avatar.json -------------------------------------------------------------

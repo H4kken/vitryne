@@ -406,6 +406,7 @@ impl DxfImport {
                             }),
                             mirrored: k == 1,
                             fabric: None,
+                            appearance: None,
                             // Replaced below.
                             placement: Placement::Follow(Follow {
                                 cut: source.id.clone(),
@@ -590,6 +591,7 @@ impl DxfImport {
             attribution: None,
             library_ref: None,
             fabric: fabric_id,
+            appearance: None,
             simulation: Some(GarmentSimulation {
                 target_vertices: None,
                 engine: Some(engine),

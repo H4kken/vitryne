@@ -469,6 +469,7 @@ pub fn convert_with(
                 name: Some(ps.label.clone().unwrap_or_else(|| ps.name.clone())),
                 mirrored: ps.mirror,
                 fabric: None,
+                appearance: None,
                 placement,
                 layout: None,
                 other: Map::new(),
@@ -603,6 +604,7 @@ pub fn convert_with(
         }),
         library_ref: None,
         fabric: fabric_id.clone(),
+        appearance: None,
         simulation: Some(simulation),
         sources: vec![Source {
             id: source_id.clone(),
@@ -714,6 +716,7 @@ pub(crate) fn project_document(
         garments: vec![garment.id.clone()],
         avatar: avatar.id.clone(),
         fabrics: vec![fabric.id.clone()],
+        appearances: Vec::new(),
         simulation: Some(ProjectSimulation {
             target_vertices: Some(DEFAULT_TARGET_VERTICES),
             engine: None,

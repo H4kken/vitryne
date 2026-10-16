@@ -2,7 +2,7 @@
 // The document as the UI holds it: the file's entities, exactly as Rust's
 // `vitryne_format::Entities` gives them (unknown members included).
 
-import type { Avatar, Fabric, Garment, Project, View } from '@/format/schema.gen';
+import type { Appearance, Avatar, Fabric, Garment, Project, View } from '@/format/schema.gen';
 
 export type Kind = 'project' | 'garment' | 'fabric' | 'avatar';
 
@@ -11,6 +11,8 @@ export interface Entities {
   project?: Project;
   garments: Garment[];
   fabrics: Fabric[];
+  /** Absent when there are none (format version 2). */
+  appearances?: Appearance[];
   avatars: Avatar[];
   view?: View;
 }
@@ -21,11 +23,12 @@ export type Slot =
   | { kind: 'view' }
   | { kind: 'garment'; id: string }
   | { kind: 'fabric'; id: string }
+  | { kind: 'appearance'; id: string }
   | { kind: 'avatar'; id: string };
 
 export type EntityKind = Slot['kind'];
 
-const LIST = { garment: 'garments', fabric: 'fabrics', avatar: 'avatars' } as const;
+const LIST = { garment: 'garments', fabric: 'fabrics', appearance: 'appearances', avatar: 'avatars' } as const;
 
 export function slotKey(s: Slot): string {
   return 'id' in s ? `${s.kind}:${s.id}` : s.kind;
@@ -33,7 +36,7 @@ export function slotKey(s: Slot): string {
 
 export function getEntity(e: Entities, s: Slot): unknown {
   if (s.kind === 'project' || s.kind === 'view') return e[s.kind];
-  return (e[LIST[s.kind]] as { id: string }[]).find((x) => x.id === s.id);
+  return ((e[LIST[s.kind]] ?? []) as { id: string }[]).find((x) => x.id === s.id);
 }
 
 /** A copy of `e` with the entity at `s` replaced, added (if not yet in list), or removed (if value is undefined). */
@@ -42,12 +45,18 @@ export function setEntity(e: Entities, s: Slot, value: unknown): Entities {
     if (value === undefined) throw new Error(`the ${s.kind} can't be removed`);
     return { ...e, [s.kind]: value };
   }
-  const list = e[LIST[s.kind]] as { id: string }[];
+  const list = (e[LIST[s.kind]] ?? []) as { id: string }[];
   const i = list.findIndex((x) => x.id === s.id);
   if (value === undefined) {
     if (i < 0) return e;
     const copy = list.slice();
     copy.splice(i, 1);
+    // Rust leaves out an empty list of appearances (format version 2): so does the editor.
+    if (s.kind === 'appearance' && copy.length === 0) {
+      const out = { ...e };
+      delete out.appearances;
+      return out;
+    }
     return { ...e, [LIST[s.kind]]: copy };
   }
   if ((value as { id?: unknown }).id !== s.id) throw new Error(`a command can't change a ${s.kind}'s id`);
