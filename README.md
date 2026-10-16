@@ -25,6 +25,7 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
 
 🏗️ Documentation Work in progress
 
+<br />
 
 # Features
 
@@ -66,28 +67,17 @@ your browser or device has no WebGPU, Vitryne shows a page explaining what's mis
 
 <br />
 
-## Known Limitations (Honestly)
+# Development & Contributing
 
-Vitryne is under active development. Here is what does not work yet:
+### Tech Stack
 
-- **Whole-edge seams only:** Seams connect whole boundary edges between corners. Vitryne deliberately
-  avoids free-hand partial seam drafting and notch-to-notch segment sewing in the UI to stay clear of
-  competitor patent claims ([docs/PATENTS.md](docs/PATENTS.md)). Split lines must be in the pattern.
-- **Single-layer garments:** The solver simulates one layer of cloth per panel. Complex multi-layer
-  constructions (linings, fusible interfacings, quilted batting, or pockets sewn on top of bodies)
-  are not yet supported.
-- **Static rigid avatar collider:** The MakeHuman body is baked into a signed distance field (SDF).
-  Dynamic skeletal rigging, avatar posing, and walking animations are planned for future versions.
-- **Woven strain settling:** On high-tension woven garments (like the trousers example), resting edge
-  strain reaches ~5.4% p99 under one XPBD iteration per substep, compared to the ideal 3% woven target.
-- **Hoodie collar junction:** The hoodie test garment features extreme geometry at the back-neck
-  junction and does not come to a static rest; it retains persistent self-intersections in tight folds.
-- **No WebGL fallback:** The solver requires compute shaders and storage buffers available only in
-  WebGPU.
+- <a href="https://rust-lang.org/">🦀 Rust</a>
+- <a href="https://www.typescriptlang.org/"><img src="./app/public/images/typescript.svg" width="14" height="14"/> TypeScript</a> for <a href="https://vite.dev/"><img src="./app/public/images/vite.svg" width="14" height="14"/> Vite</a>&<a href="https://react.dev/"><img src="./app/public/images/react.svg" width="14" height="14"/> React</a>
+- <a href="https://supabase.com/"><img src="./app/public/images/supabase.svg" width="14" height="14"/> Supabase</a>
 
----
+### Contributing
 
-## Development & CLI
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, code formatting, and sign-off rules.
 
 ### Prerequisites
 
@@ -96,52 +86,15 @@ Vitryne is under active development. Here is what does not work yet:
 - Node.js 22+ and pnpm 10: `corepack enable`
 - A GPU with Vulkan, Metal, or DirectX 12 drivers.
 
-### Commands
+<br />
 
-```sh
-# Run the complete test suite (Rust fmt, clippy, unit tests, web check, golden drapes)
-./check.sh
-
-# Quick Rust-only check
-./check.sh --quick
-
-# Run the web editor locally (it starts a local Supabase in Docker to save projects to)
-cd app && pnpm install --frozen-lockfile && pnpm run dev
-# Open http://localhost:5173
-
-# Run the native viewer
-cargo run --release -p drape-native -- view --garment examples/tshirt.vtry
-
-# Run headless native benchmarks
-cargo run --release -p drape-native -- bench --scene garment --garment examples/tshirt.vtry --verts 10000
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, code formatting, and sign-off rules.
-
-### Hosting
-
-Projects are saved to a Supabase project (hosted by Supabase, or your own). Set `SUPABASE_URL` and
-`SUPABASE_PUBLISHABLE_KEY` in `deploy/.env`, then one command runs the editor:
-
-```sh
-docker compose -f deploy/docker-compose.yml up -d --build    # then open http://localhost:8000
-```
-
-Anyone can try it without an account (their work is kept as one draft); a free account (email and
-password, or Google) keeps every project and exports, with data export and account deletion built
-in. See [docs/CLOUD.md](docs/CLOUD.md) for setting up the backend, running it on a domain or
-Coolify, and developing with a local Supabase (`pnpm run dev`). Any other static host works too,
-with a `config.json` naming the backend ([docs/HOSTING.md](docs/HOSTING.md)).
-
----
-
-## Licence & Intellectual Property
+# Licence & Intellectual Property
 
 Vitryne's source code is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
 
 ### **What you make with Vitryne is yours**
 
-**Garments, patterns, 3D meshes, textures, `.vtry` project files, and any other files you create or export with Vitryne are strictly yours.** They are user data and output, not covered by the AGPL, and you retain complete ownership to use, modify, distribute, or sell them commercially or non-commercially without restriction.
+**Garments, patterns, 3D meshes, textures, project files, and any other files you create or export with Vitryne are strictly yours.** They are user data and output, not covered by the AGPL, and you retain complete ownership to use, modify, distribute, or sell them commercially or non-commercially without restriction.
 
 Bundled sample assets preserve their respective open licences:
 - **MakeHuman Avatar Mesh:** [Creative Commons Zero (CC0 1.0)](assets/LICENSES.md).
