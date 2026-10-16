@@ -176,7 +176,7 @@ async function codeFor(to, after) {
   throw new Error(`no email to ${to}`);
 }
 
-const loaded = `(() => { const t = document.body.innerText; return t.includes('Show flat pieces') && !t.includes('What do you want to make?'); })()`;
+const loaded = `(() => { const t = document.body.innerText; return (t.includes('2D Pattern') || t.includes('Export') || t.includes('Show flat pieces')) && !t.includes('What do you want to make?'); })()`;
 
 /** The open project's name, in the top bar's field. */
 const projectName = `(document.querySelector('header input[aria-label="Project name"]')?.value ?? '')`;

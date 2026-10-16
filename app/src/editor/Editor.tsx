@@ -11,6 +11,7 @@ import {
   Cloud as CloudIcon,
   Download,
   FastForward,
+  GripVertical,
   Link2,
   Pause,
   Play,
@@ -107,21 +108,6 @@ import { useThumbnails } from "./useThumbnails";
 import { Viewport } from "./Viewport";
 
 const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
-
-type Mode = "3d" | "flat";
-
-const HINTS: Record<string, string> = {
-  "3d:select":
-    "Select: click a piece, then drag its handles to move it on the body. The drape waits until you pick another tool.",
-  "3d:turn":
-    "Turn: drag to look around, scroll to zoom. On a trackpad, drag with two fingers to turn and pinch to zoom.",
-  "3d:pinch": "Pinch: drag the fabric to pull it. It settles when you let go.",
-  "flat:select":
-    "Select: click a piece to pick it, drag its round handle to turn it. Drag the background to look around.",
-  "flat:move": "Move: drag a piece to place it.",
-  "flat:sew":
-    "Sew: click an edge, then the edge it is sewn to. Hold Shift to add more edges to a side. Dotted edges are free; coloured ones are sewn.",
-};
 
 /** Random bytes for new ids. */
 const seed = () => Array.from(crypto.getRandomValues(new Uint8Array(16)));
@@ -249,7 +235,62 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       }),
     );
   };
-  const [mode, setMode] = useState<Mode>("3d");
+  const [show2d, setShow2d] = useState(true);
+  const [show3d, setShow3d] = useState(true);
+
+  const toggle2d = () => {
+    if (show2d && !show3d) return;
+    setShow2d((v) => !v);
+  };
+  const toggle3d = () => {
+    if (show3d && !show2d) return;
+    setShow3d((v) => !v);
+  };
+
+  const [splitRatio, setSplitRatio] = useState(0.5);
+  const [isResizing, setIsResizing] = useState(false);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const hasDragged = useRef(false);
+
+  const toggleSplit = useCallback(() => {
+    setSplitRatio((prev) => {
+      if (Math.abs(prev - 0.5) < 0.05) return 0.35;
+      if (prev < 0.45) return 0.65;
+      return 0.5;
+    });
+  }, []);
+
+  const startResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    hasDragged.current = false;
+    const container = workspaceRef.current;
+    if (!container) return;
+
+    const startX = e.clientX;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (Math.abs(moveEvent.clientX - startX) > 3) {
+        hasDragged.current = true;
+      }
+      const rect = container.getBoundingClientRect();
+      const x = moveEvent.clientX - rect.left;
+      const minPx = 220;
+      const maxPx = Math.max(minPx, rect.width - minPx);
+      const clampedX = Math.max(minPx, Math.min(maxPx, x));
+      setSplitRatio(clampedX / rect.width);
+    };
+
+    const onPointerUp = () => {
+      setIsResizing(false);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }, []);
   const [panel, setPanel] = useState<PanelId | null>("fabric");
   const [tool, setTool] = useState<PointerTool>("turn");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
@@ -257,7 +298,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const [importKey, setImportKey] = useState(0);
   const [exporting, setExporting] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const canvasBox = useRef<HTMLElement>(null);
+  const canvasBox = useRef<HTMLDivElement>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 1, h: 1 });
   const [selection, setSelection] = useState<Selection>(null);
   const [examples, setExamples] = useState<Example[]>([]);
@@ -275,8 +316,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const [edges, setEdges] = useState<CutEdge[]>([]);
   const [differences, setDifferences] = useState<Record<string, number>>({});
   const [finding, setFinding] = useState(false);
-  const sewingShown =
-    panel === "seams" || (mode === "flat" && flatTool === "sew");
+  const sewingShown = panel === "seams" || (show2d && flatTool === "sew");
   const sewingKey = garment ? `${garment.id}` : "";
   const seams = garment?.seams;
   const pieces = garment?.pieces;
@@ -430,7 +470,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   }, []);
 
   // Placing pieces: the Select tool in 3D. The cloth waits where it starts.
-  const placing = mode === "3d" && tool === "select" && !doc.empty;
+  const placing = show3d && tool === "select" && !doc.empty;
   useEffect(() => {
     if (session.state.controls.placing !== placing)
       session.setControls({ placing });
@@ -591,7 +631,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         )),
       }));
       setSelection(null);
-      setMode("3d");
+      setShow3d(true);
     }
     setImporting(null);
   };
@@ -672,6 +712,106 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     </div>
   );
 
+  const warningsPill = doc.warnings.length +
+    (engine.drape?.info.warnings.length ?? 0) >
+    0 && (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          tabIndex={0}
+          className="rounded-full border border-[#E9D6A6] bg-[#FBF3DC] px-3.5 py-2 text-sm font-medium"
+        >
+          {doc.warnings.length + (engine.drape?.info.warnings.length ?? 0)}{" "}
+          note(s)
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-80 whitespace-pre-line">
+        {[...doc.warnings, ...(engine.drape?.info.warnings ?? [])].join("\n")}
+      </TooltipContent>
+    </Tooltip>
+  );
+
+  const cards = (
+    <>
+      {engine.notice && (
+        <Card onDismiss={() => session.clearNotice()}>{engine.notice}</Card>
+      )}
+      {files.notice?.kind === "info" && (
+        <Card onDismiss={() => files.dismissNotice()}>{files.notice.text}</Card>
+      )}
+      {files.conflict && (
+        <Card tone="error">
+          <span className="block">
+            This project was changed in another browser since you opened it.
+            Your latest changes aren't saved.
+          </span>
+          <span className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" onClick={files.conflict.reload}>
+              Open the other version
+            </Button>
+            {isAccount ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={files.conflict.saveCopy}
+              >
+                Keep mine as a copy
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void files.conflict?.keepMine()}
+              >
+                Keep mine
+              </Button>
+            )}
+          </span>
+        </Card>
+      )}
+      {stopped?.reason === "account" && (
+        <Card tone="error">
+          <span className="block">
+            Your draft is the one project you can keep without an account.
+            Create a free account to keep this one too.
+          </span>
+          <span className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => setAccountOpen(true)}>
+              Create an account
+            </Button>
+          </span>
+        </Card>
+      )}
+      {stopped?.reason === "error" && (
+        <Card tone="error">
+          <span className="block">Not saved: {stopped.text}</span>
+          <span className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={files.retrySave}>
+              Try again
+            </Button>
+          </span>
+        </Card>
+      )}
+      {engine.drapeError && (
+        <Card tone="error">
+          The drape could not be built: {engine.drapeError}
+        </Card>
+      )}
+      {message && (
+        <Card
+          tone="error"
+          onDismiss={() => {
+            files.dismissNotice();
+            setExamplesError(null);
+            store.dismissRefused();
+          }}
+        >
+          {message}
+        </Card>
+      )}
+    </>
+  );
+
   return (
     <div className="relative flex h-full flex-col">
       {/* Top bar */}
@@ -732,14 +872,56 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         >
           <RedoIcon />
         </IconButton>
-        <Button
-          variant="outline"
-          className="w-[176px] font-medium"
-          onClick={() => setMode(mode === "3d" ? "flat" : "3d")}
+        <div
+          role="group"
+          aria-label="Toggle views"
+          className="flex items-center rounded-[10px] border border-input bg-card p-0.5"
         >
-          {mode === "3d" ? <FlatIcon /> : <CubeIcon />}
-          {mode === "3d" ? "Show flat pieces" : "Show 3D"}
-        </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={show2d ? "secondary" : "ghost"}
+                size="icon-sm"
+                className={cn(
+                  "size-9 rounded-md transition-all",
+                  show2d
+                    ? "bg-secondary text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                aria-label={show2d ? "Hide 2D pattern" : "Show 2D pattern"}
+                aria-pressed={show2d}
+                onClick={toggle2d}
+              >
+                <FlatIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {show2d ? "Hide 2D pattern" : "Show 2D pattern"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={show3d ? "secondary" : "ghost"}
+                size="icon-sm"
+                className={cn(
+                  "size-9 rounded-md transition-all",
+                  show3d
+                    ? "bg-secondary text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                aria-label={show3d ? "Hide 3D drape" : "Show 3D drape"}
+                aria-pressed={show3d}
+                onClick={toggle3d}
+              >
+                <CubeIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {show3d ? "Hide 3D drape" : "Show 3D drape"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />
         <Button
           className="gap-2 px-3.5 font-semibold shadow-xs"
@@ -811,7 +993,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 onSelect={select}
                 onRewrap={rewrap}
                 onPlaceIn3d={
-                  placing ? null : () => (setMode("3d"), setTool("select"))
+                  placing ? null : () => (setShow3d(true), setTool("select"))
                 }
               />
             )}
@@ -829,14 +1011,14 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                     (list) => list?.filter((_, k) => k !== i) ?? null,
                   )
                 }
-                picking={mode === "flat" && flatTool === "sew"}
+                picking={show2d && flatTool === "sew"}
                 picks={
                   picks
                     ? { a: picks.a.length, b: picks.b.length, open: picks.open }
                     : null
                 }
                 onFinishSide={() => pickEdge(null, false)}
-                onStartPicking={() => (setMode("flat"), setFlatTool("sew"))}
+                onStartPicking={() => (setShow2d(true), setFlatTool("sew"))}
                 onStopPicking={() => (setFlatTool("select"), setPicks(null))}
               />
             )}
@@ -846,38 +1028,25 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           </aside>
         )}
 
-        {/* Canvas */}
+        {/* Workspace views: 2D window on the left, 3D on the right */}
         <section
-          ref={canvasBox}
-          aria-label={mode === "3d" ? "3D view" : "Flat pieces"}
-          className="bg-canvas-3d relative min-w-0 grow overflow-hidden"
+          ref={workspaceRef}
+          aria-label="Workspace views"
+          className="relative flex min-w-0 grow overflow-hidden"
           {...dropProps}
         >
-          {/* The 3D view stays mounted (and simulating) under the flat view. */}
-          <div className="absolute inset-0">
-            <Viewport session={session} tool={tool} />
-          </div>
-          {placing &&
-            engine.gizmo &&
-            selected?.cut.placement.type === "wrap" &&
-            gizmoIndex >= 0 && (
-              <Gizmo
-                view={engine.gizmo}
-                width={canvasSize.w}
-                height={canvasSize.h}
-                placement={
-                  selected.cut.placement as Placement & { type: "wrap" }
-                }
-                onPreview={(p) => session.placeCut(gizmoIndex, tidy(p))}
-                onCommit={(p) =>
-                  garment &&
-                  store.execute((e) =>
-                    setPlacement(e, garment.id, selected.cut.id, tidy(p)),
-                  )
-                }
-              />
+          {/* 2D Window (Left) */}
+          <div
+            aria-label="2D Pattern view"
+            style={
+              show2d && show3d ? { width: `${splitRatio * 100}%` } : undefined
+            }
+            className={cn(
+              "relative h-full overflow-hidden bg-canvas-flat",
+              show2d ? (show3d ? "shrink-0" : "flex-1 min-w-0") : "hidden",
+              !isResizing && "transition-[width] duration-150 ease-out",
             )}
-          {mode === "flat" && (
+          >
             <div className="absolute inset-0">
               <PatternPanel
                 ref={pattern}
@@ -902,149 +1071,35 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 }
               />
             </div>
-          )}
 
-          <div className="absolute top-4 left-4 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusPill engine={engine} mode={mode} placing={placing} />
-              {doc.warnings.length + (engine.drape?.info.warnings.length ?? 0) >
-                0 && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span
-                      tabIndex={0}
-                      className="rounded-full border border-[#E9D6A6] bg-[#FBF3DC] px-3.5 py-2 text-sm font-medium"
-                    >
-                      {doc.warnings.length +
-                        (engine.drape?.info.warnings.length ?? 0)}{" "}
-                      note(s)
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-80 whitespace-pre-line">
-                    {[
-                      ...doc.warnings,
-                      ...(engine.drape?.info.warnings ?? []),
-                    ].join("\n")}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-            {engine.notice && (
-              <Card onDismiss={() => session.clearNotice()}>
-                {engine.notice}
-              </Card>
-            )}
-            {files.notice?.kind === "info" && (
-              <Card onDismiss={() => files.dismissNotice()}>
-                {files.notice.text}
-              </Card>
-            )}
-            {files.conflict && (
-              <Card tone="error">
-                <span className="block">
-                  This project was changed in another browser since you opened
-                  it. Your latest changes aren't saved.
-                </span>
-                <span className="mt-2 flex flex-wrap gap-2">
-                  <Button size="sm" onClick={files.conflict.reload}>
-                    Open the other version
-                  </Button>
-                  {isAccount ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={files.conflict.saveCopy}
-                    >
-                      Keep mine as a copy
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void files.conflict?.keepMine()}
-                    >
-                      Keep mine
-                    </Button>
-                  )}
-                </span>
-              </Card>
-            )}
-            {stopped?.reason === "account" && (
-              <Card tone="error">
-                <span className="block">
-                  Your draft is the one project you can keep without an account.
-                  Create a free account to keep this one too.
-                </span>
-                <span className="mt-2 flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => setAccountOpen(true)}>
-                    Create an account
-                  </Button>
-                </span>
-              </Card>
-            )}
-            {stopped?.reason === "error" && (
-              <Card tone="error">
-                <span className="block">Not saved: {stopped.text}</span>
-                <span className="mt-2 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={files.retrySave}>
-                    Try again
-                  </Button>
-                </span>
-              </Card>
-            )}
-            {engine.drapeError && (
-              <Card tone="error">
-                The drape could not be built: {engine.drapeError}
-              </Card>
-            )}
-            {message && (
-              <Card
-                tone="error"
-                onDismiss={() => {
-                  files.dismissNotice();
-                  setExamplesError(null);
-                  store.dismissRefused();
-                }}
-              >
-                {message}
-              </Card>
-            )}
-          </div>
-
-          {engine.phase === "failed" && (
-            <div className="bg-background/90 absolute inset-0 flex items-center justify-center p-8">
-              <div className="max-w-md space-y-2 rounded-[20px] border bg-white p-7 text-[15px]">
-                <p className="font-display m-0 text-xl font-semibold">
-                  The 3D view keeps stopping
-                </p>
-                <p className="text-muted-foreground m-0">
-                  It was not restarted again. Last reason: {engine.failure}
-                </p>
-                <p className="m-0">
-                  Your project is still here: save it, then reload the page.
-                </p>
+            {/* 2D Window badge and status (notices shown here when 3D is hidden) */}
+            <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="pointer-events-none flex items-center gap-1.5 rounded-full border border-[#E1E4DE] bg-white px-3 py-2 text-xs font-semibold text-muted-foreground shadow-2xs">
+                  <FlatIcon className="size-3.5 text-foreground" />
+                  <span>2D Pattern</span>
+                </div>
+                {!show3d && (
+                  <>
+                    <StatusPill
+                      engine={engine}
+                      show3d={show3d}
+                      placing={placing}
+                    />
+                    {warningsPill}
+                  </>
+                )}
               </div>
+              {!show3d && cards}
             </div>
-          )}
 
-          <div className="text-muted-foreground pointer-events-none absolute bottom-5 left-4 max-w-60 text-[13px] leading-snug">
-            {placing && selected?.cut.placement.type === "follow"
-              ? "This piece sits on another one: it moves with it. Change that in the Pieces panel."
-              : HINTS[mode === "flat" ? `flat:${flatTool}` : `3d:${tool}`]}
-          </div>
-
-          <div className="absolute right-4 bottom-4 flex items-center gap-0.5 rounded-[10px] border border-[#E1E4DE] bg-white p-0.5">
-            <ZoomButton
-              label="Zoom out"
-              onClick={() =>
-                mode === "flat"
-                  ? pattern.current?.zoom(1 / 1.25)
-                  : session.wheel(-1)
-              }
-            >
-              −
-            </ZoomButton>
-            {mode === "flat" && (
+            <div className="absolute right-4 bottom-4 flex items-center gap-0.5 rounded-[10px] border border-[#E1E4DE] bg-white p-0.5">
+              <ZoomButton
+                label="Zoom out"
+                onClick={() => pattern.current?.zoom(1 / 1.25)}
+              >
+                −
+              </ZoomButton>
               <button
                 type="button"
                 onClick={() => pattern.current?.reset()}
@@ -1052,18 +1107,189 @@ export function Editor({ cloud }: { cloud: Cloud }) {
               >
                 Fit
               </button>
+              <ZoomButton
+                label="Zoom in"
+                onClick={() => pattern.current?.zoom(1.25)}
+              >
+                +
+              </ZoomButton>
+            </div>
+
+            {!doc.empty && (
+              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
+                <ToolButton
+                  label="Select"
+                  selected={flatTool === "select"}
+                  onClick={() => setFlatTool("select")}
+                >
+                  <SelectIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Move"
+                  selected={flatTool === "move"}
+                  onClick={() => setFlatTool("move")}
+                >
+                  <MoveIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Sew two edges"
+                  selected={flatTool === "sew"}
+                  onClick={() => {
+                    setFlatTool("sew");
+                    setPanel("seams");
+                  }}
+                >
+                  <Link2 className="size-5" />
+                </ToolButton>
+              </div>
             )}
-            <ZoomButton
-              label="Zoom in"
-              onClick={() =>
-                mode === "flat" ? pattern.current?.zoom(1.25) : session.wheel(1)
-              }
-            >
-              +
-            </ZoomButton>
           </div>
 
-          {mode === "3d" && (
+          {/* Resize toggle between the 2 windows */}
+          {show2d && show3d && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-valuenow={Math.round(splitRatio * 100)}
+              aria-label="Resize 2D and 3D views"
+              tabIndex={0}
+              onPointerDown={startResize}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setSplitRatio(0.5);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowLeft") {
+                  setSplitRatio((r) => Math.max(0.15, r - 0.05));
+                } else if (e.key === "ArrowRight") {
+                  setSplitRatio((r) => Math.min(0.85, r + 0.05));
+                } else if (e.key === "Enter" || e.key === " ") {
+                  toggleSplit();
+                }
+              }}
+              className="group relative z-20 flex w-0 shrink-0 cursor-col-resize select-none items-center justify-center focus:outline-hidden"
+            >
+              {/* Visible border line */}
+              <div
+                className={cn(
+                  "absolute inset-y-0 -left-px w-px transition-colors",
+                  isResizing
+                    ? "bg-primary w-0.5 -left-[1px]"
+                    : "bg-[#E1E4DE] group-hover:bg-primary/50 group-hover:w-0.5 group-hover:-left-[1px]",
+                )}
+              />
+
+              {/* Invisible wider hit area for easy grabbing */}
+              <div className="absolute inset-y-0 -left-2 w-4 cursor-col-resize" />
+
+              {/* Centered toggle / grip pill */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Resize or toggle view split"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!hasDragged.current) toggleSplit();
+                    }}
+                    className={cn(
+                      "absolute top-1/2 -translate-y-1/2 z-30 flex h-10 w-4 items-center justify-center rounded-full border border-[#E1E4DE] bg-white shadow-xs transition-all",
+                      "group-hover:scale-110 group-hover:border-foreground/30 group-hover:bg-[#F4F5F2]",
+                      isResizing &&
+                        "scale-110 border-primary bg-primary text-primary-foreground shadow-sm",
+                    )}
+                  >
+                    <GripVertical
+                      className={cn(
+                        "size-3 transition-colors",
+                        isResizing
+                          ? "text-primary-foreground"
+                          : "text-muted-foreground group-hover:text-foreground",
+                      )}
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Drag to resize · Click to toggle layout · Double-click to
+                  center
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* 3D Window (Right) */}
+          <div
+            ref={canvasBox}
+            aria-label="3D Drape view"
+            className={cn(
+              "bg-canvas-3d relative h-full flex-1 min-w-0 overflow-hidden",
+              show3d ? "" : "hidden",
+            )}
+          >
+            {/* The 3D view stays mounted under hidden/shown state */}
+            <div className="absolute inset-0">
+              <Viewport session={session} tool={tool} />
+            </div>
+
+            {placing &&
+              engine.gizmo &&
+              selected?.cut.placement.type === "wrap" &&
+              gizmoIndex >= 0 && (
+                <Gizmo
+                  view={engine.gizmo}
+                  width={canvasSize.w}
+                  height={canvasSize.h}
+                  placement={
+                    selected.cut.placement as Placement & { type: "wrap" }
+                  }
+                  onPreview={(p) => session.placeCut(gizmoIndex, tidy(p))}
+                  onCommit={(p) =>
+                    garment &&
+                    store.execute((e) =>
+                      setPlacement(e, garment.id, selected.cut.id, tidy(p)),
+                    )
+                  }
+                />
+              )}
+
+            {/* 3D Window badge and status */}
+            <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="pointer-events-none flex items-center gap-1.5 rounded-full border border-[#E1E4DE] bg-white px-3 py-2 text-xs font-semibold text-muted-foreground shadow-2xs">
+                  <CubeIcon className="size-3.5 text-foreground" />
+                  <span>3D Drape</span>
+                </div>
+                <StatusPill engine={engine} show3d={show3d} placing={placing} />
+                {warningsPill}
+              </div>
+              {cards}
+            </div>
+
+            {engine.phase === "failed" && (
+              <div className="bg-background/90 absolute inset-0 z-20 flex items-center justify-center p-8">
+                <div className="max-w-md space-y-2 rounded-[20px] border bg-white p-7 text-[15px]">
+                  <p className="font-display m-0 text-xl font-semibold">
+                    The 3D view keeps stopping
+                  </p>
+                  <p className="text-muted-foreground m-0">
+                    It was not restarted again. Last reason: {engine.failure}
+                  </p>
+                  <p className="m-0">
+                    Your project is still here: save it, then reload the page.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="absolute right-4 bottom-4 flex items-center gap-0.5 rounded-[10px] border border-[#E1E4DE] bg-white p-0.5">
+              <ZoomButton label="Zoom out" onClick={() => session.wheel(-1)}>
+                −
+              </ZoomButton>
+              <ZoomButton label="Zoom in" onClick={() => session.wheel(1)}>
+                +
+              </ZoomButton>
+            </div>
+
             <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
               <ToolButton
                 label="Select"
@@ -1121,37 +1347,13 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 <RotateCcw className="size-5" />
               </ToolButton>
             </div>
-          )}
-          {mode === "flat" && !doc.empty && (
-            <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
-              <ToolButton
-                label="Select"
-                selected={flatTool === "select"}
-                onClick={() => setFlatTool("select")}
-              >
-                <SelectIcon />
-              </ToolButton>
-              <ToolButton
-                label="Move"
-                selected={flatTool === "move"}
-                onClick={() => setFlatTool("move")}
-              >
-                <MoveIcon />
-              </ToolButton>
-              <ToolButton
-                label="Sew two edges"
-                selected={flatTool === "sew"}
-                onClick={() => {
-                  setFlatTool("sew");
-                  setPanel("seams");
-                }}
-              >
-                <Link2 className="size-5" />
-              </ToolButton>
-            </div>
-          )}
+          </div>
         </section>
       </div>
+
+      {isResizing && (
+        <div className="fixed inset-0 z-50 cursor-col-resize select-none pointer-events-auto" />
+      )}
 
       {doc.empty && (
         <StartScreen
@@ -1393,11 +1595,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
 
 function StatusPill({
   engine,
-  mode,
+  show3d,
   placing,
 }: {
   engine: EngineState;
-  mode: Mode;
+  show3d: boolean;
   placing: boolean;
 }) {
   let text: string;
@@ -1410,7 +1612,7 @@ function StatusPill({
     [text, dot] = ["Starting the 3D view…", "bg-line live-dot"];
   else if (engine.drapeError)
     [text, dot] = ["The drape stopped", "bg-destructive"];
-  else if (mode === "flat")
+  else if (!show3d)
     [text, dot] = ["Flat pieces. 3D follows your edits", "bg-live"];
   else if (placing)
     [text, dot] = ["Placing pieces. The drape waits", "bg-line"];
