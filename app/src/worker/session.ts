@@ -281,6 +281,11 @@ export class EngineSession {
   }
 
   /** glTF 2.0 binary (.glb) export of the draped garment, with UVs and PBR materials. */
+  /** The drape now as a small image, for the project's thumbnail. */
+  async thumbnail(width: number, height: number): Promise<{ image: ArrayBuffer; type: string }> {
+    return await this.need().request('thumbnail', { width, height });
+  }
+
   async exportGlb(includeAvatar = false): Promise<ArrayBuffer> {
     const { glb } = await this.need().request('exportGlb', { includeAvatar });
     return glb;

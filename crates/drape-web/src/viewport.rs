@@ -612,6 +612,30 @@ impl Viewport {
         serde_json::to_string(&self.core.engine.gpu().report).unwrap_or_default()
     }
 
+    /// The drape as it is now, `w` × `h`, from the garment's own camera (not the one the person
+    /// turned): RGBA8 pixels as a `Uint8Array`, for the project's thumbnail.
+    pub fn thumbnail(&self, w: u32, h: u32) -> js_sys::Promise {
+        let c = self.core.clone();
+        wasm_bindgen_futures::future_to_promise(async move {
+            let Some(live) = c.live.borrow().clone() else {
+                return Err(JsValue::from_str("no garment loaded"));
+            };
+            let gpu = c.engine.gpu();
+            let (target, distance) = live.sim.garment().desc.camera;
+            let camera = OrbitCamera::looking_at(target, distance);
+            // The renderer isn't borrowed while the image comes back (frames go on meanwhile).
+            let shot = live.renderer.borrow_mut().snapshot(
+                &gpu.device,
+                &gpu.queue,
+                w.max(1),
+                h.max(1),
+                &camera,
+            );
+            let rgba = shot.read(&gpu.device).await;
+            Ok(JsValue::from(js_sys::Uint8Array::from(&rgba[..])))
+        })
+    }
+
     /// Exports the current drape as a glTF 2.0 binary (`.glb`), returning a `Uint8Array`.
     pub fn export_glb(&self, include_avatar: bool) -> js_sys::Promise {
         let c = self.core.clone();

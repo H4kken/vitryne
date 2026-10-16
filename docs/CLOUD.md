@@ -194,7 +194,13 @@ user, which is then kept.
 As [FORMAT.md](FORMAT.md#cloud-storage) planned: **the same format on disk and in the cloud.**
 
 - **A project is a row** in `public.projects`: owner, name, the file's `manifest.json` (as
-  `jsonb`), total size, a `revision`, timestamps.
+  `jsonb`), total size, a `revision`, timestamps, and its thumbnail's hash.
+- **A thumbnail** is a small image of the drape (480×360 WebP, JPEG where the browser can't
+  encode WebP) for the project's card on the start screen. The editor takes it once per drape,
+  after a few simulated seconds, from the garment's own camera, and stores it as a part named by
+  its hash; the row's `thumbnail` names it. It follows the drape, not the document: naming it is
+  not an edit (the revision and `updated_at` stay), and a `.vtry` doesn't carry it. Duplicating
+  or moving a project keeps it.
 - **Each part is an object** in the private `parts` bucket, named `<owner id>/<sha256>`. Parts
   never change (there is no update policy): a name always means the same bytes.
 - **A save** asks the worker for the folder form, checks each part against its hash, uploads the
@@ -212,11 +218,11 @@ As [FORMAT.md](FORMAT.md#cloud-storage) planned: **the same format on disk and i
 - **One tab per project** in a browser (Web Locks, `app/src/cloud/lock.ts`): a second tab asks
   before taking the project over, and the first is told.
 - **An open** downloads the manifest's parts and checks every hash before the worker sees them.
-- **No per-project download:** a project is shared in the app, not as files passed around (that
-  comes with sharing). *Download all my data* (Privacy) zips every project as a `.vtry`
-  (`app/src/cloud/zip.ts`, stored entries, `mimetype` first), which Rust opens like any file.
-- **Unused parts** (no project of the person's lists them, and older than a day, since another
-  tab may be mid-save) are deleted after each save.
+- **Downloading:** *Export… → Project (.vtry)*, or a card's menu, saves one project as a file (an
+  account); *Download all my data* (Privacy) zips every project as a `.vtry`
+  (`app/src/cloud/zip.ts`, stored entries, `mimetype` first). Rust opens either like any file.
+- **Unused parts** (no project of the person's lists them or names them as its thumbnail, and
+  older than a day, since another tab may be mid-save) are deleted after each save.
 
 **Deduplication is per person, not across people.** Sharing a part between people by hash would
 let anyone who knows (or guesses) a hash read the part, or plant wrong bytes under someone else's
@@ -228,7 +234,7 @@ Row-level security on everything a client can reach (`supabase/migrations/`):
 
 | What | Who | How |
 |---|---|---|
-| `projects` rows | their owner | `owner = auth.uid()` for select, insert, update, delete; `owner`, `id`, `revision`, dates are server-kept (column grants and a trigger) |
+| `projects` rows | their owner | `owner = auth.uid()` for select, insert, update, delete; `owner`, `id`, `revision`, dates are server-kept (column grants and a trigger); `thumbnail` must be a sha256 |
 | `parts` objects | their owner | the first path segment is `auth.uid()`; names must be `<uuid>/<64 hex>`; no updates |
 | `my_usage`, `my_unused_parts`, `delete_my_account` | signed-in users, about themselves | functions on `auth.uid()`, not callable by `anon` |
 | `stale_anonymous_users` | the service role only | what `clean-anonymous` deletes |

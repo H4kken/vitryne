@@ -39,7 +39,8 @@ worker, or from ticks the UI sends where workers lack it.
 ### Look
 
 The editor follows the "Vitryne editor concept" design canvas (claude.ai artifact
-`Ci1MyouGsSDARsvNGrZ7WM`): a start screen (presets, import a file, the person's projects), then a top bar, an icon rail
+`Ci1MyouGsSDARsvNGrZ7WM`): a start screen like a design tool's home (a Create row: import a file and the
+examples; then the person's projects as cards with a thumbnail of the drape), then a top bar, an icon rail
 that opens one panel at a time, and one canvas showing either the 3D drape or the flat pieces,
 with a status pill, a hint, zoom and a floating tool bar. Its colours, radii and type are the
 tokens in `app/src/index.css` (light only); the fonts, Bricolage Grotesque and DM Sans (OFL),

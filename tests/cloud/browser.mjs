@@ -178,6 +178,9 @@ async function codeFor(to, after) {
 
 const loaded = `(() => { const t = document.body.innerText; return t.includes('Show flat pieces') && !t.includes('What do you want to make?'); })()`;
 
+/** The open project's name, in the top bar's field. */
+const projectName = `(document.querySelector('header input[aria-label="Project name"]')?.value ?? '')`;
+
 async function cloud() {
   const email = `browser-${Date.now().toString(36)}@example.test`;
   const password = `pw-${Date.now().toString(36)}-x`;
@@ -207,7 +210,7 @@ async function cloud() {
   // Another tab of the same browser can't edit it too, until it takes it over.
   const a2 = await a.tab('tab2');
   await a2.goto(url);
-  await a2.click('Open', { exact: true });
+  await a2.click('Open T-shirt (Teagan)', { exact: true });
   await a2.until('the second tab blocked', `document.body.innerText.includes('is open in another tab of this browser')`);
   await a2.shot('blocked');
   await a2.click('Open here instead');
@@ -250,11 +253,12 @@ async function cloud() {
 
   // With the account: the draft is a project like any other, and can be duplicated.
   await a.until('the project listed', `document.body.innerText.toLowerCase().includes('your projects')`);
-  await a.click('Open', { exact: true });
+  await a.click('Open T-shirt (Teagan)', { exact: true });
   await a.until('the project open', loaded);
   await a.click('More');
   await a.click('Duplicate', { exact: true });
-  await a.until('the copy open', `(document.querySelector('header')?.innerText ?? '').includes('T-shirt (Teagan) (copy)')`);
+  // The project's name is a field in the top bar (it renames in place).
+  await a.until('the copy open', `${projectName} === 'T-shirt (Teagan) (copy)'`);
   await a.shot('duplicated');
   const aErrors = a.logs;
   a.close();
@@ -273,18 +277,17 @@ async function cloud() {
   await sleep(500);
   await b.until('both projects listed', `document.body.innerText.toLowerCase().includes('your projects') && document.body.innerText.includes('T-shirt (Teagan) (copy)')`);
   await b.shot('listed');
-  // The newest first: the copy; the original is the second.
-  await b.evaluate(`(() => { const o = [...document.querySelectorAll('button')].filter((e) => e.innerText.trim() === 'Open'); o[1].setAttribute('data-original', ''); })()`);
-  await b.clickAt('[data-original]');
+  // The original, not the copy.
+  await b.click('Open T-shirt (Teagan)', { exact: true });
   await b.until('the project open in B', loaded);
   await b.until('Denim kept', `[...document.querySelectorAll('button')].some((e) => e.innerText.startsWith('Denim') && e.className.includes('bg-[#14181F]'))`);
   await b.until('B saved', `(document.querySelector('header')?.innerText ?? '').includes('Saved')`);
   await b.shot('opened');
-  const title = await b.evaluate(`document.querySelector('header')?.innerText ?? ''`);
-  if (!/T-shirt \(Teagan\)/.test(title) || /\(copy\)/.test(title)) throw new Error(`B: unexpected title: ${title}`);
+  const title = await b.evaluate(projectName);
+  if (title !== 'T-shirt (Teagan)') throw new Error(`B: unexpected title: ${title}`);
   const bErrors = b.logs;
   b.close();
-  return { email, aErrors, bErrors, title: title.split('\n').slice(0, 2) };
+  return { email, aErrors, bErrors, title };
 }
 
 async function none() {

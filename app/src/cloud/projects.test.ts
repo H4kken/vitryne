@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { exampleZip, EXAMPLES, wasm } from '@/test/rust';
 import { type CloudBackend, CloudError, type CloudUser, type Manifest, type ProjectRow } from './backend';
-import { collectUnused, copyName, deleteAccount, duplicateProject, exportAll, fileName, moveProjects, openProject, projectZip, saveProject, sha256Hex } from './projects';
+import { collectUnused, copyName, deleteAccount, duplicateProject, exportAll, fileName, moveProjects, openProject, projectZip, renameProject, saveProject, saveThumbnail, sha256Hex } from './projects';
 import { crc32 } from './zip';
 
 /** A backend in memory, shaped like the real one (RLS: each user sees only their own; an anonymous user keeps one draft). */
@@ -22,16 +22,16 @@ class MemBackend implements CloudBackend {
     return [...MemBackend.rows.values()].filter((r) => r.owner === this.me?.id);
   }
   async listProjects() {
-    return this.mine().map(({ id, name, bytes, revision, updatedAt }) => ({ id, name, bytes, revision, updatedAt }));
+    return this.mine().map(({ id, name, bytes, revision, updatedAt, thumbnail }) => ({ id, name, bytes, revision, updatedAt, thumbnail }));
   }
   async getProject(id: string) {
     const r = this.mine().find((x) => x.id === id);
     if (!r) throw new CloudError('gone');
     return structuredClone(r);
   }
-  async insertProject(p: { name: string; manifest: Manifest; bytes: number }) {
+  async insertProject(p: { name: string; manifest: Manifest; bytes: number; thumbnail?: string | null }) {
     if (this.me?.anonymous && this.mine().length >= 1) throw new CloudError('an account is needed', 'account');
-    const r: ProjectRow = { ...structuredClone(p), id: crypto.randomUUID(), owner: this.me!.id, revision: 1, updatedAt: new Date().toISOString() };
+    const r: ProjectRow = { thumbnail: null, ...structuredClone(p), id: crypto.randomUUID(), owner: this.me!.id, revision: 1, updatedAt: new Date().toISOString() };
     MemBackend.rows.set(r.id, r);
     return structuredClone(r);
   }
@@ -43,6 +43,10 @@ class MemBackend implements CloudBackend {
   }
   async deleteProject(id: string) {
     if (this.mine().some((r) => r.id === id)) MemBackend.rows.delete(id);
+  }
+  async setThumbnail(id: string, sha256: string) {
+    const r = this.mine().find((x) => x.id === id);
+    if (r) r.thumbnail = sha256;
   }
   private own(name: string) {
     return name.startsWith(`${this.me?.id}/`);
@@ -67,7 +71,7 @@ class MemBackend implements CloudBackend {
     for (const n of names) if (this.own(n)) MemBackend.objects.delete(n);
   }
   async unusedParts() {
-    const used = new Set(this.mine().flatMap((r) => r.manifest.parts.map((p) => `${r.owner}/${p.sha256}`)));
+    const used = new Set(this.mine().flatMap((r) => [...r.manifest.parts.map((p) => `${r.owner}/${p.sha256}`), `${r.owner}/${r.thumbnail}`]));
     return (await this.listParts()).filter((n) => !used.has(n));
   }
   async usage() {
@@ -234,6 +238,41 @@ describe('cloud projects', () => {
     const anon = new MemBackend();
     const draft = await saveProject(anon, 'draft', folder('tshirt'), null);
     await expect(duplicateProject(anon, draft.id)).rejects.toMatchObject({ kind: 'account' });
+  });
+
+  it('stores a thumbnail once, without a new revision, and keeps it through duplicate and move', async () => {
+    const anon = new MemBackend();
+    const ref = await saveProject(anon, 'mine', folder('tshirt'), null);
+    const image = new Uint8Array([1, 2, 3, 4]).buffer;
+    const sha = await saveThumbnail(anon, ref.id, image, 'image/webp');
+    anon.uploads = [];
+    await saveThumbnail(anon, ref.id, image, 'image/webp');
+    expect(anon.uploads).toEqual([]);
+    const [p] = await anon.listProjects();
+    expect(p).toMatchObject({ thumbnail: sha, revision: ref.revision });
+    expect(await anon.unusedParts()).toEqual([]);
+
+    const to = account();
+    const r = await moveProjects(anon, to);
+    const [moved] = await to.listProjects();
+    expect(moved).toMatchObject({ id: r.ids[ref.id], thumbnail: sha });
+    expect(await to.downloadPart(`${to.me!.id}/${sha}`)).toEqual(image);
+
+    const copy = await duplicateProject(to, moved!.id);
+    expect(copy.thumbnail).toBe(sha);
+  });
+
+  it('renames a stored project, rewriting only project.json', async () => {
+    const b = account();
+    const ref = await saveProject(b, 'T-shirt', folder('tshirt'), null);
+    b.uploads = [];
+    await renameProject(b, ref.id, 'Summer tee');
+    expect(b.uploads).toHaveLength(1);
+    const o = await openProject(b, ref.id);
+    expect(o.name).toBe('Summer tee');
+    expect(o.ref.revision).toBe(ref.revision + 1);
+    const project = o.data.form === 'folder' ? o.data.files.find(([path]) => path === 'project.json') : undefined;
+    expect(JSON.parse(new TextDecoder().decode(project![1])).name).toBe('Summer tee');
   });
 
   it('keeps copy names within the backend limit', () => {

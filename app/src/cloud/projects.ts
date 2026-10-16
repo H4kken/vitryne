@@ -191,13 +191,10 @@ export function copyName(name: string): string {
 }
 
 /**
- * A new project with the same content as `id`, named "<name> (copy)". The name is in
- * project.json, so that part is written again (a few hundred bytes); every other part is shared,
- * so nothing else is uploaded. An anonymous user can't (one draft).
+ * `row`'s manifest and size with its name changed. The name is in project.json, so that part is
+ * written again (a few hundred bytes); every other part stays as it is.
  */
-export async function duplicateProject(b: CloudBackend, id: string): Promise<ProjectRow> {
-  const row = await b.getProject(id);
-  const name = copyName(row.name);
+async function renamed(b: CloudBackend, row: ProjectRow, name: string): Promise<{ manifest: Manifest; bytes: number }> {
   const manifest = structuredClone(row.manifest);
   let bytes = row.bytes;
   const part = manifest.parts.find((p) => p.path === 'project.json');
@@ -213,7 +210,26 @@ export async function duplicateProject(b: CloudBackend, id: string): Promise<Pro
     part.sha256 = sha;
     bytes += next.byteLength - old.byteLength;
   }
-  return b.insertProject({ name, manifest, bytes });
+  return { manifest, bytes };
+}
+
+/**
+ * A new project with the same content as `id`, named "<name> (copy)"; every part but
+ * project.json is shared, so almost nothing is uploaded. An anonymous user can't (one draft).
+ */
+export async function duplicateProject(b: CloudBackend, id: string): Promise<ProjectRow> {
+  const row = await b.getProject(id);
+  const name = copyName(row.name);
+  // Same owner: the thumbnail's part is shared like the others.
+  return b.insertProject({ name, ...(await renamed(b, row, name)), thumbnail: row.thumbnail });
+}
+
+/** Renames a project that isn't open here (a tab that has it open sees a conflict at its next save). */
+export async function renameProject(b: CloudBackend, id: string, name: string): Promise<void> {
+  const row = await b.getProject(id);
+  if (name === row.name) return;
+  const saved = await b.updateProject(id, row.revision, { name, ...(await renamed(b, row, name)) });
+  if (!saved) throw new CloudError('it was saved elsewhere meanwhile; try again', 'conflict');
 }
 
 /** Deletes a project; its parts go with the next collection (they may be shared). */
@@ -243,7 +259,9 @@ export async function moveProjects(from: CloudBackend, to: CloudBackend): Promis
     try {
       const o = await openProject(from, p.id);
       if (o.data.form !== 'folder') throw new Error('internal');
-      ids[p.id] = (await saveProject(to, o.name, o.data.files, null)).id;
+      const moved = await saveProject(to, o.name, o.data.files, null);
+      ids[p.id] = moved.id;
+      if (p.thumbnail) await copyThumbnail(from, to, p.thumbnail, moved.id).catch(() => undefined);
       await from.deleteProject(p.id);
     } catch {
       failed.push(p.name);
@@ -251,4 +269,40 @@ export async function moveProjects(from: CloudBackend, to: CloudBackend): Promis
   }
   if (!failed.length) await deleteAccount(from);
   return { moved: Object.keys(ids).length, failed, ids };
+}
+
+/** A thumbnail moved with its project (best effort: the next drape makes another). */
+async function copyThumbnail(from: CloudBackend, to: CloudBackend, sha: string, id: string): Promise<void> {
+  const bytes = await from.downloadPart(`${from.user()?.id}/${sha}`);
+  const owner = to.user()?.id;
+  if (!owner) return;
+  if (!(await to.hasPart(`${owner}/${sha}`))) await to.uploadPart(`${owner}/${sha}`, bytes, 'application/octet-stream');
+  await to.setThumbnail(id, sha);
+}
+
+/**
+ * Stores `image` as project `id`'s thumbnail: uploaded once (a part named by its hash), then
+ * named by the row. Not an edit of the project. Returns the hash.
+ */
+export async function saveThumbnail(b: CloudBackend, id: string, image: ArrayBuffer, type: string): Promise<string> {
+  const owner = b.user()?.id;
+  if (!owner) throw new CloudError('not signed in', 'auth');
+  const sha = await sha256Hex(image);
+  const key = `${owner}/${sha}`;
+  if (!(await b.hasPart(key))) await b.uploadPart(key, image, type);
+  await b.setThumbnail(id, sha);
+  return sha;
+}
+
+const thumbnails = new Map<string, Promise<string>>();
+
+/** A thumbnail as an object URL for an <img>, downloaded once per page (a hash never changes). */
+export function thumbnailUrl(b: CloudBackend, sha: string): Promise<string> {
+  let url = thumbnails.get(sha);
+  if (!url) {
+    url = b.downloadPart(`${b.user()?.id}/${sha}`).then((bytes) => URL.createObjectURL(new Blob([bytes])));
+    url.catch(() => thumbnails.delete(sha));
+    thumbnails.set(sha, url);
+  }
+  return url;
 }

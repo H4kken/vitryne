@@ -15,6 +15,8 @@ export interface ProjectSummary {
   bytes: number;
   revision: number;
   updatedAt: string;
+  /** The sha256 of the project's thumbnail (a part of the owner's), if it has one. */
+  thumbnail: string | null;
 }
 
 export interface ProjectRow extends ProjectSummary {
@@ -48,10 +50,12 @@ export interface CloudBackend {
 
   listProjects(): Promise<ProjectSummary[]>;
   getProject(id: string): Promise<ProjectRow>;
-  insertProject(p: { name: string; manifest: Manifest; bytes: number }): Promise<ProjectRow>;
+  insertProject(p: { name: string; manifest: Manifest; bytes: number; thumbnail?: string | null }): Promise<ProjectRow>;
   /** Null when the project is no longer at `revision` (saved elsewhere since) or is gone. */
   updateProject(id: string, revision: number, p: { name: string; manifest: Manifest; bytes: number }): Promise<ProjectRow | null>;
   deleteProject(id: string): Promise<void>;
+  /** Names the project's thumbnail (a part already uploaded); not an edit: the revision stays. */
+  setThumbnail(id: string, sha256: string): Promise<void>;
 
   hasPart(name: string): Promise<boolean>;
   /** Succeeds when the part is already there (parts never change). */

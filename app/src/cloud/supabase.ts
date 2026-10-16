@@ -37,10 +37,11 @@ interface Row {
   bytes: number;
   revision: number;
   updated_at: string;
+  thumbnail: string | null;
 }
 
 const toUser = (u: User): CloudUser => ({ id: u.id, email: u.email || null, anonymous: u.is_anonymous ?? !u.email });
-const summary = (r: Row): ProjectSummary => ({ id: r.id, name: r.name, bytes: r.bytes, revision: r.revision, updatedAt: r.updated_at });
+const summary = (r: Row): ProjectSummary => ({ id: r.id, name: r.name, bytes: r.bytes, revision: r.revision, updatedAt: r.updated_at, thumbnail: r.thumbnail ?? null });
 const full = (r: Row): ProjectRow => ({ ...summary(r), owner: r.owner, manifest: r.manifest });
 
 function fail(what: string, e: { message?: string; hint?: string | null; status?: number; statusCode?: string } | null): never {
@@ -238,20 +239,20 @@ export class SupabaseBackend implements CloudBackend {
 
   async listProjects(): Promise<ProjectSummary[]> {
     if (!this.current) return [];
-    const { data, error } = await this.sb.from('projects').select('id,name,bytes,revision,updated_at').order('updated_at', { ascending: false });
+    const { data, error } = await this.sb.from('projects').select('id,name,bytes,revision,updated_at,thumbnail').order('updated_at', { ascending: false });
     if (error) fail('Could not list your cloud projects', error);
     return (data as Row[]).map(summary);
   }
 
   async getProject(id: string): Promise<ProjectRow> {
-    const { data, error } = await this.sb.from('projects').select('id,owner,name,manifest,bytes,revision,updated_at').eq('id', id).maybeSingle();
+    const { data, error } = await this.sb.from('projects').select('id,owner,name,manifest,bytes,revision,updated_at,thumbnail').eq('id', id).maybeSingle();
     if (error) fail('Could not open the project', error);
     if (!data) throw new CloudError('that project is gone (deleted from another tab or browser?)');
     return full(data as Row);
   }
 
-  async insertProject(p: { name: string; manifest: Manifest; bytes: number }): Promise<ProjectRow> {
-    const { data, error } = await this.sb.from('projects').insert(p).select('id,owner,name,manifest,bytes,revision,updated_at').single();
+  async insertProject(p: { name: string; manifest: Manifest; bytes: number; thumbnail?: string | null }): Promise<ProjectRow> {
+    const { data, error } = await this.sb.from('projects').insert(p).select('id,owner,name,manifest,bytes,revision,updated_at,thumbnail').single();
     if (error) fail('Not saved', error);
     return full(data as Row);
   }
@@ -262,7 +263,7 @@ export class SupabaseBackend implements CloudBackend {
       .update(p)
       .eq('id', id)
       .eq('revision', revision)
-      .select('id,owner,name,manifest,bytes,revision,updated_at');
+      .select('id,owner,name,manifest,bytes,revision,updated_at,thumbnail');
     if (error) fail('Not saved', error);
     const rows = data as Row[];
     return rows[0] ? full(rows[0]) : null;
@@ -271,6 +272,11 @@ export class SupabaseBackend implements CloudBackend {
   async deleteProject(id: string): Promise<void> {
     const { error } = await this.sb.from('projects').delete().eq('id', id);
     if (error) fail('Could not delete the project', error);
+  }
+
+  async setThumbnail(id: string, sha256: string): Promise<void> {
+    const { error } = await this.sb.from('projects').update({ thumbnail: sha256 }).eq('id', id);
+    if (error) fail('Thumbnail not saved', error);
   }
 
   async hasPart(name: string): Promise<boolean> {

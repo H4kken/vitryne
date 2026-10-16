@@ -212,6 +212,43 @@ struct DrawMesh {
     material_buf: wgpu::Buffer,
 }
 
+/// A frame drawn by `Renderer::snapshot`, on its way back from the GPU.
+pub struct Snapshot {
+    buffer: wgpu::Buffer,
+    /// Bytes per row in `buffer` (padded for the copy).
+    row: u32,
+    w: u32,
+    h: u32,
+    bgra: bool,
+}
+
+impl Snapshot {
+    /// The image: RGBA8, rows top to bottom.
+    pub async fn read(self, device: &wgpu::Device) -> Vec<u8> {
+        let slice = self.buffer.slice(..);
+        drape_core::gpu_async::map_read(device, &slice)
+            .await
+            .expect("map_read");
+        let mut out = Vec::with_capacity((self.w * self.h * 4) as usize);
+        {
+            let data = slice.get_mapped_range().expect("mapped range");
+            for y in 0..self.h as usize {
+                let line = &data[y * self.row as usize..][..self.w as usize * 4];
+                for &[p0, p1, p2, _] in line.as_chunks::<4>().0 {
+                    let [r, g, b] = if self.bgra {
+                        [p2, p1, p0]
+                    } else {
+                        [p0, p1, p2]
+                    };
+                    out.extend_from_slice(&[r, g, b, 255]);
+                }
+            }
+        }
+        self.buffer.unmap();
+        out
+    }
+}
+
 struct Targets {
     color: wgpu::TextureView,
     depth: wgpu::TextureView,
@@ -228,8 +265,9 @@ pub struct Renderer {
     normals_groups: u32,
     cloth: DrawMesh,
     collider: Option<DrawMesh>,
-    /// The multisampled colour and depth targets, at the last drawn size.
-    targets: Option<Targets>,
+    /// The multisampled colour and depth targets, at the last drawn size: the view's, then
+    /// snapshots' (so a thumbnail doesn't make the view's again).
+    targets: [Option<Targets>; 2],
     format: wgpu::TextureFormat,
     background: wgpu::Color,
     seam_pipeline: wgpu::RenderPipeline,
@@ -602,7 +640,7 @@ impl Renderer {
             normals_groups: n.div_ceil(64),
             cloth,
             collider,
-            targets: None,
+            targets: [None, None],
             format,
             background: CLEAR_COLOR,
         }
@@ -614,8 +652,9 @@ impl Renderer {
         device: &wgpu::Device,
         w: u32,
         h: u32,
+        slot: usize,
     ) -> (wgpu::TextureView, wgpu::TextureView) {
-        if !matches!(&self.targets, Some(t) if t.w == w && t.h == h) {
+        if !matches!(&self.targets[slot], Some(t) if t.w == w && t.h == h) {
             let make = |label, format| {
                 device
                     .create_texture(&wgpu::TextureDescriptor {
@@ -634,14 +673,14 @@ impl Renderer {
                     })
                     .create_view(&Default::default())
             };
-            self.targets = Some(Targets {
+            self.targets[slot] = Some(Targets {
                 color: make("msaa-color", self.format),
                 depth: make("depth", DEPTH_FORMAT),
                 w,
                 h,
             });
         }
-        let t = self.targets.as_ref().unwrap();
+        let t = self.targets[slot].as_ref().unwrap();
         (t.color.clone(), t.depth.clone())
     }
 
@@ -703,6 +742,92 @@ impl Renderer {
         h: u32,
         camera: &OrbitCamera,
     ) {
+        self.draw_to(device, queue, encoder, view, w, h, camera, 0);
+    }
+
+    /// Draws one frame, without the seams, into a new `w` × `h` image and submits its copy for
+    /// reading (`Snapshot::read`, which doesn't need the renderer). For project thumbnails; the
+    /// view's own targets aren't touched.
+    pub fn snapshot(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        w: u32,
+        h: u32,
+        camera: &OrbitCamera,
+    ) -> Snapshot {
+        let size = wgpu::Extent3d {
+            width: w,
+            height: h,
+            depth_or_array_layers: 1,
+        };
+        let tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("snapshot"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let row = (w * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("snapshot-readback"),
+            size: (row * h) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut enc = device.create_command_encoder(&Default::default());
+        let seams = std::mem::replace(&mut self.show_seams, false);
+        self.draw_to(
+            device,
+            queue,
+            &mut enc,
+            &tex.create_view(&Default::default()),
+            w,
+            h,
+            camera,
+            1,
+        );
+        self.show_seams = seams;
+        enc.copy_texture_to_buffer(
+            tex.as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(row),
+                    rows_per_image: Some(h),
+                },
+            },
+            size,
+        );
+        queue.submit([enc.finish()]);
+        Snapshot {
+            buffer,
+            row,
+            w,
+            h,
+            bgra: matches!(
+                self.format,
+                wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+            ),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn draw_to(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        w: u32,
+        h: u32,
+        camera: &OrbitCamera,
+        slot: usize,
+    ) {
         let cam = CameraU {
             view_proj: camera
                 .view_proj(w as f32 / h.max(1) as f32)
@@ -720,7 +845,7 @@ impl Renderer {
             pass.set_bind_group(0, &self.normals_bg, &[]);
             pass.dispatch_workgroups(self.normals_groups, 1, 1);
         }
-        let (color, depth) = self.targets(device, w, h);
+        let (color, depth) = self.targets(device, w, h, slot);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
             // Drawn multisampled, resolved into `view`; the samples aren't kept.

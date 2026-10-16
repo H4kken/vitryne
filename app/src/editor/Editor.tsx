@@ -20,7 +20,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SaveStatus } from '@/cloud/autosave';
-import { AccountDialog, CloudProjectList, CloudProjectsDialog } from '@/cloud/CloudDialogs';
+import { AccountDialog, CloudProjectsDialog } from '@/cloud/CloudDialogs';
+import { ProjectGrid } from '@/cloud/ProjectGrid';
 import { moveProjects } from '@/cloud/projects';
 import type { Cloud } from '@/cloud/useCloud';
 import { type Addition, addPieces, addSeam, findCut, renameProject, setLayout, setPlacement, type Bounds } from '@/document/commands';
@@ -44,6 +45,7 @@ import { ImportDialog, type TextFile } from './ImportDialog';
 import { StartScreen } from './StartScreen';
 import { useFiles } from './useFiles';
 import { useProjectRoute } from './useProjectRoute';
+import { useThumbnails } from './useThumbnails';
 import { Viewport } from './Viewport';
 
 const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
@@ -79,6 +81,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const doc = useDocument(store);
   const files = useFiles(session, store, disk, doc, cloud);
   useProjectRoute(files, doc.empty);
+  useThumbnails(session, engine, files.ref?.cloud?.id ?? null, !files.blocked, cloud);
   const [accountOpen, setAccountOpen] = useState(false);
   const [cloudOpen, setCloudOpen] = useState(false);
   /** Why the account dialog was opened, and what to do once there is an account. */
@@ -764,10 +767,27 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           dropProps={dropProps}
           onOpenFolder={disk.opensFolders ? openFolder : null}
           account={<CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />}
-          projectsTitle={draft ? 'Your draft' : 'Your projects'}
           projects={
-            cloud.user && cloud.projects?.length ? (
-              <CloudProjectList cloud={cloud} projects={cloud.projects} busy={!!files.busy} onOpen={(id) => files.openCloud(id)} />
+            // Nobody signed in yet: nothing saved, so no list to wait for.
+            !cloud.user || cloud.projects ? (
+              <ProjectGrid
+                cloud={cloud}
+                projects={cloud.projects ?? []}
+                title={draft ? 'Your draft' : 'Your projects'}
+                note={
+                  draft && (
+                    <p className="text-body-text m-0 text-[15px]">
+                      Without an account you keep one project.{' '}
+                      <button type="button" onClick={() => setAccountOpen(true)} className="text-foreground font-semibold underline underline-offset-4">
+                        Create a free account
+                      </button>{' '}
+                      to keep more and open them anywhere.
+                    </p>
+                  )
+                }
+                busy={!!files.busy}
+                onOpen={(id) => files.openCloud(id)}
+              />
             ) : null
           }
           banner={

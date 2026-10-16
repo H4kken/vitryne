@@ -27,11 +27,6 @@ export const TurnIcon = (p: IconProps) => <Stroke {...p} size={22} d="M20 12 a8 
 export const PinchIcon = (p: IconProps) => (
   <Stroke {...p} size={22} d="M8 4 V12 M12 3 V12 M16 5 V12 M8 12 C5 12 4 14 6 17 L9 21 H16 C19 20 20 17 20 14 V11 C20 9 17 9 16 11" />
 );
-export const PresetsIcon = (p: IconProps) => (
-  <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true" className={p.className}>
-    <path d="M9 5 L15 9 L21 5 L27 10 L23 14 V26 H7 V14 L3 10 Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-  </svg>
-);
 export const OpenIcon = (p: IconProps) => (
   <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true" className={p.className}>
     <path d="M15 21 V6 M8 12 L15 5 L22 12 M5 25 H25" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />

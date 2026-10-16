@@ -150,6 +150,18 @@ const handlers: Handlers = {
     return { differences: needFile().seam_differences() };
   },
 
+  async thumbnail({ width, height }) {
+    const rgba: Uint8Array = await needViewport().thumbnail(width, height);
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no 2D canvas in the worker');
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+    // Safari encodes PNG when asked for WebP: JPEG is much smaller then.
+    let blob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.85 });
+    if (blob.type !== 'image/webp') blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+    return { image: await blob.arrayBuffer(), type: blob.type };
+  },
+
   async exportGlb({ includeAvatar }) {
     const v = needViewport();
     const bytes: Uint8Array = await v.export_glb(includeAvatar);
@@ -201,7 +213,9 @@ function request(m: RequestMessage) {
             ? [(value as Requests['importNew']['reply']).zip]
             : m.op === 'exportGlb'
               ? [(value as Requests['exportGlb']['reply']).glb]
-              : [];
+              : m.op === 'thumbnail'
+                ? [(value as Requests['thumbnail']['reply']).image]
+                : [];
       post({ kind: 'reply', id: m.id, ok: true, value }, transfer);
     } catch (e) {
       if (crashed) return;

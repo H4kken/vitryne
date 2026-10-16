@@ -115,6 +115,8 @@ export interface Requests {
   /** Each seam's length difference in percent, by seam id (JSON object). */
   seamDifferences: { args: Record<string, never>; reply: { differences: string } };
   /** glTF 2.0 binary (.glb) export of the draped garment, with UVs and PBR materials. */
+  /** The drape now, from the garment's own camera, as a small image (WebP where the browser encodes it, else JPEG). */
+  thumbnail: { args: { width: number; height: number }; reply: { image: ArrayBuffer; type: string } };
   exportGlb: { args: { includeAvatar: boolean }; reply: { glb: ArrayBuffer } };
   /** Wavefront OBJ (.obj + .mtl) export of the draped garment, with UVs and PBR materials. */
   exportObj: { args: { includeAvatar: boolean }; reply: { obj: string; mtl: string } };
