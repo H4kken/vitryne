@@ -6,71 +6,138 @@
 // opens the import dialog; with the Select tool the 3D view shows where pieces start, and the
 // selected one's handles.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Cloud as CloudIcon, Ellipsis, FastForward, Link2, Pause, Play, RotateCcw, Shapes, SlidersHorizontal, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { SaveStatus } from '@/cloud/autosave';
-import { AccountDialog, CloudProjectsDialog } from '@/cloud/CloudDialogs';
-import { ProjectGrid } from '@/cloud/ProjectGrid';
-import { moveProjects } from '@/cloud/projects';
-import type { Cloud } from '@/cloud/useCloud';
-import { type Addition, addPieces, addSeam, cutColor, findCut, renameProject, setLayout, setPlacement, type Bounds } from '@/document/commands';
-import { mainGarment } from '@/document/entities';
-import type { Placement } from '@/format/schema.gen';
-import { type DocState, DocumentStore, useDocument } from '@/document/store';
-import { cn } from '@/lib/utils';
-import { type FlatTool, PatternPanel, type PatternView, type Selection } from '@/pattern/PatternPanel';
-import { type Place, tidy } from '@/placement/places';
-import { FabricPanel, PANEL_TITLES, type PanelId, PiecesPanel, SettingsPanel } from '@/properties/panels';
-import { type CutEdge, parseDifferences, parseEdges, parseProposals, sameEdge, type SeamProposal } from '@/sewing/api';
-import { SeamsPanel } from '@/sewing/SeamsPanel';
-import { DiskFiles } from '@/storage/storage';
-import type { PointerTool } from '@/worker/protocol';
-import { type EngineState, EngineSession, useEngine } from '@/worker/session';
-import { type Example, fetchAvatar, fetchExample, listExamples } from './examples';
-import { Gizmo } from './Gizmo';
-import { CubeIcon, FabricIcon, FlatIcon, Logo, MoveIcon, PinchIcon, RedoIcon, SelectIcon, TurnIcon, UndoIcon } from './icons';
-import { ExportDialog } from './ExportDialog';
-import { ImportDialog, type TextFile } from './ImportDialog';
-import { StartScreen } from './StartScreen';
-import { useFiles } from './useFiles';
-import { useProjectRoute } from './useProjectRoute';
-import { useThumbnails } from './useThumbnails';
-import { Viewport } from './Viewport';
+  Cloud as CloudIcon,
+  Download,
+  FastForward,
+  Link2,
+  Pause,
+  Play,
+  RotateCcw,
+  Shapes,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type { SaveStatus } from "@/cloud/autosave";
+import { AccountDialog, CloudProjectsDialog } from "@/cloud/CloudDialogs";
+import { ProjectGrid } from "@/cloud/ProjectGrid";
+import { moveProjects } from "@/cloud/projects";
+import type { Cloud } from "@/cloud/useCloud";
+import {
+  type Addition,
+  addPieces,
+  addSeam,
+  cutColor,
+  findCut,
+  renameProject,
+  setLayout,
+  setPlacement,
+  type Bounds,
+} from "@/document/commands";
+import { mainGarment } from "@/document/entities";
+import type { Placement } from "@/format/schema.gen";
+import { type DocState, DocumentStore, useDocument } from "@/document/store";
+import { cn } from "@/lib/utils";
+import {
+  type FlatTool,
+  PatternPanel,
+  type PatternView,
+  type Selection,
+} from "@/pattern/PatternPanel";
+import { type Place, tidy } from "@/placement/places";
+import {
+  FabricPanel,
+  PANEL_TITLES,
+  type PanelId,
+  PiecesPanel,
+  SettingsPanel,
+} from "@/properties/panels";
+import {
+  type CutEdge,
+  parseDifferences,
+  parseEdges,
+  parseProposals,
+  sameEdge,
+  type SeamProposal,
+} from "@/sewing/api";
+import { SeamsPanel } from "@/sewing/SeamsPanel";
+import { DiskFiles } from "@/storage/storage";
+import type { PointerTool } from "@/worker/protocol";
+import { type EngineState, EngineSession, useEngine } from "@/worker/session";
+import {
+  type Example,
+  fetchAvatar,
+  fetchExample,
+  listExamples,
+} from "./examples";
+import { Gizmo } from "./Gizmo";
+import {
+  CubeIcon,
+  FabricIcon,
+  FlatIcon,
+  Logo,
+  MoveIcon,
+  PinchIcon,
+  RedoIcon,
+  SelectIcon,
+  TurnIcon,
+  UndoIcon,
+} from "./icons";
+import { ExportDialog } from "./ExportDialog";
+import { ImportDialog, type TextFile } from "./ImportDialog";
+import { StartScreen } from "./StartScreen";
+import { useFiles } from "./useFiles";
+import { useProjectRoute } from "./useProjectRoute";
+import { useThumbnails } from "./useThumbnails";
+import { Viewport } from "./Viewport";
 
-const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
-type Mode = '3d' | 'flat';
+type Mode = "3d" | "flat";
 
 const HINTS: Record<string, string> = {
-  '3d:select': 'Select: click a piece, then drag its handles to move it on the body. The drape waits until you pick another tool.',
-  '3d:turn': 'Turn: drag to look around, scroll to zoom. On a trackpad, drag with two fingers to turn and pinch to zoom.',
-  '3d:pinch': 'Pinch: drag the fabric to pull it. It settles when you let go.',
-  'flat:select': 'Select: click a piece to pick it, drag its round handle to turn it. Drag the background to look around.',
-  'flat:move': 'Move: drag a piece to place it.',
-  'flat:sew': 'Sew: click an edge, then the edge it is sewn to. Hold Shift to add more edges to a side. Dotted edges are free; coloured ones are sewn.',
+  "3d:select":
+    "Select: click a piece, then drag its handles to move it on the body. The drape waits until you pick another tool.",
+  "3d:turn":
+    "Turn: drag to look around, scroll to zoom. On a trackpad, drag with two fingers to turn and pinch to zoom.",
+  "3d:pinch": "Pinch: drag the fabric to pull it. It settles when you let go.",
+  "flat:select":
+    "Select: click a piece to pick it, drag its round handle to turn it. Drag the background to look around.",
+  "flat:move": "Move: drag a piece to place it.",
+  "flat:sew":
+    "Sew: click an edge, then the edge it is sewn to. Hold Shift to add more edges to a side. Dotted edges are free; coloured ones are sewn.",
 };
 
 /** Random bytes for new ids. */
 const seed = () => Array.from(crypto.getRandomValues(new Uint8Array(16)));
 
 /** Text files from a drop or a file input: a DXF, and a garment.toml if there is one. */
-async function readPattern(files: FileList | File[]): Promise<{ dxf: TextFile; sidecar: TextFile | null } | null> {
+async function readPattern(
+  files: FileList | File[],
+): Promise<{ dxf: TextFile; sidecar: TextFile | null } | null> {
   const list = [...files];
   const dxf = list.find((f) => /\.dxf$/i.test(f.name));
   if (!dxf) return null;
   const toml = list.find((f) => /\.toml$/i.test(f.name));
-  return { dxf: { name: dxf.name, text: await dxf.text() }, sidecar: toml ? { name: toml.name, text: await toml.text() } : null };
+  return {
+    dxf: { name: dxf.name, text: await dxf.text() },
+    sidecar: toml ? { name: toml.name, text: await toml.text() } : null,
+  };
 }
 
 export function Editor({ cloud }: { cloud: Cloud }) {
@@ -81,7 +148,13 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const doc = useDocument(store);
   const files = useFiles(session, store, disk, doc, cloud);
   useProjectRoute(files, doc.empty);
-  useThumbnails(session, engine, files.ref?.cloud?.id ?? null, !files.blocked, cloud);
+  useThumbnails(
+    session,
+    engine,
+    files.ref?.cloud?.id ?? null,
+    !files.blocked,
+    cloud,
+  );
   const [accountOpen, setAccountOpen] = useState(false);
   const [cloudOpen, setCloudOpen] = useState(false);
   /** Why the account dialog was opened, and what to do once there is an account. */
@@ -106,11 +179,22 @@ export function Editor({ cloud }: { cloud: Cloud }) {
 
   /** Without an account, a new project replaces the draft: asked first. */
   const draft = cloud.user?.anonymous ? (cloud.projects?.[0] ?? null) : null;
-  const [replacing, setReplacing] = useState<{ name: string; answer: (go: boolean) => void } | null>(null);
+  const [replacing, setReplacing] = useState<{
+    name: string;
+    answer: (go: boolean) => void;
+  } | null>(null);
   const confirmReplace = (): Promise<boolean> =>
-    draft ? new Promise((resolve) => setReplacing({ name: draft.name, answer: resolve })) : Promise.resolve(true);
-  const startNew = (go: () => void) => void confirmReplace().then((yes) => yes && go());
-  const [googleError, setGoogleError] = useState<{ code: string; message: string } | null>(null);
+    draft
+      ? new Promise((resolve) =>
+          setReplacing({ name: draft.name, answer: resolve }),
+        )
+      : Promise.resolve(true);
+  const startNew = (go: () => void) =>
+    void confirmReplace().then((yes) => yes && go());
+  const [googleError, setGoogleError] = useState<{
+    code: string;
+    message: string;
+  } | null>(null);
 
   // Back from Google: say what went wrong, or finish what was left to do (move an anonymous
   // user's projects into the account reached, reopen the cloud project that was open).
@@ -122,39 +206,53 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     filesNow.current = files;
   });
   useEffect(() => {
-    void cloudBackend().then(async (b) => {
-      if (!b.returned) return;
-      b.returned = false;
-      if (b.returnError) {
-        setGoogleError(b.returnError);
-        setAccountOpen(true);
-        return;
-      }
-      const stash = b.takeReturn();
-      if (!stash || !b.user()) return;
-      const from = b.fromStash(stash);
-      if (from) {
-        const r = await moveProjects(from, b);
-        cloudRefresh();
-        const { showInfo, projectsMoved } = filesNow.current;
-        projectsMoved(r.ids);
-        if (r.failed.length) showInfo(`Signed in. These projects could not be moved from this browser and stay there: ${r.failed.join(', ')}.`);
-        else if (r.moved) showInfo(`Signed in. ${r.moved} project${r.moved === 1 ? '' : 's'} from this browser moved to your account.`);
-      } else if (stash.reopen) {
-        filesNow.current.openCloud(stash.reopen);
-      }
-    }, () => undefined);
+    void cloudBackend().then(
+      async (b) => {
+        if (!b.returned) return;
+        b.returned = false;
+        if (b.returnError) {
+          setGoogleError(b.returnError);
+          setAccountOpen(true);
+          return;
+        }
+        const stash = b.takeReturn();
+        if (!stash || !b.user()) return;
+        const from = b.fromStash(stash);
+        if (from) {
+          const r = await moveProjects(from, b);
+          cloudRefresh();
+          const { showInfo, projectsMoved } = filesNow.current;
+          projectsMoved(r.ids);
+          if (r.failed.length)
+            showInfo(
+              `Signed in. These projects could not be moved from this browser and stay there: ${r.failed.join(", ")}.`,
+            );
+          else if (r.moved)
+            showInfo(
+              `Signed in. ${r.moved} project${r.moved === 1 ? "" : "s"} from this browser moved to your account.`,
+            );
+        } else if (stash.reopen) {
+          filesNow.current.openCloud(stash.reopen);
+        }
+      },
+      () => undefined,
+    );
     // `userId`: run again once the session from the URL is in.
   }, [cloudBackend, cloudRefresh, userId]);
 
   const continueWithGoogle = (signIn: boolean) => {
     setGoogleError(null);
-    files.leavePage(async () => (await cloud.backend()).continueWithGoogle({ signIn, reopen: files.ref?.cloud?.id }));
+    files.leavePage(async () =>
+      (await cloud.backend()).continueWithGoogle({
+        signIn,
+        reopen: files.ref?.cloud?.id,
+      }),
+    );
   };
-  const [mode, setMode] = useState<Mode>('3d');
-  const [panel, setPanel] = useState<PanelId | null>('fabric');
-  const [tool, setTool] = useState<PointerTool>('turn');
-  const [flatTool, setFlatTool] = useState<FlatTool>('select');
+  const [mode, setMode] = useState<Mode>("3d");
+  const [panel, setPanel] = useState<PanelId | null>("fabric");
+  const [tool, setTool] = useState<PointerTool>("turn");
+  const [flatTool, setFlatTool] = useState<FlatTool>("select");
   const [importing, setImporting] = useState<TextFile | null>(null);
   const [importKey, setImportKey] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -177,8 +275,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const [edges, setEdges] = useState<CutEdge[]>([]);
   const [differences, setDifferences] = useState<Record<string, number>>({});
   const [finding, setFinding] = useState(false);
-  const sewingShown = panel === 'seams' || (mode === 'flat' && flatTool === 'sew');
-  const sewingKey = garment ? `${garment.id}` : '';
+  const sewingShown =
+    panel === "seams" || (mode === "flat" && flatTool === "sew");
+  const sewingKey = garment ? `${garment.id}` : "";
   const seams = garment?.seams;
   const pieces = garment?.pieces;
   useEffect(() => {
@@ -199,16 +298,24 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, sewingShown, doc.empty, sewingKey, seams, pieces]);
   // Suggestions and a half-made pick belong to the garment they were made for.
-  const [proposalState, setProposalState] = useState<{ key: string; list: SeamProposal[] } | null>(null);
+  const [proposalState, setProposalState] = useState<{
+    key: string;
+    list: SeamProposal[];
+  } | null>(null);
   /** The edges picked for the seam being made: `open` is the side being picked. */
   interface Picks {
     a: CutEdge[];
     b: CutEdge[];
-    open: 'a' | 'b';
+    open: "a" | "b";
   }
-  const [pickState, setPickState] = useState<{ key: string; picks: Picks } | null>(null);
-  const proposals = proposalState?.key === sewingKey ? proposalState.list : null;
-  const picks: Picks | null = pickState?.key === sewingKey ? pickState.picks : null;
+  const [pickState, setPickState] = useState<{
+    key: string;
+    picks: Picks;
+  } | null>(null);
+  const proposals =
+    proposalState?.key === sewingKey ? proposalState.list : null;
+  const picks: Picks | null =
+    pickState?.key === sewingKey ? pickState.picks : null;
   const setProposals = useCallback(
     (f: (l: SeamProposal[] | null) => SeamProposal[] | null) =>
       setProposalState((s) => {
@@ -217,7 +324,10 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       }),
     [sewingKey],
   );
-  const setPicks = useCallback((p: Picks | null) => setPickState(p ? { key: sewingKey, picks: p } : null), [sewingKey]);
+  const setPicks = useCallback(
+    (p: Picks | null) => setPickState(p ? { key: sewingKey, picks: p } : null),
+    [sewingKey],
+  );
 
   const findSeams = useCallback(async () => {
     setFinding(true);
@@ -225,16 +335,22 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       const list = parseProposals(await session.suggestSeams());
       setProposals(() => list);
     } catch (e) {
-      files.showError('Could not suggest seams', e as Error);
+      files.showError("Could not suggest seams", e as Error);
     } finally {
       setFinding(false);
     }
   }, [session, files, setProposals]);
 
   const sew = useCallback(
-    (p: { a: SeamProposal['a']; b: SeamProposal['b']; pairing?: SeamProposal['pairing'] }) => {
+    (p: {
+      a: SeamProposal["a"];
+      b: SeamProposal["b"];
+      pairing?: SeamProposal["pairing"];
+    }) => {
       if (!garment) return false;
-      return store.execute((e) => addSeam(e, garment.id, p, crypto.randomUUID()));
+      return store.execute((e) =>
+        addSeam(e, garment.id, p, crypto.randomUUID()),
+      );
     },
     [garment, store],
   );
@@ -250,7 +366,12 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   /** Sews the picked sides (one or more whole edges each). */
   const completeSeam = useCallback(
     (p: Picks) => {
-      const side = (list: CutEdge[]) => JSON.stringify(list.length === 1 ? { cut: list[0]?.cut, from: list[0]?.from, to: list[0]?.to } : list.map((x) => ({ cut: x.cut, from: x.from, to: x.to })));
+      const side = (list: CutEdge[]) =>
+        JSON.stringify(
+          list.length === 1
+            ? { cut: list[0]?.cut, from: list[0]?.from, to: list[0]?.to }
+            : list.map((x) => ({ cut: x.cut, from: x.from, to: x.to })),
+        );
       session.joinEdges(side(p.a), side(p.b)).then(
         (j) => {
           const [made] = parseProposals(`[${j}]`);
@@ -259,7 +380,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         },
         (e: Error) => {
           setPicks(null);
-          files.showError('Could not sew those edges', e);
+          files.showError("Could not sew those edges", e);
         },
       );
     },
@@ -273,7 +394,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
    */
   const pickEdge = useCallback(
     (edge: CutEdge | null, more: boolean) => {
-      const cur: Picks = picks ?? { a: [], b: [], open: 'a' };
+      const cur: Picks = picks ?? { a: [], b: [], open: "a" };
       const all = [...cur.a, ...cur.b];
       if (edge && all.some((x) => sameEdge(x, edge))) {
         // Picking it again takes it back.
@@ -282,37 +403,44 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         setPicks(next.a.length || next.b.length ? next : null);
         return;
       }
-      const next: Picks = edge ? { ...cur, [cur.open]: [...cur[cur.open], edge] } : cur;
+      const next: Picks = edge
+        ? { ...cur, [cur.open]: [...cur[cur.open], edge] }
+        : cur;
       if (more && edge) {
         setPicks(next);
         return;
       }
       if (next[next.open].length === 0) return;
-      if (next.open === 'a') setPicks({ ...next, open: 'b' });
+      if (next.open === "a") setPicks({ ...next, open: "b" });
       else completeSeam(next);
     },
     [picks, setPicks, completeSeam],
   );
-  const fabric = garment ? doc.entities.fabrics.find((f) => f.id === garment.fabric) : doc.entities.fabrics[0];
+  const fabric = garment
+    ? doc.entities.fabrics.find((f) => f.id === garment.fabric)
+    : doc.entities.fabrics[0];
   // A selection only counts in the file it was made in.
-  const selected = selection && garment ? findCut(garment, selection.cutId) : undefined;
+  const selected =
+    selection && garment ? findCut(garment, selection.cutId) : undefined;
   const shownSelection = selected ? selection : null;
 
   const select = useCallback((s: Selection) => {
     setSelection(s);
-    if (s) setPanel('pieces');
+    if (s) setPanel("pieces");
   }, []);
 
   // Placing pieces: the Select tool in 3D. The cloth waits where it starts.
-  const placing = mode === '3d' && tool === 'select' && !doc.empty;
+  const placing = mode === "3d" && tool === "select" && !doc.empty;
   useEffect(() => {
-    if (session.state.controls.placing !== placing) session.setControls({ placing });
+    if (session.state.controls.placing !== placing)
+      session.setControls({ placing });
   }, [placing, session]);
 
   // The seams are drawn on the cloth while the Seams panel is open.
-  const showSeams = panel === 'seams';
+  const showSeams = panel === "seams";
   useEffect(() => {
-    if (session.state.controls.seams !== showSeams) session.setControls({ seams: showSeams });
+    if (session.state.controls.seams !== showSeams)
+      session.setControls({ seams: showSeams });
   }, [showSeams, session]);
 
   // The flat view shows each cut in its colour.
@@ -334,13 +462,16 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       session.onPicked((i) => {
         const id = i >= 0 ? drapeCuts?.[i] : undefined;
         const f = id && garment ? findCut(garment, id) : undefined;
-        select(f ? { kind: 'cut', pieceId: f.piece.id, cutId: f.cut.id } : null);
+        select(
+          f ? { kind: "cut", pieceId: f.piece.id, cutId: f.cut.id } : null,
+        );
       }),
     [session, drapeCuts, garment, select],
   );
 
   // The selected cut's handles, while placing (and while it is in the drape shown).
-  const gizmoIndex = placing && selection ? (drapeCuts?.indexOf(selection.cutId) ?? -1) : -1;
+  const gizmoIndex =
+    placing && selection ? (drapeCuts?.indexOf(selection.cutId) ?? -1) : -1;
   useEffect(() => {
     session.showGizmo(gizmoIndex >= 0 ? gizmoIndex : null);
   }, [session, gizmoIndex]);
@@ -348,7 +479,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   useEffect(() => {
     const el = canvasBox.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setCanvasSize({ w: el.clientWidth || 1, h: el.clientHeight || 1 }));
+    const ro = new ResizeObserver(() =>
+      setCanvasSize({ w: el.clientWidth || 1, h: el.clientHeight || 1 }),
+    );
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -359,10 +492,21 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       if (!g) return;
       session.rewrap(cutId, place).then(
         (json) => {
-          const r = JSON.parse(json) as { placement: Omit<Placement, 'type'>; bounds: Bounds | null };
-          store.execute((e) => setPlacement(e, g.id, cutId, { type: 'wrap', ...r.placement }, r.bounds ?? undefined));
+          const r = JSON.parse(json) as {
+            placement: Omit<Placement, "type">;
+            bounds: Bounds | null;
+          };
+          store.execute((e) =>
+            setPlacement(
+              e,
+              g.id,
+              cutId,
+              { type: "wrap", ...r.placement },
+              r.bounds ?? undefined,
+            ),
+          );
         },
-        (e: Error) => files.showError('Could not move the piece', e),
+        (e: Error) => files.showError("Could not move the piece", e),
       );
     },
     [garment, session, store, files],
@@ -378,7 +522,12 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     if (vtry) return startNew(() => files.openVtry(vtry));
     const r = await readPattern(list);
     if (!r) {
-      files.showError('Not imported', new Error('pick a DXF-AAMA pattern (.dxf) or a Vitryne project (.vtry)'));
+      files.showError(
+        "Not imported",
+        new Error(
+          "pick a DXF-AAMA pattern (.dxf) or a Vitryne project (.vtry)",
+        ),
+      );
       return;
     }
     // Pieces added to the open project aren't a new project; a new one replaces the draft.
@@ -392,7 +541,8 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   };
   const dropProps = {
     onDragOver: (e: React.DragEvent) => {
-      if ([...e.dataTransfer.items].some((i) => i.kind === 'file')) e.preventDefault();
+      if ([...e.dataTransfer.items].some((i) => i.kind === "file"))
+        e.preventDefault();
     },
     onDrop: (e: React.DragEvent) => {
       if (!e.dataTransfer.files.length) return;
@@ -401,77 +551,118 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     },
   };
 
-  const runImport = async (o: { dxf: TextFile; sidecar: TextFile | null; choices: Record<string, unknown>; into: 'new' | 'add' }) => {
+  const runImport = async (o: {
+    dxf: TextFile;
+    sidecar: TextFile | null;
+    choices: Record<string, unknown>;
+    into: "new" | "add";
+  }) => {
     const choices = JSON.stringify(o.choices);
-    if (o.into === 'add' && garment) {
-      const a = JSON.parse(await session.importAddition({ name: o.dxf.name, dxf: o.dxf.text, sidecar: o.sidecar?.text ?? '', choices, seed: seed() })) as Addition;
-      if (!store.execute((e) => addPieces(e, garment.id, a))) throw new Error(store.state.refused ?? 'the pieces could not be added');
-      if (a.notes.length) files.showInfo(a.notes.join('. '));
+    if (o.into === "add" && garment) {
+      const a = JSON.parse(
+        await session.importAddition({
+          name: o.dxf.name,
+          dxf: o.dxf.text,
+          sidecar: o.sidecar?.text ?? "",
+          choices,
+          seed: seed(),
+        }),
+      ) as Addition;
+      if (!store.execute((e) => addPieces(e, garment.id, a)))
+        throw new Error(store.state.refused ?? "the pieces could not be added");
+      if (a.notes.length) files.showInfo(a.notes.join(". "));
     } else {
       // With nothing open, starting the import already asked.
       if (!doc.empty && !(await confirmReplace())) return;
       const avatar = await fetchAvatar();
-      const name = `${o.dxf.name.replace(/\.dxf$/i, '')}.vtry`;
+      const name = `${o.dxf.name.replace(/\.dxf$/i, "")}.vtry`;
       await files.importNew(async (rev) => ({
         name,
-        ...(await session.importNew({ name: o.dxf.name, dxf: o.dxf.text, sidecar: o.sidecar?.text ?? '', choices, avatar, seed: seed() }, rev)),
+        ...(await session.importNew(
+          {
+            name: o.dxf.name,
+            dxf: o.dxf.text,
+            sidecar: o.sidecar?.text ?? "",
+            choices,
+            avatar,
+            seed: seed(),
+          },
+          rev,
+        )),
       }));
       setSelection(null);
-      setMode('3d');
+      setMode("3d");
     }
     setImporting(null);
   };
 
   const openPreset = (ex: Example) =>
-    startNew(() => files.openData({ name: ex.file.split('/').pop() ?? ex.file, form: 'zip' }, async () => ({ form: 'zip', bytes: await fetchExample(ex) })));
+    startNew(() =>
+      files.openData(
+        { name: ex.file.split("/").pop() ?? ex.file, form: "zip" },
+        async () => ({ form: "zip", bytes: await fetchExample(ex) }),
+      ),
+    );
   const importFile = () => fileInput.current?.click();
   const openFolder = () => startNew(() => files.openFolder());
-  const exportIt = () => needAccount('Create a free account to export.', () => setExporting(true));
+  const exportIt = () =>
+    needAccount("Create a free account to export.", () => setExporting(true));
 
   const { save } = files;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      const typing =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement;
       const mod = e.metaKey || e.ctrlKey;
       const k = e.key.toLowerCase();
-      if (mod && k === 's') {
+      if (mod && k === "s") {
         e.preventDefault();
         // Let a field being edited commit first.
         if (typing) (e.target as HTMLElement).blur();
         save();
         return;
       }
-      if (mod && k === 'o') {
+      if (mod && k === "o") {
         e.preventDefault();
         fileInput.current?.click();
         return;
       }
-      if (mod && !typing && (k === 'z' || k === 'y')) {
+      if (mod && !typing && (k === "z" || k === "y")) {
         e.preventDefault();
-        if (k === 'y' || e.shiftKey) store.redo();
+        if (k === "y" || e.shiftKey) store.redo();
         else store.undo();
         return;
       }
       if (typing || mod) return;
       const c = session.state.controls;
-      if (e.key === ' ') session.setControls({ paused: !c.paused });
-      else if (k === 'f') session.setControls({ fast: !c.fast });
-      else if (k === 'r') session.resetDrape();
+      if (e.key === " ") session.setControls({ paused: !c.paused });
+      else if (k === "f") session.setControls({ fast: !c.fast });
+      else if (k === "r") session.resetDrape();
       else return;
       e.preventDefault();
     };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
   }, [session, store, save]);
 
-  const message = files.notice?.kind === 'error' ? files.notice.text : (examplesError ?? doc.refused);
-  const saveState = files.busy ? `${files.busy}…` : saveStateText(files.saveStatus, doc, !!files.ref?.cloud);
-  const stopped = files.saveStatus.kind === 'stopped' ? files.saveStatus : null;
+  const message =
+    files.notice?.kind === "error"
+      ? files.notice.text
+      : (examplesError ?? doc.refused);
+  const saveState = files.busy
+    ? `${files.busy}…`
+    : saveStateText(files.saveStatus, doc, !!files.ref?.cloud);
+  const stopped = files.saveStatus.kind === "stopped" ? files.saveStatus : null;
 
   const recoveryBanner = files.recovery && (
-    <div className="mx-auto mt-2 flex w-[calc(100%-64px)] max-w-[1056px] flex-wrap items-center gap-3 rounded-2xl border border-[#E1E4DE] bg-white px-5 py-3 text-[15px]" role="status">
+    <div
+      className="mx-auto mt-2 flex w-[calc(100%-64px)] max-w-[1056px] flex-wrap items-center gap-3 rounded-2xl border border-[#E1E4DE] bg-white px-5 py-3 text-[15px]"
+      role="status"
+    >
       <span className="grow">
-        Unsaved changes to <strong>{files.recovery.fileName}</strong> from {new Date(files.recovery.at).toLocaleString()} were kept in this
+        Unsaved changes to <strong>{files.recovery.fileName}</strong> from{" "}
+        {new Date(files.recovery.at).toLocaleString()} were kept in this
         browser.
       </span>
       <Button onClick={() => void files.recovery?.recover()}>Recover</Button>
@@ -487,7 +678,12 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b bg-white px-4 py-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" aria-label="Back to start" onClick={() => files.close()} className="flex items-center rounded-lg">
+            <button
+              type="button"
+              aria-label="Back to start"
+              onClick={() => files.close()}
+              className="flex items-center rounded-lg"
+            >
               <Logo />
             </button>
           </TooltipTrigger>
@@ -495,67 +691,117 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         </Tooltip>
         <span className="mx-1 h-6 w-px bg-[#E1E4DE]" />
         {doc.entities.project ? (
-          <ProjectName name={doc.entities.project.name ?? doc.fileName} onRename={(v) => store.execute((e) => renameProject(e, v))} />
+          <ProjectName
+            name={doc.entities.project.name ?? doc.fileName}
+            onRename={(v) => store.execute((e) => renameProject(e, v))}
+          />
         ) : (
-          <span className="max-w-[40vw] truncate text-[15px] font-semibold">{doc.fileName}</span>
+          <span className="max-w-[40vw] truncate text-[15px] font-semibold">
+            {doc.fileName}
+          </span>
         )}
-        <span className={cn('truncate text-[13px]', doc.dirty ? 'text-foreground' : 'text-muted-foreground')} title={files.ref?.name}>
+        <span
+          className={cn(
+            "truncate text-[13px]",
+            doc.dirty ? "text-foreground" : "text-muted-foreground",
+          )}
+          title={files.ref?.name}
+        >
           {saveState}
         </span>
         <span className="grow" />
-        <IconButton label={doc.undoLabel ? `Undo: ${doc.undoLabel} (${MOD}Z)` : 'Nothing to undo'} disabled={!doc.undoLabel} onClick={() => store.undo()}>
+        <IconButton
+          label={
+            doc.undoLabel
+              ? `Undo: ${doc.undoLabel} (${MOD}Z)`
+              : "Nothing to undo"
+          }
+          disabled={!doc.undoLabel}
+          onClick={() => store.undo()}
+        >
           <UndoIcon />
         </IconButton>
-        <IconButton label={doc.redoLabel ? `Redo: ${doc.redoLabel} (⇧${MOD}Z)` : 'Nothing to redo'} disabled={!doc.redoLabel} onClick={() => store.redo()}>
+        <IconButton
+          label={
+            doc.redoLabel
+              ? `Redo: ${doc.redoLabel} (⇧${MOD}Z)`
+              : "Nothing to redo"
+          }
+          disabled={!doc.redoLabel}
+          onClick={() => store.redo()}
+        >
           <RedoIcon />
         </IconButton>
-        <Button variant="outline" className="w-[176px] font-medium" onClick={() => setMode(mode === '3d' ? 'flat' : '3d')}>
-          {mode === '3d' ? <FlatIcon /> : <CubeIcon />}
-          {mode === '3d' ? 'Show flat pieces' : 'Show 3D'}
+        <Button
+          variant="outline"
+          className="w-[176px] font-medium"
+          onClick={() => setMode(mode === "3d" ? "flat" : "3d")}
+        >
+          {mode === "3d" ? <FlatIcon /> : <CubeIcon />}
+          {mode === "3d" ? "Show flat pieces" : "Show 3D"}
         </Button>
         <CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="More">
-              <Ellipsis />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuItem onSelect={importFile}>
-              Import a file… <DropdownMenuShortcut>{MOD}O</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            {disk.opensFolders && <DropdownMenuItem onSelect={openFolder}>Open a folder project…</DropdownMenuItem>}
-            <DropdownMenuItem onSelect={() => setCloudOpen(true)}>Your projects…</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={!files.ref?.cloud || !!files.busy}
-              onSelect={() => needAccount('Create a free account to keep several projects.', files.duplicate)}
-            >
-              Duplicate
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={doc.empty} onSelect={exportIt}>
-              Export…
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => files.close()}>Close the project</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button
+          className="gap-2 px-3.5 font-semibold shadow-xs"
+          onClick={exportIt}
+          disabled={doc.empty}
+          aria-label="Export"
+        >
+          <Download className="size-4" />
+          <span>Export</span>
+        </Button>
       </header>
 
       <div className="flex min-h-0 grow">
         {/* Rail */}
-        <nav aria-label="Panels" className="flex w-20 shrink-0 flex-col gap-1.5 border-r bg-white px-2 py-3">
-          <RailButton id="fabric" icon={<FabricIcon />} panel={panel} setPanel={setPanel} />
-          <RailButton id="pieces" icon={<Shapes className="size-6" strokeWidth={1.6} />} panel={panel} setPanel={setPanel} />
-          <RailButton id="seams" icon={<Link2 className="size-6" strokeWidth={1.6} />} panel={panel} setPanel={setPanel} />
-          <RailButton id="settings" icon={<SlidersHorizontal className="size-6" strokeWidth={1.6} />} panel={panel} setPanel={setPanel} />
+        <nav
+          aria-label="Panels"
+          className="flex w-20 shrink-0 flex-col gap-1.5 border-r bg-white px-2 py-3"
+        >
+          <RailButton
+            id="fabric"
+            icon={<FabricIcon />}
+            panel={panel}
+            setPanel={setPanel}
+          />
+          <RailButton
+            id="pieces"
+            icon={<Shapes className="size-6" strokeWidth={1.6} />}
+            panel={panel}
+            setPanel={setPanel}
+          />
+          <RailButton
+            id="seams"
+            icon={<Link2 className="size-6" strokeWidth={1.6} />}
+            panel={panel}
+            setPanel={setPanel}
+          />
+          <RailButton
+            id="settings"
+            icon={<SlidersHorizontal className="size-6" strokeWidth={1.6} />}
+            panel={panel}
+            setPanel={setPanel}
+          />
         </nav>
         {/* Panel */}
         {panel && (
-          <aside aria-label={PANEL_TITLES[panel]} className="flex w-[300px] shrink-0 flex-col gap-4 overflow-y-auto border-r bg-white p-5">
-            <h2 className="font-display m-0 text-xl font-semibold">{PANEL_TITLES[panel]}</h2>
-            {panel === 'fabric' && <FabricPanel store={store} entities={doc.entities} fabric={fabric} garment={garment} fabrics={doc.entities.fabrics} />}
-            {panel === 'pieces' && (
+          <aside
+            aria-label={PANEL_TITLES[panel]}
+            className="flex w-[300px] shrink-0 flex-col gap-4 overflow-y-auto border-r bg-white p-5"
+          >
+            <h2 className="font-display m-0 text-xl font-semibold">
+              {PANEL_TITLES[panel]}
+            </h2>
+            {panel === "fabric" && (
+              <FabricPanel
+                store={store}
+                entities={doc.entities}
+                fabric={fabric}
+                garment={garment}
+                fabrics={doc.entities.fabrics}
+              />
+            )}
+            {panel === "pieces" && (
               <PiecesPanel
                 store={store}
                 entities={doc.entities}
@@ -564,10 +810,12 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 selection={shownSelection}
                 onSelect={select}
                 onRewrap={rewrap}
-                onPlaceIn3d={placing ? null : () => (setMode('3d'), setTool('select'))}
+                onPlaceIn3d={
+                  placing ? null : () => (setMode("3d"), setTool("select"))
+                }
               />
             )}
-            {panel === 'seams' && (
+            {panel === "seams" && (
               <SeamsPanel
                 store={store}
                 garment={garment}
@@ -576,35 +824,60 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 finding={finding}
                 onFind={() => void findSeams()}
                 onAccept={acceptProposal}
-                onSkip={(i) => setProposals((list) => list?.filter((_, k) => k !== i) ?? null)}
-                picking={mode === 'flat' && flatTool === 'sew'}
-                picks={picks ? { a: picks.a.length, b: picks.b.length, open: picks.open } : null}
+                onSkip={(i) =>
+                  setProposals(
+                    (list) => list?.filter((_, k) => k !== i) ?? null,
+                  )
+                }
+                picking={mode === "flat" && flatTool === "sew"}
+                picks={
+                  picks
+                    ? { a: picks.a.length, b: picks.b.length, open: picks.open }
+                    : null
+                }
                 onFinishSide={() => pickEdge(null, false)}
-                onStartPicking={() => (setMode('flat'), setFlatTool('sew'))}
-                onStopPicking={() => (setFlatTool('select'), setPicks(null))}
+                onStartPicking={() => (setMode("flat"), setFlatTool("sew"))}
+                onStopPicking={() => (setFlatTool("select"), setPicks(null))}
               />
             )}
-            {panel === 'settings' && <SettingsPanel store={store} entities={doc.entities} />}
+            {panel === "settings" && (
+              <SettingsPanel store={store} entities={doc.entities} />
+            )}
           </aside>
         )}
 
         {/* Canvas */}
-        <section ref={canvasBox} aria-label={mode === '3d' ? '3D view' : 'Flat pieces'} className="bg-canvas-3d relative min-w-0 grow overflow-hidden" {...dropProps}>
+        <section
+          ref={canvasBox}
+          aria-label={mode === "3d" ? "3D view" : "Flat pieces"}
+          className="bg-canvas-3d relative min-w-0 grow overflow-hidden"
+          {...dropProps}
+        >
           {/* The 3D view stays mounted (and simulating) under the flat view. */}
           <div className="absolute inset-0">
             <Viewport session={session} tool={tool} />
           </div>
-          {placing && engine.gizmo && selected?.cut.placement.type === 'wrap' && gizmoIndex >= 0 && (
-            <Gizmo
-              view={engine.gizmo}
-              width={canvasSize.w}
-              height={canvasSize.h}
-              placement={selected.cut.placement as Placement & { type: 'wrap' }}
-              onPreview={(p) => session.placeCut(gizmoIndex, tidy(p))}
-              onCommit={(p) => garment && store.execute((e) => setPlacement(e, garment.id, selected.cut.id, tidy(p)))}
-            />
-          )}
-          {mode === 'flat' && (
+          {placing &&
+            engine.gizmo &&
+            selected?.cut.placement.type === "wrap" &&
+            gizmoIndex >= 0 && (
+              <Gizmo
+                view={engine.gizmo}
+                width={canvasSize.w}
+                height={canvasSize.h}
+                placement={
+                  selected.cut.placement as Placement & { type: "wrap" }
+                }
+                onPreview={(p) => session.placeCut(gizmoIndex, tidy(p))}
+                onCommit={(p) =>
+                  garment &&
+                  store.execute((e) =>
+                    setPlacement(e, garment.id, selected.cut.id, tidy(p)),
+                  )
+                }
+              />
+            )}
+          {mode === "flat" && (
             <div className="absolute inset-0">
               <PatternPanel
                 ref={pattern}
@@ -612,9 +885,21 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 selection={shownSelection}
                 onSelect={select}
                 tool={flatTool}
-                sewing={{ edges, picked: picks ? [...picks.a, ...picks.b] : [], onPick: pickEdge }}
+                sewing={{
+                  edges,
+                  picked: picks ? [...picks.a, ...picks.b] : [],
+                  onPick: pickEdge,
+                }}
                 cutColors={cutColors}
-                onArrange={(cutId, t) => garment && store.execute((e) => setLayout(e, garment.id, cutId, { position: [t.x, t.y], rotation: t.rot }))}
+                onArrange={(cutId, t) =>
+                  garment &&
+                  store.execute((e) =>
+                    setLayout(e, garment.id, cutId, {
+                      position: [t.x, t.y],
+                      rotation: t.rot,
+                    }),
+                  )
+                }
               />
             </div>
           )}
@@ -622,41 +907,74 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           <div className="absolute top-4 left-4 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill engine={engine} mode={mode} placing={placing} />
-              {doc.warnings.length + (engine.drape?.info.warnings.length ?? 0) > 0 && (
+              {doc.warnings.length + (engine.drape?.info.warnings.length ?? 0) >
+                0 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span tabIndex={0} className="rounded-full border border-[#E9D6A6] bg-[#FBF3DC] px-3.5 py-2 text-sm font-medium">
-                      {doc.warnings.length + (engine.drape?.info.warnings.length ?? 0)} note(s)
+                    <span
+                      tabIndex={0}
+                      className="rounded-full border border-[#E9D6A6] bg-[#FBF3DC] px-3.5 py-2 text-sm font-medium"
+                    >
+                      {doc.warnings.length +
+                        (engine.drape?.info.warnings.length ?? 0)}{" "}
+                      note(s)
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-80 whitespace-pre-line">{[...doc.warnings, ...(engine.drape?.info.warnings ?? [])].join('\n')}</TooltipContent>
+                  <TooltipContent className="max-w-80 whitespace-pre-line">
+                    {[
+                      ...doc.warnings,
+                      ...(engine.drape?.info.warnings ?? []),
+                    ].join("\n")}
+                  </TooltipContent>
                 </Tooltip>
               )}
             </div>
-            {engine.notice && <Card onDismiss={() => session.clearNotice()}>{engine.notice}</Card>}
-            {files.notice?.kind === 'info' && <Card onDismiss={() => files.dismissNotice()}>{files.notice.text}</Card>}
+            {engine.notice && (
+              <Card onDismiss={() => session.clearNotice()}>
+                {engine.notice}
+              </Card>
+            )}
+            {files.notice?.kind === "info" && (
+              <Card onDismiss={() => files.dismissNotice()}>
+                {files.notice.text}
+              </Card>
+            )}
             {files.conflict && (
               <Card tone="error">
-                <span className="block">This project was changed in another browser since you opened it. Your latest changes aren't saved.</span>
+                <span className="block">
+                  This project was changed in another browser since you opened
+                  it. Your latest changes aren't saved.
+                </span>
                 <span className="mt-2 flex flex-wrap gap-2">
                   <Button size="sm" onClick={files.conflict.reload}>
                     Open the other version
                   </Button>
                   {isAccount ? (
-                    <Button size="sm" variant="outline" onClick={files.conflict.saveCopy}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={files.conflict.saveCopy}
+                    >
                       Keep mine as a copy
                     </Button>
                   ) : (
-                    <Button size="sm" variant="outline" onClick={() => void files.conflict?.keepMine()}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void files.conflict?.keepMine()}
+                    >
                       Keep mine
                     </Button>
                   )}
                 </span>
               </Card>
             )}
-            {stopped?.reason === 'account' && (
+            {stopped?.reason === "account" && (
               <Card tone="error">
-                <span className="block">Your draft is the one project you can keep without an account. Create a free account to keep this one too.</span>
+                <span className="block">
+                  Your draft is the one project you can keep without an account.
+                  Create a free account to keep this one too.
+                </span>
                 <span className="mt-2 flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => setAccountOpen(true)}>
                     Create an account
@@ -664,7 +982,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 </span>
               </Card>
             )}
-            {stopped?.reason === 'error' && (
+            {stopped?.reason === "error" && (
               <Card tone="error">
                 <span className="block">Not saved: {stopped.text}</span>
                 <span className="mt-2 flex flex-wrap gap-2">
@@ -674,7 +992,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 </span>
               </Card>
             )}
-            {engine.drapeError && <Card tone="error">The drape could not be built: {engine.drapeError}</Card>}
+            {engine.drapeError && (
+              <Card tone="error">
+                The drape could not be built: {engine.drapeError}
+              </Card>
+            )}
             {message && (
               <Card
                 tone="error"
@@ -689,80 +1011,139 @@ export function Editor({ cloud }: { cloud: Cloud }) {
             )}
           </div>
 
-          {engine.phase === 'failed' && (
+          {engine.phase === "failed" && (
             <div className="bg-background/90 absolute inset-0 flex items-center justify-center p-8">
               <div className="max-w-md space-y-2 rounded-[20px] border bg-white p-7 text-[15px]">
-                <p className="font-display m-0 text-xl font-semibold">The 3D view keeps stopping</p>
-                <p className="text-muted-foreground m-0">It was not restarted again. Last reason: {engine.failure}</p>
-                <p className="m-0">Your project is still here: save it, then reload the page.</p>
+                <p className="font-display m-0 text-xl font-semibold">
+                  The 3D view keeps stopping
+                </p>
+                <p className="text-muted-foreground m-0">
+                  It was not restarted again. Last reason: {engine.failure}
+                </p>
+                <p className="m-0">
+                  Your project is still here: save it, then reload the page.
+                </p>
               </div>
             </div>
           )}
 
           <div className="text-muted-foreground pointer-events-none absolute bottom-5 left-4 max-w-60 text-[13px] leading-snug">
-            {placing && selected?.cut.placement.type === 'follow'
-              ? 'This piece sits on another one: it moves with it. Change that in the Pieces panel.'
-              : HINTS[mode === 'flat' ? `flat:${flatTool}` : `3d:${tool}`]}
+            {placing && selected?.cut.placement.type === "follow"
+              ? "This piece sits on another one: it moves with it. Change that in the Pieces panel."
+              : HINTS[mode === "flat" ? `flat:${flatTool}` : `3d:${tool}`]}
           </div>
 
           <div className="absolute right-4 bottom-4 flex items-center gap-0.5 rounded-[10px] border border-[#E1E4DE] bg-white p-0.5">
-            <ZoomButton label="Zoom out" onClick={() => (mode === 'flat' ? pattern.current?.zoom(1 / 1.25) : session.wheel(-1))}>
+            <ZoomButton
+              label="Zoom out"
+              onClick={() =>
+                mode === "flat"
+                  ? pattern.current?.zoom(1 / 1.25)
+                  : session.wheel(-1)
+              }
+            >
               −
             </ZoomButton>
-            {mode === 'flat' && (
-              <button type="button" onClick={() => pattern.current?.reset()} className="h-9 min-w-11 rounded-lg px-1 text-[13px] font-medium hover:bg-[#F4F5F2]">
+            {mode === "flat" && (
+              <button
+                type="button"
+                onClick={() => pattern.current?.reset()}
+                className="h-9 min-w-11 rounded-lg px-1 text-[13px] font-medium hover:bg-[#F4F5F2]"
+              >
                 Fit
               </button>
             )}
-            <ZoomButton label="Zoom in" onClick={() => (mode === 'flat' ? pattern.current?.zoom(1.25) : session.wheel(1))}>
+            <ZoomButton
+              label="Zoom in"
+              onClick={() =>
+                mode === "flat" ? pattern.current?.zoom(1.25) : session.wheel(1)
+              }
+            >
               +
             </ZoomButton>
           </div>
 
-          {mode === '3d' && (
+          {mode === "3d" && (
             <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
-              <ToolButton label="Select" selected={tool === 'select'} onClick={() => setTool('select')}>
+              <ToolButton
+                label="Select"
+                selected={tool === "select"}
+                onClick={() => setTool("select")}
+              >
                 <SelectIcon />
               </ToolButton>
-              <ToolButton label="Turn view" selected={tool === 'turn'} onClick={() => setTool('turn')}>
+              <ToolButton
+                label="Turn view"
+                selected={tool === "turn"}
+                onClick={() => setTool("turn")}
+              >
                 <TurnIcon />
               </ToolButton>
-              <ToolButton label="Pinch fabric" selected={tool === 'pinch'} onClick={() => setTool('pinch')}>
+              <ToolButton
+                label="Pinch fabric"
+                selected={tool === "pinch"}
+                onClick={() => setTool("pinch")}
+              >
                 <PinchIcon />
               </ToolButton>
               <span className="mx-1 my-2 w-px bg-white/20" />
               <ToolButton
-                label={engine.controls.paused ? 'Play (space)' : 'Pause (space)'}
+                label={
+                  engine.controls.paused ? "Play (space)" : "Pause (space)"
+                }
                 onClick={() => {
                   // Play while placing means "drape now".
-                  if (placing) setTool('turn');
-                  session.setControls({ paused: placing ? false : !engine.controls.paused });
+                  if (placing) setTool("turn");
+                  session.setControls({
+                    paused: placing ? false : !engine.controls.paused,
+                  });
                 }}
               >
-                {engine.controls.paused ? <Play className="size-5" /> : <Pause className="size-5" />}
+                {engine.controls.paused ? (
+                  <Play className="size-5" />
+                ) : (
+                  <Pause className="size-5" />
+                )}
               </ToolButton>
-              <ToolButton label="Fast drape (F)" selected={engine.controls.fast} onClick={() => session.setControls({ fast: !engine.controls.fast })}>
+              <ToolButton
+                label="Fast drape (F)"
+                selected={engine.controls.fast}
+                onClick={() =>
+                  session.setControls({ fast: !engine.controls.fast })
+                }
+              >
                 <FastForward className="size-5" />
               </ToolButton>
-              <ToolButton label="Drape again from the start (R)" onClick={() => session.resetDrape()}>
+              <ToolButton
+                label="Drape again from the start (R)"
+                onClick={() => session.resetDrape()}
+              >
                 <RotateCcw className="size-5" />
               </ToolButton>
             </div>
           )}
-          {mode === 'flat' && !doc.empty && (
+          {mode === "flat" && !doc.empty && (
             <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
-              <ToolButton label="Select" selected={flatTool === 'select'} onClick={() => setFlatTool('select')}>
+              <ToolButton
+                label="Select"
+                selected={flatTool === "select"}
+                onClick={() => setFlatTool("select")}
+              >
                 <SelectIcon />
               </ToolButton>
-              <ToolButton label="Move" selected={flatTool === 'move'} onClick={() => setFlatTool('move')}>
+              <ToolButton
+                label="Move"
+                selected={flatTool === "move"}
+                onClick={() => setFlatTool("move")}
+              >
                 <MoveIcon />
               </ToolButton>
               <ToolButton
                 label="Sew two edges"
-                selected={flatTool === 'sew'}
+                selected={flatTool === "sew"}
                 onClick={() => {
-                  setFlatTool('sew');
-                  setPanel('seams');
+                  setFlatTool("sew");
+                  setPanel("seams");
                 }}
               >
                 <Link2 className="size-5" />
@@ -780,21 +1161,30 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           onImport={importFile}
           dropProps={dropProps}
           onOpenFolder={disk.opensFolders ? openFolder : null}
-          account={<CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />}
+          account={
+            <CloudButton
+              user={cloud.user}
+              onClick={() => setAccountOpen(true)}
+            />
+          }
           projects={
             // Nobody signed in yet: nothing saved, so no list to wait for.
             !cloud.user || cloud.projects ? (
               <ProjectGrid
                 cloud={cloud}
                 projects={cloud.projects ?? []}
-                title={draft ? 'Your draft' : 'Your projects'}
+                title={draft ? "Your draft" : "Your projects"}
                 note={
                   draft && (
                     <p className="text-body-text m-0 text-[15px]">
-                      Without an account you keep one project.{' '}
-                      <button type="button" onClick={() => setAccountOpen(true)} className="text-foreground font-semibold underline underline-offset-4">
+                      Without an account you keep one project.{" "}
+                      <button
+                        type="button"
+                        onClick={() => setAccountOpen(true)}
+                        className="text-foreground font-semibold underline underline-offset-4"
+                      >
                         Create a free account
-                      </button>{' '}
+                      </button>{" "}
                       to keep more and open them anywhere.
                     </p>
                   )
@@ -809,7 +1199,13 @@ export function Editor({ cloud }: { cloud: Cloud }) {
               {recoveryBanner}
               {message && (
                 <div className="mx-auto mt-2 w-[calc(100%-64px)] max-w-[1056px]">
-                  <Card tone="error" onDismiss={() => (files.dismissNotice(), setExamplesError(null))}>
+                  <Card
+                    tone="error"
+                    onDismiss={() => (
+                      files.dismissNotice(),
+                      setExamplesError(null)
+                    )}
+                  >
                     {message}
                   </Card>
                 </div>
@@ -818,7 +1214,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           }
         />
       )}
-      {!doc.empty && files.recovery && <div className="absolute inset-x-0 top-16 z-20">{recoveryBanner}</div>}
+      {!doc.empty && files.recovery && (
+        <div className="absolute inset-x-0 top-16 z-20">{recoveryBanner}</div>
+      )}
 
       <input
         ref={fileInput}
@@ -828,7 +1226,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         className="hidden"
         onChange={(e) => {
           const list = e.target.files ? [...e.target.files] : [];
-          e.target.value = '';
+          e.target.value = "";
           if (list.length) void startImport(list);
         }}
       />
@@ -837,7 +1235,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         dxf={importing}
         initialSidecar={droppedSidecar}
         session={session}
-        projectName={doc.empty ? null : (doc.entities.project?.name ?? doc.fileName)}
+        projectName={
+          doc.empty ? null : (doc.entities.project?.name ?? doc.fileName)
+        }
         onClose={() => setImporting(null)}
         onImport={runImport}
       />
@@ -845,10 +1245,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         open={exporting}
         onOpenChange={setExporting}
         session={session}
-        garmentName={doc.entities.project?.name ?? garment?.name ?? 'garment'}
+        garmentName={doc.entities.project?.name ?? garment?.name ?? "garment"}
         projectFile={async () => {
-          const data = await session.save((await store.settled()).rev, 'zip');
-          if (data.form !== 'zip') throw new Error('internal: the worker did not give the zip form');
+          const data = await session.save((await store.settled()).rev, "zip");
+          if (data.form !== "zip")
+            throw new Error("internal: the worker did not give the zip form");
           return data.bytes;
         }}
       />
@@ -872,19 +1273,36 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           returnError={googleError}
         />
       )}
-      <CloudProjectsDialog cloud={cloud} open={cloudOpen} onOpenChange={setCloudOpen} busy={!!files.busy} onOpen={(id) => files.openCloud(id)} />
+      <CloudProjectsDialog
+        cloud={cloud}
+        open={cloudOpen}
+        onOpenChange={setCloudOpen}
+        busy={!!files.busy}
+        onOpen={(id) => files.openCloud(id)}
+      />
 
-      <Dialog open={!!replacing} onOpenChange={(open) => !open && (replacing?.answer(false), setReplacing(null))}>
+      <Dialog
+        open={!!replacing}
+        onOpenChange={(open) =>
+          !open && (replacing?.answer(false), setReplacing(null))
+        }
+      >
         <DialogContent className="rounded-[20px] p-6">
           <DialogHeader>
-            <DialogTitle className="font-display text-2xl font-bold">Replace your draft?</DialogTitle>
+            <DialogTitle className="font-display text-2xl font-bold">
+              Replace your draft?
+            </DialogTitle>
             <DialogDescription className="text-body-text text-[15px]">
-              Without an account you keep one project. Your draft, {replacing?.name}, is replaced as soon as you change the new one. Create a free
-              account to keep both.
+              Without an account you keep one project. Your draft,{" "}
+              {replacing?.name}, is replaced as soon as you change the new one.
+              Create a free account to keep both.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => (replacing?.answer(false), setReplacing(null))}>
+            <Button
+              variant="ghost"
+              onClick={() => (replacing?.answer(false), setReplacing(null))}
+            >
               Cancel
             </Button>
             <Button
@@ -892,24 +1310,40 @@ export function Editor({ cloud }: { cloud: Cloud }) {
               onClick={() => {
                 const r = replacing;
                 setReplacing(null);
-                needAccount('Create a free account to keep several projects.', () => r?.answer(true));
+                needAccount(
+                  "Create a free account to keep several projects.",
+                  () => r?.answer(true),
+                );
               }}
             >
               Create an account
             </Button>
-            <Button onClick={() => (replacing?.answer(true), setReplacing(null))}>Replace my draft</Button>
+            <Button
+              onClick={() => (replacing?.answer(true), setReplacing(null))}
+            >
+              Replace my draft
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!files.unsaved} onOpenChange={(open) => !open && files.unsaved?.cancel()}>
+      <Dialog
+        open={!!files.unsaved}
+        onOpenChange={(open) => !open && files.unsaved?.cancel()}
+      >
         <DialogContent className="rounded-[20px] p-6">
           <DialogHeader>
-            <DialogTitle className="font-display text-2xl font-bold">Your latest changes aren't saved</DialogTitle>
+            <DialogTitle className="font-display text-2xl font-bold">
+              Your latest changes aren't saved
+            </DialogTitle>
             <DialogDescription className="text-body-text text-[15px]">
-              The latest changes to {doc.entities.project?.name ?? doc.fileName} haven't reached the cloud (
-              {files.saveStatus.kind === 'offline' || files.saveStatus.kind === 'stopped' ? files.saveStatus.text : 'not saved yet'}). They are lost if you
-              leave without them.
+              The latest changes to {doc.entities.project?.name ?? doc.fileName}{" "}
+              haven't reached the cloud (
+              {files.saveStatus.kind === "offline" ||
+              files.saveStatus.kind === "stopped"
+                ? files.saveStatus.text
+                : "not saved yet"}
+              ). They are lost if you leave without them.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -919,17 +1353,26 @@ export function Editor({ cloud }: { cloud: Cloud }) {
             <Button variant="outline" onClick={() => files.unsaved?.discard()}>
               Leave without them
             </Button>
-            <Button onClick={() => void files.unsaved?.save()}>Try again</Button>
+            <Button onClick={() => void files.unsaved?.save()}>
+              Try again
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={!!files.blocked && !doc.empty}>
-        <DialogContent className="rounded-[20px] p-6" showCloseButton={false} onEscapeKeyDown={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
+        <DialogContent
+          className="rounded-[20px] p-6"
+          showCloseButton={false}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader>
-            <DialogTitle className="font-display text-2xl font-bold">Open in another tab</DialogTitle>
+            <DialogTitle className="font-display text-2xl font-bold">
+              Open in another tab
+            </DialogTitle>
             <DialogDescription className="text-body-text text-[15px]">
-              {files.blocked === 'taken'
+              {files.blocked === "taken"
                 ? `${doc.entities.project?.name ?? doc.fileName} was opened in another tab, which now saves it. Changes made here from now on wouldn't be saved.`
                 : `${doc.entities.project?.name ?? doc.fileName} is open in another tab of this browser. One tab at a time edits a project.`}
             </DialogDescription>
@@ -938,7 +1381,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
             <Button variant="ghost" onClick={() => files.close()}>
               Close the project
             </Button>
-            <Button onClick={() => void files.takeOver()}>Open here instead</Button>
+            <Button onClick={() => void files.takeOver()}>
+              Open here instead
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -946,26 +1391,44 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   );
 }
 
-function StatusPill({ engine, mode, placing }: { engine: EngineState; mode: Mode; placing: boolean }) {
+function StatusPill({
+  engine,
+  mode,
+  placing,
+}: {
+  engine: EngineState;
+  mode: Mode;
+  placing: boolean;
+}) {
   let text: string;
-  let dot = 'bg-live live-dot';
-  if (engine.phase === 'failed') [text, dot] = ['3D view stopped', 'bg-destructive'];
-  else if (engine.progress) text = `${engine.progress.task}… ${Math.round(engine.progress.fraction * 100)}%`;
-  else if (engine.phase === 'starting') [text, dot] = ['Starting the 3D view…', 'bg-line live-dot'];
-  else if (engine.drapeError) [text, dot] = ['The drape stopped', 'bg-destructive'];
-  else if (mode === 'flat') [text, dot] = ['Flat pieces. 3D follows your edits', 'bg-live'];
-  else if (placing) [text, dot] = ['Placing pieces. The drape waits', 'bg-line'];
-  else if (engine.controls.paused) [text, dot] = ['Paused', 'bg-line'];
-  else text = 'Fabric is settling live';
+  let dot = "bg-live live-dot";
+  if (engine.phase === "failed")
+    [text, dot] = ["3D view stopped", "bg-destructive"];
+  else if (engine.progress)
+    text = `${engine.progress.task}… ${Math.round(engine.progress.fraction * 100)}%`;
+  else if (engine.phase === "starting")
+    [text, dot] = ["Starting the 3D view…", "bg-line live-dot"];
+  else if (engine.drapeError)
+    [text, dot] = ["The drape stopped", "bg-destructive"];
+  else if (mode === "flat")
+    [text, dot] = ["Flat pieces. 3D follows your edits", "bg-live"];
+  else if (placing)
+    [text, dot] = ["Placing pieces. The drape waits", "bg-line"];
+  else if (engine.controls.paused) [text, dot] = ["Paused", "bg-line"];
+  else text = "Fabric is settling live";
   const s = engine.stats;
   const detail = s
-    ? `${s.vertices.toLocaleString()} points · ${s.fps.toFixed(0)} fps · ${Number.isNaN(s.frameMs) ? '–' : s.frameMs.toFixed(1)} ms of GPU per frame · ${s.simTime.toFixed(1)} s simulated`
-    : 'No drape yet';
+    ? `${s.vertices.toLocaleString()} points · ${s.fps.toFixed(0)} fps · ${Number.isNaN(s.frameMs) ? "–" : s.frameMs.toFixed(1)} ms of GPU per frame · ${s.simTime.toFixed(1)} s simulated`
+    : "No drape yet";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} role="status" className="flex items-center gap-2 rounded-full border border-[#E1E4DE] bg-white px-3.5 py-2 text-sm font-medium">
-          <span className={cn('size-2 rounded-full', dot)} />
+        <span
+          tabIndex={0}
+          role="status"
+          className="flex items-center gap-2 rounded-full border border-[#E1E4DE] bg-white px-3.5 py-2 text-sm font-medium"
+        >
+          <span className={cn("size-2 rounded-full", dot)} />
           {text}
         </span>
       </TooltipTrigger>
@@ -975,33 +1438,55 @@ function StatusPill({ engine, mode, placing }: { engine: EngineState; mode: Mode
 }
 
 /** The account, in the top bar and on the start screen. */
-function CloudButton(props: { user: { email: string | null; anonymous: boolean } | null; onClick: () => void }) {
-  const label = props.user?.email ?? (props.user ? 'Cloud' : 'Sign in');
+function CloudButton(props: {
+  user: { email: string | null; anonymous: boolean } | null;
+  onClick: () => void;
+}) {
+  const label = props.user?.email ?? (props.user ? "Cloud" : "Sign in");
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" className="max-w-[220px] gap-1.5 px-3 font-medium" onClick={props.onClick}>
+        <Button
+          variant="ghost"
+          className="max-w-[220px] gap-1.5 px-3 font-medium"
+          onClick={props.onClick}
+        >
           <CloudIcon />
           <span className="truncate max-sm:hidden">{label}</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{props.user?.anonymous ? 'Your draft is kept in this browser: create a free account to keep it for good' : 'Your account'}</TooltipContent>
+      <TooltipContent>
+        {props.user?.anonymous
+          ? "Your draft is kept in this browser: create a free account to keep it for good"
+          : "Your account"}
+      </TooltipContent>
     </Tooltip>
   );
 }
 
-function Card(props: { tone?: 'error'; onDismiss?: () => void; children: React.ReactNode }) {
+function Card(props: {
+  tone?: "error";
+  onDismiss?: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <div
-      role={props.tone === 'error' ? 'alert' : 'status'}
+      role={props.tone === "error" ? "alert" : "status"}
       className={cn(
-        'flex max-w-[480px] items-start gap-3 rounded-2xl border bg-white px-4 py-3 text-sm leading-snug shadow-[0_8px_24px_rgba(20,24,31,.08)]',
-        props.tone === 'error' ? 'border-[#F0C9BE] text-[#8A2410]' : 'border-[#E1E4DE]',
+        "flex max-w-[480px] items-start gap-3 rounded-2xl border bg-white px-4 py-3 text-sm leading-snug shadow-[0_8px_24px_rgba(20,24,31,.08)]",
+        props.tone === "error"
+          ? "border-[#F0C9BE] text-[#8A2410]"
+          : "border-[#E1E4DE]",
       )}
     >
       <span className="grow">{props.children}</span>
       {props.onDismiss && (
-        <button type="button" aria-label="Dismiss" onClick={props.onDismiss} className="text-muted-foreground hover:text-foreground -m-1 p-1">
+        <button
+          type="button"
+          aria-label="Dismiss"
+          onClick={props.onDismiss}
+          className="text-muted-foreground hover:text-foreground -m-1 p-1"
+        >
           <X className="size-4" />
         </button>
       )}
@@ -1009,14 +1494,22 @@ function Card(props: { tone?: 'error'; onDismiss?: () => void; children: React.R
   );
 }
 
-function RailButton(props: { id: PanelId; icon: React.ReactNode; panel: PanelId | null; setPanel: (p: PanelId | null) => void }) {
+function RailButton(props: {
+  id: PanelId;
+  icon: React.ReactNode;
+  panel: PanelId | null;
+  setPanel: (p: PanelId | null) => void;
+}) {
   const on = props.panel === props.id;
   return (
     <button
       type="button"
       aria-pressed={on}
       onClick={() => props.setPanel(on ? null : props.id)}
-      className={cn('flex h-16 w-full flex-col items-center justify-center gap-1 rounded-xl text-xs font-semibold', on ? 'bg-[#E8ECE4]' : 'hover:bg-[#F4F5F2]')}
+      className={cn(
+        "flex h-16 w-full flex-col items-center justify-center gap-1 rounded-xl text-xs font-semibold",
+        on ? "bg-[#E8ECE4]" : "hover:bg-[#F4F5F2]",
+      )}
     >
       {props.icon}
       {PANEL_TITLES[props.id]}
@@ -1026,7 +1519,10 @@ function RailButton(props: { id: PanelId; icon: React.ReactNode; panel: PanelId 
 
 // The project's name in the top bar reads as text and edits in place on click: Enter or leaving
 // the field renames, Escape keeps the old name, an empty name is ignored.
-function ProjectName(props: { name: string; onRename: (name: string) => void }) {
+function ProjectName(props: {
+  name: string;
+  onRename: (name: string) => void;
+}) {
   const [draft, setDraft] = useState<string | null>(null);
   const cancelled = useRef(false);
   const text = draft ?? props.name;
@@ -1039,8 +1535,11 @@ function ProjectName(props: { name: string; onRename: (name: string) => void }) 
   return (
     <span className="inline-grid max-w-[40vw] text-[15px] font-semibold">
       {/* The hidden copy sizes the field to its text. */}
-      <span aria-hidden className="invisible col-start-1 row-start-1 truncate border-[1.5px] px-2 whitespace-pre">
-        {text || ' '}
+      <span
+        aria-hidden
+        className="invisible col-start-1 row-start-1 truncate border-[1.5px] px-2 whitespace-pre"
+      >
+        {text || " "}
       </span>
       <input
         aria-label="Project name"
@@ -1054,8 +1553,8 @@ function ProjectName(props: { name: string; onRename: (name: string) => void }) 
         }}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur();
-          if (e.key === 'Escape') {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
             cancelled.current = true;
             e.currentTarget.blur();
           }
@@ -1066,13 +1565,24 @@ function ProjectName(props: { name: string; onRename: (name: string) => void }) 
   );
 }
 
-function IconButton(props: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
+function IconButton(props: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         {/* A span keeps the tooltip working on a disabled button. */}
         <span>
-          <Button variant="ghost" size="icon" aria-label={props.label} disabled={props.disabled} onClick={props.onClick}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={props.label}
+            disabled={props.disabled}
+            onClick={props.onClick}
+          >
             {props.children}
           </Button>
         </span>
@@ -1082,7 +1592,12 @@ function IconButton(props: { label: string; disabled?: boolean; onClick: () => v
   );
 }
 
-function ToolButton(props: { label: string; selected?: boolean; onClick: () => void; children: React.ReactNode }) {
+function ToolButton(props: {
+  label: string;
+  selected?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -1092,8 +1607,10 @@ function ToolButton(props: { label: string; selected?: boolean; onClick: () => v
           aria-pressed={props.selected}
           onClick={props.onClick}
           className={cn(
-            'flex size-11 items-center justify-center rounded-[10px]',
-            props.selected ? 'bg-white text-[#14181F]' : 'text-white hover:bg-white/10',
+            "flex size-11 items-center justify-center rounded-[10px]",
+            props.selected
+              ? "bg-white text-[#14181F]"
+              : "text-white hover:bg-white/10",
           )}
         >
           {props.children}
@@ -1104,9 +1621,18 @@ function ToolButton(props: { label: string; selected?: boolean; onClick: () => v
   );
 }
 
-function ZoomButton(props: { label: string; onClick: () => void; children: React.ReactNode }) {
+function ZoomButton(props: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <button type="button" aria-label={props.label} onClick={props.onClick} className="size-9 rounded-lg text-lg hover:bg-[#F4F5F2]">
+    <button
+      type="button"
+      aria-label={props.label}
+      onClick={props.onClick}
+      className="size-9 rounded-lg text-lg hover:bg-[#F4F5F2]"
+    >
       {props.children}
     </button>
   );
@@ -1114,17 +1640,21 @@ function ZoomButton(props: { label: string; onClick: () => void; children: React
 
 /** The title bar's save state. */
 function saveStateText(s: SaveStatus, doc: DocState, inCloud: boolean): string {
-  if (doc.empty) return '';
+  if (doc.empty) return "";
   switch (s.kind) {
-    case 'saving':
-      return 'Saving…';
-    case 'offline':
-      return 'Not saved yet: changes kept in this browser, trying again';
-    case 'stopped':
-      return 'Not saved';
-    case 'waiting':
-      return 'Changes not saved yet';
-    case 'saved':
-      return doc.dirty ? 'Changes not saved yet' : inCloud ? 'Saved' : 'Not saved: change something to keep it';
+    case "saving":
+      return "Saving…";
+    case "offline":
+      return "Not saved yet: changes kept in this browser, trying again";
+    case "stopped":
+      return "Not saved";
+    case "waiting":
+      return "Changes not saved yet";
+    case "saved":
+      return doc.dirty
+        ? "Changes not saved yet"
+        : inCloud
+          ? "Saved"
+          : "Not saved: change something to keep it";
   }
 }

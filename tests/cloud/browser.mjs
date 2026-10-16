@@ -222,8 +222,7 @@ async function cloud() {
   await a2.close();
 
   // Without an account: Export asks for one, and a second project would replace the draft.
-  await a.click('More');
-  await a.click('Export…');
+  await a.click('Export', { exact: true });
   await a.until('the account asked for', `document.body.innerText.includes('Create a free account to export.')`);
   await a.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
   await sleep(500);
