@@ -54,9 +54,11 @@ function Heading({ children }: { children: React.ReactNode }) {
 const FABRIC_UI: { field: FabricField; label: string; unit: string; ends: [string, string]; scale?: number; min: number; max: number; log?: boolean; step?: number }[] = [
   { field: 'density', label: 'Weight', unit: 'g/m²', ends: ['Light', 'Heavy'], scale: 1000, min: 30, max: 600 },
   { field: 'thickness', label: 'Thickness', unit: 'mm', ends: ['Thin', 'Thick'], min: 0.1, max: 5.0, step: 0.05 },
-  { field: 'stretchWarp', label: 'Stretch along the grain', unit: 'N/m', ends: ['Stretchy', 'Firm'], min: 100, max: 2e6, log: true },
-  { field: 'stretchWeft', label: 'Stretch across the grain', unit: 'N/m', ends: ['Stretchy', 'Firm'], min: 100, max: 2e6, log: true },
-  { field: 'stretchShear', label: 'Give on the bias', unit: 'N/m', ends: ['Soft', 'Firm'], min: 10, max: 2e6, log: true },
+  // Stored in N/m (FORMAT.md), shown in kN/m: a woven's are in the thousands, not the millions.
+  { field: 'stretchWarp', label: 'Stretch along the grain', unit: 'kN/m', ends: ['Stretchy', 'Firm'], scale: 1e-3, min: 0.1, max: 2000, log: true },
+  { field: 'stretchWeft', label: 'Stretch across the grain', unit: 'kN/m', ends: ['Stretchy', 'Firm'], scale: 1e-3, min: 0.1, max: 2000, log: true },
+  // Shear: how much the weave gives when pulled diagonally.
+  { field: 'stretchShear', label: 'Stretch on the bias', unit: 'kN/m', ends: ['Stretchy', 'Firm'], scale: 1e-3, min: 0.01, max: 2000, log: true },
   { field: 'bendingWarp', label: 'Stiffness along the grain', unit: 'µN·m', ends: ['Drapey', 'Stiff'], scale: 1e6, min: 0.1, max: 1000, log: true },
   { field: 'bendingWeft', label: 'Stiffness across the grain', unit: 'µN·m', ends: ['Drapey', 'Stiff'], scale: 1e6, min: 0.1, max: 1000, log: true },
   { field: 'friction', label: 'Grip on the body', unit: '', ends: ['Slides', 'Grips'], min: 0, max: 1.5 },

@@ -8,11 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 
-/** Up to 4 significant digits, no exponent for everyday sizes. */
+/** Up to 4 significant digits, never in exponent notation (a field shows "1400", not "1.400e+3"). */
 export function formatNumber(v: number): string {
   if (!Number.isFinite(v)) return String(v);
-  if (v !== 0 && (Math.abs(v) >= 1e6 || Math.abs(v) < 1e-3)) return v.toPrecision(4);
-  return String(Number(v.toPrecision(4)));
+  // en-US without grouping: what the field reads back (`Number`), whatever the browser's language.
+  return Number(v.toPrecision(4)).toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 });
 }
 
 function useDraft(value: string) {
@@ -75,6 +75,8 @@ export function NumberField(p: NumberFieldProps) {
   const id = useId();
   const scale = p.scale ?? 1;
   const shown = p.value * scale;
+  // Back to stored units; a scale below 1 multiplies, so 1400 kN/m is exactly 1400000 N/m.
+  const stored = (v: number) => (scale < 1 ? v * Math.round(1 / scale) : v / scale);
   const d = useDraft(formatNumber(shown));
   const toSlider = (v: number) => (p.log ? Math.log10(Math.max(v, p.min)) : v);
   const fromSlider = (s: number) => (p.log ? 10 ** s : s);
@@ -82,7 +84,7 @@ export function NumberField(p: NumberFieldProps) {
     if (d.editing) {
       // An empty or unreadable box gives NaN, which the command refuses (and says so).
       const t = d.text.trim().replace(',', '.');
-      p.onChange((t === '' ? Number.NaN : Number(t)) / scale, false);
+      p.onChange(stored(t === '' ? Number.NaN : Number(t)), false);
     }
     d.clear();
   };
@@ -121,7 +123,7 @@ export function NumberField(p: NumberFieldProps) {
           if (s === undefined) return;
           let v = fromSlider(s);
           v = p.integer ? Math.round(v) : Number(v.toPrecision(4));
-          p.onChange(v / scale, true);
+          p.onChange(stored(v), true);
         }}
         onValueCommit={() => p.onDragEnd?.()}
         aria-label={p.label}
