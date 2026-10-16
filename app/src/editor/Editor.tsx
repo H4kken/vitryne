@@ -687,7 +687,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
               <Logo />
             </button>
           </TooltipTrigger>
-          <TooltipContent>Back to start</TooltipContent>
+          <TooltipContent>Back to files</TooltipContent>
         </Tooltip>
         <span className="mx-1 h-6 w-px bg-[#E1E4DE]" />
         {doc.entities.project ? (
