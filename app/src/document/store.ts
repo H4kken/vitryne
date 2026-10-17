@@ -4,10 +4,16 @@
 // is sent to the worker, which validates it in Rust. A refused state rolls the document back
 // to the last one Rust accepted, and says why. Drape-relevant changes re-drape, debounced.
 
-import { useSyncExternalStore } from 'react';
-import { applyCommand, type Command, CommandError, mergeCommands, revertCommand } from './commands';
-import type { Entities } from './entities';
-import { deepEqual, deepFreeze } from './json';
+import { useSyncExternalStore } from "react";
+import {
+  applyCommand,
+  type Command,
+  CommandError,
+  mergeCommands,
+  revertCommand,
+} from "./commands";
+import type { Entities } from "./entities";
+import { deepEqual, deepFreeze } from "./json";
 
 /** What the store needs from the engine (an `EngineSession`, or a fake in tests). */
 export interface Engine {
@@ -19,7 +25,7 @@ export interface Engine {
 
 /** The worker went away mid-request: not a refusal, the edit is sent again after the restart. */
 export function isUnavailable(e: unknown): boolean {
-  return e instanceof Error && e.name === 'WorkerCrashed';
+  return e instanceof Error && e.name === "WorkerCrashed";
 }
 
 export interface DocState {
@@ -51,7 +57,12 @@ interface Snapshot {
 /** Debounce for re-drapes: a burst of edits (typing, a slider) drapes once. */
 export const DRAPE_DELAY_MS = 250;
 
-const EMPTY: Entities = { kind: 'project', garments: [], fabrics: [], avatars: [] };
+const EMPTY: Entities = {
+  kind: "project",
+  garments: [],
+  fabrics: [],
+  avatars: [],
+};
 
 export class DocumentStore {
   private listeners = new Set<() => void>();
@@ -71,7 +82,7 @@ export class DocumentStore {
 
   state: DocState = {
     empty: true,
-    fileName: '',
+    fileName: "",
     entities: EMPTY,
     rev: 0,
     dirty: false,
@@ -84,10 +95,18 @@ export class DocumentStore {
 
   constructor(
     private readonly engine: Engine,
-    private readonly opts: { freeze: boolean; drapeDelayMs: number } = { freeze: import.meta.env.DEV, drapeDelayMs: DRAPE_DELAY_MS },
+    private readonly opts: { freeze: boolean; drapeDelayMs: number } = {
+      freeze: import.meta.env.DEV,
+      drapeDelayMs: DRAPE_DELAY_MS,
+    },
   ) {
     engine.onReopened(() => {
-      if (!this.state.empty && this.state.rev !== this.confirmed.rev && !this.inFlight) this.sync();
+      if (
+        !this.state.empty &&
+        this.state.rev !== this.confirmed.rev &&
+        !this.inFlight
+      )
+        this.sync();
     });
   }
 
@@ -101,7 +120,11 @@ export class DocumentStore {
   private publish(patch: Partial<DocState>) {
     const next = { ...this.state, ...patch };
     if (this.opts.freeze) deepFreeze(next.entities);
-    next.dirty = !next.empty && (this.neverSaved || (next.entities !== this.saved && !deepEqual(next.entities, this.saved)));
+    next.dirty =
+      !next.empty &&
+      (this.neverSaved ||
+        (next.entities !== this.saved &&
+          !deepEqual(next.entities, this.saved)));
     next.undoLabel = this.undoStack.at(-1)?.label ?? null;
     next.redoLabel = this.redoStack.at(-1)?.label ?? null;
     next.syncing = this.inFlight || this.pending;
@@ -113,7 +136,13 @@ export class DocumentStore {
    * A document just opened (already in the worker, at revision `rev`). `unsaved`: it was
    * made here (an import) and isn't in any file yet.
    */
-  load(fileName: string, entities: Entities, warnings: string[], rev: number, opts: { unsaved?: boolean } = {}) {
+  load(
+    fileName: string,
+    entities: Entities,
+    warnings: string[],
+    rev: number,
+    opts: { unsaved?: boolean } = {},
+  ) {
     clearTimeout(this.drapeTimer);
     this.neverSaved = !!opts.unsaved;
     this.undoStack = [];
@@ -122,7 +151,14 @@ export class DocumentStore {
     this.saved = entities;
     this.confirmed = { rev, entities, undo: [], redo: [] };
     this.drapeDirty = false;
-    this.publish({ empty: false, fileName, entities, rev, refused: null, warnings });
+    this.publish({
+      empty: false,
+      fileName,
+      entities,
+      rev,
+      refused: null,
+      warnings,
+    });
   }
 
   /** Back to nothing open (the caller asked about unsaved changes first). */
@@ -134,7 +170,14 @@ export class DocumentStore {
     this.saved = EMPTY;
     this.neverSaved = false;
     this.drapeDirty = false;
-    this.publish({ empty: true, fileName: '', entities: EMPTY, rev: this.state.rev + 1, refused: null, warnings: [] });
+    this.publish({
+      empty: true,
+      fileName: "",
+      entities: EMPTY,
+      rev: this.state.rev + 1,
+      refused: null,
+      warnings: [],
+    });
   }
 
   /** The document as last opened or saved. */
@@ -175,7 +218,12 @@ export class DocumentStore {
       throw e;
     }
     const top = this.undoStack.at(-1);
-    if (top && cmd.coalesce && this.gesture === cmd.coalesce && top.coalesce === cmd.coalesce) {
+    if (
+      top &&
+      cmd.coalesce &&
+      this.gesture === cmd.coalesce &&
+      top.coalesce === cmd.coalesce
+    ) {
       this.undoStack[this.undoStack.length - 1] = mergeCommands(top, cmd);
     } else {
       this.undoStack.push(cmd);
@@ -274,7 +322,11 @@ export class DocumentStore {
     this.redoStack = [...c.redo];
     this.gesture = null;
     this.confirmed = { ...c, rev: this.state.rev + 1 };
-    this.publish({ entities: c.entities, rev: this.state.rev + 1, refused: `The change was undone: ${reason}` });
+    this.publish({
+      entities: c.entities,
+      rev: this.state.rev + 1,
+      refused: `The change was undone: ${reason}`,
+    });
     this.scheduleDrape();
   }
 
@@ -294,7 +346,8 @@ export class DocumentStore {
 
   /** Resolves once Rust has confirmed every edit; gives the confirmed revision and entities. */
   async settled(): Promise<{ rev: number; entities: Entities }> {
-    if (this.inFlight || this.pending) await new Promise<void>((r) => this.idleWaiters.push(r));
+    if (this.inFlight || this.pending)
+      await new Promise<void>((r) => this.idleWaiters.push(r));
     return { rev: this.confirmed.rev, entities: this.confirmed.entities };
   }
 }

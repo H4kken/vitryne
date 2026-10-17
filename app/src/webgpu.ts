@@ -7,17 +7,30 @@ export type GpuCheck = { ok: true } | { ok: false; reason: string };
 export async function checkWebGpu(): Promise<GpuCheck> {
   // Typed as always there; it isn't in browsers without WebGPU.
   const gpu = navigator.gpu as GPU | undefined;
-  if (!gpu) return { ok: false, reason: 'This browser has no WebGPU.' };
-  if (typeof OffscreenCanvas === 'undefined' || !('transferControlToOffscreen' in HTMLCanvasElement.prototype)) {
-    return { ok: false, reason: 'This browser cannot draw from a worker (no OffscreenCanvas).' };
+  if (!gpu) return { ok: false, reason: "This browser has no WebGPU." };
+  if (
+    typeof OffscreenCanvas === "undefined" ||
+    !("transferControlToOffscreen" in HTMLCanvasElement.prototype)
+  ) {
+    return {
+      ok: false,
+      reason: "This browser cannot draw from a worker (no OffscreenCanvas).",
+    };
   }
   try {
-    if (!(await gpu.requestAdapter())) return { ok: false, reason: 'WebGPU found no usable GPU on this device.' };
+    if (!(await gpu.requestAdapter()))
+      return {
+        ok: false,
+        reason: "WebGPU found no usable GPU on this device.",
+      };
   } catch (e) {
-    return { ok: false, reason: `WebGPU failed to start: ${(e as Error).message}` };
+    return {
+      ok: false,
+      reason: `WebGPU failed to start: ${(e as Error).message}`,
+    };
   }
   return { ok: true };
 }
 
 export const SUPPORTED_BROWSERS =
-  'Chrome or Edge 113 or later, Safari 26 or later, or Firefox 141 or later on Windows (and on macOS from Firefox 145)';
+  "Chrome or Edge 113 or later, Safari 26 or later, or Firefox 141 or later on Windows (and on macOS from Firefox 145)";

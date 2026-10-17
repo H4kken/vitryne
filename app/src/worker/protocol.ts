@@ -36,76 +36,128 @@ export interface GizmoHandle {
 }
 
 /** A file's content: the zip, or the folder form's files by relative path. */
-export type FileData = { form: 'zip'; bytes: ArrayBuffer } | { form: 'folder'; files: [string, ArrayBuffer][] };
+export type FileData =
+  | { form: "zip"; bytes: ArrayBuffer }
+  | { form: "folder"; files: [string, ArrayBuffer][] };
 
 export function fileDataBuffers(d: FileData): ArrayBuffer[] {
-  return d.form === 'zip' ? [d.bytes] : d.files.map(([, b]) => b);
+  return d.form === "zip" ? [d.bytes] : d.files.map(([, b]) => b);
 }
 
 export function copyFileData(d: FileData): FileData {
-  return d.form === 'zip' ? { form: 'zip', bytes: d.bytes.slice(0) } : { form: 'folder', files: d.files.map(([p, b]) => [p, b.slice(0)]) };
+  return d.form === "zip"
+    ? { form: "zip", bytes: d.bytes.slice(0) }
+    : { form: "folder", files: d.files.map(([p, b]) => [p, b.slice(0)]) };
 }
 
 /** select: pick a cut (placing pieces); turn: orbit; pinch: pull the cloth. */
-export type PointerTool = 'select' | 'turn' | 'pinch';
+export type PointerTool = "select" | "turn" | "pinch";
 
 export type Input =
-  | { kind: 'init'; canvas: OffscreenCanvas; width: number; height: number }
-  | { kind: 'resize'; width: number; height: number }
+  | { kind: "init"; canvas: OffscreenCanvas; width: number; height: number }
+  | { kind: "resize"; width: number; height: number }
   /**
    * `x`, `y`: normalized device coordinates (-1..1, y up); `px`, `py`: CSS pixels. `tool`
    * (on down): `turn` always orbits; `pinch` pulls the cloth under the pointer, or orbits when
    * there is none; `select` picks the cut under it (a `picked` event), or orbits when dragged.
    */
-  | { kind: 'pointer'; phase: 'down' | 'move' | 'up'; x: number; y: number; px: number; py: number; tool?: PointerTool }
+  | {
+      kind: "pointer";
+      phase: "down" | "move" | "up";
+      x: number;
+      y: number;
+      px: number;
+      py: number;
+      tool?: PointerTool;
+    }
   /** The scene's colours (`Viewport::set_style`): background, cloth front, cloth back, body. */
-  | { kind: 'style'; rgb: number[] }
-  | { kind: 'wheel'; steps: number }
+  | { kind: "style"; rgb: number[] }
+  | { kind: "wheel"; steps: number }
   /** The camera turned by a two-finger trackpad drag, in the same units as a pointer drag (px). */
-  | { kind: 'orbit'; dx: number; dy: number }
+  | { kind: "orbit"; dx: number; dy: number }
   /** `placing`: the cloth stays where it starts while pieces are placed. `seams`: seams drawn on the cloth. */
-  | { kind: 'controls'; fast?: boolean; paused?: boolean; placing?: boolean; seams?: boolean; reset?: true }
+  | {
+      kind: "controls";
+      fast?: boolean;
+      paused?: boolean;
+      placing?: boolean;
+      seams?: boolean;
+      reset?: true;
+    }
   /** Shows cut `cut` (panel index) at `placement` (JSON), while placing: a handle being dragged. */
-  | { kind: 'place'; cut: number; placement: string }
+  | { kind: "place"; cut: number; placement: string }
   /** Report cut `cut`'s handles (panel index) in `gizmo` events, or none. */
-  | { kind: 'gizmo'; cut: number | null }
+  | { kind: "gizmo"; cut: number | null }
   /** One display frame, sent by the UI where workers have no requestAnimationFrame. */
-  | { kind: 'tick' };
+  | { kind: "tick" };
 
 export interface Requests {
   /** Opens a `.vtry` (zip or folder). The UI keeps a copy, to reopen after a restart. */
-  open: { args: { data: FileData }; reply: { entities: string; warnings: string[] } };
+  open: {
+    args: { data: FileData };
+    reply: { entities: string; warnings: string[] };
+  };
   /**
    * Validates the document's new JSON (Rust, the same checks as reading a file) and, if
    * valid, makes it the worker's document. If not, the worker's document is unchanged and
    * the request fails with the reasons; the UI then reverts the command.
    */
-  update: { args: { rev: number; entities: string }; reply: { rev: number; warnings: string[] } };
+  update: {
+    args: { rev: number; entities: string };
+    reply: { rev: number; warnings: string[] };
+  };
   /**
    * Re-drapes the worker's current document. `rev` is the revision it was asked for; a drape
    * request overtaken by a newer one before it starts is skipped (`stale`).
    */
   drape: {
     args: { rev: number; frameCamera: boolean };
-    reply: { rev: number; stale: true } | { rev: number; stale: false; info: DrapeInfo };
+    reply:
+      | { rev: number; stale: true }
+      | { rev: number; stale: false; info: DrapeInfo };
   };
   /** The worker's document in the given form, already read back and checked in Rust. */
-  save: { args: { rev: number; form: FileData['form'] }; reply: { rev: number; data: FileData } };
+  save: {
+    args: { rev: number; form: FileData["form"] };
+    reply: { rev: number; data: FileData };
+  };
   /** What importing a DXF would give (Rust `import::Preview`, JSON). `sidecar`: a garment.toml or "". */
-  inspectDxf: { args: { name: string; dxf: string; sidecar: string }; reply: { preview: string } };
+  inspectDxf: {
+    args: { name: string; dxf: string; sidecar: string };
+    reply: { preview: string };
+  };
   /**
    * A new project from a DXF, its pieces placed as `choices` (JSON) say; it becomes the
    * worker's document, like `open`. `avatar`: the test avatar's mesh. The reply has its
    * entities, the import's notes, and the file (kept by the UI, to reopen after a restart).
    */
   importNew: {
-    args: { name: string; dxf: string; sidecar: string; choices: string; avatar: ArrayBuffer; seed: number[] };
+    args: {
+      name: string;
+      dxf: string;
+      sidecar: string;
+      choices: string;
+      avatar: ArrayBuffer;
+      seed: number[];
+    };
     reply: { entities: string; notes: string[]; zip: ArrayBuffer };
   };
   /** Pieces from a DXF to add to the open project (Rust `import::Addition`, JSON); nothing changes. */
-  importAddition: { args: { name: string; dxf: string; sidecar: string; choices: string; seed: number[] }; reply: { addition: string } };
+  importAddition: {
+    args: {
+      name: string;
+      dxf: string;
+      sidecar: string;
+      choices: string;
+      seed: number[];
+    };
+    reply: { addition: string };
+  };
   /** Cut `cut` started again at `place` (Rust `project::Rewrapped`, JSON); nothing changes. */
-  rewrap: { args: { cut: string; place: string }; reply: { rewrapped: string } };
+  rewrap: {
+    args: { cut: string; place: string };
+    reply: { rewrapped: string };
+  };
   /** Every whole edge of every cut, sewn or free (Rust `seams::CutEdge[]`, JSON). */
   sewingEdges: { args: Record<string, never>; reply: { edges: string } };
   /** Suggested seams for the free edges (Rust `seams::SeamProposal[]`, JSON); nothing changes. */
@@ -113,26 +165,38 @@ export interface Requests {
   /** The seam two whole edges make (`{cut, from, to}` each, JSON); refused unless both are whole edges. */
   joinEdges: { args: { a: string; b: string }; reply: { proposal: string } };
   /** Each seam's length difference in percent, by seam id (JSON object). */
-  seamDifferences: { args: Record<string, never>; reply: { differences: string } };
+  seamDifferences: {
+    args: Record<string, never>;
+    reply: { differences: string };
+  };
   /** glTF 2.0 binary (.glb) export of the draped garment, with UVs and PBR materials. */
   /** The drape now, from the garment's own camera, as a small image (WebP where the browser encodes it, else JPEG). */
-  thumbnail: { args: { width: number; height: number }; reply: { image: ArrayBuffer; type: string } };
+  thumbnail: {
+    args: { width: number; height: number };
+    reply: { image: ArrayBuffer; type: string };
+  };
   exportGlb: { args: { includeAvatar: boolean }; reply: { glb: ArrayBuffer } };
   /** Wavefront OBJ (.obj + .mtl) export of the draped garment, with UVs and PBR materials. */
-  exportObj: { args: { includeAvatar: boolean }; reply: { obj: string; mtl: string } };
+  exportObj: {
+    args: { includeAvatar: boolean };
+    reply: { obj: string; mtl: string };
+  };
   /** The garment's pieces as DXF-AAMA, from the document (no drape needed), and the export's notes. */
-  exportDxf: { args: Record<string, never>; reply: { text: string; notes: string[] } };
+  exportDxf: {
+    args: Record<string, never>;
+    reply: { text: string; notes: string[] };
+  };
 }
 
 export type Op = keyof Requests;
 
 export type RequestMessage = {
-  [K in Op]: { kind: 'request'; id: number; op: K; args: Requests[K]['args'] };
+  [K in Op]: { kind: "request"; id: number; op: K; args: Requests[K]["args"] };
 }[Op];
 
 export type Reply =
-  | { kind: 'reply'; id: number; ok: true; value: unknown }
-  | { kind: 'reply'; id: number; ok: false; error: string };
+  | { kind: "reply"; id: number; ok: true; value: unknown }
+  | { kind: "reply"; id: number; ok: false; error: string };
 
 export interface Stats {
   fps: number;
@@ -143,15 +207,15 @@ export interface Stats {
 }
 
 export type WorkerEvent =
-  | { kind: 'ready'; adapter: string; needsTicks: boolean }
-  | { kind: 'stats'; stats: Stats }
-  | { kind: 'progress'; task: string; fraction: number }
+  | { kind: "ready"; adapter: string; needsTicks: boolean }
+  | { kind: "stats"; stats: Stats }
+  | { kind: "progress"; task: string; fraction: number }
   /** The select tool's pick: a panel index (see `DrapeInfo.cuts`), or -1 for none. */
-  | { kind: 'picked'; cut: number }
+  | { kind: "picked"; cut: number }
   /** The handles asked for with a `gizmo` input, whenever they move; null: none to show. */
-  | { kind: 'gizmo'; gizmo: GizmoView | null }
+  | { kind: "gizmo"; gizmo: GizmoView | null }
   /** The worker can't go on (panic, lost GPU device): the UI restarts it. */
-  | { kind: 'crashed'; reason: string };
+  | { kind: "crashed"; reason: string };
 
 export type ToWorker = Input | RequestMessage;
 export type FromWorker = Reply | WorkerEvent;

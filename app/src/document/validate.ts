@@ -2,8 +2,8 @@
 // The JSON Schema check a command runs on every entity it changes, before it applies
 // (precompiled: scripts/gen-format.mjs). Rust then validates the whole document.
 
-import * as validators from '@/format/validators.gen.js';
-import type { EntityKind } from './entities';
+import * as validators from "@/format/validators.gen.js";
+import type { EntityKind } from "./entities";
 
 interface AjvError {
   instancePath: string;
@@ -19,7 +19,7 @@ export function schemaErrors(kind: EntityKind, value: unknown): string[] {
   if (validate(value)) return [];
   // "/stretch/warp" -> "stretch.warp must be > 0".
   return (validate.errors ?? []).map((e) => {
-    const where = e.instancePath.slice(1).replaceAll('/', '.') || kind;
-    return `${where} ${e.message ?? 'is invalid'}`;
+    const where = e.instancePath.slice(1).replaceAll("/", ".") || kind;
+    return `${where} ${e.message ?? "is invalid"}`;
   });
 }

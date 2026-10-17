@@ -5,8 +5,8 @@
 // another document adds a history entry; the same document getting an id (its first save, or
 // moving into an account) replaces the entry.
 
-import { useEffect, useRef } from 'react';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { useEffect, useRef } from "react";
+import { useNavigate, useParams } from "@tanstack/react-router";
 
 interface Files {
   ref: { cloud?: { id: string } } | null;
@@ -29,7 +29,9 @@ export function useProjectRoute(files: Files, empty: boolean) {
   /** The URL of what is open, without a history entry (an open that didn't happen). */
   const showOpen = () => {
     const { openId, navigate } = now.current;
-    void (openId ? navigate({ to: '/design/$id', params: { id: openId }, replace: true }) : navigate({ to: '/', replace: true }));
+    void (openId
+      ? navigate({ to: "/design/$id", params: { id: openId }, replace: true })
+      : navigate({ to: "/", replace: true }));
   };
 
   // The open project → the URL.
@@ -42,7 +44,9 @@ export function useProjectRoute(files: Files, empty: boolean) {
     const { urlId, navigate } = now.current;
     if (openId === urlId) return;
     const replace = last.opened === files.opened;
-    void (openId ? navigate({ to: '/design/$id', params: { id: openId }, replace }) : navigate({ to: '/', replace }));
+    void (openId
+      ? navigate({ to: "/design/$id", params: { id: openId }, replace })
+      : navigate({ to: "/", replace }));
   }, [files.opened, openId]);
 
   // The URL → the open project.

@@ -4,14 +4,23 @@
 // Design rules from docs/PATENTS.md: whole edges only; two picks, no readout while picking; a
 // length difference is shown only on a seam that exists, as a sentence.
 
-import { Button } from '@/components/ui/button';
-import { removeSeam, reverseSeam } from '@/document/commands';
-import type { DocumentStore } from '@/document/store';
-import type { Garment } from '@/format/schema.gen';
-import { describeSide, differenceNote, type SeamProposal, sideTitle } from './api';
+import { Button } from "@/components/ui/button";
+import { removeSeam, reverseSeam } from "@/document/commands";
+import type { DocumentStore } from "@/document/store";
+import type { Garment } from "@/format/schema.gen";
+import {
+  describeSide,
+  differenceNote,
+  type SeamProposal,
+  sideTitle,
+} from "./api";
 
 function Heading({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-muted-foreground m-0 text-[13px] font-semibold tracking-[0.06em] uppercase">{children}</h3>;
+  return (
+    <h3 className="text-muted-foreground m-0 text-[13px] font-semibold tracking-[0.06em] uppercase">
+      {children}
+    </h3>
+  );
 }
 
 export function SeamsPanel(props: {
@@ -28,35 +37,51 @@ export function SeamsPanel(props: {
   /** Whole-edge picking in the flat view. */
   picking: boolean;
   /** Edges picked so far for each side, and the side being picked; null before the first. */
-  picks: { a: number; b: number; open: 'a' | 'b' } | null;
+  picks: { a: number; b: number; open: "a" | "b" } | null;
   /** Ends the open side without picking another edge. */
   onFinishSide: () => void;
   onStartPicking: () => void;
   onStopPicking: () => void;
 }) {
   const { store, garment } = props;
-  if (!garment) return <p className="text-muted-foreground m-0 text-sm">This project has no garment.</p>;
+  if (!garment)
+    return (
+      <p className="text-muted-foreground m-0 text-sm">
+        This project has no garment.
+      </p>
+    );
   const seams = garment.seams ?? [];
   return (
     <div className="flex flex-col gap-5">
       <p className="text-muted-foreground m-0 text-sm leading-snug">
-        A seam joins one edge of a piece to an edge of another. Sew whole edges, from corner to corner.
+        A seam joins one edge of a piece to an edge of another. Sew whole edges,
+        from corner to corner.
       </p>
 
       <div className="flex flex-col gap-3">
         <Heading>Suggestions</Heading>
         {props.proposals === null ? (
-          <Button variant="outline" onClick={props.onFind} disabled={props.finding}>
-            {props.finding ? 'Looking…' : 'Suggest seams'}
+          <Button
+            variant="outline"
+            onClick={props.onFind}
+            disabled={props.finding}
+          >
+            {props.finding ? "Looking…" : "Suggest seams"}
           </Button>
         ) : props.proposals.length === 0 ? (
-          <p className="text-muted-foreground m-0 text-sm">Nothing left to suggest. Pick edges by hand below.</p>
+          <p className="text-muted-foreground m-0 text-sm">
+            Nothing left to suggest. Pick edges by hand below.
+          </p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {props.proposals.map((p, i) => (
               <li key={i} className="rounded-xl border border-[#E1E4DE] p-3">
                 <div className="text-[14px] leading-snug font-semibold">
-                  {sideTitle(garment, p.a)} <span className="text-muted-foreground font-normal">with</span> {sideTitle(garment, p.b)}
+                  {sideTitle(garment, p.a)}{" "}
+                  <span className="text-muted-foreground font-normal">
+                    with
+                  </span>{" "}
+                  {sideTitle(garment, p.b)}
                 </div>
                 <div className="text-muted-foreground mt-1 text-[12.5px] leading-snug">
                   {describeSide(garment, p.a)}
@@ -67,7 +92,11 @@ export function SeamsPanel(props: {
                   <Button size="sm" onClick={() => props.onAccept(p)}>
                     Sew
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => props.onSkip(i)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => props.onSkip(i)}
+                  >
                     Skip
                   </Button>
                 </div>
@@ -76,7 +105,12 @@ export function SeamsPanel(props: {
           </ul>
         )}
         {props.proposals !== null && (
-          <Button variant="ghost" size="sm" onClick={props.onFind} disabled={props.finding}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={props.onFind}
+            disabled={props.finding}
+          >
             Suggest again
           </Button>
         )}
@@ -88,17 +122,20 @@ export function SeamsPanel(props: {
           <>
             <p className="m-0 text-sm leading-snug" role="status">
               {!props.picks
-                ? 'Click an edge in the flat view, then the edge it is sewn to.'
-                : props.picks.open === 'a'
-                  ? `Side one: ${props.picks.a} edge${props.picks.a === 1 ? '' : 's'}. Now click the edge it is sewn to.`
-                  : `Side two: ${props.picks.b} edge${props.picks.b === 1 ? '' : 's'}.`}
+                ? "Click an edge in the flat view, then the edge it is sewn to."
+                : props.picks.open === "a"
+                  ? `Side one: ${props.picks.a} edge${props.picks.a === 1 ? "" : "s"}. Now click the edge it is sewn to.`
+                  : `Side two: ${props.picks.b} edge${props.picks.b === 1 ? "" : "s"}.`}
             </p>
             <p className="text-muted-foreground m-0 text-[13px] leading-snug">
-              For a seam along several edges, hold Shift and click each one, then click the last one without Shift.
+              For a seam along several edges, hold Shift and click each one,
+              then click the last one without Shift.
             </p>
             {props.picks && props.picks[props.picks.open] > 0 && (
               <Button variant="outline" onClick={props.onFinishSide}>
-                {props.picks.open === 'a' ? 'That is the whole first side' : 'Sew them'}
+                {props.picks.open === "a"
+                  ? "That is the whole first side"
+                  : "Sew them"}
               </Button>
             )}
             <Button variant="outline" onClick={props.onStopPicking}>
@@ -119,17 +156,38 @@ export function SeamsPanel(props: {
             {seams.map((s, i) => {
               const note = differenceNote(props.differences[s.id]);
               return (
-                <li key={s.id} className="rounded-xl border border-[#E1E4DE] p-3">
-                  <div className="text-[14px] leading-snug font-semibold">{s.name ?? `Seam ${i + 1}`}</div>
+                <li
+                  key={s.id}
+                  className="rounded-xl border border-[#E1E4DE] p-3"
+                >
+                  <div className="text-[14px] leading-snug font-semibold">
+                    {s.name ?? `Seam ${i + 1}`}
+                  </div>
                   <div className="text-muted-foreground mt-1 text-[12.5px] leading-snug">
                     {sideTitle(garment, s.a)} with {sideTitle(garment, s.b)}
                   </div>
-                  {note && <div className="mt-1 text-[12.5px] leading-snug">{note}</div>}
+                  {note && (
+                    <div className="mt-1 text-[12.5px] leading-snug">
+                      {note}
+                    </div>
+                  )}
                   <div className="mt-2 flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => store.execute((e) => reverseSeam(e, garment.id, s.id))}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        store.execute((e) => reverseSeam(e, garment.id, s.id))
+                      }
+                    >
                       Flip direction
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => store.execute((e) => removeSeam(e, garment.id, s.id))}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        store.execute((e) => removeSeam(e, garment.id, s.id))
+                      }
+                    >
                       Remove
                     </Button>
                   </div>

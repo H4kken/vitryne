@@ -4,21 +4,33 @@
 // recovery copy, which keeps what hasn't reached the cloud yet. Projects open and save in the
 // folder form; a file from disk opens as a new project. Nothing is saved to disk.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Autosaver, type SaveStatus } from '@/cloud/autosave';
-import type { CloudBackend, CloudUser } from '@/cloud/backend';
-import { ProjectLock } from '@/cloud/lock';
-import { type CloudRef, collectUnused, copyName, duplicateProject, openProject, saveProject } from '@/cloud/projects';
-import { recoverChanges, renameProject } from '@/document/commands';
-import { parseEntities } from '@/document/entities';
-import type { DocState, DocumentStore } from '@/document/store';
-import { dropRecovery, findRecovery, keepRecovery, type Recovery } from '@/storage/recovery';
-import type { FileOpener, FileRef } from '@/storage/storage';
-import { copyFileData, type FileData } from '@/worker/protocol';
-import type { EngineSession } from '@/worker/session';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Autosaver, type SaveStatus } from "@/cloud/autosave";
+import type { CloudBackend, CloudUser } from "@/cloud/backend";
+import { ProjectLock } from "@/cloud/lock";
+import {
+  type CloudRef,
+  collectUnused,
+  copyName,
+  duplicateProject,
+  openProject,
+  saveProject,
+} from "@/cloud/projects";
+import { recoverChanges, renameProject } from "@/document/commands";
+import { parseEntities } from "@/document/entities";
+import type { DocState, DocumentStore } from "@/document/store";
+import {
+  dropRecovery,
+  findRecovery,
+  keepRecovery,
+  type Recovery,
+} from "@/storage/recovery";
+import type { FileOpener, FileRef } from "@/storage/storage";
+import { copyFileData, type FileData } from "@/worker/protocol";
+import type { EngineSession } from "@/worker/session";
 
 /** ok: a save (shown by the title); info: worth a card; error: what went wrong. */
-export type Notice = { kind: 'ok' | 'info' | 'error'; text: string } | null;
+export type Notice = { kind: "ok" | "info" | "error"; text: string } | null;
 
 /** How long the document must be still before its recovery copy is written. */
 const RECOVERY_DELAY_MS = 1000;
@@ -33,7 +45,7 @@ export interface CloudAccess {
 }
 
 /** Why this tab can't edit the open cloud project: another tab has it, or took it over. */
-export type Blocked = 'elsewhere' | 'taken' | null;
+export type Blocked = "elsewhere" | "taken" | null;
 
 /** An anonymous user's draft (their one project), to save a new project over. */
 async function draftOf(b: CloudBackend): Promise<CloudRef | null> {
@@ -41,7 +53,13 @@ async function draftOf(b: CloudBackend): Promise<CloudRef | null> {
   return d ? { id: d.id, revision: d.revision, parts: [] } : null;
 }
 
-export function useFiles(session: EngineSession, store: DocumentStore, disk: FileOpener, doc: DocState, cloud: CloudAccess) {
+export function useFiles(
+  session: EngineSession,
+  store: DocumentStore,
+  disk: FileOpener,
+  doc: DocState,
+  cloud: CloudAccess,
+) {
   const [ref, setRefState] = useState<FileRef | null>(null);
   /** `ref` now, for saves and the recovery copy (a state update lands only at the next render). */
   const refNow = useRef<FileRef | null>(null);
@@ -58,7 +76,10 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   /** An action waiting for the user to decide about changes not saved. */
-  const [pending, setPending] = useState<{ run: () => void; cancelled?: () => void } | null>(null);
+  const [pending, setPending] = useState<{
+    run: () => void;
+    cancelled?: () => void;
+  } | null>(null);
   const [recovery, setRecovery] = useState<Recovery | null>(null);
   /** The file as opened or last saved, for the recovery copy. */
   const original = useRef<FileData | null>(null);
@@ -68,14 +89,21 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
   const [opened, setOpened] = useState(0);
   const nextDocument = () => setOpened(++generation.current);
   /** Which project this tab can't edit, and why. */
-  const [blockedOn, setBlockedOn] = useState<{ id: string; why: Exclude<Blocked, null> } | null>(null);
+  const [blockedOn, setBlockedOn] = useState<{
+    id: string;
+    why: Exclude<Blocked, null>;
+  } | null>(null);
   const blockedNow = useRef<Blocked>(null);
   const lock = useMemo(() => new ProjectLock(), []);
   const lastCollect = useRef(0);
   /** The anonymous user was told once that their draft is in the cloud. */
   const toldDraft = useRef(false);
 
-  const fail = (what: string, e: unknown) => setNotice({ kind: 'error', text: `${what}: ${(e as Error).message ?? String(e)}` });
+  const fail = (what: string, e: unknown) =>
+    setNotice({
+      kind: "error",
+      text: `${what}: ${(e as Error).message ?? String(e)}`,
+    });
 
   /**
    * Saves the confirmed document to the cloud: over the project it came from, as a new one
@@ -86,21 +114,36 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
       const c = cloudNow.current;
       const gen = generation.current;
       const { rev, entities } = await store.settled();
-      const data = await session.save(rev, 'folder');
-      if (data.form !== 'folder') throw new Error('internal: the worker did not give the folder form');
+      const data = await session.save(rev, "folder");
+      if (data.form !== "folder")
+        throw new Error("internal: the worker did not give the folder form");
       const b = await c.backend();
       const r = refNow.current;
-      const name = store.state.entities.project?.name ?? r?.name.replace(/\.vtry$/, '') ?? 'project';
+      const name =
+        store.state.entities.project?.name ??
+        r?.name.replace(/\.vtry$/, "") ??
+        "project";
       let prev = copy ? null : (r?.cloud ?? null);
       if (!prev && !copy && b.user()?.anonymous) prev = await draftOf(b);
-      const saved = await saveProject(b, name, data.files, prev, (p) => p.total > 1 && progress?.(`Saving to the cloud (${p.done} of ${p.total})`));
+      const saved = await saveProject(
+        b,
+        name,
+        data.files,
+        prev,
+        (p) =>
+          p.total > 1 &&
+          progress?.(`Saving to the cloud (${p.done} of ${p.total})`),
+      );
       if (gen !== generation.current) return;
       store.markSaved(name, entities);
       original.current = copyFileData(data);
-      setRef({ name, form: 'folder', cloud: saved });
+      setRef({ name, form: "folder", cloud: saved });
       if (b.user()?.anonymous && !toldDraft.current) {
         toldDraft.current = true;
-        setNotice({ kind: 'info', text: `${name} is saved as your draft in this browser. Create a free account (Cloud, top right) to keep it for good and open it anywhere.` });
+        setNotice({
+          kind: "info",
+          text: `${name} is saved as your draft in this browser. Create a free account (Cloud, top right) to keep it for good and open it anywhere.`,
+        });
       }
       if (!prev || prev.id !== saved.id) c.refresh();
       // Parts no project uses any more (older than a day), best effort.
@@ -112,7 +155,7 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     [session, store, setRef],
   );
 
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: 'saved' });
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "saved" });
   const [autosave] = useState(() => new Autosaver(setSaveStatus));
   useEffect(() => {
     autosave.connect(
@@ -124,7 +167,8 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
 
   // One tab per cloud project.
   const cloudId = ref?.cloud?.id ?? null;
-  const blocked: Blocked = blockedOn && blockedOn.id === cloudId ? blockedOn.why : null;
+  const blocked: Blocked =
+    blockedOn && blockedOn.id === cloudId ? blockedOn.why : null;
   useEffect(() => {
     blockedNow.current = blocked;
   }, [blocked]);
@@ -135,8 +179,15 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     }
     let live = true;
     void lock
-      .take(cloudId, false, () => live && setBlockedOn({ id: cloudId, why: 'taken' }))
-      .then((got) => live && !got && setBlockedOn({ id: cloudId, why: 'elsewhere' }));
+      .take(
+        cloudId,
+        false,
+        () => live && setBlockedOn({ id: cloudId, why: "taken" }),
+      )
+      .then(
+        (got) =>
+          live && !got && setBlockedOn({ id: cloudId, why: "elsewhere" }),
+      );
     return () => {
       live = false;
     };
@@ -151,27 +202,36 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
   // Leaving the tab (or the page) saves what is waiting.
   useEffect(() => {
     const now = () => {
-      if (document.visibilityState === 'hidden') void autosave.flush();
+      if (document.visibilityState === "hidden") void autosave.flush();
     };
-    document.addEventListener('visibilitychange', now);
-    window.addEventListener('pagehide', now);
+    document.addEventListener("visibilitychange", now);
+    window.addEventListener("pagehide", now);
     return () => {
-      document.removeEventListener('visibilitychange', now);
-      window.removeEventListener('pagehide', now);
+      document.removeEventListener("visibilitychange", now);
+      window.removeEventListener("pagehide", now);
     };
   }, [autosave]);
 
   // A project a sign-in stopped (it needed an account): saved once there is one.
-  const accountUser = cloud.user && !cloud.user.anonymous ? cloud.user.id : null;
+  const accountUser =
+    cloud.user && !cloud.user.anonymous ? cloud.user.id : null;
   useEffect(() => {
-    if (accountUser && autosave.status.kind === 'stopped' && autosave.status.reason === 'account') autosave.resume();
+    if (
+      accountUser &&
+      autosave.status.kind === "stopped" &&
+      autosave.status.reason === "account"
+    )
+      autosave.resume();
   }, [accountUser, autosave]);
 
   const load = useCallback(
     async (r: FileRef, data: FileData, opts: { unsaved?: boolean } = {}) => {
       // Revisions keep growing across files, so a drape of the previous file is never newer.
       const rev = store.state.rev + 1;
-      const { entities, warnings } = await session.open(copyFileData(data), rev);
+      const { entities, warnings } = await session.open(
+        copyFileData(data),
+        rev,
+      );
       nextDocument();
       autosave.reset();
       store.load(r.name, parseEntities(entities), warnings, rev, opts);
@@ -186,47 +246,72 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
   );
 
   /** Runs `action` now, or once the changes are saved, or after the user decided about them. */
-  const guarded = (action: () => Promise<void> | void, cancelled?: () => void) => {
-    const run = () => void Promise.resolve(action()).catch((e: unknown) => fail('Could not open', e));
+  const guarded = (
+    action: () => Promise<void> | void,
+    cancelled?: () => void,
+  ) => {
+    const run = () =>
+      void Promise.resolve(action()).catch((e: unknown) =>
+        fail("Could not open", e),
+      );
     if (!store.state.dirty) return run();
     if (blockedNow.current) return setPending(() => ({ run, cancelled }));
-    void autosave.flush().then((saved) => (saved ? run() : setPending(() => ({ run, cancelled }))));
+    void autosave
+      .flush()
+      .then((saved) =>
+        saved ? run() : setPending(() => ({ run, cancelled })),
+      );
   };
 
   /** A project made from an imported pattern: a new cloud project at once. */
-  const importNew = (make: (rev: number) => Promise<{ name: string; entities: string; notes: string[]; zip: ArrayBuffer }>) =>
+  const importNew = (
+    make: (rev: number) => Promise<{
+      name: string;
+      entities: string;
+      notes: string[];
+      zip: ArrayBuffer;
+    }>,
+  ) =>
     new Promise<void>((resolve, reject) => {
-      guarded(async () => {
-        try {
-          setBusy('Importing');
-          const rev = store.state.rev + 1;
-          const m = await make(rev);
-          nextDocument();
-          autosave.reset();
-          store.load(m.name, parseEntities(m.entities), m.notes, rev, { unsaved: true });
-          original.current = { form: 'zip', bytes: m.zip.slice(0) };
-          setRef(null);
-          session.drape(rev, true);
-          void dropRecovery();
-          setNotice({
-            kind: 'info',
-            text: `Imported ${m.name}. Pick Select in the 3D view to move a piece, or the Pieces panel to change where it starts.`,
-          });
-          resolve();
-        } catch (e) {
-          reject(e as Error);
-        } finally {
-          setBusy(null);
-        }
-      }, () => reject(new Error('cancelled')));
+      guarded(
+        async () => {
+          try {
+            setBusy("Importing");
+            const rev = store.state.rev + 1;
+            const m = await make(rev);
+            nextDocument();
+            autosave.reset();
+            store.load(m.name, parseEntities(m.entities), m.notes, rev, {
+              unsaved: true,
+            });
+            original.current = { form: "zip", bytes: m.zip.slice(0) };
+            setRef(null);
+            session.drape(rev, true);
+            void dropRecovery();
+            setNotice({
+              kind: "info",
+              text: `Imported ${m.name}. Pick Select in the 3D view to move a piece, or the Pieces panel to change where it starts.`,
+            });
+            resolve();
+          } catch (e) {
+            reject(e as Error);
+          } finally {
+            setBusy(null);
+          }
+        },
+        () => reject(new Error("cancelled")),
+      );
     });
 
   /** `fromDisk`: a file, which becomes a new cloud project at once (an example waits for an edit). */
-  const openWith = (pick: () => Promise<{ ref: FileRef; data: FileData } | null>, fromDisk = false) =>
+  const openWith = (
+    pick: () => Promise<{ ref: FileRef; data: FileData } | null>,
+    fromDisk = false,
+  ) =>
     guarded(async () => {
       const o = await pick();
       if (!o) return;
-      setBusy('Opening');
+      setBusy("Opening");
       try {
         await load(o.ref, o.data, { unsaved: fromDisk });
         setNotice(null);
@@ -240,14 +325,17 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     guarded(async () => {
       const id = refNow.current?.cloud?.id;
       if (!id) return;
-      setBusy('Duplicating');
+      setBusy("Duplicating");
       try {
         const copy = await duplicateProject(await cloud.backend(), id);
         cloud.refresh();
         await loadCloud(copy.id);
-        setNotice({ kind: 'info', text: `This is ${copy.name}, a copy. The original is in your projects.` });
+        setNotice({
+          kind: "info",
+          text: `This is ${copy.name}, a copy. The original is in your projects.`,
+        });
       } catch (e) {
-        fail('Not duplicated', e);
+        fail("Not duplicated", e);
       } finally {
         setBusy(null);
       }
@@ -255,24 +343,24 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
 
   /** After a conflict: this tab's version as a new project named "(copy)", the other kept. */
   const saveCopy = async () => {
-    setBusy('Saving a copy');
+    setBusy("Saving a copy");
     try {
       const name = store.state.entities.project?.name;
       if (name) store.execute((e) => renameProject(e, copyName(name)));
       await pushToCloud(true, setBusy);
       autosave.resume();
     } catch (e) {
-      fail('Not saved', e);
+      fail("Not saved", e);
     } finally {
       setBusy(null);
     }
   };
 
   const loadCloud = async (id: string) => {
-    setBusy('Opening from the cloud');
+    setBusy("Opening from the cloud");
     try {
       const o = await openProject(await cloudNow.current.backend(), id);
-      await load({ name: o.name, form: 'folder', cloud: o.ref }, o.data);
+      await load({ name: o.name, form: "folder", cloud: o.ref }, o.data);
       setNotice(null);
     } finally {
       setBusy(null);
@@ -317,17 +405,27 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
   const recoverNow = useCallback(
     async (r: Recovery, auto: boolean) => {
       setRecovery(null);
-      setBusy('Recovering');
+      setBusy("Recovering");
       try {
-        await load({ name: r.fileName, form: r.data.form, cloud: r.cloud }, r.data, { unsaved: r.unsaved });
+        await load(
+          { name: r.fileName, form: r.data.form, cloud: r.cloud },
+          r.data,
+          { unsaved: r.unsaved },
+        );
         // An import never edited has nothing to put back but itself.
-        if (r.current !== r.saved && !store.execute((e) => recoverChanges(e, parseEntities(r.current)))) {
-          throw new Error(store.state.refused ?? 'refused');
+        if (
+          r.current !== r.saved &&
+          !store.execute((e) => recoverChanges(e, parseEntities(r.current)))
+        ) {
+          throw new Error(store.state.refused ?? "refused");
         }
         await dropRecovery(r.tab);
-        setNotice({ kind: 'info', text: `${auto ? 'Put back' : 'Recovered'} your changes to ${r.fileName} that hadn't reached the cloud yet. They are being saved.` });
+        setNotice({
+          kind: "info",
+          text: `${auto ? "Put back" : "Recovered"} your changes to ${r.fileName} that hadn't reached the cloud yet. They are being saved.`,
+        });
       } catch (e) {
-        fail('Could not recover', e);
+        fail("Could not recover", e);
       } finally {
         setBusy(null);
       }
@@ -342,8 +440,12 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     (started.current ??= findRecovery().then(async (r) => {
       if (!r) return;
       try {
-        const current = r.cloud ? (await (await cloudNow.current.backend()).getProject(r.cloud.id)).revision : null;
-        if (!r.cloud || current === r.cloud.revision) return recoverNow(r, true);
+        const current = r.cloud
+          ? (await (await cloudNow.current.backend()).getProject(r.cloud.id))
+              .revision
+          : null;
+        if (!r.cloud || current === r.cloud.revision)
+          return recoverNow(r, true);
       } catch {
         // Offline, or the project is gone: ask.
       }
@@ -365,32 +467,41 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     const stop = (e: BeforeUnloadEvent) => {
       if (!leaving.current) e.preventDefault();
     };
-    window.addEventListener('beforeunload', stop);
-    return () => window.removeEventListener('beforeunload', stop);
+    window.addEventListener("beforeunload", stop);
+    return () => window.removeEventListener("beforeunload", stop);
   }, [doc.dirty]);
 
   /** The project saved elsewhere since this tab opened it: the person picks a version. */
-  const conflictId = saveStatus.kind === 'stopped' && saveStatus.reason === 'conflict' ? (ref?.cloud?.id ?? null) : null;
-  const conflict =
-    conflictId
-      ? {
-          /** The project as saved elsewhere; this tab's changes are dropped. */
-          reload: () => void loadCloud(conflictId).catch((e: unknown) => fail('Could not open', e)),
-          /** This tab's version over the other one. */
-          keepMine: async () => {
-            try {
-              const latest = await (await cloud.backend()).getProject(conflictId);
-              const r = refNow.current;
-              if (r?.cloud) setRef({ ...r, cloud: { ...r.cloud, revision: latest.revision } });
-              autosave.resume();
-            } catch (e) {
-              fail('Not saved', e);
-            }
-          },
-          /** This tab's version as a new project, the other one kept (an account only). */
-          saveCopy: () => void saveCopy(),
-        }
+  const conflictId =
+    saveStatus.kind === "stopped" && saveStatus.reason === "conflict"
+      ? (ref?.cloud?.id ?? null)
       : null;
+  const conflict = conflictId
+    ? {
+        /** The project as saved elsewhere; this tab's changes are dropped. */
+        reload: () =>
+          void loadCloud(conflictId).catch((e: unknown) =>
+            fail("Could not open", e),
+          ),
+        /** This tab's version over the other one. */
+        keepMine: async () => {
+          try {
+            const latest = await (await cloud.backend()).getProject(conflictId);
+            const r = refNow.current;
+            if (r?.cloud)
+              setRef({
+                ...r,
+                cloud: { ...r.cloud, revision: latest.revision },
+              });
+            autosave.resume();
+          } catch (e) {
+            fail("Not saved", e);
+          }
+        },
+        /** This tab's version as a new project, the other one kept (an account only). */
+        saveCopy: () => void saveCopy(),
+      }
+    : null;
 
   return {
     ref,
@@ -407,11 +518,19 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     conflict,
     dismissNotice: () => setNotice(null),
     showError: fail,
-    showInfo: (text: string) => setNotice({ kind: 'info', text }),
+    showInfo: (text: string) => setNotice({ kind: "info", text }),
     /** A .vtry picked or dropped: a new project. */
-    openVtry: (file: File) => openWith(async () => ({ ref: { name: file.name, form: 'zip' }, data: { form: 'zip', bytes: await file.arrayBuffer() } }), true),
+    openVtry: (file: File) =>
+      openWith(
+        async () => ({
+          ref: { name: file.name, form: "zip" },
+          data: { form: "zip", bytes: await file.arrayBuffer() },
+        }),
+        true,
+      ),
     openFolder: () => openWith(() => disk.openFolder(), true),
-    openData: (r: FileRef, data: () => Promise<FileData>) => openWith(async () => ({ ref: r, data: await data() })),
+    openData: (r: FileRef, data: () => Promise<FileData>) =>
+      openWith(async () => ({ ref: r, data: await data() })),
     close: (undone?: () => void) =>
       guarded(() => {
         nextDocument();
@@ -427,16 +546,20 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
     takeOver: async () => {
       const id = refNow.current?.cloud?.id;
       if (!id) return;
-      if (!(await lock.take(id, true, () => setBlockedOn({ id, why: 'taken' })))) return;
+      if (
+        !(await lock.take(id, true, () => setBlockedOn({ id, why: "taken" })))
+      )
+        return;
       setBlockedOn(null);
       blockedNow.current = null;
-      await loadCloud(id).catch((e: unknown) => fail('Could not open', e));
+      await loadCloud(id).catch((e: unknown) => fail("Could not open", e));
     },
     /** Projects moved to another id (an anonymous user's, into the account they signed in to). */
     projectsMoved: (ids: Record<string, string>) => {
       const r = refNow.current;
       const to = r?.cloud && ids[r.cloud.id];
-      if (r?.cloud && to) setRef({ ...r, cloud: { ...r.cloud, id: to, revision: 1 } });
+      if (r?.cloud && to)
+        setRef({ ...r, cloud: { ...r.cloud, id: to, revision: 1 } });
       autosave.resume();
     },
     /** After a stop that wasn't a conflict (a quota, a sign-out): try again. */
@@ -477,6 +600,13 @@ export function useFiles(session: EngineSession, store: DocumentStore, disk: Fil
           },
         }
       : null,
-    recovery: recovery ? { fileName: recovery.fileName, at: recovery.at, recover: () => recoverNow(recovery, false), discard: discardRecovery } : null,
+    recovery: recovery
+      ? {
+          fileName: recovery.fileName,
+          at: recovery.at,
+          recover: () => recoverNow(recovery, false),
+          discard: discardRecovery,
+        }
+      : null,
   };
 }

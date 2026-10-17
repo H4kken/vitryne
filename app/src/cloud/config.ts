@@ -4,7 +4,7 @@
 // and stops (projects are saved to the backend).
 
 /** Where the cloud session is kept (localStorage), once the person used a cloud feature. */
-export const SESSION_KEY = 'vitryne-cloud-session';
+export const SESSION_KEY = "vitryne-cloud-session";
 
 /** A session from an earlier visit (checked without loading the cloud code). */
 export function hasSession(): boolean {
@@ -19,7 +19,7 @@ export function hasSession(): boolean {
 export function returningFromSignIn(): boolean {
   const q = new URLSearchParams(location.search);
   const h = new URLSearchParams(location.hash.slice(1));
-  return q.has('code') || q.has('error') || h.has('error');
+  return q.has("code") || q.has("error") || h.has("error");
 }
 
 export interface CloudConfig {
@@ -39,21 +39,33 @@ export function parseConfig(text: string, base: string): CloudConfig | null {
   } catch {
     return null;
   }
-  const b = (j as { backend?: { url?: unknown; publishableKey?: unknown } } | null)?.backend;
-  if (!b || typeof b.url !== 'string' || typeof b.publishableKey !== 'string' || !b.url || !b.publishableKey) return null;
+  const b = (
+    j as { backend?: { url?: unknown; publishableKey?: unknown } } | null
+  )?.backend;
+  if (
+    !b ||
+    typeof b.url !== "string" ||
+    typeof b.publishableKey !== "string" ||
+    !b.url ||
+    !b.publishableKey
+  )
+    return null;
   const p = (j as { privacyPolicy?: unknown }).privacyPolicy;
   return {
-    url: new URL(b.url, base).href.replace(/\/$/, ''),
+    url: new URL(b.url, base).href.replace(/\/$/, ""),
     publishableKey: b.publishableKey,
-    privacyPolicy: typeof p === 'string' && p ? new URL(p, base).href : null,
+    privacyPolicy: typeof p === "string" && p ? new URL(p, base).href : null,
   };
 }
 
 export async function loadConfig(): Promise<CloudConfig | null> {
   try {
-    const r = await fetch(`${import.meta.env.BASE_URL}config.json`, { cache: 'no-cache' });
+    const r = await fetch(`${import.meta.env.BASE_URL}config.json`, {
+      cache: "no-cache",
+    });
     // A static host without the file may answer with index.html: not JSON, so no backend.
-    if (!r.ok || !(r.headers.get('content-type') ?? '').includes('json')) return null;
+    if (!r.ok || !(r.headers.get("content-type") ?? "").includes("json"))
+      return null;
     return parseConfig(await r.text(), location.href);
   } catch {
     return null;

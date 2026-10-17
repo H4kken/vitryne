@@ -2,18 +2,11 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2023",
-    "lib": [
-      "ES2023",
-      "DOM",
-      "DOM.Iterable",
-      "WebWorker.ImportScripts"
-    ],
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker.ImportScripts"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "types": [
-      "vite/client"
-    ],
+    "types": ["vite/client"],
     "noEmit": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -24,17 +17,9 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "src",
-    "pkg/*.d.ts"
-  ],
-  "exclude": [
-    "src/**/*.test.ts",
-    "src/test"
-  ]
+  "include": ["src", "pkg/*.d.ts"],
+  "exclude": ["src/**/*.test.ts", "src/test"]
 }

@@ -3,7 +3,7 @@
 // the app for the examples (`drape export-app-assets`), then this browser's own cache (the
 // origin private file system, never sent anywhere), else nothing and the worker bakes it.
 
-const MAGIC = 'DSDF0001';
+const MAGIC = "DSDF0001";
 
 /** The worker-only part of the file system API (the app's types use the DOM library). */
 interface SyncAccessHandle {
@@ -12,15 +12,20 @@ interface SyncAccessHandle {
   flush(): void;
   close(): void;
 }
-type WorkerFileHandle = FileSystemFileHandle & { createSyncAccessHandle(): Promise<SyncAccessHandle> };
+type WorkerFileHandle = FileSystemFileHandle & {
+  createSyncAccessHandle(): Promise<SyncAccessHandle>;
+};
 
 function isSdf(b: Uint8Array): boolean {
-  return b.length > MAGIC.length && new TextDecoder().decode(b.subarray(0, MAGIC.length)) === MAGIC;
+  return (
+    b.length > MAGIC.length &&
+    new TextDecoder().decode(b.subarray(0, MAGIC.length)) === MAGIC
+  );
 }
 
 async function cacheDir(): Promise<FileSystemDirectoryHandle> {
   const root = await navigator.storage.getDirectory();
-  return root.getDirectoryHandle('sdf-cache', { create: true });
+  return root.getDirectoryHandle("sdf-cache", { create: true });
 }
 
 export async function loadSdf(key: string): Promise<Uint8Array | null> {
@@ -47,7 +52,9 @@ export async function loadSdf(key: string): Promise<Uint8Array | null> {
 /** Best effort: a full or unavailable storage only means baking again next time. */
 export async function storeSdf(key: string, bytes: Uint8Array): Promise<void> {
   try {
-    const h = await (await cacheDir()).getFileHandle(`${key}.bin`, { create: true });
+    const h = await (
+      await cacheDir()
+    ).getFileHandle(`${key}.bin`, { create: true });
     const access = await (h as WorkerFileHandle).createSyncAccessHandle();
     try {
       access.truncate(0);
@@ -57,7 +64,7 @@ export async function storeSdf(key: string, bytes: Uint8Array): Promise<void> {
       access.close();
     }
   } catch (e) {
-    console.warn('SDF not cached:', e);
+    console.warn("SDF not cached:", e);
   }
 }
 

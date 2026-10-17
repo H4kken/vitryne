@@ -1,0 +1,16 @@
+# Dependencies & build outputs
+node_modules/
+dist/
+target/
+pkg/
+pkg-node/
+public/
+bench-out/
+pnpm-lock.yaml
+
+# Generated files
+src/format/*.gen.*
+*.gen.*
+*.gen.js
+*.gen.ts
+*.gen.d.ts

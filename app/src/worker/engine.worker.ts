@@ -3,7 +3,11 @@
 // canvas, the drape, and the file (see protocol.ts). Requests run one at a time, in order;
 // inputs and frames run between them.
 
-import init, { type PreparedScene, Viewport, VtryFile } from '../../pkg/drape_web.js';
+import init, {
+  type PreparedScene,
+  Viewport,
+  VtryFile,
+} from "../../pkg/drape_web.js";
 import {
   type DrapeInfo,
   type FromWorker,
@@ -13,10 +17,11 @@ import {
   type Requests,
   type RequestMessage,
   type ToWorker,
-} from './protocol';
-import { dropSdf, loadSdf, storeSdf } from './sdf-cache';
+} from "./protocol";
+import { dropSdf, loadSdf, storeSdf } from "./sdf-cache";
 
-const post = (m: FromWorker, transfer: Transferable[] = []) => self.postMessage(m, { transfer });
+const post = (m: FromWorker, transfer: Transferable[] = []) =>
+  self.postMessage(m, { transfer });
 
 let viewport: Viewport | null = null;
 let canvas: OffscreenCanvas | null = null;
@@ -29,26 +34,31 @@ let crashed = false;
 function crash(reason: string): never {
   if (!crashed) {
     crashed = true;
-    post({ kind: 'crashed', reason });
+    post({ kind: "crashed", reason });
   }
   throw new Error(`worker crashed: ${reason}`);
 }
 
 /** Rust errors arrive as strings; anything else is a panic or a bug. */
 function rethrow(e: unknown): never {
-  if (typeof e === 'string') throw new Error(e);
-  if (e instanceof WebAssembly.RuntimeError) crash(`engine panic: ${e.message}`);
+  if (typeof e === "string") throw new Error(e);
+  if (e instanceof WebAssembly.RuntimeError)
+    crash(`engine panic: ${e.message}`);
   throw e;
 }
 
 // ---- requests ------------------------------------------------------------------------------
 
-type Handlers = { [K in keyof Requests]: (a: Requests[K]['args']) => Promise<Requests[K]['reply']> };
+type Handlers = {
+  [K in keyof Requests]: (
+    a: Requests[K]["args"],
+  ) => Promise<Requests[K]["reply"]>;
+};
 
 const handlers: Handlers = {
   async open({ data }) {
     const next =
-      data.form === 'zip'
+      data.form === "zip"
         ? VtryFile.open(new Uint8Array(data.bytes))
         : VtryFile.open_folder(
             data.files.map(([p]) => p),
@@ -57,7 +67,10 @@ const handlers: Handlers = {
     file?.free();
     file = next;
     viewport?.clear();
-    return { entities: file.entities(), warnings: JSON.parse(file.warnings()) as string[] };
+    return {
+      entities: file.entities(),
+      warnings: JSON.parse(file.warnings()) as string[],
+    };
   },
 
   async update({ rev, entities }) {
@@ -79,17 +92,20 @@ const handlers: Handlers = {
       const key = info.sdf_key;
       let sdf: Uint8Array = new Uint8Array();
       if (!v.has_body(key)) {
-        post({ kind: 'progress', task: 'Loading the body', fraction: 0 });
+        post({ kind: "progress", task: "Loading the body", fraction: 0 });
         sdf = (await loadSdf(key)) ?? new Uint8Array();
         // Another drape may have been asked for while the SDF loaded.
         if (rev < newestDrape) return { rev, stale: true };
       }
       const prepared = scene;
       const load = (bytes: Uint8Array) => {
-        const task = bytes.length ? 'Loading the body' : 'Preparing the body (once per avatar)';
-        const progress = (f: number) => post({ kind: 'progress', task, fraction: f });
+        const task = bytes.length
+          ? "Loading the body"
+          : "Preparing the body (once per avatar)";
+        const progress = (f: number) =>
+          post({ kind: "progress", task, fraction: f });
         const baked = v.load(prepared, bytes, progress, frameCamera);
-        post({ kind: 'progress', task, fraction: 1 });
+        post({ kind: "progress", task, fraction: 1 });
         return baked;
       };
       let baked: Uint8Array | undefined;
@@ -97,7 +113,7 @@ const handlers: Handlers = {
         baked = load(sdf);
       } catch (e) {
         // A damaged cached SDF (an interrupted write): forget it and bake.
-        if (!sdf.length || typeof e !== 'string') throw e;
+        if (!sdf.length || typeof e !== "string") throw e;
         console.warn(`SDF ${key} unusable (${e}), baking it`);
         await dropSdf(key);
         baked = load(new Uint8Array());
@@ -111,8 +127,11 @@ const handlers: Handlers = {
 
   async save({ rev, form }) {
     const f = needFile();
-    if (form === 'zip') return { rev, data: { form, bytes: f.save().buffer as ArrayBuffer } };
-    const files = (f.save_folder() as [string, Uint8Array][]).map(([p, b]): [string, ArrayBuffer] => [p, b.buffer as ArrayBuffer]);
+    if (form === "zip")
+      return { rev, data: { form, bytes: f.save().buffer as ArrayBuffer } };
+    const files = (f.save_folder() as [string, Uint8Array][]).map(
+      ([p, b]): [string, ArrayBuffer] => [p, b.buffer as ArrayBuffer],
+    );
     return { rev, data: { form, files } };
   },
 
@@ -121,15 +140,36 @@ const handlers: Handlers = {
   },
 
   async importNew({ name, dxf, sidecar, choices, avatar, seed }) {
-    const next = VtryFile.import_new(name, dxf, sidecar, choices, new Uint8Array(avatar), Date.now(), new Uint8Array(seed));
+    const next = VtryFile.import_new(
+      name,
+      dxf,
+      sidecar,
+      choices,
+      new Uint8Array(avatar),
+      Date.now(),
+      new Uint8Array(seed),
+    );
     file?.free();
     file = next;
     viewport?.clear();
-    return { entities: file.entities(), notes: JSON.parse(file.warnings()) as string[], zip: file.save().buffer as ArrayBuffer };
+    return {
+      entities: file.entities(),
+      notes: JSON.parse(file.warnings()) as string[],
+      zip: file.save().buffer as ArrayBuffer,
+    };
   },
 
   async importAddition({ name, dxf, sidecar, choices, seed }) {
-    return { addition: needFile().import_addition(name, dxf, sidecar, choices, Date.now(), new Uint8Array(seed)) };
+    return {
+      addition: needFile().import_addition(
+        name,
+        dxf,
+        sidecar,
+        choices,
+        Date.now(),
+        new Uint8Array(seed),
+      ),
+    };
   },
 
   async rewrap({ cut, place }) {
@@ -155,48 +195,64 @@ const handlers: Handlers = {
   async thumbnail({ width, height }) {
     const rgba: Uint8Array = await needViewport().thumbnail(width, height);
     const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('no 2D canvas in the worker');
-    ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2D canvas in the worker");
+    ctx.putImageData(
+      new ImageData(new Uint8ClampedArray(rgba), width, height),
+      0,
+      0,
+    );
     // Safari encodes PNG when asked for WebP: JPEG is much smaller then.
-    let blob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.85 });
-    if (blob.type !== 'image/webp') blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+    let blob = await canvas.convertToBlob({
+      type: "image/webp",
+      quality: 0.85,
+    });
+    if (blob.type !== "image/webp")
+      blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.85 });
     return { image: await blob.arrayBuffer(), type: blob.type };
   },
 
   async exportGlb({ includeAvatar }) {
     const v = needViewport();
     const bytes: Uint8Array = await v.export_glb(includeAvatar);
-    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const buffer = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
     return { glb: buffer };
   },
 
   async exportDxf() {
-    const { text, report } = JSON.parse(needFile().export_dxf()) as { text: string; report: { notes: string[] } };
+    const { text, report } = JSON.parse(needFile().export_dxf()) as {
+      text: string;
+      report: { notes: string[] };
+    };
     return { text, notes: report.notes };
   },
 
   async exportObj({ includeAvatar }) {
     const v = needViewport();
-    const res: { obj: string; mtl: string } = JSON.parse(await v.export_obj(includeAvatar));
+    const res: { obj: string; mtl: string } = JSON.parse(
+      await v.export_obj(includeAvatar),
+    );
     return res;
   },
 };
 
 function needFile(): VtryFile {
-  if (!file) throw new Error('no file is open');
+  if (!file) throw new Error("no file is open");
   return file;
 }
 
 function needViewport(): Viewport {
-  if (!viewport) throw new Error('the viewport is not ready');
+  if (!viewport) throw new Error("the viewport is not ready");
   return viewport;
 }
 
 let queue: Promise<void> = Promise.resolve();
 
 function request(m: RequestMessage) {
-  if (m.op === 'drape') newestDrape = Math.max(newestDrape, m.args.rev);
+  if (m.op === "drape") newestDrape = Math.max(newestDrape, m.args.rev);
   queue = queue.then(async () => {
     if (crashed) return;
     try {
@@ -209,19 +265,24 @@ function request(m: RequestMessage) {
         rethrow(e);
       }
       const transfer =
-        m.op === 'save'
-          ? fileDataBuffers((value as Requests['save']['reply']).data)
-          : m.op === 'importNew'
-            ? [(value as Requests['importNew']['reply']).zip]
-            : m.op === 'exportGlb'
-              ? [(value as Requests['exportGlb']['reply']).glb]
-              : m.op === 'thumbnail'
-                ? [(value as Requests['thumbnail']['reply']).image]
+        m.op === "save"
+          ? fileDataBuffers((value as Requests["save"]["reply"]).data)
+          : m.op === "importNew"
+            ? [(value as Requests["importNew"]["reply"]).zip]
+            : m.op === "exportGlb"
+              ? [(value as Requests["exportGlb"]["reply"]).glb]
+              : m.op === "thumbnail"
+                ? [(value as Requests["thumbnail"]["reply"]).image]
                 : [];
-      post({ kind: 'reply', id: m.id, ok: true, value }, transfer);
+      post({ kind: "reply", id: m.id, ok: true, value }, transfer);
     } catch (e) {
       if (crashed) return;
-      post({ kind: 'reply', id: m.id, ok: false, error: e instanceof Error ? e.message : String(e) });
+      post({
+        kind: "reply",
+        id: m.id,
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   });
 }
@@ -231,10 +292,20 @@ function request(m: RequestMessage) {
 /** Pointer state: a press is undecided until the pick says cloth (drag) or not (orbit). */
 let style: Float32Array | null = null;
 /** select: a click picks a cut, a drag orbits. */
-let press: { px: number; py: number; orbit: boolean; select: boolean; x: number; y: number; sx: number; sy: number; moved: boolean } | null = null;
+let press: {
+  px: number;
+  py: number;
+  orbit: boolean;
+  select: boolean;
+  x: number;
+  y: number;
+  sx: number;
+  sy: number;
+  moved: boolean;
+} | null = null;
 /** The cut whose handles are reported, and the last report sent. */
 let gizmoCut: number | null = null;
-let gizmoSent = '';
+let gizmoSent = "";
 let frames = 0;
 let statsAt = performance.now();
 let frameMs = NaN;
@@ -244,7 +315,7 @@ function frame() {
   const v = viewport;
   if (!v || crashed) return;
   try {
-    if (!v.frame()) crash('the GPU device was lost');
+    if (!v.frame()) crash("the GPU device was lost");
   } catch (e) {
     rethrow(e);
   }
@@ -254,7 +325,7 @@ function frame() {
     const g = v.gizmo(gizmoCut);
     if (g !== gizmoSent) {
       gizmoSent = g;
-      post({ kind: 'gizmo', gizmo: g ? (JSON.parse(g) as GizmoView) : null });
+      post({ kind: "gizmo", gizmo: g ? (JSON.parse(g) as GizmoView) : null });
     }
   }
   const now = performance.now();
@@ -263,19 +334,27 @@ function frame() {
     const fps = (frames * 1000) / (now - statsAt);
     frames = 0;
     statsAt = now;
-    v.measure_frame().then((ms: number) => (frameMs = ms), () => {});
-    post({ kind: 'stats', stats: { fps, vertices: v.vertices(), simTime: v.sim_time(), frameMs } });
+    v.measure_frame().then(
+      (ms: number) => (frameMs = ms),
+      () => {},
+    );
+    post({
+      kind: "stats",
+      stats: { fps, vertices: v.vertices(), simTime: v.sim_time(), frameMs },
+    });
   }
 }
 
-const workerRaf = (self as unknown as { requestAnimationFrame?: (cb: () => void) => number }).requestAnimationFrame;
+const workerRaf = (
+  self as unknown as { requestAnimationFrame?: (cb: () => void) => number }
+).requestAnimationFrame;
 
 function loop() {
   frame();
   if (!crashed) workerRaf?.call(self, loop);
 }
 
-async function start(m: Extract<Input, { kind: 'init' }>) {
+async function start(m: Extract<Input, { kind: "init" }>) {
   try {
     await init();
     canvas = m.canvas;
@@ -284,40 +363,56 @@ async function start(m: Extract<Input, { kind: 'init' }>) {
     viewport = await Viewport.create(canvas);
     if (style) viewport.set_style(style);
   } catch (e) {
-    crash(`could not start WebGPU in the worker: ${e instanceof Error ? e.message : String(e)}`);
+    crash(
+      `could not start WebGPU in the worker: ${e instanceof Error ? e.message : String(e)}`,
+    );
   }
-  post({ kind: 'ready', adapter: viewport.adapter_report(), needsTicks: !workerRaf });
+  post({
+    kind: "ready",
+    adapter: viewport.adapter_report(),
+    needsTicks: !workerRaf,
+  });
   if (workerRaf) workerRaf.call(self, loop);
 }
 
 function input(m: Input) {
   const v = viewport;
   switch (m.kind) {
-    case 'init':
+    case "init":
       // Requests wait for the device.
       queue = queue.then(() => start(m));
       return;
-    case 'style':
+    case "style":
       // May come before the device is up: kept and applied then.
       style = new Float32Array(m.rgb);
       viewport?.set_style(style);
       return;
-    case 'tick':
+    case "tick":
       // Ticks queued while a request ran (an SDF bake) arrive in a burst: draw one.
       if (performance.now() - lastFrame > 8) frame();
       return;
   }
   if (!v || !canvas) return;
   switch (m.kind) {
-    case 'resize':
+    case "resize":
       canvas.width = m.width;
       canvas.height = m.height;
       v.resize(m.width, m.height);
       return;
-    case 'pointer':
-      if (m.phase === 'down') {
-        const select = m.tool === 'select';
-        const p = { px: m.px, py: m.py, orbit: m.tool !== 'pinch', select, x: m.x, y: m.y, sx: m.px, sy: m.py, moved: false };
+    case "pointer":
+      if (m.phase === "down") {
+        const select = m.tool === "select";
+        const p = {
+          px: m.px,
+          py: m.py,
+          orbit: m.tool !== "pinch",
+          select,
+          x: m.x,
+          y: m.y,
+          sx: m.px,
+          sy: m.py,
+          moved: false,
+        };
         press = p;
         if (p.orbit) return;
         v.pointer_down(m.x, m.y).then(
@@ -326,10 +421,11 @@ function input(m: Input) {
           },
           () => {},
         );
-      } else if (m.phase === 'move') {
+      } else if (m.phase === "move") {
         if (v.dragging()) v.pointer_move(m.x, m.y);
         else if (press?.orbit) {
-          if (Math.abs(m.px - press.sx) + Math.abs(m.py - press.sy) > 4) press.moved = true;
+          if (Math.abs(m.px - press.sx) + Math.abs(m.py - press.sy) > 4)
+            press.moved = true;
           v.orbit(m.px - press.px, m.py - press.py);
           press.px = m.px;
           press.py = m.py;
@@ -341,33 +437,33 @@ function input(m: Input) {
         // A click (not a drag) with the select tool picks.
         if (p?.select && !p.moved) {
           v.pick_cut(p.x, p.y).then(
-            (cut: number) => post({ kind: 'picked', cut }),
+            (cut: number) => post({ kind: "picked", cut }),
             () => {},
           );
         }
       }
       return;
-    case 'place':
+    case "place":
       try {
         v.place_cut(m.cut, m.placement);
       } catch (e) {
         // A placement Rust can't use (a cut that went away): the next drape shows the truth.
-        if (typeof e !== 'string') rethrow(e);
+        if (typeof e !== "string") rethrow(e);
       }
       return;
-    case 'gizmo':
+    case "gizmo":
       gizmoCut = m.cut;
-      gizmoSent = '';
-      if (m.cut === null) post({ kind: 'gizmo', gizmo: null });
+      gizmoSent = "";
+      if (m.cut === null) post({ kind: "gizmo", gizmo: null });
       return;
-    case 'wheel':
+    case "wheel":
       v.zoom(m.steps);
       return;
-    case 'orbit':
+    case "orbit":
       v.orbit(m.dx, m.dy);
       return;
 
-    case 'controls':
+    case "controls":
       if (m.fast !== undefined) v.set_fast(m.fast);
       if (m.paused !== undefined) v.set_paused(m.paused);
       if (m.placing !== undefined) v.set_placing(m.placing);
@@ -381,7 +477,7 @@ self.onmessage = (e: MessageEvent<ToWorker>) => {
   const m = e.data;
   if (crashed) return;
   try {
-    if (m.kind === 'request') request(m);
+    if (m.kind === "request") request(m);
     else input(m);
   } catch (err) {
     if (!crashed) rethrow(err);

@@ -5,18 +5,18 @@
 // meanwhile); a conflict, a refusal that needs an account, or another refusal stops until the
 // person decides (`resume`).
 
-import { CloudError } from './backend';
+import { CloudError } from "./backend";
 
 export type SaveStatus =
   /** Nothing waiting to be saved. */
-  | { kind: 'saved' }
+  | { kind: "saved" }
   /** Changes, saved once the document is still. */
-  | { kind: 'waiting' }
-  | { kind: 'saving' }
+  | { kind: "waiting" }
+  | { kind: "saving" }
   /** The last save failed; another is tried at `retryAt` (ms since the epoch). */
-  | { kind: 'offline'; text: string; retryAt: number }
+  | { kind: "offline"; text: string; retryAt: number }
   /** No more saves until `resume`. */
-  | { kind: 'stopped'; reason: 'conflict' | 'account' | 'error'; text: string };
+  | { kind: "stopped"; reason: "conflict" | "account" | "error"; text: string };
 
 export interface AutosaveTiming {
   /** How long the document must be still before a save. */
@@ -26,19 +26,26 @@ export interface AutosaveTiming {
   maxRetryMs: number;
 }
 
-export const AUTOSAVE: AutosaveTiming = { delayMs: 2000, retryMs: 5000, maxRetryMs: 60000 };
+export const AUTOSAVE: AutosaveTiming = {
+  delayMs: 2000,
+  retryMs: 5000,
+  maxRetryMs: 60000,
+};
 
 /** What stops autosave, or null for a failure worth retrying (the network, a busy server). */
-function stopReason(e: unknown): { reason: 'conflict' | 'account' | 'error'; text: string } | null {
+function stopReason(
+  e: unknown,
+): { reason: "conflict" | "account" | "error"; text: string } | null {
   if (!(e instanceof CloudError)) return null;
-  if (e.kind === 'conflict') return { reason: 'conflict', text: e.message };
-  if (e.kind === 'account') return { reason: 'account', text: e.message };
-  if (e.kind === 'quota' || e.kind === 'auth' || e.kind === 'damaged') return { reason: 'error', text: e.message };
+  if (e.kind === "conflict") return { reason: "conflict", text: e.message };
+  if (e.kind === "account") return { reason: "account", text: e.message };
+  if (e.kind === "quota" || e.kind === "auth" || e.kind === "damaged")
+    return { reason: "error", text: e.message };
   return null;
 }
 
 export class Autosaver {
-  status: SaveStatus = { kind: 'saved' };
+  status: SaveStatus = { kind: "saved" };
   private timer: ReturnType<typeof setTimeout> | undefined;
   private running: Promise<void> | null = null;
   private failures = 0;
@@ -72,25 +79,26 @@ export class Autosaver {
 
   /** The document changed: save once it has been still for a moment. */
   changed() {
-    if (this.status.kind === 'stopped') return;
+    if (this.status.kind === "stopped") return;
     // Offline, the retry already waits; it finds nothing to do if the edits went back to the saved state.
-    if (this.status.kind === 'offline' && this.pending()) return;
+    if (this.status.kind === "offline" && this.pending()) return;
     if (!this.pending()) {
       if (!this.running) {
         clearTimeout(this.timer);
-        if (this.status.kind !== 'saved') this.set({ kind: 'saved' });
+        if (this.status.kind !== "saved") this.set({ kind: "saved" });
       }
       return;
     }
     this.schedule(this.timing.delayMs);
-    if (!this.running && this.status.kind !== 'waiting') this.set({ kind: 'waiting' });
+    if (!this.running && this.status.kind !== "waiting")
+      this.set({ kind: "waiting" });
   }
 
   /** Saves what is waiting now (the tab is hidden, a project is about to close). True once nothing waits. */
   async flush(): Promise<boolean> {
     clearTimeout(this.timer);
     if (this.running) await this.running;
-    if (this.status.kind !== 'stopped' && this.pending()) await this.run();
+    if (this.status.kind !== "stopped" && this.pending()) await this.run();
     return !this.pending();
   }
 
@@ -99,7 +107,7 @@ export class Autosaver {
     this.failures = 0;
     clearTimeout(this.timer);
     if (this.running) return;
-    this.set(this.pending() ? { kind: 'waiting' } : { kind: 'saved' });
+    this.set(this.pending() ? { kind: "waiting" } : { kind: "saved" });
     if (this.pending()) this.schedule(0);
   }
 
@@ -107,7 +115,7 @@ export class Autosaver {
   reset() {
     clearTimeout(this.timer);
     this.failures = 0;
-    if (this.status.kind !== 'saved') this.set({ kind: 'saved' });
+    if (this.status.kind !== "saved") this.set({ kind: "saved" });
   }
 
   dispose() {
@@ -117,32 +125,39 @@ export class Autosaver {
   private run(): Promise<void> {
     clearTimeout(this.timer);
     if (this.running) return this.running;
-    if (this.status.kind === 'stopped') return Promise.resolve();
+    if (this.status.kind === "stopped") return Promise.resolve();
     if (!this.pending()) {
       this.failures = 0;
-      if (this.status.kind !== 'saved') this.set({ kind: 'saved' });
+      if (this.status.kind !== "saved") this.set({ kind: "saved" });
       return Promise.resolve();
     }
-    this.set({ kind: 'saving' });
+    this.set({ kind: "saving" });
     this.running = (async () => {
       let next: number | null = null;
       try {
         await this.save();
         this.failures = 0;
         if (this.pending()) {
-          this.set({ kind: 'waiting' });
+          this.set({ kind: "waiting" });
           next = this.timing.delayMs;
         } else {
-          this.set({ kind: 'saved' });
+          this.set({ kind: "saved" });
         }
       } catch (e) {
         const stop = stopReason(e);
         if (stop) {
-          this.set({ kind: 'stopped', ...stop });
+          this.set({ kind: "stopped", ...stop });
         } else {
-          next = Math.min(this.timing.retryMs * 2 ** this.failures, this.timing.maxRetryMs);
+          next = Math.min(
+            this.timing.retryMs * 2 ** this.failures,
+            this.timing.maxRetryMs,
+          );
           this.failures++;
-          this.set({ kind: 'offline', text: (e as Error).message ?? String(e), retryAt: Date.now() + next });
+          this.set({
+            kind: "offline",
+            text: (e as Error).message ?? String(e),
+            retryAt: Date.now() + next,
+          });
         }
       } finally {
         this.running = null;

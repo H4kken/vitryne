@@ -9,7 +9,8 @@ export interface Example {
 
 export async function listExamples(): Promise<Example[]> {
   const r = await fetch(`${import.meta.env.BASE_URL}examples/index.json`);
-  if (!r.ok) throw new Error('the examples are missing (run `pnpm run assets`)');
+  if (!r.ok)
+    throw new Error("the examples are missing (run `pnpm run assets`)");
   return (await r.json()) as Example[];
 }
 
@@ -33,6 +34,6 @@ export async function fetchExample(e: Example): Promise<ArrayBuffer> {
 /** The test avatar's mesh (glTF binary), which projects made from an imported pattern use. */
 export async function fetchAvatar(): Promise<ArrayBuffer> {
   const r = await fetch(`${import.meta.env.BASE_URL}avatar/body.glb`);
-  if (!r.ok) throw new Error('the avatar is missing (run `pnpm run assets`)');
+  if (!r.ok) throw new Error("the avatar is missing (run `pnpm run assets`)");
   return r.arrayBuffer();
 }

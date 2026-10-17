@@ -20,7 +20,9 @@ export function crc32(b: Uint8Array): number {
 }
 
 /** The entries, in order, as one stored zip. Fixed timestamps (1980-01-01), like vitryne-format. */
-export function zipStored(entries: [string, ArrayBuffer | Uint8Array][]): ArrayBuffer {
+export function zipStored(
+  entries: [string, ArrayBuffer | Uint8Array][],
+): ArrayBuffer {
   const enc = new TextEncoder();
   const local: Uint8Array[] = [];
   const central: Uint8Array[] = [];

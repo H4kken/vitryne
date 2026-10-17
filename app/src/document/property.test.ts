@@ -2,9 +2,9 @@
 // Random edit sessions on the three examples, against the worker's real Rust (Node build):
 // after every step the document Rust holds matches the UI's, every state the UI accepts Rust
 // accepts too, and undoing everything saves the original file byte for byte.
-import fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
-import { EXAMPLES, openExample } from '@/test/rust';
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
+import { EXAMPLES, openExample } from "@/test/rust";
 import {
   type Command,
   CommandError,
@@ -21,21 +21,31 @@ import {
   setPlacement,
   setSelfCollision,
   setTargetVertices,
-} from './commands';
-import { type Entities, mainGarment } from './entities';
-import { DocumentStore } from './store';
+} from "./commands";
+import { type Entities, mainGarment } from "./entities";
+import { DocumentStore } from "./store";
 
 type Step =
-  | { op: 'fabric'; field: FabricField; value: number; gesture: boolean }
-  | { op: 'rename'; what: 'project' | 'piece' | 'cut' | 'seam' | 'fabric'; index: number; name: string }
-  | { op: 'vertices'; value: number }
-  | { op: 'selfCollision'; on: boolean }
-  | { op: 'place'; index: number; field: 'angle' | 'top' | 'radius' | 'rotation'; value: number }
-  | { op: 'follow'; index: number; on: number }
-  | { op: 'flip'; index: number }
-  | { op: 'layout'; index: number; x: number; y: number; rot: number }
-  | { op: 'undo' }
-  | { op: 'redo' };
+  | { op: "fabric"; field: FabricField; value: number; gesture: boolean }
+  | {
+      op: "rename";
+      what: "project" | "piece" | "cut" | "seam" | "fabric";
+      index: number;
+      name: string;
+    }
+  | { op: "vertices"; value: number }
+  | { op: "selfCollision"; on: boolean }
+  | {
+      op: "place";
+      index: number;
+      field: "angle" | "top" | "radius" | "rotation";
+      value: number;
+    }
+  | { op: "follow"; index: number; on: number }
+  | { op: "flip"; index: number }
+  | { op: "layout"; index: number; x: number; y: number; rot: number }
+  | { op: "undo" }
+  | { op: "redo" };
 
 const number = fc.oneof(
   fc.double({ min: -10, max: 1e5, noNaN: false }),
@@ -43,69 +53,124 @@ const number = fc.oneof(
 );
 
 const step: fc.Arbitrary<Step> = fc.oneof(
-  fc.record({ op: fc.constant('fabric' as const), field: fc.constantFrom(...(Object.keys(FABRIC_FIELDS) as FabricField[])), value: number, gesture: fc.boolean() }),
   fc.record({
-    op: fc.constant('rename' as const),
-    what: fc.constantFrom('project' as const, 'piece' as const, 'cut' as const, 'seam' as const, 'fabric' as const),
+    op: fc.constant("fabric" as const),
+    field: fc.constantFrom(...(Object.keys(FABRIC_FIELDS) as FabricField[])),
+    value: number,
+    gesture: fc.boolean(),
+  }),
+  fc.record({
+    op: fc.constant("rename" as const),
+    what: fc.constantFrom(
+      "project" as const,
+      "piece" as const,
+      "cut" as const,
+      "seam" as const,
+      "fabric" as const,
+    ),
     index: fc.nat(20),
     name: fc.string({ maxLength: 12 }),
   }),
-  fc.record({ op: fc.constant('vertices' as const), value: fc.oneof(fc.integer({ min: -10, max: 40_000 }), fc.double({ min: 0, max: 1e4 })) }),
-  fc.record({ op: fc.constant('selfCollision' as const), on: fc.boolean() }),
-  fc.record({ op: fc.constant('place' as const), index: fc.nat(20), field: fc.constantFrom('angle' as const, 'top' as const, 'radius' as const, 'rotation' as const), value: number }),
-  fc.record({ op: fc.constant('follow' as const), index: fc.nat(20), on: fc.nat(20) }),
-  fc.record({ op: fc.constant('flip' as const), index: fc.nat(20) }),
-  fc.record({ op: fc.constant('layout' as const), index: fc.nat(20), x: number, y: number, rot: number }),
-  fc.constant({ op: 'undo' as const }),
-  fc.constant({ op: 'redo' as const }),
+  fc.record({
+    op: fc.constant("vertices" as const),
+    value: fc.oneof(
+      fc.integer({ min: -10, max: 40_000 }),
+      fc.double({ min: 0, max: 1e4 }),
+    ),
+  }),
+  fc.record({ op: fc.constant("selfCollision" as const), on: fc.boolean() }),
+  fc.record({
+    op: fc.constant("place" as const),
+    index: fc.nat(20),
+    field: fc.constantFrom(
+      "angle" as const,
+      "top" as const,
+      "radius" as const,
+      "rotation" as const,
+    ),
+    value: number,
+  }),
+  fc.record({
+    op: fc.constant("follow" as const),
+    index: fc.nat(20),
+    on: fc.nat(20),
+  }),
+  fc.record({ op: fc.constant("flip" as const), index: fc.nat(20) }),
+  fc.record({
+    op: fc.constant("layout" as const),
+    index: fc.nat(20),
+    x: number,
+    y: number,
+    rot: number,
+  }),
+  fc.constant({ op: "undo" as const }),
+  fc.constant({ op: "redo" as const }),
 );
 
 function build(s: Step, e: Entities): Command {
   const g = mainGarment(e)!;
   const fabric = e.fabrics[0]!.id;
   switch (s.op) {
-    case 'fabric':
+    case "fabric":
       return setFabricValue(e, fabric, s.field, s.value);
-    case 'vertices':
+    case "vertices":
       return setTargetVertices(e, s.value);
-    case 'selfCollision':
+    case "selfCollision":
       return setSelfCollision(e, s.on);
-    case 'place':
-    case 'follow':
-    case 'flip':
-    case 'layout': {
+    case "place":
+    case "follow":
+    case "flip":
+    case "layout": {
       const cuts = g.pieces.flatMap((p) => p.cuts);
       const cut = cuts[s.index % cuts.length]!;
-      if (s.op === 'flip') return setMirrored(e, g.id, cut.id, !cut.mirrored);
-      if (s.op === 'layout') return setLayout(e, g.id, cut.id, { position: [s.x, s.y], rotation: s.rot });
+      if (s.op === "flip") return setMirrored(e, g.id, cut.id, !cut.mirrored);
+      if (s.op === "layout")
+        return setLayout(e, g.id, cut.id, {
+          position: [s.x, s.y],
+          rotation: s.rot,
+        });
       // Following may make a loop: Rust refuses that, and the store rolls it back.
-      if (s.op === 'follow') return setPlacement(e, g.id, cut.id, { type: 'follow', cut: cuts[s.on % cuts.length]!.id, lift: 12 });
-      return setPlacement(e, g.id, cut.id, { ...cut.placement, [s.field]: s.value });
+      if (s.op === "follow")
+        return setPlacement(e, g.id, cut.id, {
+          type: "follow",
+          cut: cuts[s.on % cuts.length]!.id,
+          lift: 12,
+        });
+      return setPlacement(e, g.id, cut.id, {
+        ...cut.placement,
+        [s.field]: s.value,
+      });
     }
-    case 'rename': {
+    case "rename": {
       const piece = g.pieces[s.index % g.pieces.length]!;
       switch (s.what) {
-        case 'project':
+        case "project":
           return renameProject(e, s.name);
-        case 'piece':
+        case "piece":
           return renamePiece(e, g.id, piece.id, s.name);
-        case 'cut':
-          return renameCut(e, g.id, piece.id, piece.cuts[s.index % piece.cuts.length]!.id, s.name);
-        case 'seam': {
+        case "cut":
+          return renameCut(
+            e,
+            g.id,
+            piece.id,
+            piece.cuts[s.index % piece.cuts.length]!.id,
+            s.name,
+          );
+        case "seam": {
           const seams = g.seams ?? [];
-          if (!seams.length) throw new CommandError('no seams');
+          if (!seams.length) throw new CommandError("no seams");
           return renameSeam(e, g.id, seams[s.index % seams.length]!.id, s.name);
         }
-        case 'fabric':
+        case "fabric":
           return renameFabric(e, fabric, s.name);
       }
     }
   }
-  throw new Error('unreachable');
+  throw new Error("unreachable");
 }
 
-describe.each(EXAMPLES)('%s: random edit sessions', (name) => {
-  it('stay valid in Rust and undo back to the original bytes', async () => {
+describe.each(EXAMPLES)("%s: random edit sessions", (name) => {
+  it("stay valid in Rust and undo back to the original bytes", async () => {
     await fc.assert(
       fc.asyncProperty(fc.array(step, { maxLength: 25 }), async (steps) => {
         const { file, zip, entities } = openExample(name);
@@ -129,18 +194,23 @@ describe.each(EXAMPLES)('%s: random edit sessions', (name) => {
         );
         store.load(`${name}.vtry`, entities, [], 0);
         for (const s of steps) {
-          if (s.op === 'undo') store.undo();
-          else if (s.op === 'redo') store.redo();
+          if (s.op === "undo") store.undo();
+          else if (s.op === "redo") store.redo();
           else {
-            if (s.op === 'fabric' && s.gesture) store.beginGesture(`fabric:${entities.fabrics[0]!.id}:${s.field}`);
+            if (s.op === "fabric" && s.gesture)
+              store.beginGesture(
+                `fabric:${entities.fabrics[0]!.id}:${s.field}`,
+              );
             store.execute((e) => build(s, e));
-            if (s.op === 'fabric' && !s.gesture) store.endGesture();
+            if (s.op === "fabric" && !s.gesture) store.endGesture();
           }
           const { entities: confirmed } = await store.settled();
           // Everything the UI let through, Rust accepted.
           expect(refusedByRust).toBeNull();
           // Rust holds exactly the UI's document.
-          expect(JSON.parse(file.entities())).toEqual(JSON.parse(JSON.stringify(confirmed)));
+          expect(JSON.parse(file.entities())).toEqual(
+            JSON.parse(JSON.stringify(confirmed)),
+          );
           expect(confirmed).toBe(store.state.entities);
         }
         while (store.state.undoLabel) store.undo();

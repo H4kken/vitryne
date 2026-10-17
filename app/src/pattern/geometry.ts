@@ -2,7 +2,13 @@
 // Cheap 2D geometry for drawing the pattern (docs/ARCHITECTURE.md: TypeScript only draws;
 // anything algorithmic is asked of the worker). Pattern coordinates are mm, +y up.
 
-import type { Cut, Garment, Line, OutlineNode, Piece } from '@/format/schema.gen';
+import type {
+  Cut,
+  Garment,
+  Line,
+  OutlineNode,
+  Piece,
+} from "@/format/schema.gen";
 
 export type P = readonly [number, number];
 
@@ -27,7 +33,12 @@ export function outlinePoints(piece: Piece): P[] {
  * The stretch of the outline from node `from` to node `to`, counter-clockwise (the outline's
  * order) or clockwise, with its edge points. Empty if either node isn't on the outline.
  */
-export function runPoints(piece: Piece, from: string, to: string, ccw: boolean): P[] {
+export function runPoints(
+  piece: Piece,
+  from: string,
+  to: string,
+  ccw: boolean,
+): P[] {
   const nodes = piece.outline as OutlineNode[];
   const n = nodes.length;
   let i = nodes.findIndex((x) => x.id === from);
@@ -42,7 +53,8 @@ export function runPoints(piece: Piece, from: string, to: string, ccw: boolean):
       i = (i + 1) % n;
     } else {
       i = (i + n - 1) % n;
-      for (const q of [...(nodes[i]?.edge.points ?? [])].reverse()) pts.push(q as P);
+      for (const q of [...(nodes[i]?.edge.points ?? [])].reverse())
+        pts.push(q as P);
     }
     const there = nodes[i];
     if (there) pts.push(there.position);
@@ -61,7 +73,10 @@ export function distToPolyline([px, py]: P, pts: readonly P[]): number {
     const [bx, by] = b;
     const dx = bx - ax;
     const dy = by - ay;
-    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+    const t = Math.max(
+      0,
+      Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)),
+    );
     best = Math.min(best, Math.hypot(px - (ax + t * dx), py - (ay + t * dy)));
   }
   return best;
@@ -92,8 +107,10 @@ export function bounds(pts: readonly P[]): Box {
 
 /** SVG path data, y flipped (SVG's y points down). */
 export function pathData(pts: readonly P[], closed: boolean): string {
-  if (!pts.length) return '';
-  const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(2)} ${(-y).toFixed(2)}`).join(' ');
+  if (!pts.length) return "";
+  const d = pts
+    .map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(2)} ${(-y).toFixed(2)}`)
+    .join(" ");
   return closed ? `${d} Z` : d;
 }
 
@@ -143,15 +160,25 @@ export interface CutView {
  * Every cut, where its layout says, or else laid out side by side in rows, about as wide as
  * tall overall (cuts without a layout don't move when another one is moved).
  */
-export function layoutCuts(g: Garment | undefined, gap = 80): { cuts: CutView[]; box: Box } {
+export function layoutCuts(
+  g: Garment | undefined,
+  gap = 80,
+): { cuts: CutView[]; box: Box } {
   const items = (g?.pieces ?? []).flatMap((piece) =>
     piece.cuts.map((cut) => {
       const pts = cutOutline(piece, cut);
       return { piece, cut, pts, own: bounds(pts) };
     }),
   );
-  const area = items.reduce((a, { own }) => a + (own.maxX - own.minX + gap) * (own.maxY - own.minY + gap), 0);
-  const rowWidth = Math.max(Math.sqrt(area) * 1.4, ...items.map(({ own }) => own.maxX - own.minX));
+  const area = items.reduce(
+    (a, { own }) =>
+      a + (own.maxX - own.minX + gap) * (own.maxY - own.minY + gap),
+    0,
+  );
+  const rowWidth = Math.max(
+    Math.sqrt(area) * 1.4,
+    ...items.map(({ own }) => own.maxX - own.minX),
+  );
   const cuts: CutView[] = [];
   let x = 0,
     y = 0,
@@ -169,10 +196,20 @@ export function layoutCuts(g: Garment | undefined, gap = 80): { cuts: CutView[];
     x += w + gap;
     rowH = Math.max(rowH, h);
     const l = cut.layout;
-    const t: Transform = l?.position ? { x: l.position[0], y: l.position[1], rot: l.rotation ?? 0 } : auto;
+    const t: Transform = l?.position
+      ? { x: l.position[0], y: l.position[1], rot: l.rotation ?? 0 }
+      : auto;
     cuts.push({ piece, cut, pts, t, box: bounds(pts.map((p) => apply(t, p))) });
   }
-  const box = bounds(cuts.flatMap(({ box }) => [[box.minX, box.minY], [box.maxX, box.maxY]] as P[]));
+  const box = bounds(
+    cuts.flatMap(
+      ({ box }) =>
+        [
+          [box.minX, box.minY],
+          [box.maxX, box.maxY],
+        ] as P[],
+    ),
+  );
   return { cuts, box };
 }
 
@@ -185,7 +222,8 @@ export function inside([x, y]: P, poly: readonly P[]): boolean {
     if (!a || !b) continue;
     const [xi, yi] = a;
     const [xj, yj] = b;
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)
+      c = !c;
   }
   return c;
 }

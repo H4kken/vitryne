@@ -4,18 +4,18 @@
 // where they are on screen and how far a handle's point moves per unit of what it changes;
 // a drag shows the cut moving at once (`onPreview`) and is one edit when let go (`onCommit`).
 
-import { useRef, useState } from 'react';
-import type { Placement } from '@/format/schema.gen';
-import type { GizmoHandle, GizmoView } from '@/worker/protocol';
+import { useRef, useState } from "react";
+import type { Placement } from "@/format/schema.gen";
+import type { GizmoHandle, GizmoView } from "@/worker/protocol";
 
-type Wrap = Placement & { type: 'wrap' };
-type Kind = 'along' | 'around' | 'out' | 'turn';
+type Wrap = Placement & { type: "wrap" };
+type Kind = "along" | "around" | "out" | "turn";
 
 const LABELS: Record<Kind, string> = {
-  along: 'Drag to move it up or down the body',
-  around: 'Drag to move it around the body',
-  out: 'Drag to move it closer to or away from the body',
-  turn: 'Drag to turn it',
+  along: "Drag to move it up or down the body",
+  around: "Drag to move it around the body",
+  out: "Drag to move it closer to or away from the body",
+  turn: "Drag to turn it",
 };
 
 type Px = [number, number];
@@ -33,11 +33,23 @@ export function Gizmo(props: {
   const [hover, setHover] = useState<Kind | null>(null);
   const drag = useRef<{ kind: Kind; last: Px; p: Wrap } | null>(null);
 
-  const px = ([x, y]: [number, number]): Px => [((x + 1) / 2) * w, ((1 - y) / 2) * h];
+  const px = ([x, y]: [number, number]): Px => [
+    ((x + 1) / 2) * w,
+    ((1 - y) / 2) * h,
+  ];
   /** A handle's screen motion per unit, in pixels (y down). */
-  const perPx = (hd: GizmoHandle): Px => [(hd.per[0] * w) / 2, (-hd.per[1] * h) / 2];
+  const perPx = (hd: GizmoHandle): Px => [
+    (hd.per[0] * w) / 2,
+    (-hd.per[1] * h) / 2,
+  ];
   const centre = px(view.centre);
-  const d = (pts: [number, number][]) => pts.map((q, i) => `${i ? 'L' : 'M'}${px(q)[0].toFixed(1)} ${px(q)[1].toFixed(1)}`).join(' ');
+  const d = (pts: [number, number][]) =>
+    pts
+      .map(
+        (q, i) =>
+          `${i ? "L" : "M"}${px(q)[0].toFixed(1)} ${px(q)[1].toFixed(1)}`,
+      )
+      .join(" ");
 
   /** How much of a handle's value a pointer move gives: its projection on the handle's motion. */
   const along = (hd: GizmoHandle, dx: number, dy: number) => {
@@ -64,15 +76,26 @@ export function Gizmo(props: {
     const dy = e.clientY - g.last[1];
     if (!dx && !dy) return;
     const p = { ...g.p };
-    if (g.kind === 'along') p.top = (p.top ?? 0) + along(view.along, dx, dy);
-    else if (g.kind === 'around') p.angle = (p.angle ?? 0) + along(view.around, dx, dy);
-    else if (g.kind === 'out') p.radius = Math.max(5, (p.radius ?? 0) + along(view.out, dx, dy));
+    if (g.kind === "along") p.top = (p.top ?? 0) + along(view.along, dx, dy);
+    else if (g.kind === "around")
+      p.angle = (p.angle ?? 0) + along(view.around, dx, dy);
+    else if (g.kind === "out")
+      p.radius = Math.max(5, (p.radius ?? 0) + along(view.out, dx, dy));
     else {
       // Turning: the change in the pointer's angle about the centre, signed by which way the
       // piece's x turns into its y on screen.
-      const r = e.currentTarget.ownerSVGElement?.getBoundingClientRect() ?? { left: 0, top: 0 };
-      const a0 = Math.atan2(g.last[1] - r.top - centre[1], g.last[0] - r.left - centre[0]);
-      const a1 = Math.atan2(e.clientY - r.top - centre[1], e.clientX - r.left - centre[0]);
+      const r = e.currentTarget.ownerSVGElement?.getBoundingClientRect() ?? {
+        left: 0,
+        top: 0,
+      };
+      const a0 = Math.atan2(
+        g.last[1] - r.top - centre[1],
+        g.last[0] - r.left - centre[0],
+      );
+      const a1 = Math.atan2(
+        e.clientY - r.top - centre[1],
+        e.clientX - r.left - centre[0],
+      );
       let da = a1 - a0;
       da = Math.atan2(Math.sin(da), Math.cos(da));
       const [tx, ty] = perPx(view.around);
@@ -99,16 +122,17 @@ export function Gizmo(props: {
     onPointerCancel: end,
     onPointerEnter: () => setHover(kind),
     onPointerLeave: () => setHover(null),
-    className: 'pointer-events-auto cursor-grab active:cursor-grabbing',
+    className: "pointer-events-auto cursor-grab active:cursor-grabbing",
   });
 
-  const stroke = (kind: Kind) => (active === kind || hover === kind ? '#E4572E' : '#3A63F0');
+  const stroke = (kind: Kind) =>
+    active === kind || hover === kind ? "#E4572E" : "#3A63F0";
   const width = (kind: Kind) => (active === kind || hover === kind ? 3.5 : 2.5);
 
   /** An arrow head at the end of a polyline, `size` px. */
   const head = (pts: [number, number][], size = 9) => {
     const [p, q] = pts.slice(-2);
-    if (!p || !q) return '';
+    if (!p || !q) return "";
     const a = px(p);
     const b = px(q);
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
@@ -117,27 +141,75 @@ export function Gizmo(props: {
     return `M${b[0] - ux * size - uy * size * 0.6} ${b[1] - uy * size + ux * size * 0.6} L${b[0]} ${b[1]} L${b[0] - ux * size + uy * size * 0.6} ${b[1] - uy * size - ux * size * 0.6}`;
   };
 
-  const handle = (kind: Kind, pts: [number, number][], ends: 'both' | 'end' | 'none') => (
+  const handle = (
+    kind: Kind,
+    pts: [number, number][],
+    ends: "both" | "end" | "none",
+  ) => (
     <g {...handleProps(kind)}>
       <title>{LABELS[kind]}</title>
       {/* A wide invisible stroke, easy to grab. */}
       <path d={d(pts)} fill="none" stroke="transparent" strokeWidth={18} />
-      <path d={d(pts)} fill="none" stroke="#FFFFFF" strokeWidth={width(kind) + 3} strokeLinecap="round" strokeLinejoin="round" opacity={0.85} />
-      <path d={d(pts)} fill="none" stroke={stroke(kind)} strokeWidth={width(kind)} strokeLinecap="round" strokeLinejoin="round" />
-      {ends !== 'none' && <path d={head(pts)} fill="none" stroke={stroke(kind)} strokeWidth={width(kind)} strokeLinecap="round" strokeLinejoin="round" />}
-      {ends === 'both' && (
-        <path d={head([...pts].reverse())} fill="none" stroke={stroke(kind)} strokeWidth={width(kind)} strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d={d(pts)}
+        fill="none"
+        stroke="#FFFFFF"
+        strokeWidth={width(kind) + 3}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.85}
+      />
+      <path
+        d={d(pts)}
+        fill="none"
+        stroke={stroke(kind)}
+        strokeWidth={width(kind)}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {ends !== "none" && (
+        <path
+          d={head(pts)}
+          fill="none"
+          stroke={stroke(kind)}
+          strokeWidth={width(kind)}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      {ends === "both" && (
+        <path
+          d={head([...pts].reverse())}
+          fill="none"
+          stroke={stroke(kind)}
+          strokeWidth={width(kind)}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       )}
     </g>
   );
 
   return (
-    <svg className="pointer-events-none absolute inset-0 h-full w-full" width={w} height={h} role="group" aria-label="Handles to place the piece">
-      {handle('turn', view.ring, 'none')}
-      {handle('along', view.along.line, 'both')}
-      {handle('around', view.around.line, 'both')}
-      {handle('out', view.out.line, 'end')}
-      <circle cx={centre[0]} cy={centre[1]} r={5} fill="#FFFFFF" stroke="#3A63F0" strokeWidth={2} />
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      width={w}
+      height={h}
+      role="group"
+      aria-label="Handles to place the piece"
+    >
+      {handle("turn", view.ring, "none")}
+      {handle("along", view.along.line, "both")}
+      {handle("around", view.around.line, "both")}
+      {handle("out", view.out.line, "end")}
+      <circle
+        cx={centre[0]}
+        cy={centre[1]}
+        r={5}
+        fill="#FFFFFF"
+        stroke="#3A63F0"
+        strokeWidth={2}
+      />
     </svg>
   );
 }

@@ -1,61 +1,172 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vitryne bench</title>
-  <style>
-    body { margin: 0; padding: 16px; background: #111; color: #ddd; font: 13px/1.45 ui-monospace, monospace; }
-    h1 { font-size: 15px; margin: 0 0 12px; }
-    label { margin-right: 12px; white-space: nowrap; }
-    input[type=text], select { width: 180px; background: #222; color: #ddd; border: 1px solid #444; padding: 3px 6px; font: inherit; }
-    button { background: #2d5; color: #000; border: 0; padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer; margin-right: 8px; }
-    button:disabled { background: #555; cursor: default; }
-    table { border-collapse: collapse; margin: 14px 0; }
-    td, th { border: 1px solid #333; padding: 3px 8px; text-align: right; }
-    th { background: #1c1c1c; }
-    pre { white-space: pre-wrap; word-break: break-all; max-height: 40vh; overflow: auto; background: #181818; padding: 8px; }
-    #status.err { color: #f66; }
-    .wrap { overflow-x: auto; }
-  </style>
-</head>
-<body>
-  <h1>Vitryne engine benchmark (same code as <code>drape bench</code> / <code>drape bench-drag</code>)</h1>
-  <div>
-    <label>mode <select id="mode">
-      <option value="tshirt" selected>T-shirt drape</option>
-      <option value="drag">T-shirt 60 s random drags</option>
-      <option value="sheet">M1 sheet</option>
-      <option value="bake">SDF bake in wasm</option>
-    </select></label>
-    <label>res <input id="res" type="text" value="0.0122,0.00864,0.0061,0.00432" title="tshirt/drag: edge length (m); sheet: vertices per side" /></label>
-    <label>substeps <input id="substeps" type="text" value="20" /></label>
-    <label>frames <input id="frames" type="text" value="900" /></label>
-    <label>seeds <input id="seeds" type="text" value="1,2,3" title="drag mode" /></label>
-    <label><input id="gentle" type="checkbox" /> gentle drags</label>
-    <label><input id="ts" type="checkbox" /> gpu-timestamps</label>
-    <label><input id="record" type="checkbox" checked /> record final positions</label>
-    <label><input id="selfc" type="checkbox" /> self-collision</label>
-    <label>rebuild every <input id="rebuild" type="text" value="" style="width:40px" title="self-collision: rebuild hash + neighbour lists every k substeps (empty = default)" /></label>
-    <label><input id="nopins" type="checkbox" title="sheet mode" /> sheet unpinned (drop)</label>
-    <label>garment <select id="garment" title="drape/drag modes: a DXF-AAMA garment instead of the spike-1 T-shirt; res = target vertex count">
-      <option value="" selected>— (spike-1 T-shirt)</option>
-      <option value="tshirt">tshirt (Teagan)</option>
-      <option value="trousers">trousers (Titan)</option>
-      <option value="hoodie">hoodie (Hugo)</option>
-    </select></label>
-    <label>untangle every <input id="ut" type="text" value="" style="width:40px" title="S4 untangling with self-collision: every N substeps (empty = default 4, 0 = off)" /></label>
-    <label>contact accel cap <input id="cap" type="text" value="" style="width:40px" title="S3 contact velocity filter, m/s² (empty = default 30, 0 = off)" /></label>
-  </div>
-  <p>
-    <button id="run">Run</button>
-    <button id="suite" title="M1 low-end hardware check: sheet overhead, 3 garments at 10k/20k with self-collision, one drag test">Run M1 suite</button>
-    <button id="copy" disabled>Copy JSON</button>
-  </p>
-  <p id="status">idle</p>
-  <div class="wrap"><table id="table"></table></div>
-  <pre id="report"></pre>
-  <script type="module" src="/src/bench/bench.ts"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vitryne bench</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #111;
+        color: #ddd;
+        font:
+          13px/1.45 ui-monospace,
+          monospace;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 12px;
+      }
+      label {
+        margin-right: 12px;
+        white-space: nowrap;
+      }
+      input[type="text"],
+      select {
+        width: 180px;
+        background: #222;
+        color: #ddd;
+        border: 1px solid #444;
+        padding: 3px 6px;
+        font: inherit;
+      }
+      button {
+        background: #2d5;
+        color: #000;
+        border: 0;
+        padding: 6px 12px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        margin-right: 8px;
+      }
+      button:disabled {
+        background: #555;
+        cursor: default;
+      }
+      table {
+        border-collapse: collapse;
+        margin: 14px 0;
+      }
+      td,
+      th {
+        border: 1px solid #333;
+        padding: 3px 8px;
+        text-align: right;
+      }
+      th {
+        background: #1c1c1c;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 40vh;
+        overflow: auto;
+        background: #181818;
+        padding: 8px;
+      }
+      #status.err {
+        color: #f66;
+      }
+      .wrap {
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>
+      Vitryne engine benchmark (same code as <code>drape bench</code> /
+      <code>drape bench-drag</code>)
+    </h1>
+    <div>
+      <label
+        >mode
+        <select id="mode">
+          <option value="tshirt" selected>T-shirt drape</option>
+          <option value="drag">T-shirt 60 s random drags</option>
+          <option value="sheet">M1 sheet</option>
+          <option value="bake">SDF bake in wasm</option>
+        </select></label
+      >
+      <label
+        >res
+        <input
+          id="res"
+          type="text"
+          value="0.0122,0.00864,0.0061,0.00432"
+          title="tshirt/drag: edge length (m); sheet: vertices per side"
+      /></label>
+      <label>substeps <input id="substeps" type="text" value="20" /></label>
+      <label>frames <input id="frames" type="text" value="900" /></label>
+      <label
+        >seeds <input id="seeds" type="text" value="1,2,3" title="drag mode"
+      /></label>
+      <label><input id="gentle" type="checkbox" /> gentle drags</label>
+      <label><input id="ts" type="checkbox" /> gpu-timestamps</label>
+      <label
+        ><input id="record" type="checkbox" checked /> record final
+        positions</label
+      >
+      <label><input id="selfc" type="checkbox" /> self-collision</label>
+      <label
+        >rebuild every
+        <input
+          id="rebuild"
+          type="text"
+          value=""
+          style="width: 40px"
+          title="self-collision: rebuild hash + neighbour lists every k substeps (empty = default)"
+      /></label>
+      <label
+        ><input id="nopins" type="checkbox" title="sheet mode" /> sheet unpinned
+        (drop)</label
+      >
+      <label
+        >garment
+        <select
+          id="garment"
+          title="drape/drag modes: a DXF-AAMA garment instead of the spike-1 T-shirt; res = target vertex count"
+        >
+          <option value="" selected>— (spike-1 T-shirt)</option>
+          <option value="tshirt">tshirt (Teagan)</option>
+          <option value="trousers">trousers (Titan)</option>
+          <option value="hoodie">hoodie (Hugo)</option>
+        </select></label
+      >
+      <label
+        >untangle every
+        <input
+          id="ut"
+          type="text"
+          value=""
+          style="width: 40px"
+          title="S4 untangling with self-collision: every N substeps (empty = default 4, 0 = off)"
+      /></label>
+      <label
+        >contact accel cap
+        <input
+          id="cap"
+          type="text"
+          value=""
+          style="width: 40px"
+          title="S3 contact velocity filter, m/s² (empty = default 30, 0 = off)"
+      /></label>
+    </div>
+    <p>
+      <button id="run">Run</button>
+      <button
+        id="suite"
+        title="M1 low-end hardware check: sheet overhead, 3 garments at 10k/20k with self-collision, one drag test"
+      >
+        Run M1 suite
+      </button>
+      <button id="copy" disabled>Copy JSON</button>
+    </p>
+    <p id="status">idle</p>
+    <div class="wrap"><table id="table"></table></div>
+    <pre id="report"></pre>
+    <script type="module" src="/src/bench/bench.ts"></script>
+  </body>
 </html>

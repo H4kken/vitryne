@@ -3,10 +3,15 @@
 // config.json), undefined while the config is loading. The backend code loads on first use, or at
 // start when this browser has a session from an earlier visit.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CloudUser, ProjectSummary } from './backend';
-import { type CloudConfig, hasSession, loadConfig, returningFromSignIn } from './config';
-import type { SupabaseBackend } from './supabase';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CloudUser, ProjectSummary } from "./backend";
+import {
+  type CloudConfig,
+  hasSession,
+  loadConfig,
+  returningFromSignIn,
+} from "./config";
+import type { SupabaseBackend } from "./supabase";
 
 export interface Cloud {
   config: CloudConfig;
@@ -19,7 +24,9 @@ export interface Cloud {
 }
 
 export function useCloud(): Cloud | null | undefined {
-  const [config, setConfig] = useState<CloudConfig | null | undefined>(undefined);
+  const [config, setConfig] = useState<CloudConfig | null | undefined>(
+    undefined,
+  );
   const [user, setUser] = useState<CloudUser | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const connecting = useRef<Promise<SupabaseBackend> | null>(null);
@@ -29,8 +36,9 @@ export function useCloud(): Cloud | null | undefined {
   }, []);
 
   const backend = useCallback(() => {
-    if (!config) return Promise.reject(new Error('no cloud backend is configured'));
-    connecting.current ??= import('./supabase')
+    if (!config)
+      return Promise.reject(new Error("no cloud backend is configured"));
+    connecting.current ??= import("./supabase")
       .then((m) => m.SupabaseBackend.connect(config))
       .then((b) => {
         b.onUser(setUser);
@@ -47,11 +55,14 @@ export function useCloud(): Cloud | null | undefined {
   const refresh = useCallback(() => {
     const c = connecting.current;
     if (!c) return;
-    void c.then((b) => b.listProjects()).then(setProjects, () => setProjects(null));
+    void c
+      .then((b) => b.listProjects())
+      .then(setProjects, () => setProjects(null));
   }, []);
 
   useEffect(() => {
-    if (config && (hasSession() || returningFromSignIn())) void backend().catch(() => undefined);
+    if (config && (hasSession() || returningFromSignIn()))
+      void backend().catch(() => undefined);
   }, [config, backend]);
 
   // Someone else signed in: their own list.
@@ -60,5 +71,9 @@ export function useCloud(): Cloud | null | undefined {
   }, [user, refresh]);
 
   const shown = user ? projects : null;
-  return useMemo(() => (config ? { config, user, projects: shown, backend, refresh } : config), [config, user, shown, backend, refresh]);
+  return useMemo(
+    () =>
+      config ? { config, user, projects: shown, backend, refresh } : config,
+    [config, user, shown, backend, refresh],
+  );
 }

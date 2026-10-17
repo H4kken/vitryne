@@ -1,0 +1,35 @@
+# Dependencies & build outputs
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+target/
+**/target/
+pkg/
+**/pkg/
+pkg-node/
+**/pkg-node/
+public/
+**/public/
+bench-out/
+**/bench-out/
+.gstack/
+pnpm-lock.yaml
+**/pnpm-lock.yaml
+
+# Generated files
+**/*.gen.*
+**/*.gen.js
+**/*.gen.ts
+**/*.gen.d.ts
+
+# Rust & Crate directories
+crates/
+examples/
+tests/regression/
+
+# Vtry files
+*.vtry/
+*.vtry
+**/*.vtry/
+**/*.vtry

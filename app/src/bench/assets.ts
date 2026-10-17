@@ -17,22 +17,43 @@ const BASE = `${import.meta.env.BASE_URL}bench-assets`;
 
 async function get(path: string): Promise<Response> {
   const r = await fetch(`${BASE}/${path}`);
-  if (!r.ok || r.headers.get('content-type')?.includes('text/html')) throw new Error(`missing ${BASE}/${path}: run \`pnpm run assets\``);
+  if (!r.ok || r.headers.get("content-type")?.includes("text/html"))
+    throw new Error(`missing ${BASE}/${path}: run \`pnpm run assets\``);
   return r;
 }
 
 export async function loadGarmentAssets(name: string): Promise<BenchAssets> {
   const t0 = performance.now();
-  const obj = await (await get('makehuman_body_m.obj')).text();
+  const obj = await (await get("makehuman_body_m.obj")).text();
   const toml = await (await get(`garments/${name}/garment.toml`)).text();
   const dxf = await (await get(`garments/${name}/garment.dxf`)).text();
-  const sdf = new Uint8Array(await (await get(`garments/${name}/sdf.bin`)).arrayBuffer());
-  return { garment: name, obj, toml, dxf, sdf, fetch_ms: performance.now() - t0, sdf_download_bytes: sdf.length };
+  const sdf = new Uint8Array(
+    await (await get(`garments/${name}/sdf.bin`)).arrayBuffer(),
+  );
+  return {
+    garment: name,
+    obj,
+    toml,
+    dxf,
+    sdf,
+    fetch_ms: performance.now() - t0,
+    sdf_download_bytes: sdf.length,
+  };
 }
 
-export async function loadTshirtAssets(q: URLSearchParams): Promise<BenchAssets> {
+export async function loadTshirtAssets(
+  q: URLSearchParams,
+): Promise<BenchAssets> {
   const t0 = performance.now();
-  const obj = await (await get('makehuman_body_m.obj')).text();
-  const sdf = q.get('sdf') === 'bake' ? new Uint8Array() : new Uint8Array(await (await get('sdf_4mm.bin')).arrayBuffer());
-  return { obj, sdf, fetch_ms: performance.now() - t0, sdf_download_bytes: sdf.length };
+  const obj = await (await get("makehuman_body_m.obj")).text();
+  const sdf =
+    q.get("sdf") === "bake"
+      ? new Uint8Array()
+      : new Uint8Array(await (await get("sdf_4mm.bin")).arrayBuffer());
+  return {
+    obj,
+    sdf,
+    fetch_ms: performance.now() - t0,
+    sdf_download_bytes: sdf.length,
+  };
 }

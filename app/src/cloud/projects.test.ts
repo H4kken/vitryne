@@ -1,9 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { describe, expect, it } from 'vitest';
-import { exampleZip, EXAMPLES, wasm } from '@/test/rust';
-import { type CloudBackend, CloudError, type CloudUser, type Manifest, type ProjectRow } from './backend';
-import { collectUnused, copyName, deleteAccount, duplicateProject, exportAll, fileName, moveProjects, openProject, projectZip, renameProject, saveProject, saveThumbnail, sha256Hex } from './projects';
-import { crc32 } from './zip';
+import { describe, expect, it } from "vitest";
+import { exampleZip, EXAMPLES, wasm } from "@/test/rust";
+import {
+  type CloudBackend,
+  CloudError,
+  type CloudUser,
+  type Manifest,
+  type ProjectRow,
+} from "./backend";
+import {
+  collectUnused,
+  copyName,
+  deleteAccount,
+  duplicateProject,
+  exportAll,
+  fileName,
+  moveProjects,
+  openProject,
+  projectZip,
+  renameProject,
+  saveProject,
+  saveThumbnail,
+  sha256Hex,
+} from "./projects";
+import { crc32 } from "./zip";
 
 /** A backend in memory, shaped like the real one (RLS: each user sees only their own; an anonymous user keeps one draft). */
 class MemBackend implements CloudBackend {
@@ -22,20 +42,46 @@ class MemBackend implements CloudBackend {
     return [...MemBackend.rows.values()].filter((r) => r.owner === this.me?.id);
   }
   async listProjects() {
-    return this.mine().map(({ id, name, bytes, revision, updatedAt, thumbnail }) => ({ id, name, bytes, revision, updatedAt, thumbnail }));
+    return this.mine().map(
+      ({ id, name, bytes, revision, updatedAt, thumbnail }) => ({
+        id,
+        name,
+        bytes,
+        revision,
+        updatedAt,
+        thumbnail,
+      }),
+    );
   }
   async getProject(id: string) {
     const r = this.mine().find((x) => x.id === id);
-    if (!r) throw new CloudError('gone');
+    if (!r) throw new CloudError("gone");
     return structuredClone(r);
   }
-  async insertProject(p: { name: string; manifest: Manifest; bytes: number; thumbnail?: string | null }) {
-    if (this.me?.anonymous && this.mine().length >= 1) throw new CloudError('an account is needed', 'account');
-    const r: ProjectRow = { thumbnail: null, ...structuredClone(p), id: crypto.randomUUID(), owner: this.me!.id, revision: 1, updatedAt: new Date().toISOString() };
+  async insertProject(p: {
+    name: string;
+    manifest: Manifest;
+    bytes: number;
+    thumbnail?: string | null;
+  }) {
+    if (this.me?.anonymous && this.mine().length >= 1)
+      throw new CloudError("an account is needed", "account");
+    const r: ProjectRow = {
+      thumbnail: null,
+      ...structuredClone(p),
+      id: crypto.randomUUID(),
+      owner: this.me!.id,
+      revision: 1,
+      updatedAt: new Date().toISOString(),
+    };
     MemBackend.rows.set(r.id, r);
     return structuredClone(r);
   }
-  async updateProject(id: string, revision: number, p: { name: string; manifest: Manifest; bytes: number }) {
+  async updateProject(
+    id: string,
+    revision: number,
+    p: { name: string; manifest: Manifest; bytes: number },
+  ) {
     const r = this.mine().find((x) => x.id === id);
     if (!r || r.revision !== revision) return null;
     Object.assign(r, structuredClone(p), { revision: r.revision + 1 });
@@ -55,13 +101,15 @@ class MemBackend implements CloudBackend {
     return this.own(name) && MemBackend.objects.has(name);
   }
   async uploadPart(name: string, bytes: ArrayBuffer) {
-    if (!this.own(name) || !/^[^/]+\/[0-9a-f]{64}$/.test(name)) throw new CloudError('refused');
+    if (!this.own(name) || !/^[^/]+\/[0-9a-f]{64}$/.test(name))
+      throw new CloudError("refused");
     this.uploads.push(name);
-    if (!MemBackend.objects.has(name)) MemBackend.objects.set(name, bytes.slice(0));
+    if (!MemBackend.objects.has(name))
+      MemBackend.objects.set(name, bytes.slice(0));
   }
   async downloadPart(name: string) {
     const b = this.own(name) ? MemBackend.objects.get(name) : undefined;
-    if (!b) throw new CloudError('missing');
+    if (!b) throw new CloudError("missing");
     return b.slice(0);
   }
   async listParts() {
@@ -71,26 +119,40 @@ class MemBackend implements CloudBackend {
     for (const n of names) if (this.own(n)) MemBackend.objects.delete(n);
   }
   async unusedParts() {
-    const used = new Set(this.mine().flatMap((r) => [...r.manifest.parts.map((p) => `${r.owner}/${p.sha256}`), `${r.owner}/${r.thumbnail}`]));
+    const used = new Set(
+      this.mine().flatMap((r) => [
+        ...r.manifest.parts.map((p) => `${r.owner}/${p.sha256}`),
+        `${r.owner}/${r.thumbnail}`,
+      ]),
+    );
     return (await this.listParts()).filter((n) => !used.has(n));
   }
   async usage() {
-    return { usedBytes: 0, quotaBytes: 1, projects: this.mine().length, maxProjects: 1 };
+    return {
+      usedBytes: 0,
+      quotaBytes: 1,
+      projects: this.mine().length,
+      maxProjects: 1,
+    };
   }
   async deleteUser() {
-    if ((await this.listParts()).length) throw new CloudError('parts first');
+    if ((await this.listParts()).length) throw new CloudError("parts first");
     for (const r of this.mine()) MemBackend.rows.delete(r.id);
     this.me = null;
   }
 }
 
 /** A backend signed in to an account (several projects). */
-const account = () => new MemBackend({ id: crypto.randomUUID(), email: 'a@b.c', anonymous: false });
+const account = () =>
+  new MemBackend({ id: crypto.randomUUID(), email: "a@b.c", anonymous: false });
 
 /** The folder form of an example, as the worker's save gives it. */
 function folder(name: string): [string, ArrayBuffer][] {
   const f = wasm.VtryFile.open(exampleZip(name));
-  return (f.save_folder() as [string, Uint8Array][]).map(([p, b]) => [p, b.slice().buffer as ArrayBuffer]);
+  return (f.save_folder() as [string, Uint8Array][]).map(([p, b]) => [
+    p,
+    b.slice().buffer as ArrayBuffer,
+  ]);
 }
 
 function rustOpensFolder(files: [string, ArrayBuffer][]) {
@@ -100,92 +162,107 @@ function rustOpensFolder(files: [string, ArrayBuffer][]) {
   );
 }
 
-describe('cloud projects', () => {
-  it('saves each example and opens it back to the same entities', async () => {
+describe("cloud projects", () => {
+  it("saves each example and opens it back to the same entities", async () => {
     for (const ex of EXAMPLES) {
       const b = new MemBackend();
       const files = folder(ex);
       const ref = await saveProject(b, ex, files, null);
       const o = await openProject(b, ref.id);
-      expect(o.data.form).toBe('folder');
-      if (o.data.form !== 'folder') return;
+      expect(o.data.form).toBe("folder");
+      if (o.data.form !== "folder") return;
       const back = rustOpensFolder(o.data.files);
       expect(back.entities()).toBe(rustOpensFolder(files).entities());
       // Every part is byte for byte what was saved.
       const saved = new Map(files);
-      for (const [p, bytes] of o.data.files) if (p !== 'manifest.json') expect(new Uint8Array(bytes)).toEqual(new Uint8Array(saved.get(p)!));
+      for (const [p, bytes] of o.data.files)
+        if (p !== "manifest.json")
+          expect(new Uint8Array(bytes)).toEqual(new Uint8Array(saved.get(p)!));
     }
   });
 
-  it('uploads only the parts the backend does not have', async () => {
+  it("uploads only the parts the backend does not have", async () => {
     const b = account();
-    const files = folder('tshirt');
-    const first = await saveProject(b, 'one', files, null);
+    const files = folder("tshirt");
+    const first = await saveProject(b, "one", files, null);
     expect(b.uploads.length).toBe(first.parts.length);
     // A second project with the same avatar uploads nothing new.
     b.uploads = [];
-    await saveProject(b, 'two', files, null);
+    await saveProject(b, "two", files, null);
     expect(b.uploads).toEqual([]);
     // A fabric change uploads one part.
-    const f = wasm.VtryFile.open(exampleZip('tshirt'));
+    const f = wasm.VtryFile.open(exampleZip("tshirt"));
     const e = JSON.parse(f.entities()) as { fabrics: { name: string }[] };
-    e.fabrics[0]!.name = 'Changed';
+    e.fabrics[0]!.name = "Changed";
     f.set_entities(JSON.stringify(e));
-    const changed = (f.save_folder() as [string, Uint8Array][]).map(([p, x]) => [p, x.slice().buffer as ArrayBuffer] as [string, ArrayBuffer]);
-    const again = await saveProject(b, 'one', changed, first);
+    const changed = (f.save_folder() as [string, Uint8Array][]).map(
+      ([p, x]) => [p, x.slice().buffer as ArrayBuffer] as [string, ArrayBuffer],
+    );
+    const again = await saveProject(b, "one", changed, first);
     expect(b.uploads.length).toBe(1);
     expect(again.revision).toBe(2);
   });
 
-  it('refuses a save over a newer revision and changes nothing', async () => {
+  it("refuses a save over a newer revision and changes nothing", async () => {
     const b = new MemBackend();
-    const files = folder('trousers');
-    const ref = await saveProject(b, 'p', files, null);
-    await saveProject(b, 'p', files, ref);
-    await expect(saveProject(b, 'stale', files, ref)).rejects.toMatchObject({ kind: 'conflict' });
-    expect((await b.getProject(ref.id)).name).toBe('p');
+    const files = folder("trousers");
+    const ref = await saveProject(b, "p", files, null);
+    await saveProject(b, "p", files, ref);
+    await expect(saveProject(b, "stale", files, ref)).rejects.toMatchObject({
+      kind: "conflict",
+    });
+    expect((await b.getProject(ref.id)).name).toBe("p");
   });
 
-  it('refuses a part whose bytes do not match its hash, before uploading anything', async () => {
+  it("refuses a part whose bytes do not match its hash, before uploading anything", async () => {
     const b = new MemBackend();
-    const files = folder('tshirt').map(([p, x]): [string, ArrayBuffer] => [p, p === 'project.json' ? new TextEncoder().encode('{}').buffer : x]);
-    await expect(saveProject(b, 'x', files, null)).rejects.toThrow(/hash/);
+    const files = folder("tshirt").map(([p, x]): [string, ArrayBuffer] => [
+      p,
+      p === "project.json" ? new TextEncoder().encode("{}").buffer : x,
+    ]);
+    await expect(saveProject(b, "x", files, null)).rejects.toThrow(/hash/);
     expect(b.uploads).toEqual([]);
   });
 
-  it('notices a damaged part on open', async () => {
+  it("notices a damaged part on open", async () => {
     const b = new MemBackend();
-    const ref = await saveProject(b, 'x', folder('tshirt'), null);
+    const ref = await saveProject(b, "x", folder("tshirt"), null);
     const key = `${b.me!.id}/${ref.parts[0]}`;
-    MemBackend.objects.set(key, new TextEncoder().encode('garbage').buffer);
-    await expect(openProject(b, ref.id)).rejects.toMatchObject({ kind: 'damaged' });
+    MemBackend.objects.set(key, new TextEncoder().encode("garbage").buffer);
+    await expect(openProject(b, ref.id)).rejects.toMatchObject({
+      kind: "damaged",
+    });
   });
 
-  it('downloads a project as a .vtry Rust opens, mimetype first and stored', async () => {
+  it("downloads a project as a .vtry Rust opens, mimetype first and stored", async () => {
     const b = new MemBackend();
-    const ref = await saveProject(b, 'T-shirt', folder('tshirt'), null);
+    const ref = await saveProject(b, "T-shirt", folder("tshirt"), null);
     const z = await projectZip(b, ref.id);
     const bytes = new Uint8Array(z.bytes);
-    expect(new TextDecoder().decode(bytes.slice(30, 38))).toBe('mimetype');
-    expect(new TextDecoder().decode(bytes.slice(38, 38 + 35))).toBe('application/vnd.vitryne.project+zip');
-    expect(wasm.VtryFile.open(bytes).entities()).toBe(wasm.VtryFile.open(exampleZip('tshirt')).entities());
+    expect(new TextDecoder().decode(bytes.slice(30, 38))).toBe("mimetype");
+    expect(new TextDecoder().decode(bytes.slice(38, 38 + 35))).toBe(
+      "application/vnd.vitryne.project+zip",
+    );
+    expect(wasm.VtryFile.open(bytes).entities()).toBe(
+      wasm.VtryFile.open(exampleZip("tshirt")).entities(),
+    );
   });
 
-  it('exports every project and the account', async () => {
+  it("exports every project and the account", async () => {
     const b = account();
-    await saveProject(b, 'Same', folder('tshirt'), null);
-    await saveProject(b, 'Same', folder('trousers'), null);
-    const z = new Uint8Array(await exportAll(b, { email: 'a@b.c' }));
-    const text = new TextDecoder('latin1').decode(z);
-    expect(text).toContain('account.json');
-    expect(text).toContain('projects/Same.vtry');
-    expect(text).toContain('projects/Same (2).vtry');
+    await saveProject(b, "Same", folder("tshirt"), null);
+    await saveProject(b, "Same", folder("trousers"), null);
+    const z = new Uint8Array(await exportAll(b, { email: "a@b.c" }));
+    const text = new TextDecoder("latin1").decode(z);
+    expect(text).toContain("account.json");
+    expect(text).toContain("projects/Same.vtry");
+    expect(text).toContain("projects/Same (2).vtry");
   });
 
-  it('collects parts no project uses, and deletes an account with everything in it', async () => {
+  it("collects parts no project uses, and deletes an account with everything in it", async () => {
     const b = account();
-    const t = await saveProject(b, 't', folder('tshirt'), null);
-    await saveProject(b, 'h', folder('hoodie'), null);
+    const t = await saveProject(b, "t", folder("tshirt"), null);
+    await saveProject(b, "h", folder("hoodie"), null);
     await b.deleteProject(t.id);
     const before = (await b.listParts()).length;
     const n = await collectUnused(b);
@@ -193,7 +270,7 @@ describe('cloud projects', () => {
     // The avatar is shared with the hoodie: kept.
     expect((await b.listParts()).length).toBe(before - n);
     const other = new MemBackend();
-    await saveProject(other, 'kept', folder('tshirt'), null);
+    await saveProject(other, "kept", folder("tshirt"), null);
     await deleteAccount(b);
     expect(b.me).toBeNull();
     expect((await other.listProjects()).length).toBe(1);
@@ -202,51 +279,66 @@ describe('cloud projects', () => {
 
   it("moves an anonymous user's projects to the account they sign in to", async () => {
     const anon = new MemBackend();
-    await saveProject(anon, 'mine', folder('tshirt'), null);
+    await saveProject(anon, "mine", folder("tshirt"), null);
     const to = account();
     const r = await moveProjects(anon, to);
     expect(r).toMatchObject({ moved: 1, failed: [] });
     const [moved] = await to.listProjects();
-    expect(moved?.name).toBe('mine');
+    expect(moved?.name).toBe("mine");
     expect(Object.values(r.ids)).toEqual([moved?.id]);
     expect(anon.me).toBeNull();
   });
 
-  it('keeps one draft for an anonymous user', async () => {
+  it("keeps one draft for an anonymous user", async () => {
     const anon = new MemBackend();
-    await saveProject(anon, 'draft', folder('tshirt'), null);
-    await expect(saveProject(anon, 'second', folder('trousers'), null)).rejects.toMatchObject({ kind: 'account' });
-    expect((await anon.listProjects()).map((p) => p.name)).toEqual(['draft']);
+    await saveProject(anon, "draft", folder("tshirt"), null);
+    await expect(
+      saveProject(anon, "second", folder("trousers"), null),
+    ).rejects.toMatchObject({ kind: "account" });
+    expect((await anon.listProjects()).map((p) => p.name)).toEqual(["draft"]);
   });
 
-  it('duplicates a project under a new name, uploading only project.json', async () => {
+  it("duplicates a project under a new name, uploading only project.json", async () => {
     const b = account();
-    const ref = await saveProject(b, 'T-shirt', folder('tshirt'), null);
+    const ref = await saveProject(b, "T-shirt", folder("tshirt"), null);
     b.uploads = [];
     const copy = await duplicateProject(b, ref.id);
-    expect(copy.name).toBe('T-shirt (copy)');
+    expect(copy.name).toBe("T-shirt (copy)");
     expect(copy.id).not.toBe(ref.id);
     expect(b.uploads).toHaveLength(1);
-    const [a, c] = await Promise.all([openProject(b, ref.id), openProject(b, copy.id)]);
-    if (a.data.form !== 'folder' || c.data.form !== 'folder') throw new Error('folder form expected');
-    const original = JSON.parse(rustOpensFolder(a.data.files).entities()) as { project: { name: string } };
-    const copied = JSON.parse(rustOpensFolder(c.data.files).entities()) as { project: { name: string } };
+    const [a, c] = await Promise.all([
+      openProject(b, ref.id),
+      openProject(b, copy.id),
+    ]);
+    if (a.data.form !== "folder" || c.data.form !== "folder")
+      throw new Error("folder form expected");
+    const original = JSON.parse(rustOpensFolder(a.data.files).entities()) as {
+      project: { name: string };
+    };
+    const copied = JSON.parse(rustOpensFolder(c.data.files).entities()) as {
+      project: { name: string };
+    };
     // The name the list shows, in the copy's own project.json too.
-    expect(copied.project.name).toBe('T-shirt (copy)');
-    expect({ ...copied, project: { ...copied.project, name: original.project.name } }).toEqual(original);
+    expect(copied.project.name).toBe("T-shirt (copy)");
+    expect({
+      ...copied,
+      project: { ...copied.project, name: original.project.name },
+    }).toEqual(original);
     // An anonymous user's draft can't be duplicated.
     const anon = new MemBackend();
-    const draft = await saveProject(anon, 'draft', folder('tshirt'), null);
-    await expect(duplicateProject(anon, draft.id)).rejects.toMatchObject({ kind: 'account' });
+    const draft = await saveProject(anon, "draft", folder("tshirt"), null);
+    await expect(duplicateProject(anon, draft.id)).rejects.toMatchObject({
+      kind: "account",
+    });
   });
 
-  it('stores a thumbnail once, without a new revision, and keeps it through duplicate and move', async () => {
+  it("stores a thumbnail once, without a new revision, and keeps it through duplicate and move", async () => {
     const anon = new MemBackend();
-    const ref = await saveProject(anon, 'mine', folder('tshirt'), null);
+    const ref = await saveProject(anon, "mine", folder("tshirt"), null);
     const image = new Uint8Array([1, 2, 3, 4]).buffer;
-    const sha = await saveThumbnail(anon, ref.id, image, 'image/webp');
+    const sha = await saveThumbnail(anon, ref.id, image, "image/webp");
     anon.uploads = [];
-    await saveThumbnail(anon, ref.id, image, 'image/webp');
+    await saveThumbnail(anon, ref.id, image, "image/webp");
     expect(anon.uploads).toEqual([]);
     const [p] = await anon.listProjects();
     expect(p).toMatchObject({ thumbnail: sha, revision: ref.revision });
@@ -262,33 +354,40 @@ describe('cloud projects', () => {
     expect(copy.thumbnail).toBe(sha);
   });
 
-  it('renames a stored project, rewriting only project.json', async () => {
+  it("renames a stored project, rewriting only project.json", async () => {
     const b = account();
-    const ref = await saveProject(b, 'T-shirt', folder('tshirt'), null);
+    const ref = await saveProject(b, "T-shirt", folder("tshirt"), null);
     b.uploads = [];
-    await renameProject(b, ref.id, 'Summer tee');
+    await renameProject(b, ref.id, "Summer tee");
     expect(b.uploads).toHaveLength(1);
     const o = await openProject(b, ref.id);
-    expect(o.name).toBe('Summer tee');
+    expect(o.name).toBe("Summer tee");
     expect(o.ref.revision).toBe(ref.revision + 1);
-    const project = o.data.form === 'folder' ? o.data.files.find(([path]) => path === 'project.json') : undefined;
-    expect(JSON.parse(new TextDecoder().decode(project![1])).name).toBe('Summer tee');
+    const project =
+      o.data.form === "folder"
+        ? o.data.files.find(([path]) => path === "project.json")
+        : undefined;
+    expect(JSON.parse(new TextDecoder().decode(project![1])).name).toBe(
+      "Summer tee",
+    );
   });
 
-  it('keeps copy names within the backend limit', () => {
-    expect(copyName('x'.repeat(200))).toHaveLength(200);
-    expect(copyName('x'.repeat(200)).endsWith(' (copy)')).toBe(true);
+  it("keeps copy names within the backend limit", () => {
+    expect(copyName("x".repeat(200))).toHaveLength(200);
+    expect(copyName("x".repeat(200)).endsWith(" (copy)")).toBe(true);
   });
 
-  it('names files safely and uniquely', () => {
+  it("names files safely and uniquely", () => {
     const taken = new Set<string>();
-    expect(fileName('a/b: c', taken)).toBe('a_b_ c.vtry');
-    expect(fileName('a/b: c', taken)).toBe('a_b_ c (2).vtry');
-    expect(fileName('  ', taken)).toBe('project.vtry');
+    expect(fileName("a/b: c", taken)).toBe("a_b_ c.vtry");
+    expect(fileName("a/b: c", taken)).toBe("a_b_ c (2).vtry");
+    expect(fileName("  ", taken)).toBe("project.vtry");
   });
 
-  it('computes the standard CRC-32 and SHA-256', async () => {
-    expect(crc32(new TextEncoder().encode('123456789'))).toBe(0xcbf43926);
-    expect(await sha256Hex(new TextEncoder().encode('abc'))).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  it("computes the standard CRC-32 and SHA-256", async () => {
+    expect(crc32(new TextEncoder().encode("123456789"))).toBe(0xcbf43926);
+    expect(await sha256Hex(new TextEncoder().encode("abc"))).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
   });
 });

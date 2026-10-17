@@ -4,28 +4,52 @@
 // A click opens the project; the ⋯ menu renames, duplicates and exports (an account) or
 // deletes it. An anonymous user's one draft is a card like any other.
 
-import { useEffect, useRef, useState } from 'react';
-import { Ellipsis, Shirt } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import type { ProjectSummary } from './backend';
-import { deleteProject, duplicateProject, fetchAhead, fileName, projectZip, renameProject, thumbnailUrl } from './projects';
-import type { Cloud } from './useCloud';
+import { useEffect, useRef, useState } from "react";
+import { Ellipsis, Shirt } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { ProjectSummary } from "./backend";
+import {
+  deleteProject,
+  duplicateProject,
+  fetchAhead,
+  fileName,
+  projectZip,
+  renameProject,
+  thumbnailUrl,
+} from "./projects";
+import type { Cloud } from "./useCloud";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 
 /** "Edited 5 minutes ago", "Edited yesterday", then the date. */
 export function editedAgo(iso: string, now = Date.now()): string {
   const s = (new Date(iso).getTime() - now) / 1000;
   const a = Math.abs(s);
-  if (a < 60) return 'Edited just now';
-  if (a < 3600) return `Edited ${relative.format(Math.round(s / 60), 'minute')}`;
-  if (a < 86400) return `Edited ${relative.format(Math.round(s / 3600), 'hour')}`;
-  if (a < 7 * 86400) return `Edited ${relative.format(Math.round(s / 86400), 'day')}`;
-  return `Edited ${new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  if (a < 60) return "Edited just now";
+  if (a < 3600)
+    return `Edited ${relative.format(Math.round(s / 60), "minute")}`;
+  if (a < 86400)
+    return `Edited ${relative.format(Math.round(s / 3600), "hour")}`;
+  if (a < 7 * 86400)
+    return `Edited ${relative.format(Math.round(s / 86400), "day")}`;
+  return `Edited ${new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
 export function ProjectGrid(props: {
@@ -38,7 +62,7 @@ export function ProjectGrid(props: {
   onOpen: (id: string) => void;
 }) {
   const { cloud } = props;
-  const [sort, setSort] = useState<'edited' | 'name'>('edited');
+  const [sort, setSort] = useState<"edited" | "name">("edited");
   const account = !!cloud.user && !cloud.user.anonymous;
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +72,11 @@ export function ProjectGrid(props: {
   const renameField = useRef<HTMLInputElement | null>(null);
   const toRename = useRef(false);
 
-  const act = async (p: ProjectSummary, what: string, run: () => Promise<void>) => {
+  const act = async (
+    p: ProjectSummary,
+    what: string,
+    run: () => Promise<void>,
+  ) => {
     setWorking(p.id);
     setError(null);
     try {
@@ -61,27 +89,34 @@ export function ProjectGrid(props: {
     }
   };
   const exportFile = (p: ProjectSummary) =>
-    act(p, 'export', async () => {
+    act(p, "export", async () => {
       const z = await projectZip(await cloud.backend(), p.id);
-      const url = URL.createObjectURL(new Blob([z.bytes], { type: 'application/vnd.vitryne.project+zip' }));
-      const a = document.createElement('a');
+      const url = URL.createObjectURL(
+        new Blob([z.bytes], { type: "application/vnd.vitryne.project+zip" }),
+      );
+      const a = document.createElement("a");
       a.href = url;
       a.download = fileName(z.name, new Set());
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     });
 
-  const list = sort === 'name' ? [...props.projects].sort((a, b) => a.name.localeCompare(b.name)) : props.projects;
+  const list =
+    sort === "name"
+      ? [...props.projects].sort((a, b) => a.name.localeCompare(b.name))
+      : props.projects;
   return (
     <section aria-label={props.title} className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
-        <h2 className="font-display m-0 grow text-[22px] font-semibold">{props.title}</h2>
+        <h2 className="font-display m-0 grow text-[22px] font-semibold">
+          {props.title}
+        </h2>
         {props.projects.length > 1 && (
           <label className="text-muted-foreground flex items-center gap-1.5 text-sm">
             Sort by
             <select
               value={sort}
-              onChange={(e) => setSort(e.target.value as 'edited' | 'name')}
+              onChange={(e) => setSort(e.target.value as "edited" | "name")}
               className="text-foreground rounded-lg border border-[#D5D9D1] bg-white px-2 py-1 text-sm font-medium"
             >
               <option value="edited">Last edited</option>
@@ -93,20 +128,34 @@ export function ProjectGrid(props: {
       {props.note}
       {!props.projects.length && (
         <p className="text-muted-foreground m-0 rounded-2xl border border-dashed border-[#D5D9D1] px-5 py-8 text-center text-[15px]">
-          Your projects will appear here. Start from an example or import a pattern: it is saved as soon as you change it.
+          Your projects will appear here. Start from an example or import a
+          pattern: it is saved as soon as you change it.
         </p>
       )}
       <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4 p-0">
         {list.map((p) => (
-          <li key={p.id} className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E1E4DE] bg-white transition-[transform,box-shadow] duration-150 focus-within:shadow-[0_10px_24px_rgba(20,24,31,.10)] hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)]">
+          <li
+            key={p.id}
+            className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E1E4DE] bg-white transition-[transform,box-shadow] duration-150 focus-within:shadow-[0_10px_24px_rgba(20,24,31,.10)] hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)]"
+          >
             <button
               type="button"
               aria-label={`Open ${p.name}`}
               disabled={props.busy || working === p.id}
               onClick={() => props.onOpen(p.id)}
               // Pointing at a project starts its download, so the click opens it sooner.
-              onPointerEnter={() => void cloud.backend().then((b) => fetchAhead(b, p.id), () => undefined)}
-              onFocus={() => void cloud.backend().then((b) => fetchAhead(b, p.id), () => undefined)}
+              onPointerEnter={() =>
+                void cloud.backend().then(
+                  (b) => fetchAhead(b, p.id),
+                  () => undefined,
+                )
+              }
+              onFocus={() =>
+                void cloud.backend().then(
+                  (b) => fetchAhead(b, p.id),
+                  () => undefined,
+                )
+              }
               className="block cursor-pointer outline-none disabled:cursor-default disabled:opacity-60"
             >
               <Thumbnail cloud={cloud} sha={p.thumbnail} />
@@ -119,19 +168,33 @@ export function ProjectGrid(props: {
                     name={p.name}
                     onDone={(name) => {
                       setRenaming(null);
-                      if (name && name !== p.name) void act(p, 'rename', async () => renameProject(await cloud.backend(), p.id, name));
+                      if (name && name !== p.name)
+                        void act(p, "rename", async () =>
+                          renameProject(await cloud.backend(), p.id, name),
+                        );
                     }}
                   />
                 ) : (
-                  <span className="truncate text-[15px] font-semibold" title={p.name}>
+                  <span
+                    className="truncate text-[15px] font-semibold"
+                    title={p.name}
+                  >
                     {p.name}
                   </span>
                 )}
-                <span className="text-muted-foreground text-xs">{working === p.id ? 'Working…' : editedAgo(p.updatedAt)}</span>
+                <span className="text-muted-foreground text-xs">
+                  {working === p.id ? "Working…" : editedAgo(p.updatedAt)}
+                </span>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label={`More for ${p.name}`} disabled={working !== null} className="-mr-1.5 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`More for ${p.name}`}
+                    disabled={working !== null}
+                    className="-mr-1.5 shrink-0"
+                  >
                     <Ellipsis className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -145,7 +208,9 @@ export function ProjectGrid(props: {
                     renameField.current?.focus();
                   }}
                 >
-                  <DropdownMenuItem onSelect={() => props.onOpen(p.id)}>Open</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => props.onOpen(p.id)}>
+                    Open
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
                       toRename.current = true;
@@ -156,14 +221,31 @@ export function ProjectGrid(props: {
                   </DropdownMenuItem>
                   {account && (
                     <>
-                      <DropdownMenuItem onSelect={() => void act(p, 'duplicate', async () => void (await duplicateProject(await cloud.backend(), p.id)))}>
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          void act(
+                            p,
+                            "duplicate",
+                            async () =>
+                              void (await duplicateProject(
+                                await cloud.backend(),
+                                p.id,
+                              )),
+                          )
+                        }
+                      >
                         Duplicate
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => void exportFile(p)}>Export (.vtry)</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void exportFile(p)}>
+                        Export (.vtry)
+                      </DropdownMenuItem>
                     </>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(p)}>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => setDeleting(p)}
+                  >
                     Delete…
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -181,8 +263,12 @@ export function ProjectGrid(props: {
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <DialogContent className="rounded-[20px] p-6">
           <DialogHeader>
-            <DialogTitle className="font-display text-2xl font-bold">Delete {deleting?.name}?</DialogTitle>
-            <DialogDescription className="text-body-text text-[15px]">It is deleted for good, in every browser. This can't be undone.</DialogDescription>
+            <DialogTitle className="font-display text-2xl font-bold">
+              Delete {deleting?.name}?
+            </DialogTitle>
+            <DialogDescription className="text-body-text text-[15px]">
+              It is deleted for good, in every browser. This can't be undone.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDeleting(null)}>
@@ -193,7 +279,10 @@ export function ProjectGrid(props: {
               onClick={() => {
                 const p = deleting;
                 setDeleting(null);
-                if (p) void act(p, 'delete', async () => deleteProject(await cloud.backend(), p.id));
+                if (p)
+                  void act(p, "delete", async () =>
+                    deleteProject(await cloud.backend(), p.id),
+                  );
               }}
             >
               Delete
@@ -214,7 +303,10 @@ function Thumbnail({ cloud, sha }: { cloud: Cloud; sha: string | null }) {
     void cloud
       .backend()
       .then((b) => thumbnailUrl(b, sha))
-      .then((url) => live && setSrc({ sha, url }), () => undefined);
+      .then(
+        (url) => live && setSrc({ sha, url }),
+        () => undefined,
+      );
     return () => {
       live = false;
     };
@@ -223,15 +315,32 @@ function Thumbnail({ cloud, sha }: { cloud: Cloud; sha: string | null }) {
   return (
     <span className="bg-canvas-3d flex aspect-[4/3] w-full items-center justify-center overflow-hidden">
       {url ? (
-        <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+        <img
+          src={url}
+          alt=""
+          className="h-full w-full object-cover"
+          draggable={false}
+        />
       ) : (
-        <Shirt className="size-14 text-[#B9C0B4]" strokeWidth={1.2} aria-hidden="true" />
+        <Shirt
+          className="size-14 text-[#B9C0B4]"
+          strokeWidth={1.2}
+          aria-hidden="true"
+        />
       )}
     </span>
   );
 }
 
-function RenameField({ name, onDone, ref }: { name: string; onDone: (name: string | null) => void; ref: React.Ref<HTMLInputElement> }) {
+function RenameField({
+  name,
+  onDone,
+  ref,
+}: {
+  name: string;
+  onDone: (name: string | null) => void;
+  ref: React.Ref<HTMLInputElement>;
+}) {
   const [text, setText] = useState(name);
   return (
     <input
@@ -242,8 +351,8 @@ function RenameField({ name, onDone, ref }: { name: string; onDone: (name: strin
       onChange={(e) => setText(e.target.value)}
       onBlur={() => onDone(text.trim() || null)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-        if (e.key === 'Escape') onDone(null);
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") onDone(null);
       }}
       className="-mx-1 rounded-md border-[1.5px] border-[#14181F] px-1 text-[15px] font-semibold outline-none"
     />

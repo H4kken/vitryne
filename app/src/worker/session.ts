@@ -3,8 +3,8 @@
 // lost GPU device) with the document put back, since the document lives in the UI. React
 // reads `state` through `useEngine`.
 
-import { useSyncExternalStore } from 'react';
-import { WorkerClient, WorkerCrashed } from './client';
+import { useSyncExternalStore } from "react";
+import { WorkerClient, WorkerCrashed } from "./client";
 import {
   copyFileData,
   type DrapeInfo,
@@ -15,12 +15,12 @@ import {
   type Requests,
   type Stats,
   type WorkerEvent,
-} from './protocol';
+} from "./protocol";
 
 export interface EngineState {
   /** Changes when the worker is replaced: the viewport makes a new canvas for it. */
   generation: number;
-  phase: 'starting' | 'ready' | 'failed';
+  phase: "starting" | "ready" | "failed";
   /** Why the engine gave up (too many crashes). */
   failure: string | null;
   /** Shown once after a restart. */
@@ -32,7 +32,12 @@ export interface EngineState {
   drape: { rev: number; info: DrapeInfo } | null;
   drapeError: string | null;
   /** `placing`: the cloth waits where it starts while pieces are placed. `seams`: drawn on the cloth. */
-  controls: { fast: boolean; paused: boolean; placing: boolean; seams: boolean };
+  controls: {
+    fast: boolean;
+    paused: boolean;
+    placing: boolean;
+    seams: boolean;
+  };
   /** The handles of the cut asked for with `showGizmo`, on screen. */
   gizmo: GizmoView | null;
 }
@@ -46,14 +51,19 @@ export class EngineSession {
   private listeners = new Set<() => void>();
   private crashes: number[] = [];
   /** What a new worker needs to show the same thing: the file's bytes and the current JSON. */
-  private restore: { data: FileData; openedEntities: string; entities: string; rev: number } | null = null;
+  private restore: {
+    data: FileData;
+    openedEntities: string;
+    entities: string;
+    rev: number;
+  } | null = null;
   private newestDrapeAsked = -1;
   private canvas: HTMLCanvasElement | null = null;
   private detachTimer: ReturnType<typeof setTimeout> | undefined;
 
   state: EngineState = {
     generation: 0,
-    phase: 'starting',
+    phase: "starting",
     failure: null,
     notice: null,
     adapter: null,
@@ -85,19 +95,25 @@ export class EngineSession {
   attach(canvas: HTMLCanvasElement, size: { width: number; height: number }) {
     clearTimeout(this.detachTimer);
     if (this.client && this.canvas === canvas) return;
-    if ((canvas as HTMLCanvasElement & { __transferred?: boolean }).__transferred) {
+    if (
+      (canvas as HTMLCanvasElement & { __transferred?: boolean }).__transferred
+    ) {
       this.set({ generation: this.state.generation + 1 });
       return;
     }
     this.canvas = canvas;
     this.client?.terminate();
-    const client = new WorkerClient(canvas, size, (e) => this.onEvent(client, e));
+    const client = new WorkerClient(canvas, size, (e) =>
+      this.onEvent(client, e),
+    );
     this.client = client;
-    this.set({ phase: 'starting' });
+    this.set({ phase: "starting" });
     const { fast, paused, placing, seams } = this.state.controls;
-    if (fast || paused || placing || seams) client.send({ kind: 'controls', fast, paused, placing, seams });
-    if (this.style) client.send({ kind: 'style', rgb: this.style });
-    if (this.gizmoCut !== null) client.send({ kind: 'gizmo', cut: this.gizmoCut });
+    if (fast || paused || placing || seams)
+      client.send({ kind: "controls", fast, paused, placing, seams });
+    if (this.style) client.send({ kind: "style", rgb: this.style });
+    if (this.gizmoCut !== null)
+      client.send({ kind: "gizmo", cut: this.gizmoCut });
     if (this.restore) void this.reopen(client, this.restore);
   }
 
@@ -114,22 +130,25 @@ export class EngineSession {
   private onEvent(client: WorkerClient, e: WorkerEvent) {
     if (client !== this.client) return;
     switch (e.kind) {
-      case 'ready':
-        this.set({ phase: 'ready', adapter: e.adapter });
+      case "ready":
+        this.set({ phase: "ready", adapter: e.adapter });
         return;
-      case 'stats':
+      case "stats":
         this.set({ stats: e.stats });
         return;
-      case 'progress':
-        this.set({ progress: e.fraction >= 1 ? null : { task: e.task, fraction: e.fraction } });
+      case "progress":
+        this.set({
+          progress:
+            e.fraction >= 1 ? null : { task: e.task, fraction: e.fraction },
+        });
         return;
-      case 'picked':
+      case "picked":
         for (const cb of this.pickListeners) cb(e.cut);
         return;
-      case 'gizmo':
+      case "gizmo":
         this.set({ gizmo: e.gizmo });
         return;
-      case 'crashed':
+      case "crashed":
         this.crashed(e.reason);
         return;
     }
@@ -144,29 +163,36 @@ export class EngineSession {
   }
 
   private crashed(reason: string) {
-    console.error('engine worker crashed:', reason);
+    console.error("engine worker crashed:", reason);
     const now = Date.now();
-    this.crashes = [...this.crashes.filter((t) => now - t < CRASH_WINDOW_MS), now];
+    this.crashes = [
+      ...this.crashes.filter((t) => now - t < CRASH_WINDOW_MS),
+      now,
+    ];
     this.client = null;
     if (this.crashes.length >= MAX_CRASHES) {
-      this.set({ phase: 'failed', failure: reason, progress: null });
+      this.set({ phase: "failed", failure: reason, progress: null });
       return;
     }
     // A new canvas mounts for the new generation and calls `attach`.
     this.set({
       generation: this.state.generation + 1,
-      phase: 'starting',
+      phase: "starting",
       progress: null,
       gizmo: null,
       notice: `The 3D engine stopped (${reason}) and was restarted. Your document is unchanged.`,
     });
   }
 
-  private async reopen(client: WorkerClient, r: NonNullable<EngineSession['restore']>) {
+  private async reopen(
+    client: WorkerClient,
+    r: NonNullable<EngineSession["restore"]>,
+  ) {
     try {
       const data = copyFileData(r.data);
-      await client.request('open', { data }, fileDataBuffers(data));
-      if (r.entities !== r.openedEntities) await client.request('update', { rev: r.rev, entities: r.entities });
+      await client.request("open", { data }, fileDataBuffers(data));
+      if (r.entities !== r.openedEntities)
+        await client.request("update", { rev: r.rev, entities: r.entities });
       this.drape(r.rev, true);
       for (const cb of this.reopenedListeners) cb();
     } catch (e) {
@@ -176,7 +202,7 @@ export class EngineSession {
   }
 
   private need(): WorkerClient {
-    if (!this.client) throw new WorkerCrashed('the 3D engine is restarting');
+    if (!this.client) throw new WorkerCrashed("the 3D engine is restarting");
     return this.client;
   }
 
@@ -193,11 +219,20 @@ export class EngineSession {
   // ---- the document ---------------------------------------------------------------------
 
   /** Opens a `.vtry`; the worker keeps the binary parts, the UI gets the JSON. */
-  async open(data: FileData, rev: number): Promise<Requests['open']['reply']> {
+  async open(data: FileData, rev: number): Promise<Requests["open"]["reply"]> {
     const copy = copyFileData(data);
     const sent = copyFileData(data);
-    const reply = await this.need().request('open', { data: sent }, fileDataBuffers(sent));
-    this.restore = { data: copy, openedEntities: reply.entities, entities: reply.entities, rev };
+    const reply = await this.need().request(
+      "open",
+      { data: sent },
+      fileDataBuffers(sent),
+    );
+    this.restore = {
+      data: copy,
+      openedEntities: reply.entities,
+      entities: reply.entities,
+      rev,
+    };
     this.set({ drape: null, drapeError: null });
     return reply;
   }
@@ -209,8 +244,11 @@ export class EngineSession {
   }
 
   /** Validates and takes the document's new JSON (see `Requests.update`). */
-  async update(rev: number, entities: string): Promise<Requests['update']['reply']> {
-    const reply = await this.need().request('update', { rev, entities });
+  async update(
+    rev: number,
+    entities: string,
+  ): Promise<Requests["update"]["reply"]> {
+    const reply = await this.need().request("update", { rev, entities });
     // Only what Rust accepted is put back after a restart.
     if (this.restore) this.restore = { ...this.restore, entities, rev };
     return reply;
@@ -221,13 +259,18 @@ export class EngineSession {
     this.newestDrapeAsked = Math.max(this.newestDrapeAsked, rev);
     const client = this.client;
     if (!client) return;
-    client.request('drape', { rev, frameCamera }).then(
+    client.request("drape", { rev, frameCamera }).then(
       (r) => {
-        if (r.stale || r.rev < this.newestDrapeAsked || client !== this.client) return;
+        if (r.stale || r.rev < this.newestDrapeAsked || client !== this.client)
+          return;
         this.set({ drape: { rev: r.rev, info: r.info }, drapeError: null });
       },
       (e: Error) => {
-        if (rev >= this.newestDrapeAsked && client === this.client && client.alive) {
+        if (
+          rev >= this.newestDrapeAsked &&
+          client === this.client &&
+          client.alive
+        ) {
           this.set({ drape: null, drapeError: e.message, progress: null });
         }
       },
@@ -238,82 +281,115 @@ export class EngineSession {
    * A new project from a DXF (see `Requests.importNew`): it becomes the worker's document, and
    * the file it made is what a restarted worker reopens.
    */
-  async importNew(args: Requests['importNew']['args'], rev: number): Promise<{ entities: string; notes: string[]; zip: ArrayBuffer }> {
-    const reply = await this.need().request('importNew', args, [args.avatar]);
-    this.restore = { data: { form: 'zip', bytes: reply.zip.slice(0) }, openedEntities: reply.entities, entities: reply.entities, rev };
+  async importNew(
+    args: Requests["importNew"]["args"],
+    rev: number,
+  ): Promise<{ entities: string; notes: string[]; zip: ArrayBuffer }> {
+    const reply = await this.need().request("importNew", args, [args.avatar]);
+    this.restore = {
+      data: { form: "zip", bytes: reply.zip.slice(0) },
+      openedEntities: reply.entities,
+      entities: reply.entities,
+      rev,
+    };
     this.set({ drape: null, drapeError: null });
     return reply;
   }
 
-  async inspectDxf(name: string, dxf: string, sidecar: string): Promise<string> {
-    return (await this.need().request('inspectDxf', { name, dxf, sidecar })).preview;
+  async inspectDxf(
+    name: string,
+    dxf: string,
+    sidecar: string,
+  ): Promise<string> {
+    return (await this.need().request("inspectDxf", { name, dxf, sidecar }))
+      .preview;
   }
 
-  async importAddition(args: Requests['importAddition']['args']): Promise<string> {
-    return (await this.need().request('importAddition', args)).addition;
+  async importAddition(
+    args: Requests["importAddition"]["args"],
+  ): Promise<string> {
+    return (await this.need().request("importAddition", args)).addition;
   }
 
   async rewrap(cut: string, place: string): Promise<string> {
-    return (await this.need().request('rewrap', { cut, place })).rewrapped;
+    return (await this.need().request("rewrap", { cut, place })).rewrapped;
   }
 
   /** Every whole edge of every cut (`seams::CutEdge[]`, JSON). */
   async sewingEdges(): Promise<string> {
-    return (await this.need().request('sewingEdges', {})).edges;
+    return (await this.need().request("sewingEdges", {})).edges;
   }
 
   /** Suggested seams (`seams::SeamProposal[]`, JSON): the user accepts or rejects each. */
   async suggestSeams(): Promise<string> {
-    return (await this.need().request('suggestSeams', {})).proposals;
+    return (await this.need().request("suggestSeams", {})).proposals;
   }
 
   /** The seam two whole edges make (`seams::SeamProposal`, JSON); a pick that isn't a whole edge is refused. */
   async joinEdges(a: string, b: string): Promise<string> {
-    return (await this.need().request('joinEdges', { a, b })).proposal;
+    return (await this.need().request("joinEdges", { a, b })).proposal;
   }
 
   /** Each seam's length difference in percent, by seam id (JSON). */
   async seamDifferences(): Promise<string> {
-    return (await this.need().request('seamDifferences', {})).differences;
+    return (await this.need().request("seamDifferences", {})).differences;
   }
 
   /** The worker's document as a file (validated and read back in Rust). */
-  async save(rev: number, form: FileData['form']): Promise<FileData> {
-    const { data } = await this.need().request('save', { rev, form });
+  async save(rev: number, form: FileData["form"]): Promise<FileData> {
+    const { data } = await this.need().request("save", { rev, form });
     // What a restarted worker reopens from now on.
-    if (this.restore) this.restore = { data: copyFileData(data), openedEntities: this.restore.entities, entities: this.restore.entities, rev };
+    if (this.restore)
+      this.restore = {
+        data: copyFileData(data),
+        openedEntities: this.restore.entities,
+        entities: this.restore.entities,
+        rev,
+      };
     return data;
   }
 
   /** glTF 2.0 binary (.glb) export of the draped garment, with UVs and PBR materials. */
   /** The drape now as a small image, for the project's thumbnail. */
-  async thumbnail(width: number, height: number): Promise<{ image: ArrayBuffer; type: string }> {
-    return await this.need().request('thumbnail', { width, height });
+  async thumbnail(
+    width: number,
+    height: number,
+  ): Promise<{ image: ArrayBuffer; type: string }> {
+    return await this.need().request("thumbnail", { width, height });
   }
 
   async exportGlb(includeAvatar = false): Promise<ArrayBuffer> {
-    const { glb } = await this.need().request('exportGlb', { includeAvatar });
+    const { glb } = await this.need().request("exportGlb", { includeAvatar });
     return glb;
   }
 
   /** The garment's pieces as DXF-AAMA (sewing lines, no seam allowance), with the export's notes. */
   async exportDxf(): Promise<{ text: string; notes: string[] }> {
-    return await this.need().request('exportDxf', {});
+    return await this.need().request("exportDxf", {});
   }
 
   /** Wavefront OBJ (.obj + .mtl) export of the draped garment, with UVs and PBR materials. */
-  async exportObj(includeAvatar = false): Promise<{ obj: string; mtl: string }> {
-    return await this.need().request('exportObj', { includeAvatar });
+  async exportObj(
+    includeAvatar = false,
+  ): Promise<{ obj: string; mtl: string }> {
+    return await this.need().request("exportObj", { includeAvatar });
   }
 
   // ---- inputs ---------------------------------------------------------------------------
 
   resize(width: number, height: number) {
-    this.client?.send({ kind: 'resize', width, height });
+    this.client?.send({ kind: "resize", width, height });
   }
 
-  pointer(phase: 'down' | 'move' | 'up', x: number, y: number, px: number, py: number, tool?: PointerTool) {
-    this.client?.send({ kind: 'pointer', phase, x, y, px, py, tool });
+  pointer(
+    phase: "down" | "move" | "up",
+    x: number,
+    y: number,
+    px: number,
+    py: number,
+    tool?: PointerTool,
+  ) {
+    this.client?.send({ kind: "pointer", phase, x, y, px, py, tool });
   }
 
   private style: number[] | null = null;
@@ -321,25 +397,25 @@ export class EngineSession {
   /** The scene's colours; kept and sent again to a restarted worker. */
   setStyle(rgb: number[]) {
     this.style = rgb;
-    this.client?.send({ kind: 'style', rgb });
+    this.client?.send({ kind: "style", rgb });
   }
 
   wheel(steps: number) {
-    this.client?.send({ kind: 'wheel', steps });
+    this.client?.send({ kind: "wheel", steps });
   }
 
   /** Turns the camera, as a pointer drag of (`dx`, `dy`) px would. */
   orbit(dx: number, dy: number) {
-    this.client?.send({ kind: 'orbit', dx, dy });
+    this.client?.send({ kind: "orbit", dx, dy });
   }
 
-  setControls(c: Partial<EngineState['controls']>) {
+  setControls(c: Partial<EngineState["controls"]>) {
     this.set({ controls: { ...this.state.controls, ...c } });
-    this.client?.send({ kind: 'controls', ...c });
+    this.client?.send({ kind: "controls", ...c });
   }
 
   resetDrape() {
-    this.client?.send({ kind: 'controls', reset: true });
+    this.client?.send({ kind: "controls", reset: true });
   }
 
   private gizmoCut: number | null = null;
@@ -349,12 +425,16 @@ export class EngineSession {
     if (cut === this.gizmoCut) return;
     this.gizmoCut = cut;
     if (cut === null) this.set({ gizmo: null });
-    this.client?.send({ kind: 'gizmo', cut });
+    this.client?.send({ kind: "gizmo", cut });
   }
 
   /** Shows a cut at a placement while its handle is dragged (no edit yet). */
   placeCut(cut: number, placement: unknown) {
-    this.client?.send({ kind: 'place', cut, placement: JSON.stringify(placement) });
+    this.client?.send({
+      kind: "place",
+      cut,
+      placement: JSON.stringify(placement),
+    });
   }
 }
 

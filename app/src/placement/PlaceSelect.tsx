@@ -3,8 +3,17 @@
 // piece, and "leave it out". Values are strings: `one:<place>`, `pair:<pair>`, `on:<key>`,
 // `leave`.
 
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PAIRS, type Pair, type Place, PLACES } from './places';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PAIRS, type Pair, type Place, PLACES } from "./places";
 
 export interface PlaceOptions {
   /** Single places. */
@@ -26,9 +35,18 @@ export function PlaceSelect(props: {
 }) {
   const o = props.options;
   return (
-    <Select value={props.value ?? ''} onValueChange={props.onChange}>
-      <SelectTrigger id={props.id} aria-label={props.label} className={props.className ?? 'h-11 w-full rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white text-[15px]'}>
-        <SelectValue placeholder={props.placeholder ?? 'Choose where it goes'} />
+    <Select value={props.value ?? ""} onValueChange={props.onChange}>
+      <SelectTrigger
+        id={props.id}
+        aria-label={props.label}
+        className={
+          props.className ??
+          "h-11 w-full rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white text-[15px]"
+        }
+      >
+        <SelectValue
+          placeholder={props.placeholder ?? "Choose where it goes"}
+        />
       </SelectTrigger>
       <SelectContent>
         {o.pairs && (
@@ -44,7 +62,7 @@ export function PlaceSelect(props: {
         {o.pairs && o.one && <SelectSeparator />}
         {o.one && (
           <SelectGroup>
-            <SelectLabel>{o.pairs ? 'One copy' : 'On the body'}</SelectLabel>
+            <SelectLabel>{o.pairs ? "One copy" : "On the body"}</SelectLabel>
             {(Object.keys(PLACES) as Place[]).map((k) => (
               <SelectItem key={k} value={`one:${k}`}>
                 {PLACES[k].label}

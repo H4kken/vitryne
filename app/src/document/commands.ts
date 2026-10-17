@@ -4,12 +4,30 @@
 // that the document is where it expects before doing either. Builders check the JSON Schema
 // of what they produce, so an invalid value never becomes a command.
 
-import type { Appearance, Cut, Fabric, Garment, Piece, Placement, Project, Seam, Source, Vec3 } from '@/format/schema.gen';
-import { colorName, normalizeColor } from '@/format/colors';
-import { findPreset } from '@/format/presets';
-import { type Entities, getEntity, mainGarment, setEntity, type Slot, slotKey } from './entities';
-import { deepEqual, getIn, type Path, setIn } from './json';
-import { schemaErrors } from './validate';
+import type {
+  Appearance,
+  Cut,
+  Fabric,
+  Garment,
+  Piece,
+  Placement,
+  Project,
+  Seam,
+  Source,
+  Vec3,
+} from "@/format/schema.gen";
+import { colorName, normalizeColor } from "@/format/colors";
+import { findPreset } from "@/format/presets";
+import {
+  type Entities,
+  getEntity,
+  mainGarment,
+  setEntity,
+  type Slot,
+  slotKey,
+} from "./entities";
+import { deepEqual, getIn, type Path, setIn } from "./json";
+import { schemaErrors } from "./validate";
 
 export interface Change {
   slot: Slot;
@@ -33,16 +51,23 @@ export interface Command {
 export class CommandError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'CommandError';
+    this.name = "CommandError";
   }
 }
 
-function swap(e: Entities, cmd: Command, from: 'before' | 'after', to: 'before' | 'after'): Entities {
+function swap(
+  e: Entities,
+  cmd: Command,
+  from: "before" | "after",
+  to: "before" | "after",
+): Entities {
   let out = e;
   for (const c of cmd.changes) {
     const cur = getEntity(out, c.slot);
     if (cur !== c[from] && !deepEqual(cur, c[from])) {
-      throw new CommandError(`${cmd.label}: the ${slotKey(c.slot)} is not in the state this command expects`);
+      throw new CommandError(
+        `${cmd.label}: the ${slotKey(c.slot)} is not in the state this command expects`,
+      );
     }
     out = setEntity(out, c.slot, c[to]);
   }
@@ -50,12 +75,17 @@ function swap(e: Entities, cmd: Command, from: 'before' | 'after', to: 'before' 
 }
 
 export function applyCommand(e: Entities, cmd: Command): Entities {
-  return swap(e, cmd, 'before', 'after');
+  return swap(e, cmd, "before", "after");
 }
 
 export function revertCommand(e: Entities, cmd: Command): Entities {
   // Changes revert in reverse order.
-  return swap(e, { ...cmd, changes: [...cmd.changes].reverse() }, 'after', 'before');
+  return swap(
+    e,
+    { ...cmd, changes: [...cmd.changes].reverse() },
+    "after",
+    "before",
+  );
 }
 
 /** `a` then `b` as one command (`b` must start where `a` ends). */
@@ -76,23 +106,44 @@ interface Options {
 }
 
 /** Sets `path` in the entity at `slot` to `value` (`undefined` removes it). */
-export function setValue(e: Entities, slot: Slot, path: Path, value: unknown, o: Options): Command {
+export function setValue(
+  e: Entities,
+  slot: Slot,
+  path: Path,
+  value: unknown,
+  o: Options,
+): Command {
   const before = getEntity(e, slot);
-  if (before === undefined) throw new CommandError(`${o.label}: no ${slotKey(slot)}`);
-  if (deepEqual(getIn(before, path), value)) throw new CommandError(`${o.label}: nothing changes`);
+  if (before === undefined)
+    throw new CommandError(`${o.label}: no ${slotKey(slot)}`);
+  if (deepEqual(getIn(before, path), value))
+    throw new CommandError(`${o.label}: nothing changes`);
   const after = setIn(before, path, value);
   const problems = schemaErrors(slot.kind, after);
-  if (problems.length) throw new CommandError(`${o.label}: ${problems.join('; ')}`);
-  return { label: o.label, drape: o.drape, coalesce: o.coalesce, changes: [{ slot, before, after }] };
+  if (problems.length)
+    throw new CommandError(`${o.label}: ${problems.join("; ")}`);
+  return {
+    label: o.label,
+    drape: o.drape,
+    coalesce: o.coalesce,
+    changes: [{ slot, before, after }],
+  };
 }
 
 // ---- the edits of M6 -----------------------------------------------------------------------
 
 export function renameProject(e: Entities, name: string): Command {
-  return setValue(e, { kind: 'project' }, ['name'], name, { label: 'Rename the project', drape: false });
+  return setValue(e, { kind: "project" }, ["name"], name, {
+    label: "Rename the project",
+    drape: false,
+  });
 }
 
-function indexOf<T extends { id: string }>(list: readonly T[] | undefined, id: string, what: string): number {
+function indexOf<T extends { id: string }>(
+  list: readonly T[] | undefined,
+  id: string,
+  what: string,
+): number {
   const i = list?.findIndex((x) => x.id === id) ?? -1;
   if (i < 0) throw new CommandError(`no ${what} ${id}`);
   return i;
@@ -104,65 +155,122 @@ function garment(e: Entities, id: string): Garment {
   return g;
 }
 
-export function renamePiece(e: Entities, garmentId: string, pieceId: string, name: string): Command {
-  const i = indexOf(garment(e, garmentId).pieces, pieceId, 'piece');
-  return setValue(e, { kind: 'garment', id: garmentId }, ['pieces', i, 'name'], name, { label: 'Rename a piece', drape: false });
+export function renamePiece(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  name: string,
+): Command {
+  const i = indexOf(garment(e, garmentId).pieces, pieceId, "piece");
+  return setValue(
+    e,
+    { kind: "garment", id: garmentId },
+    ["pieces", i, "name"],
+    name,
+    { label: "Rename a piece", drape: false },
+  );
 }
 
-export function renameCut(e: Entities, garmentId: string, pieceId: string, cutId: string, name: string): Command {
+export function renameCut(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  cutId: string,
+  name: string,
+): Command {
   const g = garment(e, garmentId);
-  const i = indexOf(g.pieces, pieceId, 'piece');
-  const j = indexOf(g.pieces[i]?.cuts, cutId, 'cut');
+  const i = indexOf(g.pieces, pieceId, "piece");
+  const j = indexOf(g.pieces[i]?.cuts, cutId, "cut");
   // An empty name falls back to the piece's (FORMAT.md): store none rather than "".
-  return setValue(e, { kind: 'garment', id: garmentId }, ['pieces', i, 'cuts', j, 'name'], name === '' ? undefined : name, {
-    label: 'Rename a cut',
-    drape: false,
-  });
+  return setValue(
+    e,
+    { kind: "garment", id: garmentId },
+    ["pieces", i, "cuts", j, "name"],
+    name === "" ? undefined : name,
+    {
+      label: "Rename a cut",
+      drape: false,
+    },
+  );
 }
 
-export function renameSeam(e: Entities, garmentId: string, seamId: string, name: string): Command {
-  const i = indexOf(garment(e, garmentId).seams, seamId, 'seam');
-  return setValue(e, { kind: 'garment', id: garmentId }, ['seams', i, 'name'], name === '' ? undefined : name, {
-    label: 'Rename a seam',
-    drape: false,
-  });
+export function renameSeam(
+  e: Entities,
+  garmentId: string,
+  seamId: string,
+  name: string,
+): Command {
+  const i = indexOf(garment(e, garmentId).seams, seamId, "seam");
+  return setValue(
+    e,
+    { kind: "garment", id: garmentId },
+    ["seams", i, "name"],
+    name === "" ? undefined : name,
+    {
+      label: "Rename a seam",
+      drape: false,
+    },
+  );
 }
 
-export function renameFabric(e: Entities, fabricId: string, name: string): Command {
-  return setValue(e, { kind: 'fabric', id: fabricId }, ['name'], name, { label: 'Rename a fabric', drape: false });
+export function renameFabric(
+  e: Entities,
+  fabricId: string,
+  name: string,
+): Command {
+  return setValue(e, { kind: "fabric", id: fabricId }, ["name"], name, {
+    label: "Rename a fabric",
+    drape: false,
+  });
 }
 
 /** The fabric values the properties panel edits, by path in the fabric. */
 export const FABRIC_FIELDS = {
-  density: ['density'],
-  thickness: ['thickness'],
-  friction: ['friction'],
-  stretchWarp: ['stretch', 'warp'],
-  stretchWeft: ['stretch', 'weft'],
-  stretchShear: ['stretch', 'shear'],
-  bendingWarp: ['bending', 'warp'],
-  bendingWeft: ['bending', 'weft'],
+  density: ["density"],
+  thickness: ["thickness"],
+  friction: ["friction"],
+  stretchWarp: ["stretch", "warp"],
+  stretchWeft: ["stretch", "weft"],
+  stretchShear: ["stretch", "shear"],
+  bendingWarp: ["bending", "warp"],
+  bendingWeft: ["bending", "weft"],
 } as const satisfies Record<string, Path>;
 
 export type FabricField = keyof typeof FABRIC_FIELDS;
 
 export function fabricValue(f: Fabric, field: FabricField): number {
   const v = getIn(f, FABRIC_FIELDS[field]);
-  if (v === undefined && field === 'thickness') return 0.5;
+  if (v === undefined && field === "thickness") return 0.5;
   return v as number;
 }
 
-export function setFabricValue(e: Entities, fabricId: string, field: FabricField, value: number): Command {
-  if (!Number.isFinite(value)) throw new CommandError('a fabric value must be a number');
-  return setValue(e, { kind: 'fabric', id: fabricId }, FABRIC_FIELDS[field], value, {
-    label: 'Change the fabric',
-    drape: true,
-    coalesce: `fabric:${fabricId}:${field}`,
-  });
+export function setFabricValue(
+  e: Entities,
+  fabricId: string,
+  field: FabricField,
+  value: number,
+): Command {
+  if (!Number.isFinite(value))
+    throw new CommandError("a fabric value must be a number");
+  return setValue(
+    e,
+    { kind: "fabric", id: fabricId },
+    FABRIC_FIELDS[field],
+    value,
+    {
+      label: "Change the fabric",
+      drape: true,
+      coalesce: `fabric:${fabricId}:${field}`,
+    },
+  );
 }
 
 /** Copies all physical properties of a preset onto an existing fabric. */
-export function applyFabricPreset(e: Entities, fabricId: string, preset: Fabric): Command {
+export function applyFabricPreset(
+  e: Entities,
+  fabricId: string,
+  preset: Fabric,
+): Command {
   const before = e.fabrics.find((f) => f.id === fabricId);
   if (!before) throw new CommandError(`no fabric ${fabricId}`);
   const after: Fabric = {
@@ -176,56 +284,80 @@ export function applyFabricPreset(e: Entities, fabricId: string, preset: Fabric)
     friction: preset.friction,
     notes: preset.notes,
   };
-  const problems = schemaErrors('fabric', after);
-  if (problems.length) throw new CommandError(`Apply preset: ${problems.join('; ')}`);
+  const problems = schemaErrors("fabric", after);
+  if (problems.length)
+    throw new CommandError(`Apply preset: ${problems.join("; ")}`);
   return {
     label: `Apply ${preset.name} preset`,
     drape: true,
-    changes: [{ slot: { kind: 'fabric', id: fabricId }, before, after }],
+    changes: [{ slot: { kind: "fabric", id: fabricId }, before, after }],
   };
 }
 
 /** Changes a garment's default fabric. Adds preset fabric if needed. */
-export function setGarmentFabric(e: Entities, garmentId: string, fabricId: string): Command {
+export function setGarmentFabric(
+  e: Entities,
+  garmentId: string,
+  fabricId: string,
+): Command {
   const g = garment(e, garmentId);
-  if (g.fabric === fabricId) throw new CommandError('garment already has this fabric');
+  if (g.fabric === fabricId)
+    throw new CommandError("garment already has this fabric");
   const changes: Change[] = [];
   const preset = findPreset(fabricId);
   if (!e.fabrics.some((f) => f.id === fabricId) && preset) {
-    changes.push({ slot: { kind: 'fabric', id: preset.id }, before: undefined, after: preset });
+    changes.push({
+      slot: { kind: "fabric", id: preset.id },
+      before: undefined,
+      after: preset,
+    });
     if (e.project && !e.project.fabrics.includes(preset.id)) {
       changes.push({
-        slot: { kind: 'project' },
+        slot: { kind: "project" },
         before: e.project,
         after: { ...e.project, fabrics: [...e.project.fabrics, preset.id] },
       });
     }
   }
   const afterGarment: Garment = { ...g, fabric: fabricId };
-  changes.push({ slot: { kind: 'garment', id: garmentId }, before: g, after: afterGarment });
+  changes.push({
+    slot: { kind: "garment", id: garmentId },
+    before: g,
+    after: afterGarment,
+  });
   return {
-    label: 'Change garment fabric',
+    label: "Change garment fabric",
     drape: true,
     changes,
   };
 }
 
 /** Overrides or resets one cut's fabric. Adds preset fabric if needed. */
-export function setCutFabric(e: Entities, garmentId: string, cutId: string, fabricId: string | undefined): Command {
+export function setCutFabric(
+  e: Entities,
+  garmentId: string,
+  cutId: string,
+  fabricId: string | undefined,
+): Command {
   const g = garment(e, garmentId);
   const found = findCut(g, cutId);
   if (!found) throw new CommandError(`no cut ${cutId}`);
-  if (found.cut.fabric === fabricId) throw new CommandError('cut already has this fabric');
+  if (found.cut.fabric === fabricId)
+    throw new CommandError("cut already has this fabric");
   const [i, j] = cutAt(g, cutId);
 
   const changes: Change[] = [];
   if (fabricId) {
     const preset = findPreset(fabricId);
     if (!e.fabrics.some((f) => f.id === fabricId) && preset) {
-      changes.push({ slot: { kind: 'fabric', id: preset.id }, before: undefined, after: preset });
+      changes.push({
+        slot: { kind: "fabric", id: preset.id },
+        before: undefined,
+        after: preset,
+      });
       if (e.project && !e.project.fabrics.includes(preset.id)) {
         changes.push({
-          slot: { kind: 'project' },
+          slot: { kind: "project" },
           before: e.project,
           after: { ...e.project, fabrics: [...e.project.fabrics, preset.id] },
         });
@@ -233,34 +365,48 @@ export function setCutFabric(e: Entities, garmentId: string, cutId: string, fabr
     }
   }
 
-  const afterGarment = setIn(g, ['pieces', i, 'cuts', j, 'fabric'], fabricId);
-  const problems = schemaErrors('garment', afterGarment);
-  if (problems.length) throw new CommandError(`Change cut fabric: ${problems.join('; ')}`);
-  changes.push({ slot: { kind: 'garment', id: garmentId }, before: g, after: afterGarment });
+  const afterGarment = setIn(g, ["pieces", i, "cuts", j, "fabric"], fabricId);
+  const problems = schemaErrors("garment", afterGarment);
+  if (problems.length)
+    throw new CommandError(`Change cut fabric: ${problems.join("; ")}`);
+  changes.push({
+    slot: { kind: "garment", id: garmentId },
+    before: g,
+    after: afterGarment,
+  });
   return {
-    label: fabricId ? 'Change cut fabric' : 'Reset cut fabric to default',
+    label: fabricId ? "Change cut fabric" : "Reset cut fabric to default",
     drape: true,
     changes,
   };
 }
 
 /** Overrides or resets all cuts of a piece to a fabric. Adds preset fabric if needed. */
-export function setPieceFabric(e: Entities, garmentId: string, pieceId: string, fabricId: string | undefined): Command {
+export function setPieceFabric(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  fabricId: string | undefined,
+): Command {
   const g = garment(e, garmentId);
-  const pieceIndex = indexOf(g.pieces, pieceId, 'piece');
+  const pieceIndex = indexOf(g.pieces, pieceId, "piece");
   const piece = g.pieces[pieceIndex];
   if (!piece) throw new CommandError(`no piece ${pieceId}`);
   const allMatch = piece.cuts.every((c) => c.fabric === fabricId);
-  if (allMatch) throw new CommandError('piece already has this fabric');
+  if (allMatch) throw new CommandError("piece already has this fabric");
 
   const changes: Change[] = [];
   if (fabricId) {
     const preset = findPreset(fabricId);
     if (!e.fabrics.some((f) => f.id === fabricId) && preset) {
-      changes.push({ slot: { kind: 'fabric', id: preset.id }, before: undefined, after: preset });
+      changes.push({
+        slot: { kind: "fabric", id: preset.id },
+        before: undefined,
+        after: preset,
+      });
       if (e.project && !e.project.fabrics.includes(preset.id)) {
         changes.push({
-          slot: { kind: 'project' },
+          slot: { kind: "project" },
           before: e.project,
           after: { ...e.project, fabrics: [...e.project.fabrics, preset.id] },
         });
@@ -270,13 +416,22 @@ export function setPieceFabric(e: Entities, garmentId: string, pieceId: string, 
 
   let afterGarment = g;
   for (let j = 0; j < piece.cuts.length; j++) {
-    afterGarment = setIn(afterGarment, ['pieces', pieceIndex, 'cuts', j, 'fabric'], fabricId);
+    afterGarment = setIn(
+      afterGarment,
+      ["pieces", pieceIndex, "cuts", j, "fabric"],
+      fabricId,
+    );
   }
-  const problems = schemaErrors('garment', afterGarment);
-  if (problems.length) throw new CommandError(`Change piece fabric: ${problems.join('; ')}`);
-  changes.push({ slot: { kind: 'garment', id: garmentId }, before: g, after: afterGarment });
+  const problems = schemaErrors("garment", afterGarment);
+  if (problems.length)
+    throw new CommandError(`Change piece fabric: ${problems.join("; ")}`);
+  changes.push({
+    slot: { kind: "garment", id: garmentId },
+    before: g,
+    after: afterGarment,
+  });
   return {
-    label: fabricId ? 'Change piece fabric' : 'Reset piece fabric to default',
+    label: fabricId ? "Change piece fabric" : "Reset piece fabric to default",
     drape: true,
     changes,
   };
@@ -285,15 +440,24 @@ export function setPieceFabric(e: Entities, garmentId: string, pieceId: string, 
 // ---- colours: appearances (FORMAT.md, Appearance), how the fabric looks, not how it drapes --
 
 /** What a colour is given to: the garment (its cuts without their own), or every cut of a piece. */
-export type ColorTarget = { kind: 'garment' } | { kind: 'piece'; pieceId: string };
+export type ColorTarget =
+  { kind: "garment" } | { kind: "piece"; pieceId: string };
 
-function appearanceById(e: Entities, id: string | undefined): Appearance | undefined {
+function appearanceById(
+  e: Entities,
+  id: string | undefined,
+): Appearance | undefined {
   return id === undefined ? undefined : e.appearances?.find((a) => a.id === id);
 }
 
 /** The colour a cut shows: its own appearance's, else the garment's, else none (the app's). */
-export function cutColor(e: Entities, g: Garment, cut: Cut): string | undefined {
-  return (appearanceById(e, cut.appearance) ?? appearanceById(e, g.appearance))?.color;
+export function cutColor(
+  e: Entities,
+  g: Garment,
+  cut: Cut,
+): string | undefined {
+  return (appearanceById(e, cut.appearance) ?? appearanceById(e, g.appearance))
+    ?.color;
 }
 
 /** The garment's own colour (its default), or none. */
@@ -310,7 +474,8 @@ export function pieceColor(e: Entities, piece: Piece): string | undefined {
 /** Every reference to an appearance in the document, by id: how many. */
 function appearanceUses(gs: readonly Garment[]): Map<string, number> {
   const uses = new Map<string, number>();
-  const count = (id: string | undefined) => id !== undefined && uses.set(id, (uses.get(id) ?? 0) + 1);
+  const count = (id: string | undefined) =>
+    id !== undefined && uses.set(id, (uses.get(id) ?? 0) + 1);
   for (const g of gs) {
     count(g.appearance);
     for (const p of g.pieces) for (const c of p.cuts) count(c.appearance);
@@ -325,14 +490,32 @@ function appearanceUses(gs: readonly Garment[]): Map<string, number> {
  * same colour is reused, or a new one made with `newId`. Appearances nothing uses any more are
  * removed. No re-drape: the worker recolours the drape shown.
  */
-export function setColor(e: Entities, garmentId: string, target: ColorTarget, color: string | undefined, newId: () => string = () => crypto.randomUUID()): Command {
+export function setColor(
+  e: Entities,
+  garmentId: string,
+  target: ColorTarget,
+  color: string | undefined,
+  newId: () => string = () => crypto.randomUUID(),
+): Command {
   const g = garment(e, garmentId);
   const c = color === undefined ? undefined : normalizeColor(color);
-  if (color !== undefined && c === undefined) throw new CommandError(`${color} is not a colour (#rrggbb)`);
-  const pieceIndex = target.kind === 'piece' ? indexOf(g.pieces, target.pieceId, 'piece') : -1;
+  if (color !== undefined && c === undefined)
+    throw new CommandError(`${color} is not a colour (#rrggbb)`);
+  const pieceIndex =
+    target.kind === "piece" ? indexOf(g.pieces, target.pieceId, "piece") : -1;
   const cuts = g.pieces[pieceIndex]?.cuts ?? [];
-  const refs = target.kind === 'garment' ? [g.appearance] : cuts.map((cut) => cut.appearance);
-  const label = c === undefined ? (target.kind === 'garment' ? 'Remove the garment colour' : 'Reset a piece colour') : target.kind === 'garment' ? 'Change the garment colour' : 'Change a piece colour';
+  const refs =
+    target.kind === "garment"
+      ? [g.appearance]
+      : cuts.map((cut) => cut.appearance);
+  const label =
+    c === undefined
+      ? target.kind === "garment"
+        ? "Remove the garment colour"
+        : "Reset a piece colour"
+      : target.kind === "garment"
+        ? "Change the garment colour"
+        : "Change a piece colour";
 
   const appearances = (e.appearances ?? []).slice();
   let id: string | undefined;
@@ -342,7 +525,11 @@ export function setColor(e: Entities, garmentId: string, target: ColorTarget, co
     const only = own.size === 1 ? [...own][0] : undefined;
     const k = appearances.findIndex((a) => a.id === only);
     const mine = appearances[k];
-    if (only !== undefined && mine && appearanceUses(e.garments).get(only) === refs.length) {
+    if (
+      only !== undefined &&
+      mine &&
+      appearanceUses(e.garments).get(only) === refs.length
+    ) {
       if (mine.color === c) throw new CommandError(`${label}: nothing changes`);
       appearances[k] = { ...mine, color: c, name: colorName(c) };
       id = only;
@@ -356,43 +543,76 @@ export function setColor(e: Entities, garmentId: string, target: ColorTarget, co
   }
 
   let after: Garment = g;
-  if (target.kind === 'garment') after = setIn(g, ['appearance'], id) as Garment;
-  else for (let j = 0; j < cuts.length; j++) after = setIn(after, ['pieces', pieceIndex, 'cuts', j, 'appearance'], id) as Garment;
+  if (target.kind === "garment")
+    after = setIn(g, ["appearance"], id) as Garment;
+  else
+    for (let j = 0; j < cuts.length; j++)
+      after = setIn(
+        after,
+        ["pieces", pieceIndex, "cuts", j, "appearance"],
+        id,
+      ) as Garment;
   const garments = e.garments.map((x) => (x.id === g.id ? after : x));
   const used = appearanceUses(garments);
   const kept = appearances.filter((a) => used.has(a.id));
   const unchanged = after === g || deepEqual(after, g);
-  if (unchanged && deepEqual(kept, e.appearances ?? [])) throw new CommandError(`${label}: nothing changes`);
+  if (unchanged && deepEqual(kept, e.appearances ?? []))
+    throw new CommandError(`${label}: nothing changes`);
 
   const changes: Change[] = [];
   const before = new Map((e.appearances ?? []).map((a) => [a.id, a]));
   const now = new Map(kept.map((a) => [a.id, a]));
   for (const a of kept) {
-    if (!deepEqual(before.get(a.id), a)) changes.push({ slot: { kind: 'appearance', id: a.id }, before: before.get(a.id), after: a });
+    if (!deepEqual(before.get(a.id), a))
+      changes.push({
+        slot: { kind: "appearance", id: a.id },
+        before: before.get(a.id),
+        after: a,
+      });
   }
   for (const [aid, a] of before) {
-    if (!now.has(aid)) changes.push({ slot: { kind: 'appearance', id: aid }, before: a, after: undefined });
+    if (!now.has(aid))
+      changes.push({
+        slot: { kind: "appearance", id: aid },
+        before: a,
+        after: undefined,
+      });
   }
   if (!unchanged) {
-    const problems = schemaErrors('garment', after);
-    if (problems.length) throw new CommandError(`${label}: ${problems.join('; ')}`);
-    changes.push({ slot: { kind: 'garment', id: g.id }, before: g, after });
+    const problems = schemaErrors("garment", after);
+    if (problems.length)
+      throw new CommandError(`${label}: ${problems.join("; ")}`);
+    changes.push({ slot: { kind: "garment", id: g.id }, before: g, after });
   }
   for (const ch of changes) {
-    if (ch.slot.kind === 'appearance' && ch.after !== undefined) {
-      const problems = schemaErrors('appearance', ch.after);
-      if (problems.length) throw new CommandError(`${label}: ${problems.join('; ')}`);
+    if (ch.slot.kind === "appearance" && ch.after !== undefined) {
+      const problems = schemaErrors("appearance", ch.after);
+      if (problems.length)
+        throw new CommandError(`${label}: ${problems.join("; ")}`);
     }
   }
   if (e.project) {
     const ids = kept.map((a) => a.id);
     const listed = e.project.appearances ?? [];
     if (!deepEqual(listed, ids)) {
-      const project: Project = setIn(e.project, ['appearances'], ids.length ? ids : undefined);
-      changes.push({ slot: { kind: 'project' }, before: e.project, after: project });
+      const project: Project = setIn(
+        e.project,
+        ["appearances"],
+        ids.length ? ids : undefined,
+      );
+      changes.push({
+        slot: { kind: "project" },
+        before: e.project,
+        after: project,
+      });
     }
   }
-  return { label, drape: false, changes, coalesce: `color:${g.id}:${target.kind === 'piece' ? target.pieceId : 'garment'}` };
+  return {
+    label,
+    drape: false,
+    changes,
+    coalesce: `color:${g.id}:${target.kind === "piece" ? target.pieceId : "garment"}`,
+  };
 }
 
 // ---- simulation settings: the garment's value wins over the project's (FORMAT.md) ----------
@@ -402,9 +622,17 @@ interface SimulationLike {
   engine?: Record<string, unknown>;
 }
 
-function simulations(e: Entities): { project?: SimulationLike; garment?: SimulationLike; garmentId?: string } {
+function simulations(e: Entities): {
+  project?: SimulationLike;
+  garment?: SimulationLike;
+  garmentId?: string;
+} {
   const g = mainGarment(e);
-  return { project: e.project?.simulation as SimulationLike | undefined, garment: g?.simulation as SimulationLike | undefined, garmentId: g?.id };
+  return {
+    project: e.project?.simulation as SimulationLike | undefined,
+    garment: g?.simulation as SimulationLike | undefined,
+    garmentId: g?.id,
+  };
 }
 
 /** Engine defaults (drape-core `SimSettings::default()`, `DEFAULT_TARGET_VERTICES`). */
@@ -413,37 +641,50 @@ const DEFAULT_SELF_COLLISION = false;
 
 export function targetVertices(e: Entities): number {
   const s = simulations(e);
-  return s.garment?.targetVertices ?? s.project?.targetVertices ?? DEFAULT_TARGET_VERTICES;
+  return (
+    s.garment?.targetVertices ??
+    s.project?.targetVertices ??
+    DEFAULT_TARGET_VERTICES
+  );
 }
 
 export function selfCollision(e: Entities): boolean {
   const s = simulations(e);
-  const v = s.garment?.engine?.self_collision ?? s.project?.engine?.self_collision;
-  return typeof v === 'boolean' ? v : DEFAULT_SELF_COLLISION;
+  const v =
+    s.garment?.engine?.self_collision ?? s.project?.engine?.self_collision;
+  return typeof v === "boolean" ? v : DEFAULT_SELF_COLLISION;
 }
 
 /** Where a simulation setting is set: the garment if it sets it, else the project. */
 function settingSlot(e: Entities, inGarment: boolean): Slot {
   const s = simulations(e);
-  if (inGarment && s.garmentId) return { kind: 'garment', id: s.garmentId };
-  if (!e.project) throw new CommandError('only a project has simulation settings');
-  return { kind: 'project' };
+  if (inGarment && s.garmentId) return { kind: "garment", id: s.garmentId };
+  if (!e.project)
+    throw new CommandError("only a project has simulation settings");
+  return { kind: "project" };
 }
 
 export function setTargetVertices(e: Entities, n: number): Command {
-  if (!Number.isInteger(n)) throw new CommandError('the vertex count must be a whole number');
-  const slot = settingSlot(e, simulations(e).garment?.targetVertices !== undefined);
-  return setValue(e, slot, ['simulation', 'targetVertices'], n, {
-    label: 'Change the mesh resolution',
+  if (!Number.isInteger(n))
+    throw new CommandError("the vertex count must be a whole number");
+  const slot = settingSlot(
+    e,
+    simulations(e).garment?.targetVertices !== undefined,
+  );
+  return setValue(e, slot, ["simulation", "targetVertices"], n, {
+    label: "Change the mesh resolution",
     drape: true,
-    coalesce: 'simulation:targetVertices',
+    coalesce: "simulation:targetVertices",
   });
 }
 
 export function setSelfCollision(e: Entities, on: boolean): Command {
-  const slot = settingSlot(e, simulations(e).garment?.engine?.self_collision !== undefined);
-  return setValue(e, slot, ['simulation', 'engine', 'self_collision'], on, {
-    label: on ? 'Turn self-collision on' : 'Turn self-collision off',
+  const slot = settingSlot(
+    e,
+    simulations(e).garment?.engine?.self_collision !== undefined,
+  );
+  return setValue(e, slot, ["simulation", "engine", "self_collision"], on, {
+    label: on ? "Turn self-collision on" : "Turn self-collision off",
     drape: true,
   });
 }
@@ -465,7 +706,10 @@ function cutAt(g: Garment, cutId: string): [number, number] {
   throw new CommandError(`no cut ${cutId}`);
 }
 
-export function findCut(g: Garment, cutId: string): { piece: Piece; cut: Cut } | undefined {
+export function findCut(
+  g: Garment,
+  cutId: string,
+): { piece: Piece; cut: Cut } | undefined {
   for (const piece of g.pieces) {
     const cut = piece.cuts.find((c) => c.id === cutId);
     if (cut) return { piece, cut };
@@ -481,7 +725,12 @@ export function followers(g: Garment, cutId: string): Set<string> {
     grew = false;
     for (const piece of g.pieces) {
       for (const c of piece.cuts) {
-        if (!out.has(c.id) && c.placement.type === 'follow' && c.placement.cut && out.has(c.placement.cut)) {
+        if (
+          !out.has(c.id) &&
+          c.placement.type === "follow" &&
+          c.placement.cut &&
+          out.has(c.placement.cut)
+        ) {
           out.add(c.id);
           grew = true;
         }
@@ -492,53 +741,93 @@ export function followers(g: Garment, cutId: string): Set<string> {
 }
 
 /** A change to one garment, built by `edit` (which may throw a `CommandError`). */
-function editGarment(e: Entities, garmentId: string, edit: (g: Garment) => Garment, o: Options): Command {
+function editGarment(
+  e: Entities,
+  garmentId: string,
+  edit: (g: Garment) => Garment,
+  o: Options,
+): Command {
   const before = garment(e, garmentId);
   const after = edit(before);
-  if (deepEqual(before, after)) throw new CommandError(`${o.label}: nothing changes`);
-  const problems = schemaErrors('garment', after);
-  if (problems.length) throw new CommandError(`${o.label}: ${problems.join('; ')}`);
-  return { label: o.label, drape: o.drape, coalesce: o.coalesce, changes: [{ slot: { kind: 'garment', id: garmentId }, before, after }] };
+  if (deepEqual(before, after))
+    throw new CommandError(`${o.label}: nothing changes`);
+  const problems = schemaErrors("garment", after);
+  if (problems.length)
+    throw new CommandError(`${o.label}: ${problems.join("; ")}`);
+  return {
+    label: o.label,
+    drape: o.drape,
+    coalesce: o.coalesce,
+    changes: [{ slot: { kind: "garment", id: garmentId }, before, after }],
+  };
 }
 
 /**
  * Where a cut starts on the body. `bounds`: a new collision box for the garment, when the
  * cut needs a bigger one there (Rust's `rewrap` says). `coalesce`: a drag of one field.
  */
-export function setPlacement(e: Entities, garmentId: string, cutId: string, placement: Placement, bounds?: Bounds, coalesce?: string): Command {
-  for (const k of ['angle', 'radius', 'top', 'rotation', 'tube', 'lift'] as const) {
+export function setPlacement(
+  e: Entities,
+  garmentId: string,
+  cutId: string,
+  placement: Placement,
+  bounds?: Bounds,
+  coalesce?: string,
+): Command {
+  for (const k of [
+    "angle",
+    "radius",
+    "top",
+    "rotation",
+    "tube",
+    "lift",
+  ] as const) {
     const v = placement[k];
-    if (v !== undefined && !Number.isFinite(v)) throw new CommandError(`a placement's ${k} must be a number`);
+    if (v !== undefined && !Number.isFinite(v))
+      throw new CommandError(`a placement's ${k} must be a number`);
   }
-  if (placement.type === 'follow') {
+  if (placement.type === "follow") {
     const g = garment(e, garmentId);
-    if (!placement.cut || !findCut(g, placement.cut)) throw new CommandError('it must go on a piece of this garment');
-    if (followers(g, cutId).has(placement.cut)) throw new CommandError("a piece can't go on itself, or on a piece that goes on it");
+    if (!placement.cut || !findCut(g, placement.cut))
+      throw new CommandError("it must go on a piece of this garment");
+    if (followers(g, cutId).has(placement.cut))
+      throw new CommandError(
+        "a piece can't go on itself, or on a piece that goes on it",
+      );
   }
   return editGarment(
     e,
     garmentId,
     (g) => {
       const [i, j] = cutAt(g, cutId);
-      let out = setIn(g, ['pieces', i, 'cuts', j, 'placement'], placement);
-      if (bounds) out = setIn(out, ['simulation', 'collisionBounds'], bounds);
+      let out = setIn(g, ["pieces", i, "cuts", j, "placement"], placement);
+      if (bounds) out = setIn(out, ["simulation", "collisionBounds"], bounds);
       return out;
     },
-    { label: 'Move a piece on the body', drape: true, coalesce },
+    { label: "Move a piece on the body", drape: true, coalesce },
   );
 }
 
 /** A cut becomes the mirror image of the piece, or stops being it. */
-export function setMirrored(e: Entities, garmentId: string, cutId: string, mirrored: boolean): Command {
+export function setMirrored(
+  e: Entities,
+  garmentId: string,
+  cutId: string,
+  mirrored: boolean,
+): Command {
   return editGarment(
     e,
     garmentId,
     (g) => {
       const [i, j] = cutAt(g, cutId);
       // `false` is the default: store none rather than false.
-      return setIn(g, ['pieces', i, 'cuts', j, 'mirrored'], mirrored || undefined);
+      return setIn(
+        g,
+        ["pieces", i, "cuts", j, "mirrored"],
+        mirrored || undefined,
+      );
     },
-    { label: 'Flip a piece', drape: true },
+    { label: "Flip a piece", drape: true },
   );
 }
 
@@ -548,8 +837,14 @@ export interface Layout {
   rotation: number;
 }
 
-export function setLayout(e: Entities, garmentId: string, cutId: string, layout: Layout): Command {
-  if (![...layout.position, layout.rotation].every(Number.isFinite)) throw new CommandError('a layout must be numbers');
+export function setLayout(
+  e: Entities,
+  garmentId: string,
+  cutId: string,
+  layout: Layout,
+): Command {
+  if (![...layout.position, layout.rotation].every(Number.isFinite))
+    throw new CommandError("a layout must be numbers");
   return editGarment(
     e,
     garmentId,
@@ -558,23 +853,28 @@ export function setLayout(e: Entities, garmentId: string, cutId: string, layout:
       const old = g.pieces[i]?.cuts[j]?.layout;
       // Unknown members of the layout stay.
       let l: Record<string, unknown> = { ...(old ?? {}) };
-      l = setIn(l, ['position'], layout.position);
-      l = setIn(l, ['rotation'], layout.rotation === 0 ? undefined : layout.rotation);
-      return setIn(g, ['pieces', i, 'cuts', j, 'layout'], l);
+      l = setIn(l, ["position"], layout.position);
+      l = setIn(
+        l,
+        ["rotation"],
+        layout.rotation === 0 ? undefined : layout.rotation,
+      );
+      return setIn(g, ["pieces", i, "cuts", j, "layout"], l);
     },
-    { label: 'Arrange the pieces', drape: false, coalesce: `layout:${cutId}` },
+    { label: "Arrange the pieces", drape: false, coalesce: `layout:${cutId}` },
   );
 }
 
 // ---- M8: sewing ----------------------------------------------------------------------------
 
-type Run = Seam['a'][number];
+type Run = Seam["a"][number];
 
 /** The same stretch of outline, walked the other way (FORMAT.md: to reverse a side, write its runs the other way). */
 function reversedRuns(runs: readonly Run[]): [Run, ...Run[]] {
   const out = [...runs].reverse().map((r) => {
     const flipped: Run = { ...r, from: r.to, to: r.from };
-    if (r.direction !== undefined) flipped.direction = r.direction === 'ccw' ? 'cw' : 'ccw';
+    if (r.direction !== undefined)
+      flipped.direction = r.direction === "ccw" ? "cw" : "ccw";
     return flipped;
   });
   return out as [Run, ...Run[]];
@@ -588,49 +888,77 @@ function reversedRuns(runs: readonly Run[]): [Run, ...Run[]] {
 export interface SeamDraft {
   a: Run[];
   b: Run[];
-  pairing?: 'nodes' | 'length';
+  pairing?: "nodes" | "length";
 }
 
-export function addSeam(e: Entities, garmentId: string, draft: SeamDraft, id: string, name?: string): Command {
-  if (!draft.a.length || !draft.b.length) throw new CommandError('a seam needs two sides');
+export function addSeam(
+  e: Entities,
+  garmentId: string,
+  draft: SeamDraft,
+  id: string,
+  name?: string,
+): Command {
+  if (!draft.a.length || !draft.b.length)
+    throw new CommandError("a seam needs two sides");
   const g = garment(e, garmentId);
   const cuts = new Set(g.pieces.flatMap((p) => p.cuts.map((c) => c.id)));
   for (const r of [...draft.a, ...draft.b]) {
-    if (!cuts.has(r.cut)) throw new CommandError('the seam is on a piece that is not in this garment');
+    if (!cuts.has(r.cut))
+      throw new CommandError(
+        "the seam is on a piece that is not in this garment",
+      );
   }
   const seam: Seam = {
     id,
     ...(name ? { name } : {}),
-    a: draft.a as Seam['a'],
-    b: draft.b as Seam['b'],
+    a: draft.a as Seam["a"],
+    b: draft.b as Seam["b"],
     ...(draft.pairing ? { pairing: draft.pairing } : {}),
   };
-  return editGarment(e, garmentId, (x) => setIn(x, ['seams'], [...(x.seams ?? []), seam]), { label: 'Sew two edges', drape: true });
+  return editGarment(
+    e,
+    garmentId,
+    (x) => setIn(x, ["seams"], [...(x.seams ?? []), seam]),
+    { label: "Sew two edges", drape: true },
+  );
 }
 
-export function removeSeam(e: Entities, garmentId: string, seamId: string): Command {
+export function removeSeam(
+  e: Entities,
+  garmentId: string,
+  seamId: string,
+): Command {
   const g = garment(e, garmentId);
-  indexOf(g.seams, seamId, 'seam');
+  indexOf(g.seams, seamId, "seam");
   return editGarment(
     e,
     garmentId,
     (x) =>
       setIn(
         x,
-        ['seams'],
+        ["seams"],
         (x.seams ?? []).filter((s) => s.id !== seamId),
       ),
-    { label: 'Remove a seam', drape: true },
+    { label: "Remove a seam", drape: true },
   );
 }
 
 /** Which way side `b` runs against side `a`: flipping it twists the seam the other way. */
-export function reverseSeam(e: Entities, garmentId: string, seamId: string): Command {
+export function reverseSeam(
+  e: Entities,
+  garmentId: string,
+  seamId: string,
+): Command {
   const g = garment(e, garmentId);
-  const i = indexOf(g.seams, seamId, 'seam');
+  const i = indexOf(g.seams, seamId, "seam");
   const seam = (g.seams ?? [])[i];
   if (!seam) throw new CommandError(`no seam ${seamId}`);
-  return editGarment(e, garmentId, (x) => setIn(x, ['seams', i, 'b'], reversedRuns(seam.b)), { label: 'Reverse a seam', drape: true });
+  return editGarment(
+    e,
+    garmentId,
+    (x) => setIn(x, ["seams", i, "b"], reversedRuns(seam.b)),
+    { label: "Reverse a seam", drape: true },
+  );
 }
 
 /** What an import adds to a garment (Rust `import::Addition`). */
@@ -643,28 +971,45 @@ export interface Addition {
 }
 
 /** Imported pieces, seams and their source, added to a garment; its collision box grows to cover them. */
-export function addPieces(e: Entities, garmentId: string, a: Addition): Command {
-  if (!a.pieces.length) throw new CommandError('nothing to import');
+export function addPieces(
+  e: Entities,
+  garmentId: string,
+  a: Addition,
+): Command {
+  if (!a.pieces.length) throw new CommandError("nothing to import");
   return editGarment(
     e,
     garmentId,
     (g) => {
-      let out = setIn(g, ['pieces'], [...g.pieces, ...a.pieces]);
-      if (a.seams.length) out = setIn(out, ['seams'], [...(g.seams ?? []), ...a.seams]);
-      out = setIn(out, ['sources'], [...(g.sources ?? []), a.source]);
+      let out = setIn(g, ["pieces"], [...g.pieces, ...a.pieces]);
+      if (a.seams.length)
+        out = setIn(out, ["seams"], [...(g.seams ?? []), ...a.seams]);
+      out = setIn(out, ["sources"], [...(g.sources ?? []), a.source]);
       const own = g.simulation?.collisionBounds;
       const box: Bounds = own
         ? {
-            min: own.min.map((x, k) => Math.min(x, a.bounds.min[k] ?? x)) as Vec3,
-            max: own.max.map((x, k) => Math.max(x, a.bounds.max[k] ?? x)) as Vec3,
+            min: own.min.map((x, k) =>
+              Math.min(x, a.bounds.min[k] ?? x),
+            ) as Vec3,
+            max: own.max.map((x, k) =>
+              Math.max(x, a.bounds.max[k] ?? x),
+            ) as Vec3,
           }
         : a.bounds;
-      if (!own || !deepEqual(own.min, box.min) || !deepEqual(own.max, box.max)) {
-        out = setIn(out, ['simulation', 'collisionBounds'], own ? { ...own, min: box.min, max: box.max } : box);
+      if (
+        !own ||
+        !deepEqual(own.min, box.min) ||
+        !deepEqual(own.max, box.max)
+      ) {
+        out = setIn(
+          out,
+          ["simulation", "collisionBounds"],
+          own ? { ...own, min: box.min, max: box.max } : box,
+        );
       }
       return out;
     },
-    { label: 'Import pieces', drape: true },
+    { label: "Import pieces", drape: true },
   );
 }
 
@@ -675,21 +1020,26 @@ export function addPieces(e: Entities, garmentId: string, a: Addition): Command 
 export function recoverChanges(saved: Entities, current: Entities): Command {
   const changes: Change[] = [];
   const slots: Slot[] = [
-    ...(saved.project ? [{ kind: 'project' } as const] : []),
-    ...(saved.view ? [{ kind: 'view' } as const] : []),
-    ...saved.garments.map((g) => ({ kind: 'garment', id: g.id }) as const),
-    ...saved.fabrics.map((f) => ({ kind: 'fabric', id: f.id }) as const),
-    ...saved.avatars.map((a) => ({ kind: 'avatar', id: a.id }) as const),
+    ...(saved.project ? [{ kind: "project" } as const] : []),
+    ...(saved.view ? [{ kind: "view" } as const] : []),
+    ...saved.garments.map((g) => ({ kind: "garment", id: g.id }) as const),
+    ...saved.fabrics.map((f) => ({ kind: "fabric", id: f.id }) as const),
+    ...saved.avatars.map((a) => ({ kind: "avatar", id: a.id }) as const),
   ];
   for (const slot of slots) {
     const before = getEntity(saved, slot);
     const after = getEntity(current, slot);
-    if (after === undefined) throw new CommandError(`the recovery copy has no ${slotKey(slot)}`);
+    if (after === undefined)
+      throw new CommandError(`the recovery copy has no ${slotKey(slot)}`);
     if (deepEqual(before, after)) continue;
     const problems = schemaErrors(slot.kind, after);
-    if (problems.length) throw new CommandError(`the recovery copy is damaged: ${problems.join('; ')}`);
+    if (problems.length)
+      throw new CommandError(
+        `the recovery copy is damaged: ${problems.join("; ")}`,
+      );
     changes.push({ slot, before, after });
   }
-  if (!changes.length) throw new CommandError('the recovery copy has no changes');
-  return { label: 'Recover unsaved changes', drape: true, changes };
+  if (!changes.length)
+    throw new CommandError("the recovery copy has no changes");
+  return { label: "Recover unsaved changes", drape: true, changes };
 }

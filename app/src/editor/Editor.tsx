@@ -469,10 +469,13 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     selection && garment ? findCut(garment, selection.cutId) : undefined;
   const shownSelection = selected ? selection : null;
 
-  const select = useCallback((s: Selection) => {
-    setSelection(s);
-    if (s) setPanel("pieces");
-  }, [setPanel]);
+  const select = useCallback(
+    (s: Selection) => {
+      setSelection(s);
+      if (s) setPanel("pieces");
+    },
+    [setPanel],
+  );
 
   // Placing pieces: the Select tool in 3D. The cloth waits where it starts.
   const placing = show3d && tool === "select" && !doc.empty;
@@ -1009,7 +1012,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                     onSelect={select}
                     onRewrap={rewrap}
                     onPlaceIn3d={
-                      placing ? null : () => (setShow3d(true), setTool("select"))
+                      placing
+                        ? null
+                        : () => (setShow3d(true), setTool("select"))
                     }
                   />
                 )}
@@ -1030,12 +1035,19 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                     picking={show2d && flatTool === "sew"}
                     picks={
                       picks
-                        ? { a: picks.a.length, b: picks.b.length, open: picks.open }
+                        ? {
+                            a: picks.a.length,
+                            b: picks.b.length,
+                            open: picks.open,
+                          }
                         : null
                     }
                     onFinishSide={() => pickEdge(null, false)}
                     onStartPicking={() => (setShow2d(true), setFlatTool("sew"))}
-                    onStopPicking={() => (setFlatTool("select"), setPicks(null))}
+                    onStopPicking={() => (
+                      setFlatTool("select"),
+                      setPicks(null)
+                    )}
                   />
                 )}
                 {displayedPanel === "settings" && (
@@ -1102,11 +1114,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
               )}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <StatusPill
-                  engine={engine}
-                  show3d={show3d}
-                  placing={placing}
-                />
+                <StatusPill engine={engine} show3d={show3d} placing={placing} />
               </div>
               {!show3d && cards}
             </div>
@@ -1246,8 +1254,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">
-                Drag to resize · Click to toggle layout · Double-click to
-                center
+                Drag to resize · Click to toggle layout · Double-click to center
               </TooltipContent>
             </Tooltip>
           </div>
@@ -1259,7 +1266,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
             aria-label="3D Drape view"
             aria-hidden={!show3d}
             style={{
-              width: !show3d ? "0%" : !show2d ? "100%" : `${(1 - splitRatio) * 100}%`,
+              width: !show3d
+                ? "0%"
+                : !show2d
+                  ? "100%"
+                  : `${(1 - splitRatio) * 100}%`,
             }}
             className={cn(
               "bg-canvas-3d relative h-full shrink-0 min-w-0 overflow-hidden",

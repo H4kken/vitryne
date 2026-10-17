@@ -18,27 +18,37 @@ export class ProjectLock {
   async take(id: string, steal: boolean, lost: () => void): Promise<boolean> {
     this.drop();
     const turn = this.turn;
-    if (typeof navigator === 'undefined' || !navigator.locks) return true;
+    if (typeof navigator === "undefined" || !navigator.locks) return true;
     // A lock this page just dropped (a re-render, a reopen) can take a moment to be free.
     for (let attempt = 0; ; attempt++) {
       const got = await this.request(id, steal, turn, lost);
-      if (got || attempt === 2 || turn !== this.turn) return got && turn === this.turn;
+      if (got || attempt === 2 || turn !== this.turn)
+        return got && turn === this.turn;
       await new Promise((r) => setTimeout(r, 50));
     }
   }
 
-  private request(id: string, steal: boolean, turn: number, lost: () => void): Promise<boolean> {
+  private request(
+    id: string,
+    steal: boolean,
+    turn: number,
+    lost: () => void,
+  ): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       const held = new Promise<void>((r) => (this.release = r));
       navigator.locks
-        .request(name(id), steal ? { steal: true } : { ifAvailable: true }, (lock) => {
-          if (!lock) {
-            resolve(false);
-            return;
-          }
-          resolve(true);
-          return held;
-        })
+        .request(
+          name(id),
+          steal ? { steal: true } : { ifAvailable: true },
+          (lock) => {
+            if (!lock) {
+              resolve(false);
+              return;
+            }
+            resolve(true);
+            return held;
+          },
+        )
         .catch(() => {
           // Taken over by another tab (an AbortError), or never granted.
           resolve(false);
