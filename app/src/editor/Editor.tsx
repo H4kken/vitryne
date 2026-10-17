@@ -291,7 +291,12 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
   }, []);
-  const [panel, setPanel] = useState<PanelId | null>("fabric");
+  const [panel, setPanelState] = useState<PanelId | null>("fabric");
+  const [displayedPanel, setDisplayedPanel] = useState<PanelId>("fabric");
+  const setPanel = useCallback((p: PanelId | null) => {
+    setPanelState(p);
+    if (p) setDisplayedPanel(p);
+  }, []);
   const [tool, setTool] = useState<PointerTool>("turn");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
   const [importing, setImporting] = useState<TextFile | null>(null);
@@ -467,7 +472,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const select = useCallback((s: Selection) => {
     setSelection(s);
     if (s) setPanel("pieces");
-  }, []);
+  }, [setPanel]);
 
   // Placing pieces: the Select tool in 3D. The cloth waits where it starts.
   const placing = show3d && tool === "select" && !doc.empty;
@@ -961,67 +966,81 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           />
         </nav>
         {/* Panel */}
-        {panel && (
-          <aside
-            aria-label={PANEL_TITLES[panel]}
-            className="flex w-[300px] shrink-0 flex-col gap-4 overflow-y-auto border-r bg-white p-5"
-          >
-            <h2 className="font-display m-0 text-xl font-semibold">
-              {PANEL_TITLES[panel]}
-            </h2>
-            {panel === "fabric" && (
-              <FabricPanel
-                store={store}
-                entities={doc.entities}
-                fabric={fabric}
-                garment={garment}
-                fabrics={doc.entities.fabrics}
-              />
+        <aside
+          aria-label={displayedPanel ? PANEL_TITLES[displayedPanel] : "Panel"}
+          aria-hidden={!panel}
+          style={{
+            width: panel ? "300px" : "0px",
+          }}
+          className={cn(
+            "relative h-full shrink-0 overflow-hidden bg-white",
+            panel
+              ? "border-r border-[#E1E4DE] opacity-100"
+              : "pointer-events-none border-r-0 opacity-0",
+            "transition-[width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          )}
+        >
+          <div className="flex h-full w-[300px] shrink-0 flex-col gap-4 overflow-y-auto p-5">
+            {displayedPanel && (
+              <>
+                <h2 className="font-display m-0 text-xl font-semibold">
+                  {PANEL_TITLES[displayedPanel]}
+                </h2>
+                {displayedPanel === "fabric" && (
+                  <FabricPanel
+                    store={store}
+                    entities={doc.entities}
+                    fabric={fabric}
+                    garment={garment}
+                    fabrics={doc.entities.fabrics}
+                  />
+                )}
+                {displayedPanel === "pieces" && (
+                  <PiecesPanel
+                    store={store}
+                    entities={doc.entities}
+                    garment={garment}
+                    fabrics={doc.entities.fabrics}
+                    selection={shownSelection}
+                    onSelect={select}
+                    onRewrap={rewrap}
+                    onPlaceIn3d={
+                      placing ? null : () => (setShow3d(true), setTool("select"))
+                    }
+                  />
+                )}
+                {displayedPanel === "seams" && (
+                  <SeamsPanel
+                    store={store}
+                    garment={garment}
+                    differences={differences}
+                    proposals={proposals}
+                    finding={finding}
+                    onFind={() => void findSeams()}
+                    onAccept={acceptProposal}
+                    onSkip={(i) =>
+                      setProposals(
+                        (list) => list?.filter((_, k) => k !== i) ?? null,
+                      )
+                    }
+                    picking={show2d && flatTool === "sew"}
+                    picks={
+                      picks
+                        ? { a: picks.a.length, b: picks.b.length, open: picks.open }
+                        : null
+                    }
+                    onFinishSide={() => pickEdge(null, false)}
+                    onStartPicking={() => (setShow2d(true), setFlatTool("sew"))}
+                    onStopPicking={() => (setFlatTool("select"), setPicks(null))}
+                  />
+                )}
+                {displayedPanel === "settings" && (
+                  <SettingsPanel store={store} entities={doc.entities} />
+                )}
+              </>
             )}
-            {panel === "pieces" && (
-              <PiecesPanel
-                store={store}
-                entities={doc.entities}
-                garment={garment}
-                fabrics={doc.entities.fabrics}
-                selection={shownSelection}
-                onSelect={select}
-                onRewrap={rewrap}
-                onPlaceIn3d={
-                  placing ? null : () => (setShow3d(true), setTool("select"))
-                }
-              />
-            )}
-            {panel === "seams" && (
-              <SeamsPanel
-                store={store}
-                garment={garment}
-                differences={differences}
-                proposals={proposals}
-                finding={finding}
-                onFind={() => void findSeams()}
-                onAccept={acceptProposal}
-                onSkip={(i) =>
-                  setProposals(
-                    (list) => list?.filter((_, k) => k !== i) ?? null,
-                  )
-                }
-                picking={show2d && flatTool === "sew"}
-                picks={
-                  picks
-                    ? { a: picks.a.length, b: picks.b.length, open: picks.open }
-                    : null
-                }
-                onFinishSide={() => pickEdge(null, false)}
-                onStartPicking={() => (setShow2d(true), setFlatTool("sew"))}
-                onStopPicking={() => (setFlatTool("select"), setPicks(null))}
-              />
-            )}
-            {panel === "settings" && (
-              <SettingsPanel store={store} entities={doc.entities} />
-            )}
-          </aside>
-        )}
+          </div>
+        </aside>
 
         {/* Workspace views: 2D window on the left, 3D on the right */}
         <section
@@ -1034,13 +1053,16 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           <div
             key="window-2d"
             aria-label="2D Pattern view"
-            style={
-              show2d && show3d ? { width: `${splitRatio * 100}%` } : undefined
-            }
+            aria-hidden={!show2d}
+            style={{
+              width: !show2d ? "0%" : !show3d ? "100%" : `${splitRatio * 100}%`,
+            }}
             className={cn(
-              "relative h-full overflow-hidden bg-canvas-flat",
-              show2d ? (show3d ? "shrink-0" : "flex-1 min-w-0") : "hidden",
-              !isResizing && "transition-[width] duration-150 ease-out",
+              "relative h-full shrink-0 min-w-0 overflow-hidden bg-canvas-flat",
+              !show2d && "pointer-events-none opacity-0",
+              isResizing
+                ? "transition-none"
+                : "transition-[width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
             )}
           >
             <div className="absolute inset-0">
@@ -1069,15 +1091,18 @@ export function Editor({ cloud }: { cloud: Cloud }) {
             </div>
 
             {/* 2D Window badge and status (notices shown here when 3D is hidden) */}
-            <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
+            <div
+              className={cn(
+                "absolute top-4 left-4 z-10 flex max-w-[calc(100%-32px)] flex-col items-start gap-2 transition-opacity duration-300",
+                show3d ? "pointer-events-none opacity-0" : "opacity-100",
+              )}
+            >
               <div className="flex flex-wrap items-center gap-2">
-                {!show3d && (
-                  <StatusPill
-                    engine={engine}
-                    show3d={show3d}
-                    placing={placing}
-                  />
-                )}
+                <StatusPill
+                  engine={engine}
+                  show3d={show3d}
+                  placing={placing}
+                />
               </div>
               {!show3d && cards}
             </div>
@@ -1135,86 +1160,109 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           </div>
 
           {/* Resize toggle between the 2 windows */}
-          {show2d && show3d && (
+          <div
+            key="window-splitter"
+            role="separator"
+            aria-orientation="vertical"
+            aria-valuenow={Math.round(splitRatio * 100)}
+            aria-label="Resize 2D and 3D views"
+            aria-hidden={!(show2d && show3d)}
+            tabIndex={show2d && show3d ? 0 : -1}
+            onPointerDown={show2d && show3d ? startResize : undefined}
+            onDoubleClick={
+              show2d && show3d
+                ? (e) => {
+                    e.stopPropagation();
+                    setSplitRatio(0.5);
+                  }
+                : undefined
+            }
+            onKeyDown={
+              show2d && show3d
+                ? (e) => {
+                    if (e.key === "ArrowLeft") {
+                      setSplitRatio((r) => Math.max(0.15, r - 0.05));
+                    } else if (e.key === "ArrowRight") {
+                      setSplitRatio((r) => Math.min(0.85, r + 0.05));
+                    } else if (e.key === "Enter" || e.key === " ") {
+                      toggleSplit();
+                    }
+                  }
+                : undefined
+            }
+            className={cn(
+              "group relative z-20 flex w-0 shrink-0 cursor-col-resize select-none items-center justify-center focus:outline-hidden",
+              show2d && show3d
+                ? "opacity-100 scale-100"
+                : "pointer-events-none opacity-0 scale-90",
+              isResizing
+                ? "transition-none"
+                : "transition-[opacity,transform] duration-250 ease-in-out",
+            )}
+          >
+            {/* Visible border line */}
             <div
-              key="window-splitter"
-              role="separator"
-              aria-orientation="vertical"
-              aria-valuenow={Math.round(splitRatio * 100)}
-              aria-label="Resize 2D and 3D views"
-              tabIndex={0}
-              onPointerDown={startResize}
-              onDoubleClick={(e) => {
-                e.stopPropagation();
-                setSplitRatio(0.5);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowLeft") {
-                  setSplitRatio((r) => Math.max(0.15, r - 0.05));
-                } else if (e.key === "ArrowRight") {
-                  setSplitRatio((r) => Math.min(0.85, r + 0.05));
-                } else if (e.key === "Enter" || e.key === " ") {
-                  toggleSplit();
-                }
-              }}
-              className="group relative z-20 flex w-0 shrink-0 cursor-col-resize select-none items-center justify-center focus:outline-hidden"
-            >
-              {/* Visible border line */}
-              <div
-                className={cn(
-                  "absolute inset-y-0 -left-px w-px transition-colors",
-                  isResizing
-                    ? "bg-primary w-0.5 -left-[1px]"
-                    : "bg-[#E1E4DE] group-hover:bg-primary/50 group-hover:w-0.5 group-hover:-left-[1px]",
-                )}
-              />
+              className={cn(
+                "absolute inset-y-0 -left-px w-px transition-colors",
+                isResizing
+                  ? "bg-primary w-0.5 -left-[1px]"
+                  : "bg-[#E1E4DE] group-hover:bg-primary/50 group-hover:w-0.5 group-hover:-left-[1px]",
+              )}
+            />
 
-              {/* Invisible wider hit area for easy grabbing */}
-              <div className="absolute inset-y-0 -left-2 w-4 cursor-col-resize" />
+            {/* Invisible wider hit area for easy grabbing */}
+            <div className="absolute inset-y-0 -left-2 w-4 cursor-col-resize" />
 
-              {/* Centered toggle / grip pill */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Resize or toggle view split"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!hasDragged.current) toggleSplit();
-                    }}
+            {/* Centered toggle / grip pill */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Resize or toggle view split"
+                  disabled={!(show2d && show3d)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!hasDragged.current) toggleSplit();
+                  }}
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 z-30 flex h-10 w-4 items-center justify-center rounded-full border border-[#E1E4DE] bg-white shadow-xs transition-all",
+                    "group-hover:scale-110 group-hover:border-foreground/30 group-hover:bg-[#F4F5F2]",
+                    isResizing &&
+                      "scale-110 border-primary bg-primary text-primary-foreground shadow-sm",
+                  )}
+                >
+                  <GripVertical
                     className={cn(
-                      "absolute top-1/2 -translate-y-1/2 z-30 flex h-10 w-4 items-center justify-center rounded-full border border-[#E1E4DE] bg-white shadow-xs transition-all",
-                      "group-hover:scale-110 group-hover:border-foreground/30 group-hover:bg-[#F4F5F2]",
-                      isResizing &&
-                        "scale-110 border-primary bg-primary text-primary-foreground shadow-sm",
+                      "size-3 transition-colors",
+                      isResizing
+                        ? "text-primary-foreground"
+                        : "text-muted-foreground group-hover:text-foreground",
                     )}
-                  >
-                    <GripVertical
-                      className={cn(
-                        "size-3 transition-colors",
-                        isResizing
-                          ? "text-primary-foreground"
-                          : "text-muted-foreground group-hover:text-foreground",
-                      )}
-                    />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  Drag to resize · Click to toggle layout · Double-click to
-                  center
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          )}
+                  />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Drag to resize · Click to toggle layout · Double-click to
+                center
+              </TooltipContent>
+            </Tooltip>
+          </div>
 
           {/* 3D Window (Right) */}
           <div
             key="window-3d"
             ref={canvasBox}
             aria-label="3D Drape view"
+            aria-hidden={!show3d}
+            style={{
+              width: !show3d ? "0%" : !show2d ? "100%" : `${(1 - splitRatio) * 100}%`,
+            }}
             className={cn(
-              "bg-canvas-3d relative h-full flex-1 min-w-0 overflow-hidden",
-              show3d ? "" : "hidden",
+              "bg-canvas-3d relative h-full shrink-0 min-w-0 overflow-hidden",
+              !show3d && "pointer-events-none opacity-0",
+              isResizing
+                ? "transition-none"
+                : "transition-[width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
             )}
           >
             {/* The 3D view stays mounted under hidden/shown state */}
@@ -1695,7 +1743,7 @@ function RailButton(props: {
       aria-pressed={on}
       onClick={() => props.setPanel(on ? null : props.id)}
       className={cn(
-        "flex h-16 w-full flex-col items-center justify-center gap-1 rounded-xl text-xs font-semibold",
+        "flex h-16 w-full flex-col items-center justify-center gap-1 rounded-xl text-xs font-semibold transition-colors duration-200",
         on ? "bg-[#E8ECE4]" : "hover:bg-[#F4F5F2]",
       )}
     >
