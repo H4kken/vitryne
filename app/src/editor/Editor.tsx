@@ -833,7 +833,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         {doc.entities.project ? (
           <ProjectName
             name={doc.entities.project.name ?? doc.fileName}
-            onRename={(v) => store.execute((e) => renameProject(e, v))}
+            onRename={(v) => {
+              if (store.execute((e) => renameProject(e, v))) {
+                files.save();
+              }
+            }}
           />
         ) : (
           <span className="max-w-[40vw] truncate text-[15px] font-semibold">
