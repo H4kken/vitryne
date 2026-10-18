@@ -1304,28 +1304,6 @@ export function Editor({ cloud }: { cloud: Cloud }) {
               {!show3d && cards}
             </div>
 
-            <div className="absolute right-4 bottom-4 flex items-center gap-0.5 rounded-[10px] border border-[#E1E4DE] bg-white p-0.5">
-              <ZoomButton
-                label="Zoom out"
-                onClick={() => pattern.current?.zoom(1 / 1.25)}
-              >
-                −
-              </ZoomButton>
-              <button
-                type="button"
-                onClick={() => pattern.current?.reset()}
-                className="h-9 min-w-11 rounded-lg px-1 text-[13px] font-medium hover:bg-[#F4F5F2]"
-              >
-                Fit
-              </button>
-              <ZoomButton
-                label="Zoom in"
-                onClick={() => pattern.current?.zoom(1.25)}
-              >
-                +
-              </ZoomButton>
-            </div>
-
             {!doc.empty && flatTool === "shape" && (
               <div className="absolute bottom-[76px] left-1/2 z-10 w-max max-w-[calc(100%-32px)] -translate-x-1/2">
                 <ShapeBar kind={shapeKind} onKind={setShapeKind} />
@@ -1542,15 +1520,6 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 </div>
               </div>
             )}
-
-            <div className="absolute right-4 bottom-4 flex items-center gap-0.5 rounded-[10px] border border-[#E1E4DE] bg-white p-0.5">
-              <ZoomButton label="Zoom out" onClick={() => session.wheel(-1)}>
-                −
-              </ZoomButton>
-              <ZoomButton label="Zoom in" onClick={() => session.wheel(1)}>
-                +
-              </ZoomButton>
-            </div>
 
             <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
               <ToolButton
@@ -2133,23 +2102,6 @@ function FirstPieceHint(props: {
         </div>
       </div>
     </div>
-  );
-}
-
-function ZoomButton(props: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={props.label}
-      onClick={props.onClick}
-      className="size-9 rounded-lg text-lg hover:bg-[#F4F5F2]"
-    >
-      {props.children}
-    </button>
   );
 }
 

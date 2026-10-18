@@ -263,7 +263,7 @@ function ScaleBar({ mmPerPx }: { mmPerPx: number }) {
         ? `${mm / 10} cm`
         : `${+mm.toPrecision(3)} mm`;
   return (
-    <div className="pointer-events-none absolute right-4 bottom-[68px] flex flex-col items-end gap-1 text-[12px] font-medium text-[#4A514B]">
+    <div className="pointer-events-none absolute right-4 bottom-4 flex flex-col items-end gap-1 text-[12px] font-medium text-[#4A514B]">
       <span>{label}</span>
       <span
         className="h-1.5 border-x-[1.5px] border-b-[1.5px] border-[#4A514B]"
