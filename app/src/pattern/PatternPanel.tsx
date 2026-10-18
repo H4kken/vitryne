@@ -793,6 +793,7 @@ export function PatternPanel({
   sewing,
   cutColors,
   highlight = null,
+  highlightSeam = null,
   empty,
   onEdit,
   onDrawn,
@@ -817,6 +818,8 @@ export function PatternPanel({
   cutColors?: ReadonlyMap<string, string>;
   /** A cut picked out (hovered in the pieces list): outlined, the others faded. */
   highlight?: string | null;
+  /** A seam picked out (hovered or open in the seams list): drawn wider, the others faded. */
+  highlightSeam?: string | null;
   /** Shown over the view while the garment has no pieces. */
   empty?: ReactNode;
   /** The point tool's edits: a command, built on the current document. */
@@ -2198,27 +2201,31 @@ export function PatternPanel({
                 {(garment?.seams ?? []).flatMap((seam, i) =>
                   [...seam.a, ...seam.b]
                     .filter((r) => r.cut === v.cut.id && !r.line)
-                    .map((r, k) => (
-                      <path
-                        key={`${seam.id}:${k}`}
-                        d={pathData(
-                          runPoints(
-                            v.piece,
-                            r.from,
-                            r.to,
-                            r.direction !== "cw",
-                          ),
-                          false,
-                        )}
-                        fill="none"
-                        stroke={SEAM_COLOURS[i % SEAM_COLOURS.length]}
-                        strokeWidth={5}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        opacity={0.85}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    )),
+                    .map((r, k) => {
+                      const lit = highlightSeam === seam.id;
+                      return (
+                        <path
+                          key={`${seam.id}:${k}`}
+                          d={pathData(
+                            runPoints(
+                              v.piece,
+                              r.from,
+                              r.to,
+                              r.direction !== "cw",
+                            ),
+                            false,
+                          )}
+                          fill="none"
+                          stroke={SEAM_COLOURS[i % SEAM_COLOURS.length]}
+                          strokeWidth={lit ? 9 : 5}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          opacity={lit ? 1 : highlightSeam ? 0.2 : 0.85}
+                          vectorEffect="non-scaling-stroke"
+                          className="transition-opacity duration-150"
+                        />
+                      );
+                    }),
                 )}
                 {/* The sew tool: free edges to pick, and the first pick. */}
                 {tool === "sew" &&

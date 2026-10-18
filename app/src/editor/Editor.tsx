@@ -85,7 +85,6 @@ import {
   sameEdge,
   type SeamProposal,
 } from "@/sewing/api";
-import { SeamsPanel } from "@/sewing/SeamsPanel";
 import { DiskFiles } from "@/storage/storage";
 import type { PointerTool } from "@/worker/protocol";
 import { type EngineState, EngineSession, useEngine } from "@/worker/session";
@@ -374,7 +373,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const [edges, setEdges] = useState<CutEdge[]>([]);
   const [differences, setDifferences] = useState<Record<string, number>>({});
   const [finding, setFinding] = useState(false);
-  const sewingShown = panel === "seams" || (show2d && flatTool === "sew");
+  const sewingShown = panel === "pieces" || (show2d && flatTool === "sew");
   const sewingKey = garment ? `${garment.id}` : "";
   const seams = garment?.seams;
   const pieces = garment?.pieces;
@@ -488,27 +487,24 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   /**
    * A click on a whole edge adds it to the open side. A plain click ends that side (so two
    * clicks sew two edges); Shift keeps the side open for another edge, for a seam along
-   * several edges. `finish` ends the open side without an edge.
+   * several edges.
    */
   const pickEdge = useCallback(
-    (edge: CutEdge | null, more: boolean) => {
+    (edge: CutEdge, more: boolean) => {
       const cur: Picks = picks ?? { a: [], b: [], open: "a" };
       const all = [...cur.a, ...cur.b];
-      if (edge && all.some((x) => sameEdge(x, edge))) {
+      if (all.some((x) => sameEdge(x, edge))) {
         // Picking it again takes it back.
         const drop = (l: CutEdge[]) => l.filter((x) => !sameEdge(x, edge));
         const next = { ...cur, a: drop(cur.a), b: drop(cur.b) };
         setPicks(next.a.length || next.b.length ? next : null);
         return;
       }
-      const next: Picks = edge
-        ? { ...cur, [cur.open]: [...cur[cur.open], edge] }
-        : cur;
-      if (more && edge) {
+      const next: Picks = { ...cur, [cur.open]: [...cur[cur.open], edge] };
+      if (more) {
         setPicks(next);
         return;
       }
-      if (next[next.open].length === 0) return;
       if (next.open === "a") setPicks({ ...next, open: "b" });
       else completeSeam(next);
     },
@@ -527,13 +523,35 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     session.highlight(shownHovered);
   }, [session, shownHovered]);
 
+  // A seam: hovered in the list or open in the Pieces panel, it is picked out in 2D and 3D.
+  const [openSeam, setOpenSeam] = useState<string | null>(null);
+  const [hoveredSeam, setHoveredSeam] = useState<string | null>(null);
   const select = useCallback(
     (s: Selection) => {
       setSelection(s);
-      if (s) setPanel("pieces");
+      if (s) {
+        setOpenSeam(null);
+        setPanel("pieces");
+      }
     },
-    [setPanel],
+    [setPanel, setOpenSeam],
   );
+
+  const openSeamPage = useCallback(
+    (id: string | null) => {
+      setOpenSeam(id);
+      if (id) setSelection(null);
+    },
+    [setOpenSeam, setSelection],
+  );
+  const litSeam = hoveredSeam ?? (panel === "pieces" ? openSeam : null);
+  const litSeamIndex = (garment?.seams ?? []).findIndex(
+    (s) => s.id === litSeam,
+  );
+  const shownLitSeam = litSeamIndex >= 0 ? litSeam : null;
+  useEffect(() => {
+    session.highlightSeam(litSeamIndex >= 0 ? litSeamIndex : null);
+  }, [session, litSeamIndex]);
 
   // Placing pieces: the Select tool in 3D. The cloth waits where it starts.
   const placing = show3d && tool === "select" && !doc.empty;
@@ -542,8 +560,8 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       session.setControls({ placing });
   }, [placing, session]);
 
-  // The seams are drawn on the cloth while the Seams panel is open.
-  const showSeams = panel === "seams";
+  // All the seams are drawn on the cloth while sewing in the flat view.
+  const showSeams = show2d && flatTool === "sew";
   useEffect(() => {
     if (session.state.controls.seams !== showSeams)
       session.setControls({ seams: showSeams });
@@ -1103,12 +1121,6 @@ export function Editor({ cloud }: { cloud: Cloud }) {
             setPanel={setPanel}
           />
           <RailButton
-            id="seams"
-            icon={<Link2 className="size-6" strokeWidth={1.6} />}
-            panel={panel}
-            setPanel={setPanel}
-          />
-          <RailButton
             id="settings"
             icon={<SlidersHorizontal className="size-6" strokeWidth={1.6} />}
             panel={panel}
@@ -1165,38 +1177,20 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                         ? null
                         : () => (setShow3d(true), setTool("select"))
                     }
-                  />
-                )}
-                {displayedPanel === "seams" && (
-                  <SeamsPanel
-                    store={store}
-                    garment={garment}
-                    differences={differences}
-                    proposals={proposals}
-                    finding={finding}
-                    onFind={() => void findSeams()}
-                    onAccept={acceptProposal}
-                    onSkip={(i) =>
-                      setProposals(
-                        (list) => list?.filter((_, k) => k !== i) ?? null,
-                      )
-                    }
-                    picking={show2d && flatTool === "sew"}
-                    picks={
-                      picks
-                        ? {
-                            a: picks.a.length,
-                            b: picks.b.length,
-                            open: picks.open,
-                          }
-                        : null
-                    }
-                    onFinishSide={() => pickEdge(null, false)}
-                    onStartPicking={() => (setShow2d(true), setFlatTool("sew"))}
-                    onStopPicking={() => (
-                      setFlatTool("select"),
-                      setPicks(null)
-                    )}
+                    openSeam={openSeam}
+                    sewing={{
+                      differences,
+                      proposals,
+                      finding,
+                      onFind: () => void findSeams(),
+                      onAccept: acceptProposal,
+                      onSkip: (i) =>
+                        setProposals(
+                          (list) => list?.filter((_, k) => k !== i) ?? null,
+                        ),
+                      onHover: setHoveredSeam,
+                      onOpen: openSeamPage,
+                    }}
                   />
                 )}
                 {displayedPanel === "settings" && (
@@ -1245,6 +1239,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 }}
                 cutColors={cutColors}
                 highlight={shownHovered}
+                highlightSeam={shownLitSeam}
                 empty={
                   <FirstPieceHint
                     onDraw={() => setFlatTool("draw")}
@@ -1378,7 +1373,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                   selected={flatTool === "sew"}
                   onClick={() => {
                     setFlatTool("sew");
-                    setPanel("seams");
+                    setSelection(null);
+                    setOpenSeam(null);
+                    setPanel("pieces");
                   }}
                 >
                   <Link2 className="size-5" />

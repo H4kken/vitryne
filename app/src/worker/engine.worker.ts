@@ -479,6 +479,9 @@ function input(m: Input) {
     case "highlight":
       v.set_highlight(m.cut ?? undefined);
       return;
+    case "highlightSeam":
+      v.set_seam_highlight(m.seam ?? undefined);
+      return;
     case "wheel":
       v.zoom(m.steps);
       return;

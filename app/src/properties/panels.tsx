@@ -25,7 +25,6 @@ import {
   renameCut,
   renamePiece,
   renameProject,
-  renameSeam,
   selfCollision,
   setMirrored,
   setPieceFabric,
@@ -47,17 +46,17 @@ import {
   tidy,
 } from "@/placement/places";
 import { DEFAULT_CLOTH_COLOR } from "@/format/colors";
+import { SeamDetails, type Sewing, SeamsSection } from "@/sewing/SeamsSection";
 import { NumberField, TextField } from "./fields";
 
 /** How far a piece placed on another sits off it, mm (Rust `import::ON_TOP_LIFT_MM`). */
 export const ON_TOP_LIFT_MM = 12;
 
-export type PanelId = "fabric" | "pieces" | "seams" | "settings";
+export type PanelId = "fabric" | "pieces" | "settings";
 
 export const PANEL_TITLES: Record<PanelId, string> = {
   fabric: "Fabric",
   pieces: "Pieces",
-  seams: "Seams",
   settings: "Settings",
 };
 
@@ -113,17 +112,40 @@ export function PiecesPanel(props: {
   onRewrap: (cutId: string, place: Place) => void;
   /** Switches to placing in 3D (null when already there). */
   onPlaceIn3d: (() => void) | null;
+  /** The seam whose page is open, or none. */
+  openSeam: string | null;
+  sewing: Sewing;
 }) {
-  const { store, garment, selection, onHover } = props;
-  // The list goes away when a cut is picked: nothing stays hovered.
-  const listed = !selection;
+  const { store, garment, selection, onHover, sewing } = props;
+  // A piece picked in the views wins over an open seam.
+  const seam =
+    !selection && props.openSeam
+      ? garment?.seams?.find((s) => s.id === props.openSeam)
+      : undefined;
+  // The list goes away when a cut or a seam is open: nothing stays hovered.
+  const listed = !selection && !seam;
+  const onHoverSeam = sewing.onHover;
   useEffect(() => {
-    if (!listed) onHover(null);
-    return () => onHover(null);
-  }, [listed, onHover]);
+    if (!listed) {
+      onHover(null);
+      onHoverSeam(null);
+    }
+    return () => {
+      onHover(null);
+      onHoverSeam(null);
+    };
+  }, [listed, onHover, onHoverSeam]);
   if (!garment) return <Intro>This project has no garment.</Intro>;
   const found = selection ? findCut(garment, selection.cutId) : undefined;
-  const seams = garment.seams ?? [];
+  if (seam)
+    return (
+      <SeamDetails
+        store={store}
+        garment={garment}
+        seam={seam}
+        sewing={sewing}
+      />
+    );
   return (
     <div className="flex flex-col gap-5">
       {found ? (
@@ -192,21 +214,8 @@ export function PiecesPanel(props: {
           </ul>
         </div>
       )}
-      {seams.length > 0 && (
-        <div className="flex flex-col gap-3 border-t pt-4">
-          <Heading>Seams</Heading>
-          {seams.map((s, i) => (
-            <TextField
-              key={s.id}
-              label={`Seam ${i + 1}`}
-              value={s.name ?? ""}
-              placeholder="Unnamed"
-              onCommit={(v) =>
-                store.execute((e) => renameSeam(e, garment.id, s.id, v))
-              }
-            />
-          ))}
-        </div>
+      {!found && (
+        <SeamsSection store={store} garment={garment} sewing={sewing} />
       )}
     </div>
   );

@@ -167,8 +167,19 @@ pub const SEAM_COLOURS: [[f32; 3]; 6] = [
 /// The segments to draw for named seams (`GarmentDesc::seams`): between consecutive paired
 /// vertices on each side, one colour per seam.
 pub fn seam_segments(seams: &[(String, Vec<(u32, u32)>)]) -> Vec<([u32; 2], [f32; 3])> {
+    seam_segments_of(seams, None)
+}
+
+/// [`seam_segments`] of seam `only` alone (in its own colour), or of all of them.
+pub fn seam_segments_of(
+    seams: &[(String, Vec<(u32, u32)>)],
+    only: Option<usize>,
+) -> Vec<([u32; 2], [f32; 3])> {
     let mut out = Vec::new();
     for (k, (_, pairs)) in seams.iter().enumerate() {
+        if only.is_some_and(|o| o != k) {
+            continue;
+        }
         let c = SEAM_COLOURS[k % SEAM_COLOURS.len()];
         for w in pairs.windows(2) {
             for (p, q) in [(w[0].0, w[1].0), (w[0].1, w[1].1)] {

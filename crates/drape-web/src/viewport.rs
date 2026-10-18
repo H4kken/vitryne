@@ -46,6 +46,8 @@ struct Live {
     /// `set_looks` (an appearance edit doesn't re-drape).
     colors: RefCell<Vec<Option<[f32; 3]>>>,
     export_fabrics: RefCell<Vec<ExportFabric>>,
+    /// The garment's seams (sewing pairs by seam, in the document's order), for drawing them.
+    seams: Vec<(String, Vec<(u32, u32)>)>,
 }
 
 /// The body alone (a garment with no pieces yet), and the garment's camera.
@@ -69,8 +71,11 @@ struct Core {
     paused: Cell<bool>,
     /// Placing pieces: the cloth stays where it starts.
     placing: Cell<bool>,
-    /// Seams drawn on the cloth (the Seams panel is open).
+    /// Seams drawn on the cloth.
     show_seams: Cell<bool>,
+    /// The seam picked out (its index, hovered in the editor's list): drawn alone, even when
+    /// the seams are hidden. Kept for later drapes.
+    seam_highlight: Cell<Option<u32>>,
     lost: Arc<AtomicBool>,
     style: Cell<Style>,
     /// The cut picked out (hovered in the editor's list): the other cuts fade. Kept for later
@@ -87,6 +92,22 @@ impl Core {
     /// Whether frames advance the drape.
     fn stepping(&self) -> bool {
         !self.paused.get() && !self.placing.get()
+    }
+
+    /// Gives `live`'s renderer the seams to draw: the highlighted one alone, or all of them
+    /// when they are shown.
+    fn draw_seams(&self, live: &Live) {
+        let only = self
+            .seam_highlight
+            .get()
+            .map(|k| k as usize)
+            .filter(|&k| k < live.seams.len());
+        let mut renderer = live.renderer.borrow_mut();
+        renderer.set_seams(
+            &self.engine.gpu().device,
+            &drape_render::seam_segments_of(&live.seams, only),
+        );
+        renderer.show_seams(only.is_some() || self.show_seams.get());
     }
 
     /// Writes `live`'s panel colours to its renderer, the cuts other than the highlighted one
@@ -187,6 +208,7 @@ impl Viewport {
                 paused: Cell::new(false),
                 placing: Cell::new(false),
                 show_seams: Cell::new(false),
+                seam_highlight: Cell::new(None),
                 lost,
                 style: Cell::new(Style::default()),
                 highlight: RefCell::new(None),
@@ -282,11 +304,6 @@ impl Viewport {
         );
         renderer.set_style(&c.engine.gpu().queue, &c.style.get());
         let panels: Vec<_> = garment.desc.groups.iter().map(|(_, r)| r.clone()).collect();
-        renderer.set_seams(
-            &c.engine.gpu().device,
-            &drape_render::seam_segments(&garment.desc.seams),
-        );
-        renderer.show_seams(c.show_seams.get());
         *c.live.borrow_mut() = Some(Rc::new(Live {
             n_verts: sim.n_verts(),
             sim,
@@ -297,8 +314,10 @@ impl Viewport {
             cuts: scene.inner.info.cuts.clone(),
             colors: RefCell::new(p.panel_colors.clone()),
             export_fabrics: RefCell::new(p.export_fabrics.clone()),
+            seams: garment.desc.seams.clone(),
         }));
         if let Some(live) = c.live.borrow().as_ref() {
+            c.draw_seams(live);
             c.paint(live, false);
         }
         Ok(baked)
@@ -628,7 +647,19 @@ impl Viewport {
     pub fn set_show_seams(&self, on: bool) {
         self.core.show_seams.set(on);
         if let Some(live) = self.core.live.borrow().as_ref() {
-            live.renderer.borrow_mut().show_seams(on);
+            self.core.draw_seams(live);
+        }
+    }
+
+    /// Picks out seam `seam` (its index in the garment's seams): drawn alone on the cloth, even
+    /// while the seams are hidden; or none. Kept for later drapes.
+    pub fn set_seam_highlight(&self, seam: Option<u32>) {
+        if self.core.seam_highlight.get() == seam {
+            return;
+        }
+        self.core.seam_highlight.set(seam);
+        if let Some(live) = self.core.live.borrow().as_ref() {
+            self.core.draw_seams(live);
         }
     }
 

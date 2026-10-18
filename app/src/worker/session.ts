@@ -116,6 +116,8 @@ export class EngineSession {
       client.send({ kind: "gizmo", cut: this.gizmoCut });
     if (this.highlightCut !== null)
       client.send({ kind: "highlight", cut: this.highlightCut });
+    if (this.highlightedSeam !== null)
+      client.send({ kind: "highlightSeam", seam: this.highlightedSeam });
     if (this.restore) void this.reopen(client, this.restore);
   }
 
@@ -463,6 +465,15 @@ export class EngineSession {
     if (cut === this.highlightCut) return;
     this.highlightCut = cut;
     this.client?.send({ kind: "highlight", cut });
+  }
+
+  private highlightedSeam: number | null = null;
+
+  /** Draws this seam (its index in the garment's seams) alone on the cloth; or none. */
+  highlightSeam(seam: number | null) {
+    if (seam === this.highlightedSeam) return;
+    this.highlightedSeam = seam;
+    this.client?.send({ kind: "highlightSeam", seam });
   }
 
   /** Shows a cut at a placement while its handle is dragged (no edit yet). */

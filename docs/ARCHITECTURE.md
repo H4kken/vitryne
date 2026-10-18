@@ -221,10 +221,12 @@ differ). The design, and why:
   `seams.rs` (the project's cuts and node ids, proposals, `join_chains`, per-seam length
   differences); the worker calls `sewing_edges`, `suggest_seams`, `join_edges` and
   `seam_differences`; `document/commands.ts` has `addSeam`, `removeSeam`, `reverseSeam` (so
-  undo, validation and recovery work as for every edit); `sewing/` has the panel; the flat
-  view (`pattern/PatternPanel.tsx`) draws each seam in a colour on its edges and hosts the
-  Sew tool; the 3D view draws the seams on the cloth (`drape-render/shaders/seams.wgsl`,
-  screen-space quads between consecutive paired cloth vertices) while the Seams panel is open.
+  undo, validation and recovery work as for every edit); `sewing/` has the seams section of
+  the Pieces panel (the sewn list, each seam's page, suggestions); the flat view
+  (`pattern/PatternPanel.tsx`) draws each seam in a colour on its edges and hosts the Sew tool;
+  the 3D view draws the seams on the cloth (`drape-render/shaders/seams.wgsl`, screen-space
+  quads between consecutive paired cloth vertices) while the Sew tool is on, and a seam hovered
+  or open in the list alone (`Viewport::set_seam_highlight`).
 - **Cuts, and which way a run goes.** A piece with two cuts (sleeves) is sewn once per cut:
   free is judged per cut, so sewing one sleeve leaves the other offered. Which cut meets which
   side of the partner follows the cut's mirror flag and the edge's side of its piece in the

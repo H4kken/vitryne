@@ -90,6 +90,8 @@ export type Input =
   | { kind: "gizmo"; cut: number | null }
   /** Picks out cut `cut` (its id) on the cloth, the others faded; or none. */
   | { kind: "highlight"; cut: string | null }
+  /** Draws seam `seam` (its index in the garment's seams) alone on the cloth; or none. */
+  | { kind: "highlightSeam"; seam: number | null }
   /** One display frame, sent by the UI where workers have no requestAnimationFrame. */
   | { kind: "tick" };
 
