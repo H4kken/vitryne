@@ -100,7 +100,6 @@ import {
   FabricIcon,
   FlatIcon,
   Logo,
-  MoveIcon,
   PinchIcon,
   RedoIcon,
   SelectIcon,
@@ -310,8 +309,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const [tool, setTool] = useState<PointerTool>("turn");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
-  // Cmd (Ctrl) held drags pieces as Move does until it is let go, from the tools that don't
-  // use the key themselves.
+  // Cmd (Ctrl) held: dragging pans the flat view, whatever the tool, until it is let go.
   const [modHeld, setModHeld] = useState(false);
   useEffect(() => {
     const key = (e: KeyboardEvent) => setModHeld(e.metaKey || e.ctrlKey);
@@ -325,13 +323,6 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       window.removeEventListener("blur", blur);
     };
   }, []);
-  const moveHeld =
-    modHeld &&
-    (flatTool === "select" ||
-      flatTool === "draw" ||
-      flatTool === "marks" ||
-      flatTool === "shape");
-  const flatToolNow: FlatTool = moveHeld ? "move" : flatTool;
   const [importing, setImporting] = useState<TextFile | null>(null);
   /** A piece the pen drew, being named and placed: its outline and where it was drawn. */
   const [adding, setAdding] = useState<{
@@ -1212,7 +1203,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 selection={shownSelection}
                 onSelect={select}
                 tool={flatTool}
-                moving={moveHeld}
+                panning={modHeld}
                 sewing={{
                   edges,
                   picked: picks ? [...picks.a, ...picks.b] : [],
@@ -1314,17 +1305,10 @@ export function Editor({ cloud }: { cloud: Cloud }) {
               <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
                 <ToolButton
                   label="Select"
-                  selected={flatToolNow === "select"}
+                  selected={flatTool === "select"}
                   onClick={() => setFlatTool("select")}
                 >
                   <SelectIcon />
-                </ToolButton>
-                <ToolButton
-                  label="Move"
-                  selected={flatToolNow === "move"}
-                  onClick={() => setFlatTool("move")}
-                >
-                  <MoveIcon />
                 </ToolButton>
                 <ToolButton
                   label="Edit points"
@@ -1335,21 +1319,21 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 </ToolButton>
                 <ToolButton
                   label="Draw a piece"
-                  selected={flatToolNow === "draw"}
+                  selected={flatTool === "draw"}
                   onClick={() => setFlatTool("draw")}
                 >
                   <PenTool className="size-5" />
                 </ToolButton>
                 <ToolButton
                   label="Lines, notches, folds and grain"
-                  selected={flatToolNow === "marks"}
+                  selected={flatTool === "marks"}
                   onClick={() => setFlatTool("marks")}
                 >
                   <PencilRuler className="size-5" />
                 </ToolButton>
                 <ToolButton
                   label="Add a shape"
-                  selected={flatToolNow === "shape"}
+                  selected={flatTool === "shape"}
                   onClick={() => setFlatTool("shape")}
                 >
                   <SquarePlus className="size-5" />
