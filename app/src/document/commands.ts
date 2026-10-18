@@ -9,7 +9,9 @@ import type {
   Cut,
   Edge,
   Fabric,
+  Fold,
   Garment,
+  Line,
   OutlineNode,
   Piece,
   Placement,
@@ -22,11 +24,14 @@ import type {
 import { colorName, normalizeColor } from "@/format/colors";
 import { findPreset } from "@/format/presets";
 import {
+  foldProblem,
   joinEdges,
+  leavesPiece,
   moveNodes as movedNodes,
   outlineProblem,
   splitEdge,
 } from "@/pattern/edit";
+import { linePoints } from "@/pattern/geometry";
 import {
   type Entities,
   getEntity,
@@ -1032,7 +1037,10 @@ function pairingNotes(before: Garment, after: Garment): string[] {
   return out;
 }
 
-/** The piece's outline replaced, checked as Rust will (FORMAT.md: a simple, counter-clockwise polygon). */
+/**
+ * The piece's outline replaced, checked as Rust will (FORMAT.md: a simple, counter-clockwise
+ * polygon, its folds still inside it; folds whose ends went are the caller's to remove).
+ */
 function withOutline(
   g: Garment,
   i: number,
@@ -1041,6 +1049,12 @@ function withOutline(
 ): Garment {
   const why = outlineProblem(outline);
   if (why) throw new CommandError(`${label}: ${why}`);
+  const has = new Set(outline.map((n) => n.id));
+  for (const f of g.pieces[i]?.folds ?? []) {
+    if (!has.has(f.from) || !has.has(f.to)) continue;
+    const bad = foldProblem(outline, f.from, f.to);
+    if (bad) throw new CommandError(`${label}: ${bad}`);
+  }
   return setIn(g, ["pieces", i, "outline"], outline);
 }
 
@@ -1076,7 +1090,10 @@ export function moveNodes(
   );
 }
 
-/** A new plain point `id` on the edge from node `fromId`, where it passes nearest to `at`. */
+/**
+ * A new node `id` on the edge from node `fromId`, where it passes nearest to `at`: a plain
+ * point, or a notch (`type`).
+ */
 export function insertNode(
   e: Entities,
   garmentId: string,
@@ -1084,15 +1101,18 @@ export function insertNode(
   fromId: string,
   at: Vec2,
   id: string,
+  type: "point" | "notch" = "point",
 ): Command {
-  const label = "Add a point";
+  const label = type === "notch" ? "Add a notch" : "Add a point";
   if (!finitePoint(at))
     throw new CommandError("a point's place must be numbers");
   const before = garment(e, garmentId);
   const [i, piece] = pieceIndex(before, pieceId);
-  const outline = splitEdge(piece.outline, nodeIndex(piece, fromId), at, id);
+  let outline = splitEdge(piece.outline, nodeIndex(piece, fromId), at, id);
   if (!outline)
     throw new CommandError(`${label}: too close to the end of the edge`);
+  if (type !== "point")
+    outline = outline.map((n) => (n.id === id ? { ...n, type } : n));
   const cmd = editGarment(
     e,
     garmentId,
@@ -1226,6 +1246,181 @@ export function setEdge(
         label,
       ),
     { label, drape: true },
+  );
+}
+
+// ---- M14: internal lines, folds and the grain line ------------------------------------------
+
+/** Every id used in a garment, to refuse a new entity that reuses one. */
+function garmentIds(g: Garment): Set<string> {
+  const ids = new Set<string>([g.id, ...(g.seams ?? []).map((s) => s.id)]);
+  for (const p of g.pieces) {
+    ids.add(p.id);
+    for (const n of p.outline) ids.add(n.id);
+    for (const c of p.cuts) ids.add(c.id);
+    for (const f of p.folds ?? []) ids.add(f.id);
+    for (const l of p.lines ?? []) {
+      ids.add(l.id);
+      for (const n of l.nodes) ids.add(n.id);
+    }
+  }
+  return ids;
+}
+
+/** An internal line drawn on a piece: an open path that stays inside it. */
+export function addLine(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  line: Line,
+): Command {
+  const label = "Add a line";
+  const g = garment(e, garmentId);
+  const [i, piece] = pieceIndex(g, pieceId);
+  const pts = [
+    ...line.nodes.map((n) => n.position),
+    ...line.nodes.flatMap((n) =>
+      n.edge ? (n.edge.type === "cubic" ? n.edge.controls : n.edge.points) : [],
+    ),
+  ];
+  if (!pts.every(finitePoint))
+    throw new CommandError(`${label}: a point's place must be numbers`);
+  if (line.nodes.some((n, k) => !n.edge !== (k === line.nodes.length - 1)))
+    throw new CommandError(
+      `${label}: each point but the last has an edge to the next`,
+    );
+  if (leavesPiece(piece.outline, linePoints(line)))
+    throw new CommandError(`${label}: a line must stay inside the piece`);
+  const ids = garmentIds(g);
+  const own = [line.id, ...line.nodes.map((n) => n.id)];
+  if (own.some((id) => ids.has(id)) || new Set(own).size !== own.length)
+    throw new CommandError(`${label}: an id is used twice`);
+  return editGarment(
+    e,
+    garmentId,
+    (x) => setIn(x, ["pieces", i, "lines"], [...(piece.lines ?? []), line]),
+    // Lines only reach the drape when sewn, and a new one isn't.
+    { label, drape: false },
+  );
+}
+
+/** An internal line taken off its piece; seams sewn on it go with it, and the note says so. */
+export function removeLine(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  lineId: string,
+): Command {
+  const label = "Delete a line";
+  const g = garment(e, garmentId);
+  const [i, piece] = pieceIndex(g, pieceId);
+  indexOf(piece.lines, lineId, "line");
+  const cuts = new Set(piece.cuts.map((c) => c.id));
+  const gone = (g.seams ?? []).filter((s) =>
+    [...s.a, ...s.b].some((r) => r.line === lineId && cuts.has(r.cut)),
+  );
+  const lines = (piece.lines ?? []).filter((l) => l.id !== lineId);
+  const cmd = editGarment(
+    e,
+    garmentId,
+    (x) => {
+      let out = setIn(
+        x,
+        ["pieces", i, "lines"],
+        lines.length ? lines : undefined,
+      );
+      if (gone.length)
+        out = setIn(
+          out,
+          ["seams"],
+          (x.seams ?? []).filter((s) => !gone.includes(s)),
+        );
+      return out;
+    },
+    { label, drape: gone.length > 0 },
+  );
+  if (!gone.length) return cmd;
+  return {
+    ...cmd,
+    note:
+      gone.length === 1
+        ? `${seamTitle(gone[0] as Seam)} was sewn on it and was removed`
+        : `${gone.length} seams sewn on it were removed`,
+  };
+}
+
+/** A fold line between two outline nodes of a piece; it must run inside the piece. */
+export function addFold(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  fold: Fold,
+): Command {
+  const label = "Add a fold";
+  const g = garment(e, garmentId);
+  const [i, piece] = pieceIndex(g, pieceId);
+  const why = foldProblem(piece.outline, fold.from, fold.to);
+  if (why) throw new CommandError(`${label}: ${why}`);
+  const same = (piece.folds ?? []).some(
+    (f) =>
+      (f.from === fold.from && f.to === fold.to) ||
+      (f.from === fold.to && f.to === fold.from),
+  );
+  if (same) throw new CommandError(`${label}: the piece already folds there`);
+  if (garmentIds(g).has(fold.id))
+    throw new CommandError(`${label}: an id is used twice`);
+  return editGarment(
+    e,
+    garmentId,
+    (x) => setIn(x, ["pieces", i, "folds"], [...(piece.folds ?? []), fold]),
+    // Folds are for re-folding at DXF export; the cloth is cut and draped unfolded.
+    { label, drape: false },
+  );
+}
+
+export function removeFold(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  foldId: string,
+): Command {
+  const g = garment(e, garmentId);
+  const [i, piece] = pieceIndex(g, pieceId);
+  indexOf(piece.folds, foldId, "fold");
+  const folds = (piece.folds ?? []).filter((f) => f.id !== foldId);
+  return editGarment(
+    e,
+    garmentId,
+    (x) => setIn(x, ["pieces", i, "folds"], folds.length ? folds : undefined),
+    { label: "Delete a fold", drape: false },
+  );
+}
+
+/** A piece's grain line drawn (its direction is the fabric's warp), or reset to +y (`undefined`). */
+export function setGrain(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  grain: Piece["grain"],
+): Command {
+  const label = grain ? "Set the grain line" : "Reset the grain line";
+  if (grain) {
+    if (!finitePoint(grain.from) || !finitePoint(grain.to))
+      throw new CommandError(`${label}: a point's place must be numbers`);
+    const len = Math.hypot(
+      grain.to[0] - grain.from[0],
+      grain.to[1] - grain.from[1],
+    );
+    if (len < 1) throw new CommandError(`${label}: the line is too short`);
+  }
+  const [i] = pieceIndex(garment(e, garmentId), pieceId);
+  return setValue(
+    e,
+    { kind: "garment", id: garmentId },
+    ["pieces", i, "grain"],
+    grain,
+    // The engine is isotropic for now (warp and weft averaged): the grain line is kept, not draped.
+    { label, drape: false },
   );
 }
 

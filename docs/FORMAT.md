@@ -283,13 +283,16 @@ the sewing line. Seam allowance is for cutting and goes in an extension (planned
 
 `lines[]` are open paths inside the piece (pocket placement, darts, stitching lines): `id`,
 `name`, and `nodes` in order, each with the edge to the next **except the last**. They're meshed
-as creases and can be sewn (the hoodie's pocket is sewn onto one).
+as creases and can be sewn (the hoodie's pocket is sewn onto one). A line stays inside its piece
+(its ends may lie on the outline); readers warn about one that leaves it rather than refusing
+the file, since an imported DXF may carry a sloppy one.
 
 ### Cut on the fold
 
 **A cut-on-fold piece is stored unfolded**: the outline is the whole piece as cut from the
 fabric, and **`folds[]`** records each fold line as the straight line between two outline nodes
-(for the T-shirt front, centre front hem to centre front neck).
+(for the T-shirt front, centre front hem to centre front neck). The fold must run **inside the
+piece**, meeting the outline only at its two ends; readers refuse one that doesn't.
 
 **Why unfolded (option A):** what's stored is what's cut, meshed and simulated, and every point a
 seam may use exists in the file. The half-piece form can always be rebuilt from the outline and the
@@ -301,7 +304,8 @@ nodes), not a breaking change.
 ### Grain line
 
 `grain: {from, to}` is the grain line as drawn; its direction is the fabric's **warp** (the
-direction `fabric.stretch.warp` applies to). Absent means +y.
+direction `fabric.stretch.warp` applies to). Absent means +y. Its two ends must not be in the
+same place (0.01 mm).
 
 ### Cuts
 

@@ -5,7 +5,14 @@
 // an edge as long as another piece's (docs/PATENTS.md). Every coordinate written is on the
 // format's 0.001 mm grid.
 
-import type { Cut, Edge, OutlineNode, Piece, Vec2 } from "@/format/schema.gen";
+import type {
+  Cut,
+  Edge,
+  Line,
+  OutlineNode,
+  Piece,
+  Vec2,
+} from "@/format/schema.gen";
 import { outlineProblem } from "./edit";
 import { type Box, bounds, nodesPoints, type P, roundMm } from "./geometry";
 
@@ -58,6 +65,26 @@ export function penOutline(
   if (first && !nodes.some((n) => n.type === "corner"))
     nodes[0] = { ...first, type: "corner" };
   return counterClockwise(nodes);
+}
+
+/**
+ * The pen's open path as an internal line (`lines[]`, FORMAT.md): plain points, each with the
+ * edge to the next but the last.
+ */
+export function penLine(
+  points: readonly PenPoint[],
+  newId: () => string,
+): Line {
+  const nodes = points.map((p, k) => {
+    const next = points[k + 1];
+    return {
+      id: newId(),
+      type: "point" as const,
+      position: grid(p.at),
+      ...(next ? { edge: penEdge(p, next) } : {}),
+    };
+  });
+  return { id: newId(), nodes: nodes as Line["nodes"] };
 }
 
 /** Twice the signed area of the outline (positive: counter-clockwise). */

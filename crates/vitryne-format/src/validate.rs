@@ -372,6 +372,76 @@ fn segments_meet((a, b): (Vec2, Vec2), (c, d): (Vec2, Vec2)) -> bool {
         || (d4 == 0.0 && within(a, b, d))
 }
 
+/// Even-odd point-in-polygon.
+fn inside(p: Vec2, poly: &[Vec2]) -> bool {
+    let mut c = false;
+    let n = poly.len();
+    for i in 0..n {
+        let (a, b) = (poly[i], poly[(i + n - 1) % n]);
+        if (a[1] > p[1]) != (b[1] > p[1])
+            && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]
+        {
+            c = !c;
+        }
+    }
+    c
+}
+
+fn dist_to_segment(p: Vec2, (a, b): (Vec2, Vec2)) -> f64 {
+    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+    let len2 = dx * dx + dy * dy;
+    let t = if len2 > 0.0 {
+        (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    (p[0] - a[0] - t * dx).hypot(p[1] - a[1] - t * dy)
+}
+
+/// A fold is the straight line between two outline nodes `a` and `b` (FORMAT.md, Cut on the
+/// fold): it must run inside the piece, touching the outline only at its ends. `poly`: the
+/// outline as meshed.
+fn check_fold(poly: &[Vec2], a: Vec2, b: Vec2) -> Result<(), String> {
+    if (a[0] - b[0]).hypot(a[1] - b[1]) < SAME_PLACE_MM {
+        return Err("a fold's ends are in the same place".into());
+    }
+    let n = poly.len();
+    for i in 0..n {
+        let (c, d) = (poly[i], poly[(i + 1) % n]);
+        if c == a || c == b || d == a || d == b {
+            continue;
+        }
+        if segments_meet((a, b), (c, d)) {
+            return Err("a fold must run inside the piece (it meets the outline)".into());
+        }
+    }
+    let mid = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0];
+    let on = (0..n).any(|i| dist_to_segment(mid, (poly[i], poly[(i + 1) % n])) < SAME_PLACE_MM);
+    if on || !inside(mid, poly) {
+        return Err("a fold must run inside the piece".into());
+    }
+    Ok(())
+}
+
+/// Whether the open path `pts` leaves the polygon `poly`: a point outside it (and not on the
+/// outline), or a segment crossing the outline.
+fn leaves(poly: &[Vec2], pts: &[Vec2]) -> bool {
+    let n = poly.len();
+    let seg = |i: usize| (poly[i], poly[(i + 1) % n]);
+    let on = |p: Vec2| (0..n).any(|i| dist_to_segment(p, seg(i)) < SAME_PLACE_MM);
+    if pts.iter().any(|&p| !inside(p, poly) && !on(p)) {
+        return true;
+    }
+    pts.windows(2).any(|w| {
+        (0..n).any(|i| {
+            let (c, d) = seg(i);
+            let (d1, d2) = (orient(c, d, w[0]), orient(c, d, w[1]));
+            let (d3, d4) = (orient(w[0], w[1], c), orient(w[0], w[1], d));
+            d1 * d2 < 0.0 && d3 * d4 < 0.0
+        })
+    })
+}
+
 fn check_garment(
     g: &Garment,
     fabrics: &BTreeSet<&Id>,
@@ -446,11 +516,42 @@ fn check_garment(
                 check_node(n, k + 1 < l.nodes.len(), r);
             }
         }
+        let shape_ok = r.errors.len() == before;
         let outline: BTreeSet<&Id> = p.outline.iter().map(|n| &n.id).collect();
+        let polygon = outline_points(&p.outline).ok().filter(|_| shape_ok);
         for f in &p.folds {
             if !outline.contains(&f.from) || !outline.contains(&f.to) || f.from == f.to {
                 r.errors
                     .push(pa("fold ends must be two outline nodes".into()));
+                continue;
+            }
+            let at = |id: &Id| p.outline.iter().find(|n| &n.id == id).map(|n| n.position);
+            if let (Some(poly), Some(a), Some(b)) = (&polygon, at(&f.from), at(&f.to))
+                && let Err(m) = check_fold(poly, a, b)
+            {
+                r.errors.push(pa(m));
+            }
+        }
+        if let Some(poly) = &polygon {
+            for l in &p.lines {
+                if l.nodes.len() >= 2
+                    && let Ok(pts) = path_points(&l.nodes, 0, l.nodes.len() - 1)
+                    && leaves(poly, &pts)
+                {
+                    r.warnings.push(pa(format!(
+                        "line {} leaves the piece",
+                        l.name.as_deref().unwrap_or(l.id.as_str())
+                    )));
+                }
+            }
+        }
+        if let Some(gr) = &p.grain {
+            let d = (gr.to[0] - gr.from[0]).hypot(gr.to[1] - gr.from[1]);
+            if !finite(&gr.from) || !finite(&gr.to) {
+                r.errors
+                    .push(pa("the grain line's ends must be numbers".into()));
+            } else if d < SAME_PLACE_MM {
+                r.errors.push(pa("the grain line has no length".into()));
             }
         }
         for c in &p.cuts {

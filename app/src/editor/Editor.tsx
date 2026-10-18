@@ -15,6 +15,7 @@ import {
   Link2,
   Spline,
   Pause,
+  PencilRuler,
   PenTool,
   Play,
   RotateCcw,
@@ -1262,6 +1263,13 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                   onClick={() => setFlatTool("draw")}
                 >
                   <PenTool className="size-5" />
+                </ToolButton>
+                <ToolButton
+                  label="Lines, notches, folds and grain"
+                  selected={flatTool === "marks"}
+                  onClick={() => setFlatTool("marks")}
+                >
+                  <PencilRuler className="size-5" />
                 </ToolButton>
                 <ToolButton
                   label="Add a shape"

@@ -708,3 +708,74 @@ fn outline_shapes_are_checked() {
         "not a number",
     );
 }
+
+/// Folds run inside the piece (an error otherwise), lines that leave it are a warning, and a
+/// grain line needs a length.
+#[test]
+fn folds_lines_and_grain_are_checked() {
+    let doc = Document::open(&example("tshirt")).unwrap().doc;
+    // An L: the corner at (100, 100) points into the piece.
+    let corners = [
+        [0.0, 0.0],
+        [200.0, 0.0],
+        [200.0, 100.0],
+        [100.0, 100.0],
+        [100.0, 200.0],
+        [0.0, 200.0],
+    ];
+    let ids: Vec<String> = (0..corners.len())
+        .map(|k| format!("01a13cdb-cc06-7bbe-9365-6ac1ac56ba{k:02}"))
+        .collect();
+    let node = |k: usize, edge: bool| {
+        let mut n = json!({"id": ids[k], "type": "corner", "position": corners[k]});
+        if edge {
+            n["edge"] = json!({"type": "polyline", "points": []});
+        }
+        n
+    };
+    let outline: Vec<_> = (0..corners.len()).map(|k| node(k, true)).collect();
+    let with = |extra: Value| {
+        let mut d = doc.clone();
+        d.garments[0].seams.clear();
+        let p = &mut d.garments[0].pieces[0];
+        let mut v = serde_json::to_value(&*p).unwrap();
+        v["outline"] = json!(outline);
+        v.as_object_mut().unwrap().remove("folds");
+        v.as_object_mut().unwrap().remove("lines");
+        v.as_object_mut().unwrap().remove("grain");
+        for (k, x) in extra.as_object().unwrap() {
+            v[k] = x.clone();
+        }
+        *p = serde_json::from_value(v).unwrap();
+        d.validate()
+    };
+    let fold = |a: usize, b: usize| json!({"folds": [{"id": "01a13cdb-cc06-7bbe-9365-6ac1ac56bb00", "from": ids[a], "to": ids[b]}]});
+    assert_eq!(with(json!({})).errors, Vec::<String>::new());
+    assert_eq!(with(fold(0, 3)).errors, Vec::<String>::new());
+    for (a, b) in [(1, 5), (2, 4), (0, 1)] {
+        let e = with(fold(a, b)).errors;
+        assert!(
+            e.iter().any(|m| m.contains("inside the piece")),
+            "{a}-{b}: {e:?}"
+        );
+    }
+    let line = |to: [f64; 2]| {
+        json!({"lines": [{"id": "01a13cdb-cc06-7bbe-9365-6ac1ac56bc00", "nodes": [
+            {"id": "01a13cdb-cc06-7bbe-9365-6ac1ac56bc01", "type": "point", "position": [20.0, 20.0],
+             "edge": {"type": "polyline", "points": []}},
+            {"id": "01a13cdb-cc06-7bbe-9365-6ac1ac56bc02", "type": "point", "position": to}]}]})
+    };
+    let inside = with(line([0.0, 150.0]));
+    assert!(inside.errors.is_empty() && !inside.warnings.iter().any(|w| w.contains("leaves")));
+    let out = with(line([150.0, 150.0]));
+    assert!(out.errors.is_empty(), "{:?}", out.errors);
+    assert!(
+        out.warnings.iter().any(|w| w.contains("leaves the piece")),
+        "{:?}",
+        out.warnings
+    );
+    let grain = |to: [f64; 2]| json!({"grain": {"from": [50.0, 50.0], "to": to}});
+    assert!(with(grain([50.0, 150.0])).errors.is_empty());
+    let e = with(grain([50.0, 50.0])).errors;
+    assert!(e.iter().any(|m| m.contains("no length")), "{e:?}");
+}

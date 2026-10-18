@@ -364,3 +364,98 @@ function segmentsMeet([a, b]: [P, P], [c, d]: [P, P]): boolean {
     (d4 === 0 && within(a, b, d))
   );
 }
+
+// ---- folds and lines inside the piece: Rust's checks (vitryne-format `check_fold`, `leaves`) --
+
+/** The outline as meshed, without repeated points. */
+function polygon(nodes: Nodes): P[] {
+  const pts: P[] = [];
+  for (const p of nodesPoints(nodes)) {
+    const last = pts.at(-1);
+    if (!last || last[0] !== p[0] || last[1] !== p[1]) pts.push(p);
+  }
+  const [first, last] = [pts[0], pts.at(-1)];
+  if (
+    pts.length > 1 &&
+    first &&
+    last &&
+    first[0] === last[0] &&
+    first[1] === last[1]
+  )
+    pts.pop();
+  return pts;
+}
+
+function insidePolygon([x, y]: P, poly: readonly P[]): boolean {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = at(poly, i);
+    const [xj, yj] = at(poly, j);
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)
+      c = !c;
+  }
+  return c;
+}
+
+function distToSegment(p: P, a: P, b: P): number {
+  const [dx, dy] = sub(b, a);
+  const len2 = dx * dx + dy * dy;
+  const t =
+    len2 > 0
+      ? Math.max(
+          0,
+          Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2),
+        )
+      : 0;
+  return dist(p, [a[0] + t * dx, a[1] + t * dy]);
+}
+
+const onPolygon = (p: P, poly: readonly P[]) =>
+  poly.some((a, i) => distToSegment(p, a, at(poly, i + 1)) < SAME_PLACE_MM);
+
+/**
+ * Why Rust would refuse a fold between outline nodes `fromId` and `toId` (it must run inside
+ * the piece, meeting the outline only at its ends), or null.
+ */
+export function foldProblem(
+  nodes: Nodes,
+  fromId: string,
+  toId: string,
+): string | null {
+  const a = nodes.find((n) => n.id === fromId)?.position;
+  const b = nodes.find((n) => n.id === toId)?.position;
+  if (!a || !b || fromId === toId)
+    return "a fold runs between two points of the outline";
+  if (dist(a, b) < SAME_PLACE_MM) return "a fold's ends are in the same place";
+  const poly = polygon(nodes);
+  const same = (p: P, q: P) => p[0] === q[0] && p[1] === q[1];
+  for (const [i, c] of poly.entries()) {
+    const d = at(poly, i + 1);
+    if (same(c, a) || same(c, b) || same(d, a) || same(d, b)) continue;
+    if (segmentsMeet([a, b], [c, d]))
+      return "a fold must run inside the piece (it meets the outline)";
+  }
+  const mid = lerp(a, b, 0.5);
+  if (onPolygon(mid, poly) || !insidePolygon(mid, poly))
+    return "a fold must run inside the piece";
+  return null;
+}
+
+/** Whether the open path `pts` leaves the piece: a point outside it (not on the outline), or a segment crossing it. */
+export function leavesPiece(nodes: Nodes, pts: readonly P[]): boolean {
+  const poly = polygon(nodes);
+  if (pts.some((p) => !insidePolygon(p, poly) && !onPolygon(p, poly)))
+    return true;
+  for (let k = 0; k + 1 < pts.length; k++) {
+    const [p, q] = [at(pts, k), at(pts, k + 1)];
+    for (const [i, c] of poly.entries()) {
+      const d = at(poly, i + 1);
+      if (
+        orient(c, d, p) * orient(c, d, q) < 0 &&
+        orient(p, q, c) * orient(p, q, d) < 0
+      )
+        return true;
+    }
+  }
+  return false;
+}

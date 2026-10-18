@@ -8,8 +8,11 @@
 // handle, double-click an edge to add a point, Delete removes one; a drag that would make the
 // outline cross itself shows red and is dropped, so Rust never has to refuse it. The pen tool
 // draws a new piece: click for a straight edge, drag for a curve, close on the first point (or
-// Enter); it snaps to the grid, 15° steps and the drawn piece's own points only. Where a cut
-// sits here is display only (`cut.layout`).
+// Enter); it snaps to the grid, 15° steps and the drawn piece's own points only. The marks
+// tool adds internal lines (drawn like the pen, inside one piece, snapping to that piece's own
+// points), notches (a click on the outline), folds (two outline points) and the grain line (a
+// drag); a click on a line, fold or grain line picks it to delete or reset. Where a cut sits
+// here is display only (`cut.layout`).
 
 import {
   type ReactNode,
@@ -22,11 +25,16 @@ import {
 } from "react";
 import type { Garment, OutlineNode, Piece, Vec2 } from "@/format/schema.gen";
 import {
+  addFold,
+  addLine,
   type Command,
   insertNode,
   moveNodes as moveNodesCommand,
+  removeFold,
+  removeLine,
   removeNode,
   setEdge,
+  setGrain,
   setNodeType,
 } from "@/document/commands";
 import type { Entities } from "@/document/entities";
@@ -35,7 +43,9 @@ import {
   edgeLength,
   edgePoints,
   endForLength,
+  foldProblem,
   isStraight,
+  leavesPiece,
   moveNodes,
   outlineProblem,
   pointAlong,
@@ -44,10 +54,12 @@ import {
 } from "./edit";
 import { PointBar } from "./PointBar";
 import { DrawBar } from "./DrawBar";
+import { MarkBar, type MarkKind } from "./MarkBar";
 import {
   framed,
   type PenPoint,
   penEdge,
+  penLine,
   penOutline,
   penProblem,
   snapPoint,
@@ -77,7 +89,16 @@ import { type CutEdge, sameEdge } from "@/sewing/api";
 /** A cut, by its id (and its piece's). */
 export type Selection = { kind: "cut"; pieceId: string; cutId: string } | null;
 
-export type FlatTool = "select" | "move" | "points" | "draw" | "sew";
+export type FlatTool = "select" | "move" | "points" | "draw" | "marks" | "sew";
+
+/** The marks tool's pick: a line, fold or grain line of one cut's piece. */
+type MarkPick = {
+  kind: "line" | "fold" | "grain";
+  pieceId: string;
+  cutId: string;
+  /** The line's or fold's id (the grain line has none). */
+  id: string;
+} | null;
 
 /** The point tool's pick: an outline node, or the edge from it, on one cut of its piece. */
 type PointPick = {
@@ -242,11 +263,18 @@ function PieceDrawing({
   piece,
   color,
   bad,
+  marked,
 }: {
   piece: Piece;
   color?: string;
   bad?: boolean;
+  /** The marks tool's pick on this piece, drawn in blue. */
+  marked?: MarkPick;
 }) {
+  const ink = (kind: "line" | "fold" | "grain", id = "") =>
+    marked?.kind === kind && (kind === "grain" || marked.id === id)
+      ? { stroke: "#3A63F0", strokeWidth: 3.5 }
+      : { stroke: "#8E968A", strokeWidth: 1.6 };
   const outline = outlinePoints(piece);
   const nodes = piece.outline;
   const byId = new Map(nodes.map((n: OutlineNode) => [n.id, n.position]));
@@ -289,8 +317,7 @@ function PieceDrawing({
           key={l.id}
           d={pathData(linePoints(l), false)}
           fill="none"
-          stroke="#8E968A"
-          strokeWidth={1.6}
+          {...ink("line", l.id)}
           vectorEffect="non-scaling-stroke"
         />
       ))}
@@ -301,8 +328,7 @@ function PieceDrawing({
           <path
             key={f.id}
             d={pathData([a, b], false)}
-            stroke="#8E968A"
-            strokeWidth={1.6}
+            {...ink("fold", f.id)}
             strokeDasharray="6 5"
             vectorEffect="non-scaling-stroke"
           />
@@ -320,8 +346,7 @@ function PieceDrawing({
       {piece.grain && (
         <path
           d={pathData([piece.grain.from, piece.grain.to], false)}
-          stroke="#8E968A"
-          strokeWidth={1.6}
+          {...ink("grain")}
           strokeLinecap="round"
           markerStart="url(#grain-arrow)"
           markerEnd="url(#grain-arrow)"
@@ -450,6 +475,7 @@ function PenMarks({
   closable,
   bad,
   r,
+  open = false,
 }: {
   points: readonly PenPoint[];
   live: P[] | null;
@@ -457,6 +483,8 @@ function PenMarks({
   closable: boolean;
   bad: boolean;
   r: number;
+  /** An internal line: never closed, no edge back to the first point. */
+  open?: boolean;
 }) {
   const blue = "#3A63F0";
   const ink = bad ? BAD : "#14181F";
@@ -478,7 +506,7 @@ function PenMarks({
     <g pointerEvents="none">
       {points.length >= 2 && (
         <path
-          d={pathData(penPath(points, bad), false)}
+          d={pathData(penPath(points, bad && !open), false)}
           fill="none"
           stroke={ink}
           strokeWidth={2.5}
@@ -495,7 +523,7 @@ function PenMarks({
           vectorEffect="non-scaling-stroke"
         />
       )}
-      {end && first && points.length >= 2 && !closable && (
+      {end && first && points.length >= 2 && !closable && !open && (
         <path
           d={pathData([end.at, first.at], false)}
           fill="none"
@@ -556,6 +584,81 @@ function PenMarks({
   );
 }
 
+/**
+ * The marks tool's marks on one cut, in the piece frame: the outline's points (for notches
+ * and folds), the line being drawn, a fold from its first end to the pointer, the grain line
+ * being dragged.
+ */
+function MarkMarks({
+  v,
+  kind,
+  line,
+  fold,
+  grain,
+  bad,
+  r,
+}: {
+  v: CutView;
+  kind: MarkKind;
+  line: { points: PenPoint[]; cursor: P | null; handle: P | null } | null;
+  fold: { nodeId: string; cursor: P | null } | null;
+  grain: { from: P; to: P } | null;
+  bad: boolean;
+  r: number;
+}) {
+  const blue = "#3A63F0";
+  const nodes = v.piece.outline;
+  const k = fold ? nodes.findIndex((n) => n.id === fold.nodeId) : -1;
+  const start = nodes[k]?.position;
+  const last = line?.points.at(-1);
+  const end: PenPoint | null = line?.cursor
+    ? { at: line.cursor, ...(line.handle ? { out: line.handle } : {}) }
+    : null;
+  return (
+    <g pointerEvents="none">
+      {(kind === "notch" || kind === "fold") && (
+        <PointMarks
+          piece={v.piece}
+          pick={k >= 0 ? { kind: "node", k } : null}
+          handles={[]}
+          r={r}
+        />
+      )}
+      {start && fold?.cursor && (
+        <path
+          d={pathData([start, toPiece(v, fold.cursor)], false)}
+          stroke={blue}
+          strokeWidth={1.6}
+          strokeDasharray="6 5"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {grain && (
+        <path
+          d={pathData([grain.from, grain.to], false)}
+          stroke={blue}
+          strokeWidth={2}
+          strokeLinecap="round"
+          markerStart="url(#grain-arrow)"
+          markerEnd="url(#grain-arrow)"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {line && (
+        <PenMarks
+          points={line.points}
+          live={last && end ? penPath([last, end], false) : null}
+          end={end}
+          closable={false}
+          bad={bad}
+          r={r * 0.8}
+          open
+        />
+      )}
+    </g>
+  );
+}
+
 /** A curve's handle: of the edge from node `k`, 0 at its start, 1 at its end. */
 interface Handle {
   k: number;
@@ -609,6 +712,17 @@ type Drag =
   | ({ kind: "node"; k: number } & PointDrag)
   | ({ kind: "control"; k: number; which: 0 | 1 } & PointDrag)
   | { kind: "move"; cut: CutView; start: P; t: Transform; moved: boolean }
+  /** The marks tool: a line's point being put down (piece frame), dragged for a curve. */
+  | {
+      kind: "line";
+      cut: CutView;
+      at: P;
+      x: number;
+      y: number;
+      moved: boolean;
+    }
+  /** The marks tool: the grain line being dragged out (piece frame). */
+  | { kind: "grain"; cut: CutView; from: P }
   /** The pen: a point being put down (`closing`: on the first one), dragged for a curve. */
   | {
       kind: "pen";
@@ -832,7 +946,7 @@ export function PatternPanel({
   // while editing points.
   const points = tool === "points" && !!onEdit;
   const handle: P | null =
-    selected && !points && tool !== "draw"
+    selected && !points && tool !== "draw" && tool !== "marks"
       ? [
           (selected.box.minX + selected.box.maxX) / 2,
           selected.box.maxY + HANDLE_PX * mmPerPx,
@@ -1070,6 +1184,315 @@ export function PatternPanel({
           Math.PI || 0
       : 0;
 
+  // ---- the marks tool: internal lines, notches, folds, the grain line ----
+  const marking = tool === "marks" && !!onEdit;
+  const [markKind, setMarkKind] = useState<MarkKind>("line");
+  const [markPick, setMarkPick] = useState<MarkPick>(null);
+  /** A line being drawn on one cut's piece (points in the piece frame). */
+  const [lineDraft, setLineDraft] = useState<{
+    cutId: string;
+    points: PenPoint[];
+    cursor: P | null;
+    handle: P | null;
+  } | null>(null);
+  /** A fold's first end, and where the pointer is (view). */
+  const [foldFrom, setFoldFrom] = useState<{
+    cutId: string;
+    nodeId: string;
+    cursor: P | null;
+  } | null>(null);
+  const [grainLive, setGrainLive] = useState<{
+    cutId: string;
+    from: P;
+    to: P;
+  } | null>(null);
+  const [markWarning, setMarkWarning] = useState<string | null>(null);
+  // Another tool, kind or garment: whatever was half done is dropped.
+  const markKey = `${marking}:${markKind}:${garmentId}`;
+  const [markFor, setMarkFor] = useState(markKey);
+  if (markFor !== markKey) {
+    setMarkFor(markKey);
+    setLineDraft(null);
+    setFoldFrom(null);
+    setGrainLive(null);
+    setMarkPick(null);
+    setMarkWarning(null);
+  }
+  const lineCut = lineDraft
+    ? cuts.find((v) => v.cut.id === lineDraft.cutId)
+    : undefined;
+  const markPicked =
+    marking && markPick
+      ? (() => {
+          const v = cuts.find((x) => x.cut.id === markPick.cutId);
+          if (!v) return null;
+          const there =
+            markPick.kind === "grain"
+              ? !!v.piece.grain
+              : markPick.kind === "line"
+                ? v.piece.lines?.some((l) => l.id === markPick.id)
+                : v.piece.folds?.some((f) => f.id === markPick.id);
+          return there ? markPick : null;
+        })()
+      : null;
+
+  /** Where a line's point or the grain line's end goes on cut `v` (piece frame), snapped to that piece only. */
+  const markAt = (
+    v: CutView,
+    e: { clientX: number; clientY: number; shiftKey: boolean; altKey: boolean },
+    from?: P,
+  ): P => {
+    const raw = toPiece(v, toPattern(e));
+    const own = [
+      ...v.piece.outline.map((n) => n.position),
+      ...(lineDraft?.cutId === v.cut.id
+        ? lineDraft.points.map((x) => x.at)
+        : []),
+    ];
+    return snapPoint(raw, {
+      step: e.altKey ? 0 : snapStep(mmPerPx),
+      near: e.altKey ? 0 : NODE_PICK_PX * mmPerPx,
+      own: e.altKey ? [] : own,
+      from: e.shiftKey ? from : undefined,
+    });
+  };
+
+  /** The line, fold or grain line under the pointer, topmost cut first. */
+  const markHit = (p: P): MarkPick => {
+    const near = EDGE_PICK_PX * mmPerPx;
+    for (const v of [...cuts].reverse()) {
+      const q = toPiece(v, p);
+      const base = { pieceId: v.piece.id, cutId: v.cut.id };
+      for (const l of v.piece.lines ?? [])
+        if (distToPolyline(q, linePoints(l)) <= near)
+          return { ...base, kind: "line", id: l.id };
+      const at = (id: string) =>
+        v.piece.outline.find((n) => n.id === id)?.position;
+      for (const f of v.piece.folds ?? []) {
+        const a = at(f.from);
+        const b = at(f.to);
+        if (a && b && distToPolyline(q, [a, b]) <= near)
+          return { ...base, kind: "fold", id: f.id };
+      }
+      const g = v.piece.grain;
+      if (g && distToPolyline(q, [g.from, g.to]) <= near)
+        return { ...base, kind: "grain", id: "" };
+    }
+    return null;
+  };
+
+  /** Why the line being drawn (with the pointer's point, if any) can't be kept, or null. */
+  const lineProblem = (v: CutView, pts: readonly PenPoint[]): string | null =>
+    pts.length >= 2 &&
+    leavesPiece(v.piece.outline, linePoints(penLine(pts, () => "")))
+      ? "a line must stay inside the piece"
+      : null;
+
+  const finishLine = () => {
+    const d = lineDraft;
+    const v = lineCut;
+    if (!d || !v) return;
+    if (d.points.length < 2) {
+      setMarkWarning("A line needs at least two points");
+      return;
+    }
+    const why = lineProblem(v, d.points);
+    if (why) {
+      setMarkWarning(`Can't keep this line: ${why}`);
+      return;
+    }
+    const line = penLine(d.points, () => crypto.randomUUID());
+    const pieceId = v.piece.id;
+    edit((e, g) => addLine(e, g, pieceId, line));
+    setLineDraft(null);
+    setMarkWarning(null);
+  };
+
+  const removeMark = () => {
+    const m = markPicked;
+    if (!m) return;
+    if (m.kind === "line") edit((e, g) => removeLine(e, g, m.pieceId, m.id));
+    else if (m.kind === "fold")
+      edit((e, g) => removeFold(e, g, m.pieceId, m.id));
+    else edit((e, g) => setGrain(e, g, m.pieceId, undefined));
+    setMarkPick(null);
+  };
+
+  const markKeys = useRef({ finishLine, removeMark });
+  useEffect(() => {
+    markKeys.current = { finishLine, removeMark };
+  });
+  useEffect(() => {
+    if (!marking) return;
+    const key = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.metaKey ||
+        e.ctrlKey
+      )
+        return;
+      if (e.key === "Escape") {
+        setLineDraft(null);
+        setFoldFrom(null);
+        setMarkPick(null);
+        setMarkWarning(null);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        markKeys.current.finishLine();
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        let drafting = false;
+        setLineDraft((d) => {
+          drafting = !!d;
+          return d ? { ...d, points: d.points.slice(0, -1) } : d;
+        });
+        if (!drafting) markKeys.current.removeMark();
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [marking]);
+
+  /** The marks tool's pointer down; true if it took it. */
+  const markDown = (e: React.PointerEvent<HTMLDivElement>, p: P): boolean => {
+    setMarkWarning(null);
+    if (lineDraft) {
+      if (!lineCut) return false;
+      drag.current = {
+        kind: "line",
+        cut: lineCut,
+        at: markAt(lineCut, e, lineDraft.points.at(-1)?.at),
+        x: e.clientX,
+        y: e.clientY,
+        moved: false,
+      };
+      return true;
+    }
+    if (markKind === "notch" || markKind === "fold") {
+      const hit = pointHit(p);
+      const node = hit?.v.piece.outline[hit.k];
+      if (hit && node && markKind === "notch") {
+        const pieceId = hit.v.piece.id;
+        if (hit.kind === "node") {
+          if (node.type !== "notch")
+            edit((x, g) => setNodeType(x, g, pieceId, node.id, "notch"));
+        } else {
+          const at = toPiece(hit.v, p);
+          edit((x, g) =>
+            insertNode(
+              x,
+              g,
+              pieceId,
+              node.id,
+              [at[0], at[1]],
+              crypto.randomUUID(),
+              "notch",
+            ),
+          );
+        }
+        return true;
+      }
+      if (hit?.kind === "node" && node) {
+        const from = foldFrom
+          ? cuts.find((v) => v.cut.id === foldFrom.cutId)
+          : undefined;
+        if (!foldFrom || !from || from.piece.id !== hit.v.piece.id) {
+          setFoldFrom({ cutId: hit.v.cut.id, nodeId: node.id, cursor: p });
+          return true;
+        }
+        if (foldFrom.nodeId === node.id) {
+          setFoldFrom(null);
+          return true;
+        }
+        const why = foldProblem(hit.v.piece.outline, foldFrom.nodeId, node.id);
+        if (why) {
+          setMarkWarning(`Can't fold there: ${why}`);
+          return true;
+        }
+        const fold = {
+          id: crypto.randomUUID(),
+          from: foldFrom.nodeId,
+          to: node.id,
+        };
+        const pieceId = hit.v.piece.id;
+        edit((x, g) => addFold(x, g, pieceId, fold));
+        setFoldFrom(null);
+        return true;
+      }
+    }
+    const m = markHit(p);
+    if (m) {
+      setMarkPick(m);
+      return true;
+    }
+    setMarkPick(null);
+    const v = hitCut(p);
+    if (!v) return false;
+    if (markKind === "line") {
+      const at = markAt(v, e);
+      setLineDraft({ cutId: v.cut.id, points: [], cursor: at, handle: null });
+      drag.current = {
+        kind: "line",
+        cut: v,
+        at,
+        x: e.clientX,
+        y: e.clientY,
+        moved: false,
+      };
+      return true;
+    }
+    if (markKind === "grain") {
+      const from = markAt(v, e);
+      drag.current = { kind: "grain", cut: v, from };
+      setGrainLive({ cutId: v.cut.id, from, to: from });
+      return true;
+    }
+    return false;
+  };
+
+  const markBar = (
+    <MarkBar
+      kind={markKind}
+      onKind={setMarkKind}
+      drawing={
+        lineDraft
+          ? {
+              points: lineDraft.points.length,
+              onFinish: finishLine,
+              onUndo: () =>
+                setLineDraft((d) =>
+                  d ? { ...d, points: d.points.slice(0, -1) } : d,
+                ),
+              onCancel: () => setLineDraft(null),
+            }
+          : undefined
+      }
+      folding={foldFrom ? { onCancel: () => setFoldFrom(null) } : undefined}
+      picked={
+        markPicked ? { what: markPicked.kind, onRemove: removeMark } : undefined
+      }
+      warning={
+        markWarning ??
+        (lineDraft && lineCut
+          ? (() => {
+              const live = lineDraft.cursor
+                ? [
+                    ...lineDraft.points,
+                    {
+                      at: lineDraft.cursor,
+                      ...(lineDraft.handle ? { out: lineDraft.handle } : {}),
+                    },
+                  ]
+                : lineDraft.points;
+              const why = lineProblem(lineCut, live);
+              return why ? `Can't keep this line: ${why}` : undefined;
+            })()
+          : undefined)
+      }
+    />
+  );
+
   const bar = (() => {
     const warning = shape?.problem
       ? `Can't keep this shape: ${shape.problem}`
@@ -1164,6 +1587,7 @@ export function PatternPanel({
           setPen((x) => ({ ...x, cursor: at, handle: null, problem: null }));
           return;
         }
+        if (marking && e.button === 0 && markDown(e, p)) return;
         if (points) {
           const hit = pointHit(p);
           const nodes = hit?.v.piece.outline;
@@ -1261,7 +1685,34 @@ export function PatternPanel({
           if (d.moved) setPen((x) => ({ ...x, handle: toPattern(e) }));
           return;
         }
-        if (!d || d.kind === "pen") return;
+        if (marking && (!d || d.kind === "line" || d.kind === "grain")) {
+          if (!d) {
+            if (lineDraft && lineCut) {
+              const at = markAt(lineCut, e, lineDraft.points.at(-1)?.at);
+              if (
+                lineDraft.cursor?.[0] !== at[0] ||
+                lineDraft.cursor[1] !== at[1]
+              )
+                setLineDraft({ ...lineDraft, cursor: at });
+            } else if (foldFrom)
+              setFoldFrom({ ...foldFrom, cursor: toPattern(e) });
+            return;
+          }
+          if (d.kind === "grain") {
+            const to = markAt(d.cut, e, d.from);
+            setGrainLive({ cutId: d.cut.cut.id, from: d.from, to });
+            return;
+          }
+          if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3)
+            d.moved = true;
+          if (d.moved)
+            setLineDraft((x) =>
+              x ? { ...x, handle: toPiece(d.cut, toPattern(e)) } : x,
+            );
+          return;
+        }
+        if (!d || d.kind === "pen" || d.kind === "line" || d.kind === "grain")
+          return;
         if (d.kind === "pan") {
           if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3)
             d.moved = true;
@@ -1363,10 +1814,41 @@ export function PatternPanel({
           }));
           return;
         }
+        if (d.kind === "line") {
+          const out = d.moved ? toPiece(d.cut, toPattern(e)) : undefined;
+          const last = lineDraft?.points.at(-1);
+          // A click on the last point again (a double click) puts nothing down.
+          if (!out && last && last.at[0] === d.at[0] && last.at[1] === d.at[1])
+            return;
+          setLineDraft((x) =>
+            x
+              ? {
+                  ...x,
+                  points: [...x.points, { at: d.at, ...(out ? { out } : {}) }],
+                  handle: null,
+                }
+              : x,
+          );
+          return;
+        }
+        if (d.kind === "grain") {
+          const g = grainLive;
+          setGrainLive(null);
+          if (!g || Math.hypot(g.to[0] - g.from[0], g.to[1] - g.from[1]) < 1)
+            return;
+          const pieceId = d.cut.piece.id;
+          const grain = {
+            from: [roundMm(g.from[0]), roundMm(g.from[1])] as Vec2,
+            to: [roundMm(g.to[0]), roundMm(g.to[1])] as Vec2,
+          };
+          edit((x, gid) => setGrain(x, gid, pieceId, grain));
+          return;
+        }
         if (d.kind === "pan") {
           if (!d.moved) {
             select(d.hit);
             setPick(null);
+            setFoldFrom(null);
           }
           return;
         }
@@ -1405,12 +1887,17 @@ export function PatternPanel({
         setLive(null);
         setShape(null);
         setPen((x) => ({ ...x, handle: null }));
+        setGrainLive(null);
       }}
       onPointerLeave={() =>
         drawing && !drag.current && setPen((x) => ({ ...x, cursor: null }))
       }
       onDoubleClick={(e) => {
         if (drawing) return;
+        if (marking) {
+          if (lineDraft) finishLine();
+          return;
+        }
         if (points) {
           const p = toPattern(e);
           const hit = pointHit(p);
@@ -1456,6 +1943,7 @@ export function PatternPanel({
                   piece={v.piece}
                   color={cutColors?.get(v.cut.id)}
                   bad={!!shape?.problem && shape.pieceId === v.piece.id}
+                  marked={markPicked?.cutId === v.cut.id ? markPicked : null}
                 />
                 {/* Seams, one colour each, on the edges they sew. */}
                 {(garment?.seams ?? []).flatMap((seam, i) =>
@@ -1506,6 +1994,32 @@ export function PatternPanel({
                         />
                       );
                     })}
+                {marking && (
+                  <MarkMarks
+                    v={v}
+                    kind={markKind}
+                    line={lineDraft?.cutId === v.cut.id ? lineDraft : null}
+                    fold={foldFrom?.cutId === v.cut.id ? foldFrom : null}
+                    grain={grainLive?.cutId === v.cut.id ? grainLive : null}
+                    bad={
+                      lineDraft?.cutId === v.cut.id &&
+                      !!lineProblem(v, [
+                        ...lineDraft.points,
+                        ...(lineDraft.cursor
+                          ? [
+                              {
+                                at: lineDraft.cursor,
+                                ...(lineDraft.handle
+                                  ? { out: lineDraft.handle }
+                                  : {}),
+                              },
+                            ]
+                          : []),
+                      ])
+                    }
+                    r={NODE_PX * mmPerPx}
+                  />
+                )}
                 {points && (
                   <PointMarks
                     piece={v.piece}
@@ -1618,6 +2132,11 @@ export function PatternPanel({
               setPen({ points: [], cursor: null, handle: null, problem: null })
             }
           />
+        </div>
+      )}
+      {marking && garment && layout.cuts.length > 0 && (
+        <div className="pointer-events-none absolute bottom-[76px] left-1/2 z-10 w-max max-w-[calc(100%-32px)] -translate-x-1/2">
+          {markBar}
         </div>
       )}
       {points && garment && layout.cuts.length > 0 && (
