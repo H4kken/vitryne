@@ -3,7 +3,7 @@
 // changes are saved or the person decided about them; if they keep it, the URL goes back to it.
 
 import { useEffect, useRef } from "react";
-import { useEditor } from "@/editor/useEditor";
+import { useEditor } from "@/editor/hooks/useEditor";
 import { useShowOpen } from "./useShowOpen";
 
 export function HomeRoute() {

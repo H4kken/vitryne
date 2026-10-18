@@ -5,7 +5,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { exampleId, fetchExample } from "@/editor/examples";
-import { useEditor } from "@/editor/useEditor";
+import { useEditor } from "@/editor/hooks/useEditor";
 import { ProjectError } from "./ProjectError";
 import { ProjectLoading } from "./ProjectLoading";
 import { useShowOpen } from "./useShowOpen";

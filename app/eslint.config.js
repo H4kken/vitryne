@@ -31,12 +31,8 @@ export default tseslint.config(
   {
     // One component per file (docs/ARCHITECTURE.md, "Files"); shadcn's generated ones excepted.
     files: ["src/**/*.tsx"],
-    // Editor.tsx and PatternPanel.tsx are being split (the next two commits).
-    ignores: [
-      "src/components/ui/**",
-      "src/editor/Editor.tsx",
-      "src/pattern/PatternPanel.tsx",
-    ],
+    // PatternPanel.tsx is being split (the next commit).
+    ignores: ["src/components/ui/**", "src/pattern/PatternPanel.tsx"],
     plugins: { react },
     // "detect" calls an API ESLint 10 removed; the version from package.json instead.
     settings: { react: { version: pkg.dependencies.react } },

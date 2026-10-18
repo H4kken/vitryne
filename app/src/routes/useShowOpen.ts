@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useEditor } from "@/editor/useEditor";
+import { useEditor } from "@/editor/hooks/useEditor";
 import { docRoute } from "./docRoute";
 
 /** Puts the open document's URL back, without a history entry (an open or close that didn't happen). */

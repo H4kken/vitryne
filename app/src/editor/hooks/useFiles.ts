@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Opening and saving, and what protects the user's work: autosave to the cloud (src/cloud/
-// autosave.ts) once Rust validated the document, one tab per cloud project (lock.ts), and the
-// recovery copy, which keeps what hasn't reached the cloud yet. Projects open and save in the
-// folder form; a file from disk opens as a new project. Nothing is saved to disk.
+// autosave.ts, run by useAutosaveTriggers) once Rust validated the document, one tab per cloud
+// project (useProjectLock), and the recovery copy (useRecoveryCopy), which keeps what hasn't
+// reached the cloud yet. Projects open and save in the folder form; a file from disk opens as a
+// new project. Nothing is saved to disk.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Autosaver, type SaveStatus } from "@/cloud/autosave";
 import type { CloudBackend, CloudUser } from "@/cloud/backend";
-import { ProjectLock } from "@/cloud/lock";
 import {
   type CloudRef,
   collectUnused,
@@ -19,21 +19,17 @@ import {
 import { recoverChanges, renameProject } from "@/document/commands";
 import { parseEntities } from "@/document/entities";
 import type { DocState, DocumentStore } from "@/document/store";
-import {
-  dropRecovery,
-  findRecovery,
-  keepRecovery,
-  type Recovery,
-} from "@/storage/recovery";
+import { dropRecovery, findRecovery, type Recovery } from "@/storage/recovery";
 import type { FileOpener, FileRef } from "@/storage/storage";
 import { copyFileData, type FileData } from "@/worker/protocol";
 import type { EngineSession } from "@/worker/session";
+import { useProjectLock } from "./useProjectLock";
+import { useAutosaveTriggers } from "./useAutosaveTriggers";
+import { useRecoveryCopy } from "./useRecoveryCopy";
 
 /** ok: a save (shown by the title); info: worth a card; error: what went wrong. */
 export type Notice = { kind: "ok" | "info" | "error"; text: string } | null;
 
-/** How long the document must be still before its recovery copy is written. */
-const RECOVERY_DELAY_MS = 1000;
 /** Unused parts are looked for at most this often (each look is a query). */
 const COLLECT_EVERY_MS = 10 * 60 * 1000;
 
@@ -94,13 +90,9 @@ export function useFiles(
   /** `generation` for rendering: what the URL follows (a new document, or the same one saved). */
   const [opened, setOpened] = useState(0);
   const nextDocument = () => setOpened(++generation.current);
-  /** Which project this tab can't edit, and why. */
-  const [blockedOn, setBlockedOn] = useState<{
-    id: string;
-    why: Exclude<Blocked, null>;
-  } | null>(null);
-  const blockedNow = useRef<Blocked>(null);
-  const lock = useMemo(() => new ProjectLock(), []);
+  const { blocked, blockedNow, takeLock } = useProjectLock(
+    ref?.cloud?.id ?? null,
+  );
   const lastCollect = useRef(0);
   /** The anonymous user was told once that their draft is in the cloud. */
   const toldDraft = useRef(false);
@@ -168,64 +160,7 @@ export function useFiles(
   }, [autosave, pushToCloud, store]);
   useEffect(() => () => autosave.dispose(), [autosave]);
 
-  // One tab per cloud project.
-  const cloudId = ref?.cloud?.id ?? null;
-  const blocked: Blocked =
-    blockedOn && blockedOn.id === cloudId ? blockedOn.why : null;
-  useEffect(() => {
-    blockedNow.current = blocked;
-  }, [blocked]);
-  useEffect(() => {
-    if (!cloudId) {
-      lock.drop();
-      return;
-    }
-    let live = true;
-    void lock
-      .take(
-        cloudId,
-        false,
-        () => live && setBlockedOn({ id: cloudId, why: "taken" }),
-      )
-      .then(
-        (got) =>
-          live && !got && setBlockedOn({ id: cloudId, why: "elsewhere" }),
-      );
-    return () => {
-      live = false;
-    };
-  }, [cloudId, lock]);
-  useEffect(() => () => lock.drop(), [lock]);
-
-  // Every change Rust confirmed is autosaved.
-  useEffect(() => {
-    autosave.changed();
-  }, [autosave, doc.rev, doc.dirty, doc.syncing, doc.empty, blocked]);
-
-  // Leaving the tab (or the page) saves what is waiting.
-  useEffect(() => {
-    const now = () => {
-      if (document.visibilityState === "hidden") void autosave.flush();
-    };
-    document.addEventListener("visibilitychange", now);
-    window.addEventListener("pagehide", now);
-    return () => {
-      document.removeEventListener("visibilitychange", now);
-      window.removeEventListener("pagehide", now);
-    };
-  }, [autosave]);
-
-  // A project a sign-in stopped (it needed an account): saved once there is one.
-  const accountUser =
-    cloud.user && !cloud.user.anonymous ? cloud.user.id : null;
-  useEffect(() => {
-    if (
-      accountUser &&
-      autosave.status.kind === "stopped" &&
-      autosave.status.reason === "account"
-    )
-      autosave.resume();
-  }, [accountUser, autosave]);
+  useAutosaveTriggers(autosave, doc, blocked, cloud.user);
 
   const load = useCallback(
     async (r: FileRef, data: FileData, opts: { unsaved?: boolean } = {}) => {
@@ -411,29 +346,7 @@ export function useFiles(
       }
     }, cancelled);
 
-  // The recovery copy follows the confirmed document while it has changes not saved.
-  useEffect(() => {
-    if (doc.empty) return;
-    if (!doc.dirty) {
-      void dropRecovery();
-      return;
-    }
-    if (doc.syncing || !original.current) return;
-    const data = original.current;
-    const t = setTimeout(() => {
-      void store.settled().then(({ entities }) =>
-        keepRecovery({
-          fileName: doc.fileName,
-          cloud: refNow.current?.cloud,
-          data,
-          saved: JSON.stringify(store.savedEntities),
-          current: JSON.stringify(entities),
-          unsaved: store.unsaved,
-        }),
-      );
-    }, RECOVERY_DELAY_MS);
-    return () => clearTimeout(t);
-  }, [doc.empty, doc.dirty, doc.syncing, doc.rev, doc.fileName, store]);
+  useRecoveryCopy(doc, store, original, refNow);
 
   const recoverNow = useCallback(
     async (r: Recovery, auto: boolean) => {
@@ -578,12 +491,7 @@ export function useFiles(
     takeOver: async () => {
       const id = refNow.current?.cloud?.id;
       if (!id) return;
-      if (
-        !(await lock.take(id, true, () => setBlockedOn({ id, why: "taken" })))
-      )
-        return;
-      setBlockedOn(null);
-      blockedNow.current = null;
+      if (!(await takeLock(id))) return;
       await loadCloud(id).catch((e: unknown) => fail("Could not open", e));
     },
     /** Projects moved to another id (an anonymous user's, into the account they signed in to). */

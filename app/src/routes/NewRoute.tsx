@@ -4,7 +4,7 @@
 // back; with nothing to put back, or another document open, the URL goes where that is.
 
 import { useEffect } from "react";
-import { useEditor } from "@/editor/useEditor";
+import { useEditor } from "@/editor/hooks/useEditor";
 import { docRoute } from "./docRoute";
 import { ProjectLoading } from "./ProjectLoading";
 import { useShowOpen } from "./useShowOpen";

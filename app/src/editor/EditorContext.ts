@@ -5,7 +5,7 @@
 import { createContext, type ReactNode } from "react";
 import type { DocState } from "@/document/store";
 import type { Example } from "./examples";
-import type { useFiles } from "./useFiles";
+import type { useFiles } from "./hooks/useFiles";
 
 export interface EditorRoutes {
   files: ReturnType<typeof useFiles>;

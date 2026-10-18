@@ -3,11 +3,11 @@
 // file, picked or dropped anywhere here: a DXF pattern, or a .vtry project; start from
 // scratch; or start from one of the bundled examples), then the person's projects as cards.
 
-import { type Example, exampleId, fetchExample } from "./examples";
-import { ImportIcon } from "./icons/ImportIcon";
-import { Logo } from "./icons/Logo";
-import { PRESET_ART } from "./icons/presetArt";
-import { ScratchIcon } from "./icons/ScratchIcon";
+import { type Example, exampleId, fetchExample } from "../examples";
+import { ImportIcon } from "../icons/ImportIcon";
+import { Logo } from "../icons/Logo";
+import { PRESET_ART } from "../icons/presetArt";
+import { ScratchIcon } from "../icons/ScratchIcon";
 
 /** What each bundled example is made of. */
 const PRESET_NOTES: Record<string, string> = {
