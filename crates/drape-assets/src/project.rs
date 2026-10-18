@@ -291,6 +291,12 @@ impl<'a> ProjectGarment<'a> {
     }
 
     /// The SDF box: `collisionBounds`, or the placed garment's bounding box plus a margin.
+    /// The body's SDF for a garment with no cuts yet: its own collision box, or the default
+    /// one around the body without one.
+    pub fn body_sdf(&self) -> SdfParams {
+        self.sdf_params(&[])
+    }
+
     fn sdf_params(&self, placed: &[Vec3]) -> SdfParams {
         let engine = self.engine();
         let num = |k: &str, default: f32| {
@@ -307,6 +313,7 @@ impl<'a> ProjectGarment<'a> {
             .and_then(|s| s.collision_bounds.as_ref())
         {
             Some(b) => (b.min.map(m), b.max.map(m)),
+            None if placed.is_empty() => (d.min, d.max),
             None => {
                 let (lo, hi) = placed.iter().fold(
                     (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)),

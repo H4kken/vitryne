@@ -263,7 +263,11 @@ export function useFiles(
       );
   };
 
-  /** A project made from an imported pattern: a new cloud project at once. */
+  /**
+   * A project made from an imported pattern, or from scratch: a new cloud project at once.
+   * `told`: what the person is told once it is open (default: how to go on after an import;
+   * null: nothing).
+   */
   const importNew = (
     make: (rev: number) => Promise<{
       name: string;
@@ -271,12 +275,13 @@ export function useFiles(
       notes: string[];
       zip: ArrayBuffer;
     }>,
+    told?: string | null,
   ) =>
     new Promise<void>((resolve, reject) => {
       guarded(
         async () => {
           try {
-            setBusy("Importing");
+            setBusy(told === undefined ? "Importing" : "Creating");
             const rev = store.state.rev + 1;
             const m = await make(rev);
             nextDocument();
@@ -288,10 +293,16 @@ export function useFiles(
             setRef(null);
             session.drape(rev, true);
             void dropRecovery();
-            setNotice({
-              kind: "info",
-              text: `Imported ${m.name}. Pick Select in the 3D view to move a piece, or the Pieces panel to change where it starts.`,
-            });
+            setNotice(
+              told === null
+                ? null
+                : {
+                    kind: "info",
+                    text:
+                      told ??
+                      `Imported ${m.name}. Pick Select in the 3D view to move a piece, or the Pieces panel to change where it starts.`,
+                  },
+            );
             resolve();
           } catch (e) {
             reject(e as Error);

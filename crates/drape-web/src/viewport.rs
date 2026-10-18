@@ -48,12 +48,20 @@ struct Live {
     export_fabrics: RefCell<Vec<ExportFabric>>,
 }
 
+/// The body alone (a garment with no pieces yet), and the garment's camera.
+struct Bare {
+    renderer: RefCell<Renderer>,
+    camera: (Vec3, f32),
+}
+
 struct Core {
     engine: Engine,
     surface: wgpu::Surface<'static>,
     config: RefCell<wgpu::SurfaceConfiguration>,
     camera: RefCell<OrbitCamera>,
     live: RefCell<Option<Rc<Live>>>,
+    /// Shown instead of a drape when there is nothing to drape.
+    bare: RefCell<Option<Rc<Bare>>>,
     /// The body and its SDF key, kept across garment changes.
     body: RefCell<Option<(String, Arc<Body>)>>,
     pulling: Cell<Option<Vec3>>,
@@ -136,6 +144,7 @@ impl Viewport {
                 config: RefCell::new(config),
                 camera: RefCell::new(OrbitCamera::default()),
                 live: RefCell::new(None),
+                bare: RefCell::new(None),
                 body: RefCell::new(None),
                 pulling: Cell::new(None),
                 fast: Cell::new(false),
@@ -200,14 +209,32 @@ impl Viewport {
             *c.body.borrow_mut() = Some((p.info.sdf_key.clone(), Arc::new(body)));
         }
         let body = c.body.borrow().as_ref().expect("set above").1.clone();
+        // Drop the old drape first: its buffers are freed before the new ones are made.
+        c.pulling.set(None);
+        *c.live.borrow_mut() = None;
+        *c.bare.borrow_mut() = None;
+        if frame_camera {
+            let (target, distance) = scene.inner.camera;
+            *c.camera.borrow_mut() = OrbitCamera::looking_at(target, distance);
+        }
+        let Some(p) = &p.cloth else {
+            let mut renderer = Renderer::body_only(
+                &c.engine.gpu().device,
+                c.config.borrow().format,
+                &body.render,
+            );
+            renderer.set_style(&c.engine.gpu().queue, &c.style.get());
+            *c.bare.borrow_mut() = Some(Rc::new(Bare {
+                renderer: RefCell::new(renderer),
+                camera: scene.inner.camera,
+            }));
+            return Ok(baked);
+        };
         let garment = Arc::new(Garment::load_with_materials(
             &p.garment,
             &p.fabric,
             &p.panel_fabrics,
         )?);
-        // Drop the old drape first: its buffers are freed before the new ones are made.
-        c.pulling.set(None);
-        *c.live.borrow_mut() = None;
         let sim = c.engine.simulate(&garment, &body, &p.settings);
         let mut renderer = Renderer::new(
             &c.engine.gpu().device,
@@ -224,10 +251,6 @@ impl Viewport {
             &drape_render::seam_segments(&garment.desc.seams),
         );
         renderer.show_seams(c.show_seams.get());
-        if frame_camera {
-            let (target, distance) = garment.desc.camera;
-            *c.camera.borrow_mut() = OrbitCamera::looking_at(target, distance);
-        }
         *c.live.borrow_mut() = Some(Rc::new(Live {
             n_verts: sim.n_verts(),
             sim,
@@ -235,7 +258,7 @@ impl Viewport {
             placer: p.placer.clone(),
             moved: RefCell::new(None),
             panels,
-            cuts: p.info.cuts.clone(),
+            cuts: scene.inner.info.cuts.clone(),
             colors: RefCell::new(p.panel_colors.clone()),
             export_fabrics: RefCell::new(p.export_fabrics.clone()),
         }));
@@ -260,6 +283,9 @@ impl Viewport {
         let gpu = self.core.engine.gpu();
         if let Some(live) = self.core.live.borrow().as_ref() {
             live.renderer.borrow_mut().set_style(&gpu.queue, &style);
+        }
+        if let Some(bare) = self.core.bare.borrow().as_ref() {
+            bare.renderer.borrow_mut().set_style(&gpu.queue, &style);
         }
         Ok(())
     }
@@ -297,6 +323,7 @@ impl Viewport {
     pub fn clear(&self) {
         self.core.pulling.set(None);
         *self.core.live.borrow_mut() = None;
+        *self.core.bare.borrow_mut() = None;
     }
 
     /// One display frame: 1 sim frame (8 in fast-drape mode) + render + present. False if the
@@ -319,8 +346,9 @@ impl Viewport {
         let mut enc = gpu.device.create_command_encoder(&Default::default());
         let cfg = c.config.borrow();
         let live = c.live.borrow().clone();
-        match live {
-            Some(live) => {
+        let bare = c.bare.borrow().clone();
+        match (live, bare) {
+            (Some(live), _) => {
                 // Params are written per sim frame, and queue writes apply at submit, so each
                 // extra sim frame gets its own submit.
                 if c.stepping() && c.fast.get() {
@@ -339,7 +367,16 @@ impl Viewport {
                     &c.camera.borrow(),
                 );
             }
-            None => {
+            (None, Some(bare)) => bare.renderer.borrow_mut().draw(
+                &gpu.device,
+                &gpu.queue,
+                &mut enc,
+                &view,
+                cfg.width,
+                cfg.height,
+                &c.camera.borrow(),
+            ),
+            (None, None) => {
                 enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("empty"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -654,20 +691,27 @@ impl Viewport {
     pub fn thumbnail(&self, w: u32, h: u32) -> js_sys::Promise {
         let c = self.core.clone();
         wasm_bindgen_futures::future_to_promise(async move {
-            let Some(live) = c.live.borrow().clone() else {
-                return Err(JsValue::from_str("no garment loaded"));
-            };
             let gpu = c.engine.gpu();
-            let (target, distance) = live.sim.garment().desc.camera;
-            let camera = OrbitCamera::looking_at(target, distance);
+            let (w, h) = (w.max(1), h.max(1));
             // The renderer isn't borrowed while the image comes back (frames go on meanwhile).
-            let shot = live.renderer.borrow_mut().snapshot(
-                &gpu.device,
-                &gpu.queue,
-                w.max(1),
-                h.max(1),
-                &camera,
-            );
+            let live = c.live.borrow().clone();
+            let bare = c.bare.borrow().clone();
+            let shot = match (live, bare) {
+                (Some(live), _) => {
+                    let (target, distance) = live.sim.garment().desc.camera;
+                    let camera = OrbitCamera::looking_at(target, distance);
+                    live.renderer
+                        .borrow_mut()
+                        .snapshot(&gpu.device, &gpu.queue, w, h, &camera)
+                }
+                (None, Some(bare)) => {
+                    let camera = OrbitCamera::looking_at(bare.camera.0, bare.camera.1);
+                    bare.renderer
+                        .borrow_mut()
+                        .snapshot(&gpu.device, &gpu.queue, w, h, &camera)
+                }
+                (None, None) => return Err(JsValue::from_str("no garment loaded")),
+            };
             let rgba = shot.read(&gpu.device).await;
             Ok(JsValue::from(js_sys::Uint8Array::from(&rgba[..])))
         })

@@ -214,6 +214,14 @@ struct DrawMesh {
     material_buf: wgpu::Buffer,
 }
 
+/// The cloth: drawn from the solver's positions, its normals recomputed each frame.
+struct Cloth {
+    draw: DrawMesh,
+    normals_bg: wgpu::BindGroup,
+    normals_groups: u32,
+    seam_bg: wgpu::BindGroup,
+}
+
 /// A frame drawn by `Renderer::snapshot`, on its way back from the GPU.
 pub struct Snapshot {
     buffer: wgpu::Buffer,
@@ -263,9 +271,8 @@ pub struct Renderer {
     camera_bg: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
     normals_pipeline: wgpu::ComputePipeline,
-    normals_bg: wgpu::BindGroup,
-    normals_groups: u32,
-    cloth: DrawMesh,
+    /// None: the collider alone (`body_only`).
+    cloth: Option<Cloth>,
     collider: Option<DrawMesh>,
     /// The multisampled colour and depth targets, at the last drawn size: the view's, then
     /// snapshots' (so a thumbnail doesn't make the view's again).
@@ -273,7 +280,6 @@ pub struct Renderer {
     format: wgpu::TextureFormat,
     background: wgpu::Color,
     seam_pipeline: wgpu::RenderPipeline,
-    seam_bg: wgpu::BindGroup,
     seam_params: wgpu::Buffer,
     seams: Option<SeamLines>,
     show_seams: bool,
@@ -316,10 +322,25 @@ impl Renderer {
         solver: &Solver,
         collider: &RenderMesh,
     ) -> Self {
-        let n = mesh.n_verts() as u32;
-        // Normals compute.
-        let tris: Vec<u32> = mesh.tris.iter().flatten().copied().collect();
-        let (adj_off, adj) = mesh.vertex_triangles();
+        Self::build(device, format, Some((mesh, &solver.pos)), collider)
+    }
+
+    /// The collider alone, for a garment with no pieces yet.
+    pub fn body_only(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        collider: &RenderMesh,
+    ) -> Self {
+        Self::build(device, format, None, collider)
+    }
+
+    /// `cloth`: its mesh and the solver's positions.
+    fn build(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        cloth: Option<(&ClothMesh, &wgpu::Buffer)>,
+        collider: &RenderMesh,
+    ) -> Self {
         let init = |label: &str, data: &[u8], usage| {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(label),
@@ -328,24 +349,6 @@ impl Renderer {
             })
         };
         let st = wgpu::BufferUsages::STORAGE;
-        let nparams = init(
-            "normals-params",
-            bytemuck::cast_slice(&[n, 0, 0, 0]),
-            wgpu::BufferUsages::UNIFORM,
-        );
-        let tris_buf = init(
-            "tris",
-            bytemuck::cast_slice(&tris),
-            st | wgpu::BufferUsages::INDEX,
-        );
-        let adj_off_buf = init("adj-off", bytemuck::cast_slice(&adj_off), st);
-        let adj_buf = init("adj", bytemuck::cast_slice(&adj), st);
-        let nrm = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("normals"),
-            size: n as u64 * 16,
-            usage: st | wgpu::BufferUsages::VERTEX,
-            mapped_at_creation: false,
-        });
         let nmod = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("normals.wgsl"),
             source: wgpu::ShaderSource::Wgsl(NORMALS_SHADER.into()),
@@ -358,35 +361,60 @@ impl Renderer {
             compilation_options: Default::default(),
             cache: None,
         });
-        let normals_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("normals"),
-            layout: &normals_pipeline.get_bind_group_layout(0),
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: nparams.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: solver.pos.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: tris_buf.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: adj_off_buf.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: adj_buf.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: nrm.as_entire_binding(),
-                },
-            ],
+        // Normals compute.
+        let cloth = cloth.map(|(mesh, pos)| {
+            let n = mesh.n_verts() as u32;
+            let tris: Vec<u32> = mesh.tris.iter().flatten().copied().collect();
+            let (adj_off, adj) = mesh.vertex_triangles();
+            let nparams = init(
+                "normals-params",
+                bytemuck::cast_slice(&[n, 0, 0, 0]),
+                wgpu::BufferUsages::UNIFORM,
+            );
+            let tris_buf = init(
+                "tris",
+                bytemuck::cast_slice(&tris),
+                st | wgpu::BufferUsages::INDEX,
+            );
+            let adj_off_buf = init("adj-off", bytemuck::cast_slice(&adj_off), st);
+            let adj_buf = init("adj", bytemuck::cast_slice(&adj), st);
+            let nrm = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("normals"),
+                size: n as u64 * 16,
+                usage: st | wgpu::BufferUsages::VERTEX,
+                mapped_at_creation: false,
+            });
+            let normals_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("normals"),
+                layout: &normals_pipeline.get_bind_group_layout(0),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: nparams.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: pos.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: tris_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: adj_off_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: adj_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: nrm.as_entire_binding(),
+                    },
+                ],
+            });
+            (pos.clone(), nrm, tris_buf, tris.len() as u32, n, normals_bg)
         });
 
         // Draw pipeline.
@@ -484,15 +512,6 @@ impl Renderer {
                 wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             )
         };
-        let cloth = DrawMesh {
-            pos: solver.pos.clone(),
-            nrm,
-            tint: no_tint("cloth-tint", n as usize),
-            index: tris_buf,
-            n_indices: tris.len() as u32,
-            material: cloth_mat.0,
-            material_buf: cloth_mat.1,
-        };
         let sp: Vec<[f32; 4]> = collider
             .pos
             .iter()
@@ -558,19 +577,35 @@ impl Renderer {
                 },
             ],
         });
-        let seam_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("seams"),
-            layout: &seam_bgl,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: solver.pos.as_entire_binding(),
+        let cloth = cloth.map(|(pos, nrm, index, n_indices, n, normals_bg)| {
+            let seam_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("seams"),
+                layout: &seam_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: pos.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: seam_params.as_entire_binding(),
+                    },
+                ],
+            });
+            Cloth {
+                draw: DrawMesh {
+                    pos,
+                    nrm,
+                    tint: no_tint("cloth-tint", n as usize),
+                    index,
+                    n_indices,
+                    material: cloth_mat.0,
+                    material_buf: cloth_mat.1,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: seam_params.as_entire_binding(),
-                },
-            ],
+                normals_bg,
+                normals_groups: n.div_ceil(64),
+                seam_bg,
+            }
         });
         let seam_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("seams.wgsl"),
@@ -636,13 +671,10 @@ impl Renderer {
             camera_bg,
             pipeline,
             seam_pipeline,
-            seam_bg,
             seam_params,
             seams: None,
             show_seams: false,
             normals_pipeline,
-            normals_bg,
-            normals_groups: n.div_ceil(64),
             cloth,
             collider,
             targets: [None, None],
@@ -722,11 +754,13 @@ impl Renderer {
     pub fn set_style(&mut self, queue: &wgpu::Queue, s: &Style) {
         let [r, g, b] = s.background.map(f64::from);
         self.background = wgpu::Color { r, g, b, a: 1.0 };
-        queue.write_buffer(
-            &self.cloth.material_buf,
-            0,
-            bytemuck::bytes_of(&material_u(s.cloth, s.cloth_back)),
-        );
+        if let Some(c) = &self.cloth {
+            queue.write_buffer(
+                &c.draw.material_buf,
+                0,
+                bytemuck::bytes_of(&material_u(s.cloth, s.cloth_back)),
+            );
+        }
         if let Some(c) = &self.collider {
             queue.write_buffer(
                 &c.material_buf,
@@ -744,7 +778,10 @@ impl Renderer {
         panels: &[std::ops::Range<u32>],
         colors: &[Option<[f32; 3]>],
     ) {
-        let n = (self.cloth.tint.size() / 16) as usize;
+        let Some(cloth) = &self.cloth else {
+            return;
+        };
+        let n = (cloth.draw.tint.size() / 16) as usize;
         let mut tint = vec![[0f32; 4]; n];
         for (r, c) in panels.iter().zip(colors) {
             if let Some([red, g, b]) = c {
@@ -752,7 +789,7 @@ impl Renderer {
                 tint[r].fill([*red, *g, *b, 1.0]);
             }
         }
-        queue.write_buffer(&self.cloth.tint, 0, bytemuck::cast_slice(&tint));
+        queue.write_buffer(&cloth.draw.tint, 0, bytemuck::cast_slice(&tint));
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -860,14 +897,14 @@ impl Renderer {
             light_dir: Vec3::new(0.4, 1.0, 0.6).normalize().extend(0.0).to_array(),
         };
         queue.write_buffer(&self.camera_buf, 0, bytemuck::bytes_of(&cam));
-        {
+        if let Some(c) = &self.cloth {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("normals"),
                 timestamp_writes: None,
             });
             pass.set_pipeline(&self.normals_pipeline);
-            pass.set_bind_group(0, &self.normals_bg, &[]);
-            pass.dispatch_workgroups(self.normals_groups, 1, 1);
+            pass.set_bind_group(0, &c.normals_bg, &[]);
+            pass.dispatch_workgroups(c.normals_groups, 1, 1);
         }
         let (color, depth) = self.targets(device, w, h, slot);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -896,7 +933,8 @@ impl Renderer {
         });
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.camera_bg, &[]);
-        for m in std::iter::once(&self.cloth).chain(self.collider.as_ref()) {
+        let cloth = self.cloth.as_ref().map(|c| &c.draw);
+        for m in cloth.into_iter().chain(self.collider.as_ref()) {
             pass.set_bind_group(1, &m.material, &[]);
             pass.set_vertex_buffer(0, m.pos.slice(..));
             pass.set_vertex_buffer(1, m.nrm.slice(..));
@@ -904,7 +942,7 @@ impl Renderer {
             pass.set_index_buffer(m.index.slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..m.n_indices, 0, 0..1);
         }
-        if let (true, Some(lines)) = (self.show_seams, &self.seams) {
+        if let (true, Some(lines), Some(c)) = (self.show_seams, &self.seams, &self.cloth) {
             // About 3 px wide; the viewport in the uniform sizes it.
             queue.write_buffer(
                 &self.seam_params,
@@ -917,7 +955,7 @@ impl Renderer {
             );
             pass.set_pipeline(&self.seam_pipeline);
             pass.set_bind_group(0, &self.camera_bg, &[]);
-            pass.set_bind_group(1, &self.seam_bg, &[]);
+            pass.set_bind_group(1, &c.seam_bg, &[]);
             pass.set_vertex_buffer(0, lines.instances.slice(..));
             pass.draw(0..6, 0..lines.count);
         }

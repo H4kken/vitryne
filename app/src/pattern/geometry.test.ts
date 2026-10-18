@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from "vitest";
-import { edgeInterior, flattenCubic } from "./geometry";
+import { edgeInterior, flattenCubic, layoutCuts } from "./geometry";
 
 describe("flattenCubic", () => {
   it("leaves a straight curve with nothing between its ends", () => {
@@ -52,5 +52,15 @@ describe("edgeInterior", () => {
     );
     expect(curve.length).toBeGreaterThan(4);
     expect(edgeInterior(undefined, [0, 0], [1, 1])).toEqual([]);
+  });
+});
+
+describe("layoutCuts", () => {
+  it("frames a metre around the origin when there is nothing yet", () => {
+    for (const g of [undefined, { pieces: [] }] as const) {
+      const { cuts, box } = layoutCuts(g as Parameters<typeof layoutCuts>[0]);
+      expect(cuts).toEqual([]);
+      expect(box).toEqual({ minX: -500, minY: -500, maxX: 500, maxY: 500 });
+    }
   });
 });

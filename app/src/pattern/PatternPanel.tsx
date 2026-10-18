@@ -7,6 +7,7 @@
 // in a colour per seam. Where a cut sits here is display only (`cut.layout`).
 
 import {
+  type ReactNode,
   type Ref,
   useEffect,
   useImperativeHandle,
@@ -290,6 +291,7 @@ export function PatternPanel({
   onArrange,
   sewing,
   cutColors,
+  empty,
   ref,
 }: {
   garment: Garment | undefined;
@@ -302,6 +304,8 @@ export function PatternPanel({
   sewing?: SewingState;
   /** Each coloured cut's colour (#rrggbb), by cut id. */
   cutColors?: ReadonlyMap<string, string>;
+  /** Shown over the view while the garment has no pieces. */
+  empty?: ReactNode;
   ref?: Ref<PatternView>;
 }) {
   const layout = useMemo(() => layoutCuts(garment), [garment]);
@@ -708,6 +712,7 @@ export function PatternPanel({
         )}
       </svg>
       {garment && <ScaleBar mmPerPx={mmPerPx} />}
+      {garment && !layout.cuts.length && empty}
     </div>
   );
 }

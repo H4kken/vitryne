@@ -251,6 +251,9 @@ export function layoutCuts(
       : auto;
     cuts.push({ piece, cut, pts, t, box: bounds(pts.map((p) => apply(t, p))) });
   }
+  // Nothing yet: a metre square around the origin, where a first piece is drawn.
+  if (!cuts.length)
+    return { cuts, box: { minX: -500, minY: -500, maxX: 500, maxY: 500 } };
   const box = bounds(
     cuts.flatMap(
       ({ box }) =>

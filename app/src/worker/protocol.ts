@@ -142,6 +142,14 @@ export interface Requests {
     };
     reply: { entities: string; notes: string[]; zip: ArrayBuffer };
   };
+  /**
+   * A project started from scratch (a garment with no pieces yet, the cotton jersey preset);
+   * it becomes the worker's document, like `importNew`, and replies the same way.
+   */
+  newEmpty: {
+    args: { avatar: ArrayBuffer; seed: number[] };
+    reply: { entities: string; notes: string[]; zip: ArrayBuffer };
+  };
   /** Pieces from a DXF to add to the open project (Rust `import::Addition`, JSON); nothing changes. */
   importAddition: {
     args: {

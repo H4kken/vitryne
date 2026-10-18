@@ -18,6 +18,7 @@ import {
   RotateCcw,
   Shapes,
   SlidersHorizontal,
+  Upload,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -651,6 +652,31 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         async () => ({ form: "zip", bytes: await fetchExample(ex) }),
       ),
     );
+  /** An empty project, opened on the flat view (its hint says how to start). */
+  const startScratch = () =>
+    startNew(
+      () =>
+        void files
+          .importNew(
+            async (rev) => ({
+              name: "Untitled.vtry",
+              ...(await session.newEmpty(
+                { avatar: await fetchAvatar(), seed: seed() },
+                rev,
+              )),
+            }),
+            null,
+          )
+          .then(() => {
+            setSelection(null);
+            setShow2d(true);
+            setShow3d(false);
+          })
+          .catch((e: unknown) => {
+            if ((e as Error).message !== "cancelled")
+              files.showError("Could not start a project", e);
+          }),
+    );
   const importFile = () => fileInput.current?.click();
   const openFolder = () => startNew(() => files.openFolder());
   const exportIt = () =>
@@ -933,7 +959,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         <Button
           className="gap-2 px-3.5 font-semibold shadow-xs"
           onClick={exportIt}
-          disabled={doc.empty}
+          disabled={doc.empty || !garment?.pieces.length}
           aria-label="Export"
         >
           <Download className="size-4" />
@@ -1094,6 +1120,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                   onPick: pickEdge,
                 }}
                 cutColors={cutColors}
+                empty={
+                  <FirstPieceHint onImport={importFile} busy={!!files.busy} />
+                }
                 onArrange={(cutId, t) =>
                   garment &&
                   store.execute((e) =>
@@ -1409,6 +1438,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           examples={examples}
           busy={files.busy}
           onPreset={openPreset}
+          onScratch={startScratch}
           onImport={importFile}
           dropProps={dropProps}
           onOpenFolder={disk.opensFolders ? openFolder : null}
@@ -1661,6 +1691,8 @@ function StatusPill({
     [text, dot] = ["Starting the 3D view…", "bg-line live-dot"];
   else if (engine.drapeError)
     [text, dot] = ["The drape stopped", "bg-destructive"];
+  else if (engine.drape && !engine.drape.info.cuts.length)
+    [text, dot] = ["No pieces yet", "bg-line"];
   else if (!show3d)
     [text, dot] = ["Flat pieces. 3D follows your edits", "bg-live"];
   else if (placing)
@@ -1869,6 +1901,32 @@ function ToolButton(props: {
       </TooltipTrigger>
       <TooltipContent>{props.label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/** The flat view of a garment with no pieces yet. */
+function FirstPieceHint(props: { onImport: () => void; busy: boolean }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
+      <div className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-[#E1E4DE] bg-white px-7 py-6 text-center shadow-[0_10px_24px_rgba(20,24,31,.08)]">
+        <h2 className="font-display m-0 text-xl font-semibold">
+          Draw your first piece
+        </h2>
+        <p className="text-body-text m-0 text-[15px]">
+          The drawing tools are on their way. For now, bring pieces in from a
+          DXF pattern.
+        </p>
+        <Button
+          variant="secondary"
+          className="gap-2"
+          onClick={props.onImport}
+          disabled={props.busy}
+        >
+          <Upload className="size-4" />
+          Import pieces
+        </Button>
+      </div>
+    </div>
   );
 }
 

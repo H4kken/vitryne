@@ -215,6 +215,9 @@ garment ── fabric (default for its cuts), appearance? (likewise)
  └─ attribution
 ```
 
+A garment may have **no pieces yet**: one started from scratch, before its first piece is drawn.
+It drapes nothing; an app shows the avatar alone.
+
 ### Pieces and outlines
 
 A **piece** is a pattern piece as drafted. Its **outline is the sewing line** (seam allowance

@@ -346,6 +346,15 @@ impl VtryFile {
         })
     }
 
+    /// A project started from scratch, with a garment with no pieces yet. `body_glb`: the test
+    /// avatar's mesh. `seed`: random bytes for the ids.
+    pub fn new_empty(body_glb: &[u8], now_ms: f64, seed: &[u8]) -> Result<VtryFile, JsValue> {
+        Ok(VtryFile {
+            file: project::ProjectFile::new_empty(body_glb, now_ms as u64, seed)?,
+            warnings: Vec::new(),
+        })
+    }
+
     /// Pieces from a DXF to add to this project's garment (`import::Addition` as JSON). The
     /// project is unchanged: the editor adds them as an edit.
     pub fn import_addition(

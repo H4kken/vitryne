@@ -159,6 +159,22 @@ const handlers: Handlers = {
     };
   },
 
+  async newEmpty({ avatar, seed }) {
+    const next = VtryFile.new_empty(
+      new Uint8Array(avatar),
+      Date.now(),
+      new Uint8Array(seed),
+    );
+    file?.free();
+    file = next;
+    viewport?.clear();
+    return {
+      entities: file.entities(),
+      notes: [],
+      zip: file.save().buffer as ArrayBuffer,
+    };
+  },
+
   async importAddition({ name, dxf, sidecar, choices, seed }) {
     return {
       addition: needFile().import_addition(
@@ -267,7 +283,7 @@ function request(m: RequestMessage) {
       const transfer =
         m.op === "save"
           ? fileDataBuffers((value as Requests["save"]["reply"]).data)
-          : m.op === "importNew"
+          : m.op === "importNew" || m.op === "newEmpty"
             ? [(value as Requests["importNew"]["reply"]).zip]
             : m.op === "exportGlb"
               ? [(value as Requests["exportGlb"]["reply"]).glb]

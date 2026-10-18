@@ -96,6 +96,9 @@ pub fn export_garment(
     g: &Garment,
     fabric_name: impl Fn(&Id) -> Option<String>,
 ) -> Result<DxfExport, String> {
+    if g.pieces.is_empty() {
+        return Err("the garment has no pieces to export yet".into());
+    }
     let mut report = ExportReport::default();
     report.notes.push(
         "No seam allowance: each outline is the sewing line. Add the allowance in your CAD tool \

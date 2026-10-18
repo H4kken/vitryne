@@ -285,7 +285,28 @@ export class EngineSession {
     args: Requests["importNew"]["args"],
     rev: number,
   ): Promise<{ entities: string; notes: string[]; zip: ArrayBuffer }> {
-    const reply = await this.need().request("importNew", args, [args.avatar]);
+    return this.made(
+      await this.need().request("importNew", args, [args.avatar]),
+      rev,
+    );
+  }
+
+  /** A project from scratch (see `Requests.newEmpty`), made like `importNew`. */
+  async newEmpty(
+    args: Requests["newEmpty"]["args"],
+    rev: number,
+  ): Promise<{ entities: string; notes: string[]; zip: ArrayBuffer }> {
+    return this.made(
+      await this.need().request("newEmpty", args, [args.avatar]),
+      rev,
+    );
+  }
+
+  /** A project the worker made is its document now; a restarted worker reopens its file. */
+  private made(
+    reply: Requests["importNew"]["reply"],
+    rev: number,
+  ): Requests["importNew"]["reply"] {
     this.restore = {
       data: { form: "zip", bytes: reply.zip.slice(0) },
       openedEntities: reply.entities,

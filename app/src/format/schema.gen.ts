@@ -159,9 +159,9 @@ export interface Garment {
    */
   appearance?: string;
   /**
-   * @minItems 1
+   * Empty in a garment started from scratch, before its first piece is drawn.
    */
-  pieces: [Piece, ...Piece[]];
+  pieces: Piece[];
   seams: Seam[];
   /**
    * Overrides of the project's simulation settings for this garment.

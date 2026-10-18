@@ -572,11 +572,6 @@ impl DxfImport {
             Some("knit"),
             Some("The engine's placeholder jersey (Material::cotton), not calibrated.".into()),
         )?;
-        // Drape as the sample garments do: with self-collision, its hash rebuilt every 4th
-        // substep (PROGRESS.md, M2).
-        let mut engine = Map::new();
-        engine.insert("self_collision".into(), true.into());
-        engine.insert("self_rebuild_every".into(), 4.into());
         let garment = Garment {
             id: garment_id,
             name: if name.is_empty() {
@@ -588,12 +583,7 @@ impl DxfImport {
             library_ref: None,
             fabric: fabric_id,
             appearance: None,
-            simulation: Some(GarmentSimulation {
-                target_vertices: None,
-                engine: Some(engine),
-                collision_bounds: Some(import_bounds(&body)),
-                other: Map::new(),
-            }),
+            simulation: Some(new_garment_simulation(&body)),
             sources: vec![source],
             pieces,
             seams,
@@ -640,6 +630,44 @@ impl DxfImport {
             notes,
         })
     }
+}
+
+/// A garment's settings in a project the editor makes (an import, or from scratch): drape as
+/// the sample garments do, with self-collision and its hash rebuilt every 4th substep
+/// (PROGRESS.md, M2), in the import collision box (whose SDF the app bundles).
+fn new_garment_simulation(body: &[Vec3]) -> GarmentSimulation {
+    let mut engine = Map::new();
+    engine.insert("self_collision".into(), true.into());
+    engine.insert("self_rebuild_every".into(), 4.into());
+    GarmentSimulation {
+        target_vertices: None,
+        engine: Some(engine),
+        collision_bounds: Some(import_bounds(body)),
+        other: Map::new(),
+    }
+}
+
+/// A project started from scratch: the test avatar (its mesh `body_glb`), the cotton jersey
+/// preset, and one garment with no pieces yet. Validated.
+pub fn empty_project(body_glb: &[u8], ids: &mut IdGen) -> Result<Document, String> {
+    let mesh = vitryne_format::glb::read(body_glb).map_err(|e| format!("avatar mesh: {e}"))?;
+    let body: Vec<Vec3> = mesh.positions.iter().map(|&p| Vec3::from(p)).collect();
+    let (project_id, garment_id) = (ids.next_id(), ids.next_id());
+    let fabric = vitryne_format::presets::cotton_jersey();
+    let garment = Garment {
+        id: garment_id,
+        name: "Untitled".into(),
+        attribution: None,
+        library_ref: None,
+        fabric: fabric.id.clone(),
+        appearance: None,
+        simulation: Some(new_garment_simulation(&body)),
+        sources: Vec::new(),
+        pieces: Vec::new(),
+        seams: Vec::new(),
+        other: Map::new(),
+    };
+    project_document(project_id, garment, fabric, body_glb.to_vec(), None, None)
 }
 
 /// The wrap for a cut moved to `place` in the editor: `auto_wrap` on the cut's outline, keeping

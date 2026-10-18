@@ -35,14 +35,22 @@ pub struct OpenReport {
 
 /// A garment ready to load on the GPU, and the body it needs.
 pub struct Prepared {
-    pub garment: GarmentDesc,
-    pub fabric: Fabric,
-    pub panel_fabrics: Vec<Fabric>,
-    pub settings: SimSettings,
     pub avatar: String,
     pub mesh: BodyMesh,
     pub sdf: SdfParams,
     pub info: PreparedInfo,
+    /// The garment's camera (target, distance, m).
+    pub camera: (Vec3, f32),
+    /// None: the garment has no pieces yet, and the body is shown alone.
+    pub cloth: Option<PreparedCloth>,
+}
+
+/// The garment's part of `Prepared`.
+pub struct PreparedCloth {
+    pub garment: GarmentDesc,
+    pub fabric: Fabric,
+    pub panel_fabrics: Vec<Fabric>,
+    pub settings: SimSettings,
     /// Fabrics for 3D export (M10), coloured by their appearances.
     pub export_fabrics: Vec<drape_assets::export::ExportFabric>,
     /// Each panel's colour (sRGB 0..1), or none for the scene's cloth colour.
@@ -151,13 +159,31 @@ impl ProjectFile {
         let mut settings = SheetScene::config();
         let mut warnings = pg.warnings.clone();
         warnings.extend(pg.apply_settings(&mut settings));
-        let vertices = pg.target_vertices();
-        let (garment, placer) = pg.build_with_placer(pg.edge_for_vertices(vertices)?)?;
         let mesh = avatar_mesh(&self.doc)?.ok_or("the project has no avatar")?;
         let avatar = self
             .doc
             .project_avatar()
             .map_or("avatar".into(), |a| a.name.clone());
+        if pg.garment.cuts().next().is_none() {
+            // Nothing to drape yet; the body's SDF is the one the first piece will need.
+            let sdf = pg.body_sdf();
+            return Ok(Prepared {
+                info: PreparedInfo {
+                    sdf_key: sdf.cache_key(&mesh),
+                    vertices: 0,
+                    self_collision: settings.self_collision,
+                    warnings,
+                    cuts: Vec::new(),
+                },
+                camera: pg.camera(),
+                avatar,
+                mesh,
+                sdf,
+                cloth: None,
+            });
+        }
+        let vertices = pg.target_vertices();
+        let (garment, placer) = pg.build_with_placer(pg.edge_for_vertices(vertices)?)?;
         let sdf = garment.sdf.clone();
         Ok(Prepared {
             info: PreparedInfo {
@@ -167,16 +193,19 @@ impl ProjectFile {
                 warnings,
                 cuts: placer.cut_ids(),
             },
-            export_fabrics: pg.export_fabrics(),
-            panel_colors: pg.panel_colors(),
-            placer,
-            fabric: pg.material(),
-            panel_fabrics: pg.panel_materials(),
-            garment,
-            settings,
+            camera: pg.camera(),
             avatar,
             mesh,
             sdf,
+            cloth: Some(PreparedCloth {
+                export_fabrics: pg.export_fabrics(),
+                panel_colors: pg.panel_colors(),
+                placer,
+                fabric: pg.material(),
+                panel_fabrics: pg.panel_materials(),
+                garment,
+                settings,
+            }),
         })
     }
     /// How each cut of the garment looks now, by cut id: its colour (none: the scene's cloth
@@ -210,6 +239,13 @@ impl ProjectFile {
             file: Self { doc },
             notes,
         })
+    }
+
+    /// A project started from scratch: the test avatar (`body_glb`: its mesh), the cotton
+    /// jersey preset and a garment with no pieces yet. `now_ms` and `seed` make the ids.
+    pub fn new_empty(body_glb: &[u8], now_ms: u64, seed: &[u8]) -> Result<Self, String> {
+        let doc = drape_assets::import::empty_project(body_glb, &mut IdGen::new(now_ms, seed))?;
+        Ok(Self { doc })
     }
 
     /// Pieces from a DXF (and its sidecar's seams) to add to this project's garment, placed
@@ -389,8 +425,9 @@ mod tests {
         assert!(red_export.name.ends_with(", Red"), "{}", red_export.name);
         assert_eq!(red_export.color, [1.0, 0.0, 0.0, 1.0]);
         let prepared = file.prepare().unwrap();
-        assert_eq!(prepared.panel_colors.len(), prepared.info.cuts.len());
-        assert_eq!(prepared.panel_colors[0], Some([1.0, 0.0, 0.0]));
+        let cloth = prepared.cloth.as_ref().unwrap();
+        assert_eq!(cloth.panel_colors.len(), prepared.info.cuts.len());
+        assert_eq!(cloth.panel_colors[0], Some([1.0, 0.0, 0.0]));
     }
 
     #[test]
@@ -409,8 +446,9 @@ mod tests {
     fn prepare_matches_the_native_scene() {
         let (file, _) = ProjectFile::open(&example_zip("tshirt")).unwrap();
         let p = file.prepare().unwrap();
-        assert!(p.settings.self_collision);
-        assert_eq!(p.settings.self_rebuild_every, 4);
+        let cloth = p.cloth.as_ref().unwrap();
+        assert!(cloth.settings.self_collision);
+        assert_eq!(cloth.settings.self_rebuild_every, 4);
         assert!(
             (9_000..11_000).contains(&p.info.vertices),
             "{}",
@@ -492,6 +530,73 @@ mod tests {
         let r = file.rewrap(sleeve, BodyPlace::LegRightFront).unwrap();
         assert_eq!(r.placement.region, "leg-right");
         assert!(r.bounds.is_none());
+    }
+
+    /// A project from scratch has nothing to drape: the body alone, with the SDF every import
+    /// uses (bundled with the app). It saves and opens again, has no edges to sew, and takes
+    /// pieces added from a DXF.
+    #[test]
+    fn an_empty_project_shows_the_body() {
+        let file = ProjectFile::new_empty(&body_glb(), 1_792_022_400_000, b"seed").unwrap();
+        let g = &file.document().garments[0];
+        assert!(g.pieces.is_empty());
+        assert_eq!(g.fabric.as_str(), vitryne_format::presets::ID_COTTON_JERSEY);
+        let p = file.prepare().unwrap();
+        assert!(p.cloth.is_none());
+        assert!(p.info.cuts.is_empty());
+        let choices: BTreeMap<String, Choice> = serde_json::from_str(
+            r#"{"front": {"type": "one", "place": "body-front"},
+                "back": {"type": "leave"}, "sleeve": {"type": "leave"}}"#,
+        )
+        .unwrap();
+        let imported = ProjectFile::import_new(
+            "tshirt.dxf",
+            &asset("assets/garments/tshirt/tshirt.dxf"),
+            None,
+            &choices,
+            &body_glb(),
+            1_792_022_400_000,
+            b"seed",
+        )
+        .unwrap();
+        assert_eq!(
+            p.info.sdf_key,
+            imported.file.prepare().unwrap().info.sdf_key
+        );
+
+        let zip = file.save().unwrap();
+        let (mut again, report) = ProjectFile::open(&zip).unwrap();
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert_eq!(again.entities_json(), file.entities_json());
+        assert!(again.sewing_edges().unwrap().is_empty());
+        assert!(again.suggest_seams().unwrap().is_empty());
+        assert!(again.looks().unwrap().is_empty());
+        assert!(again.export_dxf().is_err());
+
+        // Its first piece, from a DXF, as the editor adds it (`addPieces`).
+        let a = again
+            .import_addition(
+                "tshirt.dxf",
+                &asset("assets/garments/tshirt/tshirt.dxf"),
+                None,
+                &choices,
+                1_792_022_400_001,
+                b"seed",
+            )
+            .unwrap();
+        let mut e = again.document().entities();
+        e.garments[0]["pieces"] = serde_json::to_value(&a.pieces).unwrap();
+        e.garments[0]["sources"] = serde_json::to_value([&a.source]).unwrap();
+        again
+            .set_entities_json(&serde_json::to_string(&e).unwrap())
+            .unwrap();
+        let p = again.prepare().unwrap();
+        assert_eq!(p.info.cuts.len(), 1);
+        assert!(p.cloth.is_some());
+        assert_eq!(
+            p.info.sdf_key,
+            imported.file.prepare().unwrap().info.sdf_key
+        );
     }
 
     /// A garment's own box grows only when a moved piece would leave it: the trousers' box
@@ -586,9 +691,9 @@ mod tests {
                 .push(seam);
             file.set_entities_json(&e.to_string()).unwrap();
         }
-        let sewn = file.prepare().unwrap();
+        let sewn = file.prepare().unwrap().cloth.unwrap();
         let (sample, _) = ProjectFile::open(&example_zip("tshirt")).unwrap();
-        let sample = sample.prepare().unwrap();
+        let sample = sample.prepare().unwrap().cloth.unwrap();
         let (a, b) = (sewn.garment.sew_pairs.len(), sample.garment.sew_pairs.len());
         let (va, vb) = (sewn.garment.mesh.n_verts(), sample.garment.mesh.n_verts());
         println!("sewing pairs {a} vs {b}, vertices {va} vs {vb}");

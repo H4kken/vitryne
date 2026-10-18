@@ -16,9 +16,9 @@
       "$ref": "common.schema.json#/$defs/id"
     },
     "pieces": {
+      "description": "Empty in a garment started from scratch, before its first piece is drawn.",
       "type": "array",
-      "items": { "$ref": "#/$defs/piece" },
-      "minItems": 1
+      "items": { "$ref": "#/$defs/piece" }
     },
     "seams": {
       "type": "array",

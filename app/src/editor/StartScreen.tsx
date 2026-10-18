@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // What the editor shows with nothing open, like a design tool's home: a Create row (import a
-// file, picked or dropped anywhere here: a DXF pattern, or a .vtry project; or start from one
-// of the bundled examples), then the person's projects as cards. Starting from scratch comes
-// later.
+// file, picked or dropped anywhere here: a DXF pattern, or a .vtry project; start from
+// scratch; or start from one of the bundled examples), then the person's projects as cards.
 
 import { type Example, fetchExample } from "./examples";
-import { ImportIcon, Logo, PRESET_ART } from "./icons";
+import { ImportIcon, Logo, PRESET_ART, ScratchIcon } from "./icons";
 
 /** What each bundled example is made of. */
 const PRESET_NOTES: Record<string, string> = {
@@ -28,6 +27,8 @@ const TILE =
 export function StartScreen(props: {
   examples: Example[];
   onPreset: (e: Example) => void;
+  /** An empty project. */
+  onScratch: () => void;
   /** Picks a DXF pattern or a .vtry project. */
   onImport: () => void;
   /** Dropping a DXF (and its garment.toml), or a .vtry, here imports it. */
@@ -71,8 +72,8 @@ export function StartScreen(props: {
               What do you want to make?
             </h1>
             <p className="text-body-text m-0 text-[17px]">
-              Start from an example or bring your own pattern. Your work is
-              saved as you go.
+              Start from scratch, from an example, or bring your own pattern.
+              Your work is saved as you go.
             </p>
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
@@ -91,6 +92,24 @@ export function StartScreen(props: {
                 </span>
                 <span className="text-muted-foreground text-sm">
                   A DXF pattern or a .vtry project, or drop it here
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={props.onScratch}
+              disabled={!!props.busy}
+              className={`${TILE} border-2 border-dashed border-[#CFD4CB] hover:border-[#14181F]`}
+            >
+              <span className="flex aspect-[4/3] w-full items-center justify-center">
+                <ScratchIcon className="text-foreground" />
+              </span>
+              <span className="flex flex-col gap-0.5 px-4 pt-1 pb-4">
+                <span className="font-display text-lg font-semibold">
+                  Start from scratch
+                </span>
+                <span className="text-muted-foreground text-sm">
+                  An empty garment on the body
                 </span>
               </span>
             </button>
