@@ -238,10 +238,6 @@ function FabricList(props: {
   const { entities: e, garment: g } = props;
   return (
     <div className="flex flex-col gap-5">
-      {/* <Intro>
-        A fabric is how a piece hangs and what colour it is. Make one here, then
-        give it to pieces in Pieces.
-      </Intro> */}
       <ul className="m-0 flex list-none flex-col gap-1 p-0">
         {e.fabrics.map((f) => {
           const use = fabricUse(e, f.id);

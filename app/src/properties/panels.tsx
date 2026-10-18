@@ -135,10 +135,6 @@ export function PiecesPanel(props: {
         />
       ) : (
         <div className="flex flex-col gap-3">
-          <Intro>
-            Pick a piece to name it and choose where it starts on the body:
-            here, in the flat view, or with Select in 3D.
-          </Intro>
           <ul
             className="m-0 flex list-none flex-col gap-1 p-0"
             onPointerLeave={() => onHover(null)}
