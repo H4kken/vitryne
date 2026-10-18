@@ -42,6 +42,7 @@ import {
 import type { SaveStatus } from "@/cloud/autosave";
 import { AccountDialog, CloudProjectsDialog } from "@/cloud/CloudDialogs";
 import { ProjectGrid } from "@/cloud/ProjectGrid";
+import { fabricKey, projectFabrics } from "@/cloud/fabrics";
 import { moveProjects } from "@/cloud/projects";
 import type { Cloud } from "@/cloud/useCloud";
 import {
@@ -69,8 +70,8 @@ import {
 } from "@/pattern/PatternPanel";
 import { newPiece, type ShapeKind } from "@/pattern/draw";
 import { PAIRS, type Pair, type Place, tidy } from "@/placement/places";
+import { FabricPanel, type FabricView } from "@/properties/FabricPanel";
 import {
-  FabricPanel,
   PANEL_TITLES,
   type PanelId,
   PiecesPanel,
@@ -306,6 +307,28 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     setPanelState(p);
     if (p) setDisplayedPanel(p);
   }, []);
+  const [fabricView, setFabricView] = useState<FabricView>({ kind: "list" });
+  // The fabrics of the person's other projects (an account's: a draft is the only project).
+  const openProjectId = files.ref?.cloud?.id ?? null;
+  const cloudBackendOf = cloud.backend;
+  const loadOthers = useMemo(
+    () =>
+      isAccount
+        ? async () => {
+            const e = store.state.entities;
+            const have = new Set(
+              e.fabrics.map((f) =>
+                fabricKey(
+                  f,
+                  e.appearances?.find((a) => a.id === f.appearance)?.color,
+                ),
+              ),
+            );
+            return projectFabrics(await cloudBackendOf(), openProjectId, have);
+          }
+        : null,
+    [isAccount, cloudBackendOf, openProjectId, store],
+  );
   const [tool, setTool] = useState<PointerTool>("turn");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
@@ -491,9 +514,6 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     },
     [picks, setPicks, completeSeam],
   );
-  const fabric = garment
-    ? doc.entities.fabrics.find((f) => f.id === garment.fabric)
-    : doc.entities.fabrics[0];
   // A selection only counts in the file it was made in.
   const selected =
     selection && garment ? findCut(garment, selection.cutId) : undefined;
@@ -1105,16 +1125,18 @@ export function Editor({ cloud }: { cloud: Cloud }) {
           <div className="flex h-full w-[300px] shrink-0 flex-col gap-4 overflow-y-auto p-5">
             {displayedPanel && (
               <>
-                <h2 className="font-display m-0 text-xl font-semibold">
-                  {PANEL_TITLES[displayedPanel]}
-                </h2>
                 {displayedPanel === "fabric" && (
                   <FabricPanel
                     store={store}
                     entities={doc.entities}
-                    fabric={fabric}
                     garment={garment}
-                    fabrics={doc.entities.fabrics}
+                    view={fabricView}
+                    onView={setFabricView}
+                    onMadeForPiece={() => {
+                      setFabricView({ kind: "list" });
+                      setPanel("pieces");
+                    }}
+                    loadOthers={loadOthers}
                   />
                 )}
                 {displayedPanel === "pieces" && (
@@ -1122,8 +1144,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                     store={store}
                     entities={doc.entities}
                     garment={garment}
-                    fabrics={doc.entities.fabrics}
                     selection={shownSelection}
+                    onNewFabric={(piece) => {
+                      setFabricView({ kind: "new", forPiece: piece });
+                      setPanel("fabric");
+                    }}
                     onSelect={select}
                     onRewrap={rewrap}
                     onPlaceIn3d={

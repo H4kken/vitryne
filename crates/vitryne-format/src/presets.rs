@@ -36,6 +36,7 @@ pub fn cotton_jersey() -> Fabric {
             other: Map::new(),
         },
         friction: 0.30,
+        appearance: None,
         notes: Some(
             "100% cotton single jersey knit, 150 g/m², typical everyday T-shirt. Soft, compliant \
              drape following body contours. Kawabata (1980) Table 2.2; Miguel et al. (2012)."
@@ -68,6 +69,7 @@ pub fn denim() -> Fabric {
             other: Map::new(),
         },
         friction: 0.42,
+        appearance: None,
         notes: Some(
             "Heavy 3/1 right-hand twill cotton denim, 420 g/m² (12.5 oz), 5-pocket jeans weight. \
              Stiff, holds shape away from the body in sturdy folds. Kawabata (1980); Breen et al. (1994)."
@@ -100,6 +102,7 @@ pub fn poplin() -> Fabric {
             other: Map::new(),
         },
         friction: 0.25,
+        appearance: None,
         notes: Some(
             "Lightweight combed cotton plain-weave poplin shirting, 125 g/m² (3.7 oz). Crisp hand, \
              fine sharp folds and ripples. Wang et al. (2011) Table 2; FAST-2 standards."
@@ -132,6 +135,7 @@ pub fn fleece() -> Fabric {
             other: Map::new(),
         },
         friction: 0.38,
+        appearance: None,
         notes: Some(
             "Double-faced brushed polyester knit fleece, 280 g/m². Lofty and thick (2.2 mm), with \
              rounded, bulky folds and moderate knit give. Kawabata (1980); FAST-1."
@@ -164,6 +168,7 @@ pub fn wool_suiting() -> Fabric {
             other: Map::new(),
         },
         friction: 0.32,
+        appearance: None,
         notes: Some(
             "Worsted wool 2/2 twill tailored suiting, 250 g/m² (7.5 oz). Resilient, fluid drape, \
              holding clean creases without limp sagging. Kawabata (1980) Table 2.1; Minami et al. (2002)."

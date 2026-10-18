@@ -4383,7 +4383,7 @@ return errors === 0;
 validate24.evaluated = {"props":{"id":true,"name":true,"fabric":true,"appearance":true,"pieces":true,"seams":true,"simulation":true,"sources":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const fabric = validate57;
-const schema126 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/fabric.schema.json","title":"Vitryne format v1: fabrics/<id>.json","description":"A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity (appearance.schema.json). 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"category":{"description":"Construction. Quality targets differ (docs/history: woven p99 strain < 3%, knit < 8%).","enum":["woven","knit","nonwoven"]},"density":{"description":"Areal density, kg/m² (150 g/m² = 0.15).","type":"number","exclusiveMinimum":0},"thickness":{"description":"Fabric thickness, mm. Optional; not used by the v1 engine (its collision thickness is a simulation setting).","type":"number","exclusiveMinimum":0},"stretch":{"description":"In-plane tensile stiffness, N/m (force per unit width per unit strain). shear: in-plane shear stiffness, N/m.","type":"object","properties":{"warp":{"type":"number","exclusiveMinimum":0},"weft":{"type":"number","exclusiveMinimum":0},"shear":{"type":"number","exclusiveMinimum":0},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["warp","weft","shear"]},"bending":{"description":"Bending rigidity per unit width, N·m (moment per unit width per unit curvature), for bending lines across the warp, across the weft, and on the bias (optional; defaults to the mean of warp and weft).","type":"object","properties":{"warp":{"type":"number","exclusiveMinimum":0},"weft":{"type":"number","exclusiveMinimum":0},"bias":{"type":"number","exclusiveMinimum":0},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["warp","weft"]},"friction":{"description":"Coulomb friction coefficient against the body (dimensionless).","type":"number","minimum":0},"notes":{"description":"Where the values come from (measurement, datasheet, paper) or that they're placeholders.","type":"string"},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","category","density","stretch","bending","friction"]};
+const schema126 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/fabric.schema.json","title":"Vitryne format v1: fabrics/<id>.json","description":"A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity (appearance.schema.json) a fabric can name as its default. 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"category":{"description":"Construction. Quality targets differ (docs/history: woven p99 strain < 3%, knit < 8%).","enum":["woven","knit","nonwoven"]},"density":{"description":"Areal density, kg/m² (150 g/m² = 0.15).","type":"number","exclusiveMinimum":0},"thickness":{"description":"Fabric thickness, mm. Optional; not used by the v1 engine (its collision thickness is a simulation setting).","type":"number","exclusiveMinimum":0},"stretch":{"description":"In-plane tensile stiffness, N/m (force per unit width per unit strain). shear: in-plane shear stiffness, N/m.","type":"object","properties":{"warp":{"type":"number","exclusiveMinimum":0},"weft":{"type":"number","exclusiveMinimum":0},"shear":{"type":"number","exclusiveMinimum":0},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["warp","weft","shear"]},"bending":{"description":"Bending rigidity per unit width, N·m (moment per unit width per unit curvature), for bending lines across the warp, across the weft, and on the bias (optional; defaults to the mean of warp and weft).","type":"object","properties":{"warp":{"type":"number","exclusiveMinimum":0},"weft":{"type":"number","exclusiveMinimum":0},"bias":{"type":"number","exclusiveMinimum":0},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["warp","weft"]},"friction":{"description":"Coulomb friction coefficient against the body (dimensionless).","type":"number","minimum":0},"appearance":{"description":"How the fabric looks by default (added in format version 3): the appearance of the cuts that use it and name none of their own. Absent: the app's own.","$ref":"common.schema.json#/$defs/id"},"notes":{"description":"Where the values come from (measurement, datasheet, paper) or that they're placeholders.","type":"string"},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","category","density","stretch","bending","friction"]};
 
 function validate58(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -5246,14 +5246,39 @@ vErrors.push(err43);
 errors++;
 }
 }
-if(data.notes !== undefined){
-if(typeof data.notes !== "string"){
-const err44 = {instancePath:instancePath+"/notes",schemaPath:"#/properties/notes/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(data.appearance !== undefined){
+let data20 = data.appearance;
+if(typeof data20 === "string"){
+if(!pattern4.test(data20)){
+const err44 = {instancePath:instancePath+"/appearance",schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
 if(vErrors === null){
 vErrors = [err44];
 }
 else {
 vErrors.push(err44);
+}
+errors++;
+}
+}
+else {
+const err45 = {instancePath:instancePath+"/appearance",schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err45];
+}
+else {
+vErrors.push(err45);
+}
+errors++;
+}
+}
+if(data.notes !== undefined){
+if(typeof data.notes !== "string"){
+const err46 = {instancePath:instancePath+"/notes",schemaPath:"#/properties/notes/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err46];
+}
+else {
+vErrors.push(err46);
 }
 errors++;
 }
@@ -5271,38 +5296,13 @@ errors = vErrors.length;
 }
 }
 if(data.extensions !== undefined){
-let data23 = data.extensions;
-if(data23 && typeof data23 == "object" && !Array.isArray(data23)){
-for(const key4 in data23){
-const _errs53 = errors;
+let data24 = data.extensions;
+if(data24 && typeof data24 == "object" && !Array.isArray(data24)){
+for(const key4 in data24){
+const _errs56 = errors;
 if(typeof key4 === "string"){
 if(!pattern9.test(key4)){
-const err45 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key4};
-if(vErrors === null){
-vErrors = [err45];
-}
-else {
-vErrors.push(err45);
-}
-errors++;
-}
-}
-var valid14 = _errs53 === errors;
-if(!valid14){
-const err46 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key4},message:"property name must be valid"};
-if(vErrors === null){
-vErrors = [err46];
-}
-else {
-vErrors.push(err46);
-}
-errors++;
-}
-}
-for(const key5 in data23){
-let data24 = data23[key5];
-if(!(data24 && typeof data24 == "object" && !Array.isArray(data24))){
-const err47 = {instancePath:instancePath+"/extensions/" + key5.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err47 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key4};
 if(vErrors === null){
 vErrors = [err47];
 }
@@ -5312,9 +5312,9 @@ vErrors.push(err47);
 errors++;
 }
 }
-}
-else {
-const err48 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+var valid15 = _errs56 === errors;
+if(!valid15){
+const err48 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key4},message:"property name must be valid"};
 if(vErrors === null){
 vErrors = [err48];
 }
@@ -5324,9 +5324,10 @@ vErrors.push(err48);
 errors++;
 }
 }
-}
-else {
-const err49 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+for(const key5 in data24){
+let data25 = data24[key5];
+if(!(data25 && typeof data25 == "object" && !Array.isArray(data25))){
+const err49 = {instancePath:instancePath+"/extensions/" + key5.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err49];
 }
@@ -5335,14 +5336,38 @@ vErrors.push(err49);
 }
 errors++;
 }
+}
+}
+else {
+const err50 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err50];
+}
+else {
+vErrors.push(err50);
+}
+errors++;
+}
+}
+}
+else {
+const err51 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err51];
+}
+else {
+vErrors.push(err51);
+}
+errors++;
+}
 validate57.errors = vErrors;
 return errors === 0;
 }
-validate57.evaluated = {"props":{"id":true,"name":true,"category":true,"density":true,"thickness":true,"stretch":true,"bending":true,"friction":true,"notes":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
+validate57.evaluated = {"props":{"id":true,"name":true,"category":true,"density":true,"thickness":true,"stretch":true,"bending":true,"friction":true,"appearance":true,"notes":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const appearance = validate62;
-const schema143 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/appearance.schema.json","title":"Vitryne format v1: appearances/<id>.json","description":"How a fabric looks, apart from how it behaves (that is the fabric's): its colour for now; textures and print scale are later additions. Added in format version 2. Garments and cuts refer to appearances the way they refer to fabrics.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"color":{"description":"The colour of the right side, sRGB, as #rrggbb (lowercase).","type":"string","pattern":"^#[0-9a-f]{6}$"},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","color"]};
-const pattern57 = new RegExp("^#[0-9a-f]{6}$", "u");
+const schema144 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/appearance.schema.json","title":"Vitryne format v1: appearances/<id>.json","description":"How a fabric looks, apart from how it behaves (that is the fabric's): its colour for now; textures and print scale are later additions. Added in format version 2. Garments and cuts refer to appearances the way they refer to fabrics.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"color":{"description":"The colour of the right side, sRGB, as #rrggbb (lowercase).","type":"string","pattern":"^#[0-9a-f]{6}$"},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","color"]};
+const pattern58 = new RegExp("^#[0-9a-f]{6}$", "u");
 
 function validate63(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -5742,7 +5767,7 @@ errors++;
 if(data.color !== undefined){
 let data2 = data.color;
 if(typeof data2 === "string"){
-if(!pattern57.test(data2)){
+if(!pattern58.test(data2)){
 const err6 = {instancePath:instancePath+"/color",schemaPath:"#/properties/color/pattern",keyword:"pattern",params:{pattern: "^#[0-9a-f]{6}$"},message:"must match pattern \""+"^#[0-9a-f]{6}$"+"\""};
 if(vErrors === null){
 vErrors = [err6];
@@ -5847,9 +5872,9 @@ return errors === 0;
 validate62.evaluated = {"props":{"id":true,"name":true,"color":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const avatar = validate67;
-const schema156 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/avatar.schema.json","title":"Vitryne format v1: avatars/<id>/avatar.json","description":"A body to drape on: its mesh (a glTF binary part, metres, Y up, facing +Z, the wearer's left = +X) and the named regions that pieces are placed around.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mesh":{"description":"Path of the glTF binary part (model/gltf-binary): one mesh, triangles, metres, feet at y = 0.","type":"string"},"pose":{"description":"The rest pose of the mesh: A, T, or another label.","type":"string"},"regions":{"description":"Body regions, keyed by a name from the region vocabulary (FORMAT.md): torso, head, head-over, upper-arm-left/right, arm-left/right, arm-straight-left/right, leg-left/right. Garments refer to these names, so a garment fits any avatar that has the regions it uses.","type":"object","propertyNames":{"pattern":"^[a-z][a-z0-9-]*$"},"additionalProperties":{"$ref":"#/$defs/region"}},"measurements":{"description":"Body measurements, mm, keyed by name (chest, waist, hips, height, ...). Optional; informational in v1.","type":"object","additionalProperties":{"type":"number"}},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","mesh","regions"],"$defs":{"region":{"description":"A frame to wrap pieces around. axis: a straight line through origin along axis (towards the top of the pieces). path: a centreline through points (first = origin), smooth (Catmull-Rom), continuing straight past the last point; straight along the first segment above the origin. zero: the direction of angle 0 around the axis (projected onto the plane normal to the axis).","type":"object","properties":{"type":{"enum":["axis","path"]},"origin":{"$ref":"common.schema.json#/$defs/vec3"},"axis":{"$ref":"common.schema.json#/$defs/vec3"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec3"},"minItems":2},"zero":{"$ref":"common.schema.json#/$defs/vec3"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","zero"],"allOf":[{"if":{"properties":{"type":{"const":"axis"}}},"then":{"required":["origin","axis"]}},{"if":{"properties":{"type":{"const":"path"}}},"then":{"required":["points"]}}]}}};
-const pattern64 = new RegExp("^[a-z][a-z0-9-]*$", "u");
-const schema159 = {"description":"A frame to wrap pieces around. axis: a straight line through origin along axis (towards the top of the pieces). path: a centreline through points (first = origin), smooth (Catmull-Rom), continuing straight past the last point; straight along the first segment above the origin. zero: the direction of angle 0 around the axis (projected onto the plane normal to the axis).","type":"object","properties":{"type":{"enum":["axis","path"]},"origin":{"$ref":"common.schema.json#/$defs/vec3"},"axis":{"$ref":"common.schema.json#/$defs/vec3"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec3"},"minItems":2},"zero":{"$ref":"common.schema.json#/$defs/vec3"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","zero"],"allOf":[{"if":{"properties":{"type":{"const":"axis"}}},"then":{"required":["origin","axis"]}},{"if":{"properties":{"type":{"const":"path"}}},"then":{"required":["points"]}}]};
+const schema157 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/avatar.schema.json","title":"Vitryne format v1: avatars/<id>/avatar.json","description":"A body to drape on: its mesh (a glTF binary part, metres, Y up, facing +Z, the wearer's left = +X) and the named regions that pieces are placed around.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mesh":{"description":"Path of the glTF binary part (model/gltf-binary): one mesh, triangles, metres, feet at y = 0.","type":"string"},"pose":{"description":"The rest pose of the mesh: A, T, or another label.","type":"string"},"regions":{"description":"Body regions, keyed by a name from the region vocabulary (FORMAT.md): torso, head, head-over, upper-arm-left/right, arm-left/right, arm-straight-left/right, leg-left/right. Garments refer to these names, so a garment fits any avatar that has the regions it uses.","type":"object","propertyNames":{"pattern":"^[a-z][a-z0-9-]*$"},"additionalProperties":{"$ref":"#/$defs/region"}},"measurements":{"description":"Body measurements, mm, keyed by name (chest, waist, hips, height, ...). Optional; informational in v1.","type":"object","additionalProperties":{"type":"number"}},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","mesh","regions"],"$defs":{"region":{"description":"A frame to wrap pieces around. axis: a straight line through origin along axis (towards the top of the pieces). path: a centreline through points (first = origin), smooth (Catmull-Rom), continuing straight past the last point; straight along the first segment above the origin. zero: the direction of angle 0 around the axis (projected onto the plane normal to the axis).","type":"object","properties":{"type":{"enum":["axis","path"]},"origin":{"$ref":"common.schema.json#/$defs/vec3"},"axis":{"$ref":"common.schema.json#/$defs/vec3"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec3"},"minItems":2},"zero":{"$ref":"common.schema.json#/$defs/vec3"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","zero"],"allOf":[{"if":{"properties":{"type":{"const":"axis"}}},"then":{"required":["origin","axis"]}},{"if":{"properties":{"type":{"const":"path"}}},"then":{"required":["points"]}}]}}};
+const pattern65 = new RegExp("^[a-z][a-z0-9-]*$", "u");
+const schema160 = {"description":"A frame to wrap pieces around. axis: a straight line through origin along axis (towards the top of the pieces). path: a centreline through points (first = origin), smooth (Catmull-Rom), continuing straight past the last point; straight along the first segment above the origin. zero: the direction of angle 0 around the axis (projected onto the plane normal to the axis).","type":"object","properties":{"type":{"enum":["axis","path"]},"origin":{"$ref":"common.schema.json#/$defs/vec3"},"axis":{"$ref":"common.schema.json#/$defs/vec3"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec3"},"minItems":2},"zero":{"$ref":"common.schema.json#/$defs/vec3"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","zero"],"allOf":[{"if":{"properties":{"type":{"const":"axis"}}},"then":{"required":["origin","axis"]}},{"if":{"properties":{"type":{"const":"path"}}},"then":{"required":["points"]}}]};
 
 function validate68(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -6003,7 +6028,7 @@ errors++;
 if(data.type !== undefined){
 let data2 = data.type;
 if(!((data2 === "axis") || (data2 === "path"))){
-const err9 = {instancePath:instancePath+"/type",schemaPath:"#/properties/type/enum",keyword:"enum",params:{allowedValues: schema159.properties.type.enum},message:"must be equal to one of the allowed values"};
+const err9 = {instancePath:instancePath+"/type",schemaPath:"#/properties/type/enum",keyword:"enum",params:{allowedValues: schema160.properties.type.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err9];
 }
@@ -6737,7 +6762,7 @@ if(data4 && typeof data4 == "object" && !Array.isArray(data4)){
 for(const key0 in data4){
 const _errs13 = errors;
 if(typeof key0 === "string"){
-if(!pattern64.test(key0)){
+if(!pattern65.test(key0)){
 const err9 = {instancePath:instancePath+"/regions",schemaPath:"#/properties/regions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[a-z][a-z0-9-]*$"},message:"must match pattern \""+"^[a-z][a-z0-9-]*$"+"\"",propertyName:key0};
 if(vErrors === null){
 vErrors = [err9];
@@ -6888,7 +6913,7 @@ return errors === 0;
 validate67.evaluated = {"props":{"id":true,"name":true,"mesh":true,"pose":true,"regions":true,"measurements":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const view = validate74;
-const schema176 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/view.schema.json","title":"Vitryne format v1: view.json","description":"How the project was last looked at. Optional, never affects the drape, not part of the cache key.","type":"object","properties":{"camera":{"type":"object","properties":{"target":{"$ref":"common.schema.json#/$defs/vec3"},"distance":{"description":"mm","type":"number","exclusiveMinimum":0},"yaw":{"description":"radians around +Y, 0 = looking at the avatar's front","type":"number"},"pitch":{"description":"radians, positive = looking down","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["target","distance"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}};
+const schema177 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/view.schema.json","title":"Vitryne format v1: view.json","description":"How the project was last looked at. Optional, never affects the drape, not part of the cache key.","type":"object","properties":{"camera":{"type":"object","properties":{"target":{"$ref":"common.schema.json#/$defs/vec3"},"distance":{"description":"mm","type":"number","exclusiveMinimum":0},"yaw":{"description":"radians around +Y, 0 = looking at the avatar's front","type":"number"},"pitch":{"description":"radians, positive = looking down","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["target","distance"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}};
 
 function validate74(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="https://vitryne.app/schema/1/view.schema.json" */;

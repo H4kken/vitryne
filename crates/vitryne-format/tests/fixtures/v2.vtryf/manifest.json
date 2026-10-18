@@ -1,0 +1,14 @@
+{
+  "format": "vitryne",
+  "kind": "fabric",
+  "formatVersion": 2,
+  "minReaderVersion": 1,
+  "generator": "vitryne-format 0.1.0",
+  "parts": [
+    {
+      "path": "fabrics/01a13cdb-cc03-7074-8d2d-01dbf48ff1b2.json",
+      "mediaType": "application/json",
+      "sha256": "c42e220916e8c108c85b32ead31c764c7624b24fa386b2252a5db7eadd797a74"
+    }
+  ]
+}

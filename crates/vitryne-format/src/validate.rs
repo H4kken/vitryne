@@ -33,7 +33,7 @@ pub(crate) fn check(doc: &Document) -> Report {
     let ok = match doc.kind {
         Kind::Project => project,
         Kind::Garment => g == 1 && !project && a == 0,
-        Kind::Fabric => f >= 1 && g == 0 && a == 0 && !project && looks == 0,
+        Kind::Fabric => f >= 1 && g == 0 && a == 0 && !project,
         Kind::Avatar => a == 1 && g == 0 && !project && looks == 0,
     };
     if !ok {
@@ -218,6 +218,12 @@ pub(crate) fn check(doc: &Document) -> Report {
                 r.errors
                     .push(format!("fabric {}: {k} must be above 0 (is {v})", f.name));
             }
+        }
+        if let Some(ap) = &f.appearance
+            && !appearances.contains(ap)
+        {
+            r.errors
+                .push(format!("fabric {}: appearance {ap} has no part", f.name));
         }
         if !(f.friction.is_finite() && f.friction >= 0.0) {
             r.errors.push(format!(

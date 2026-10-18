@@ -1,10 +1,12 @@
-# The Vitryne file format, version 2
+# The Vitryne file format, version 3
 
 **Status: approved design (MVP milestone M4, 2026-10-13), implemented in M5 by
 [crates/vitryne-format](../crates/vitryne-format/) (reading, writing, validation, migrations) and
 `drape-assets` (`project`: a file to the engine; `convert`: `garment.toml` + DXF to a file).
 Version 2 (2026-10-16) adds [appearances](#appearance) (fabric colour); a version 1 file is a
-valid version 2 file.**
+valid version 2 file. Version 3 (2026-10-18) lets a [fabric](#fabric) name its default
+appearance, and a fabric file carry the appearances its fabrics use; a version 2 file is a valid
+version 3 file.**
 
 A Vitryne file holds a garment project: pattern pieces, how they're sewn, where they start around
 the body, the fabrics and their colours, the avatar and the simulation settings, plus optionally a cached drape so
@@ -47,7 +49,7 @@ for people and operating systems.
 |---|---|---|---|
 | `project` | `.vtry` | `application/vnd.vitryne.project+zip` | `project.json`, its garments, fabrics, appearances and avatar, optional view and caches |
 | `garment` | `.vtryg` | `application/vnd.vitryne.garment+zip` | one garment and the fabrics and appearances it uses (no avatar) |
-| `fabric` | `.vtryf` | `application/vnd.vitryne.fabric+zip` | one or more fabrics (a fabric library) |
+| `fabric` | `.vtryf` | `application/vnd.vitryne.fabric+zip` | one or more fabrics and the appearances they use (a fabric library) |
 | `avatar` | `.vtrya` | `application/vnd.vitryne.avatar+zip` | one avatar |
 
 **Why one format for all four:** one reader, one set of migrations, one extension mechanism, and
@@ -428,7 +430,8 @@ side, write its runs the other way.
 
 ## Fabric
 
-`fabrics/<id>.json` ([schema](format/schema/fabric.schema.json)). The physical behaviour only:
+`fabrics/<id>.json` ([schema](format/schema/fabric.schema.json)). The physical behaviour, and
+which appearance it has by default:
 
 ```json
 {
@@ -452,6 +455,7 @@ side, write its runs the other way.
 | `stretch.shear` | in-plane shear stiffness | N/m |
 | `bending.warp`, `.weft`, `.bias` | bending rigidity per unit width (bias optional, defaults to the mean) | N·m |
 | `friction` | Coulomb coefficient against the body | |
+| `appearance` | optional (version 3): how it looks by default, an [appearance](#appearance) id | |
 | `notes` | where the values come from, or that they are placeholders | |
 | `attribution`, `libraryRef` | for fabrics from a library | |
 
@@ -460,7 +464,9 @@ tests, like KES-F or FAST), and the ones published presets (M9, `docs/FABRICS.md
 They're independent of mesh resolution and of the solver. Anisotropy (warp ≠ weft) is in the
 format from the start, even though the v1 engine is isotropic (see [In the engine](#in-the-engine)).
 **Why appearance isn't here:** colour and texture change per colourway while the physics stays
-the same. They're a separate entity: [Appearance](#appearance).
+the same. They're a separate entity: [Appearance](#appearance). A fabric only names one as its
+default, so "navy denim" is one thing to pick (the editor's fabrics are picked that way), and a
+texture added to the appearance later reaches every cut of that fabric.
 
 ## Appearance
 
@@ -480,9 +486,14 @@ fabric looks, apart from how it behaves:
 | `color` | the colour of the right side: sRGB, `#rrggbb`, lowercase |
 | `attribution`, `libraryRef` | for appearances from a library |
 
-A garment's `appearance` is the default of its cuts, and a cut's own `appearance` overrides it,
-the way `fabric` works. Both are optional: without one, the app shows its own cloth colour. Every
+A cut's appearance is the **nearest one set**: the cut's own `appearance`, else the appearance of
+the cut's own `fabric` (if it names one), else the garment's `appearance`, else the appearance of
+the garment's `fabric`. All are optional: without any, the app shows its own cloth colour. Every
 appearance part is listed in `project.appearances`.
+
+**Why that order:** a level of the tree (cut, then garment) wins over the one above it, and within
+a level an explicit appearance wins over the fabric's, so a colourway can recolour a garment
+without editing its fabrics, while a cut cut from another fabric keeps that fabric's look.
 
 - **The colour is sRGB**, as people pick it. A renderer working in linear light (glTF's
   `baseColorFactor`) converts it.
@@ -661,7 +672,7 @@ How the planned features fit, without breaking v1 files:
 | Feature | How it's added |
 |---|---|
 | **Sizes and grading** | Per-size offsets of outline **nodes** (by id), the way grade rules work in industry formats. The ids are why nodes exist. A `sizes` list on the garment plus per-node deltas. (Watch [PATENTS.md](PATENTS.md) rule 6 for automatic grading.) |
-| **Colourways and textures** | Appearances exist since version 2 (colour only). Next: texture parts and print scale on the appearance, and `colourways` on the garment mapping cuts to appearances. Physics stays in fabrics, so nothing existing changes. |
+| **Colourways and textures** | Appearances exist since version 2 (colour only), and fabrics name a default one since version 3. Next: texture parts and print scale on the appearance, and `colourways` on the garment mapping cuts to appearances. Physics stays in fabrics, so nothing existing changes. |
 | **Multi-garment outfits** | Already there: `project.garments` is in layering order. Per-garment visibility or grouping are additions. |
 | **Avatars from measurements** | `avatar.source = {generator, measurements}`, with `body.glb` as the generated (and regenerable) mesh. |
 | **Animations and poses** | glTF skins and animations in `body.glb`; a project-level `pose` reference. The cache key gains the pose. |

@@ -77,8 +77,24 @@ export function setEntity(e: Entities, s: Slot, value: unknown): Entities {
     throw new Error(`a command can't change a ${s.kind}'s id`);
   const copy = list.slice();
   if (i >= 0) copy[i] = value as { id: string };
-  else copy.push(value as { id: string });
+  else {
+    // A new one goes where the project lists it (an undone removal goes back to its place),
+    // else last.
+    const order = projectOrder(e, s.kind);
+    const at = order.indexOf(s.id);
+    const after = at < 0 ? -1 : copy.findIndex((x) => order.indexOf(x.id) > at);
+    if (after < 0) copy.push(value as { id: string });
+    else copy.splice(after, 0, value as { id: string });
+  }
   return { ...e, [LIST[s.kind]]: copy };
+}
+
+/** The project's list of a kind's ids (its garments, fabrics, appearances), if it has one. */
+function projectOrder(e: Entities, kind: EntityKind): readonly string[] {
+  if (kind === "garment") return e.project?.garments ?? [];
+  if (kind === "fabric") return e.project?.fabrics ?? [];
+  if (kind === "appearance") return e.project?.appearances ?? [];
+  return [];
 }
 
 export function parseEntities(json: string): Entities {

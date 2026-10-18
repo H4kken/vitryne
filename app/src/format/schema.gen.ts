@@ -554,7 +554,7 @@ export interface LibraryRef {
 
 // ---- fabric.schema.json
 /**
- * A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity (appearance.schema.json). 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.
+ * A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity (appearance.schema.json) a fabric can name as its default. 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.
  */
 export interface Fabric {
   /**
@@ -611,6 +611,10 @@ export interface Fabric {
    * Coulomb friction coefficient against the body (dimensionless).
    */
   friction: number;
+  /**
+   * A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
+   */
+  appearance?: string;
   /**
    * Where the values come from (measurement, datasheet, paper) or that they're placeholders.
    */

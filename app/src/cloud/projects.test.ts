@@ -23,6 +23,7 @@ import {
   saveThumbnail,
   sha256Hex,
 } from "./projects";
+import { fabricKey, projectFabrics } from "./fabrics";
 import { crc32 } from "./zip";
 
 /** A backend in memory, shaped like the real one (RLS: each user sees only their own; an anonymous user keeps one draft). */
@@ -201,6 +202,43 @@ describe("cloud projects", () => {
     const again = await saveProject(b, "one", changed, first);
     expect(b.uploads.length).toBe(1);
     expect(again.revision).toBe(2);
+  });
+
+  it("finds the fabrics of other projects, each once, with their colours", async () => {
+    const b = account();
+    const f = wasm.VtryFile.open(exampleZip("tshirt"));
+    type E = {
+      project: { fabrics: string[]; appearances?: string[] };
+      fabrics: { id: string; name: string; appearance?: string }[];
+      appearances?: { id: string; name: string; color: string }[];
+    };
+    const e = JSON.parse(f.entities()) as E;
+    const navy = "01a13cdb-cc05-7000-8000-000000000001";
+    e.appearances = [{ id: navy, name: "Navy", color: "#1f2a44" }];
+    e.project.appearances = [navy];
+    e.fabrics[0]!.appearance = navy;
+    f.set_entities(JSON.stringify(e));
+    const navyFiles = (f.save_folder() as [string, Uint8Array][]).map(
+      ([p, x]) => [p, x.slice().buffer as ArrayBuffer] as [string, ArrayBuffer],
+    );
+    const open = await saveProject(b, "open", folder("tshirt"), null);
+    await saveProject(b, "navy", navyFiles, null);
+    await saveProject(b, "trousers", folder("trousers"), null);
+
+    const found = await projectFabrics(b, open.id, new Set());
+    // The T-shirt's fabric in navy, and the trousers' (their plain T-shirt fabric is the same
+    // one only when nothing differs).
+    const navyOne = found.find((x) => x.appearance?.color === "#1f2a44");
+    expect(navyOne?.projectName).toBe("navy");
+    expect(navyOne?.fabric.name).toBe(e.fabrics[0]!.name);
+    expect(
+      new Set(found.map((x) => fabricKey(x.fabric, x.appearance?.color))).size,
+    ).toBe(found.length);
+    // What the open project already has is left out.
+    const have = new Set(
+      found.map((x) => fabricKey(x.fabric, x.appearance?.color)),
+    );
+    expect(await projectFabrics(b, open.id, have)).toEqual([]);
   });
 
   it("refuses a save over a newer revision and changes nothing", async () => {

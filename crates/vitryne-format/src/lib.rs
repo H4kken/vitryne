@@ -38,7 +38,7 @@ pub use model::*;
 pub use validate::Report;
 
 /// The version this crate reads and writes.
-pub const FORMAT_VERSION: u32 = 2;
+pub const FORMAT_VERSION: u32 = 3;
 /// The `minReaderVersion` it writes: the oldest reader that can open its files correctly.
 pub const MIN_READER_VERSION: u32 = 1;
 /// The extensions this reader implements (a file requiring any other is refused).

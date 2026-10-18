@@ -418,6 +418,7 @@ fn grown_bounds(own: Option<&Bounds>, body: &[Vec3], outline: &[Vec3]) -> Option
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
     use std::path::Path;
 
     fn example_zip(name: &str) -> Vec<u8> {
@@ -492,6 +493,60 @@ mod tests {
         let cloth = prepared.cloth.as_ref().unwrap();
         assert_eq!(cloth.panel_colors.len(), prepared.info.cuts.len());
         assert_eq!(cloth.panel_colors[0], Some([1.0, 0.0, 0.0]));
+    }
+
+    /// A fabric's appearance colours the cuts that use it, the nearest one set winning: a cut's
+    /// own fabric over the garment's appearance, the garment's appearance over its fabric's.
+    #[test]
+    fn fabrics_carry_their_looks() {
+        let (mut file, _) = ProjectFile::open(&example_zip("tshirt")).unwrap();
+        let (navy, red, green, red_fabric) = (
+            "01a13cdb-cc05-7000-8000-000000000001",
+            "01a13cdb-cc05-7000-8000-000000000002",
+            "01a13cdb-cc05-7000-8000-000000000003",
+            "01a13cdb-cc05-7000-8000-000000000004",
+        );
+        let mut e: serde_json::Value = serde_json::from_str(&file.entities_json()).unwrap();
+        e["appearances"] = serde_json::json!([
+            { "id": navy, "name": "Navy", "color": "#000080" },
+            { "id": red, "name": "Red", "color": "#ff0000" },
+            { "id": green, "name": "Green", "color": "#00ff00" },
+        ]);
+        e["project"]["appearances"] = serde_json::json!([navy, red, green]);
+        let mut other = e["fabrics"][0].clone();
+        other["id"] = red_fabric.into();
+        other["appearance"] = red.into();
+        e["fabrics"][0]["appearance"] = navy.into();
+        e["fabrics"].as_array_mut().unwrap().push(other);
+        e["project"]["fabrics"]
+            .as_array_mut()
+            .unwrap()
+            .push(red_fabric.into());
+        e["garments"][0]["pieces"][0]["cuts"][0]["fabric"] = red_fabric.into();
+        let first = e["garments"][0]["pieces"][0]["cuts"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let colors = |file: &mut ProjectFile, e: &serde_json::Value| {
+            file.set_entities_json(&e.to_string()).unwrap();
+            let looks = file.looks().unwrap();
+            let rest: BTreeSet<_> = looks
+                .iter()
+                .filter(|(id, _)| **id != first)
+                .map(|(_, l)| format!("{:?}", l.color))
+                .collect();
+            (looks[&first].color, rest.into_iter().collect::<Vec<_>>())
+        };
+        let (r, n, g) = (
+            Some([1.0, 0.0, 0.0]),
+            Some([0.0, 0.0, 128.0 / 255.0]),
+            Some([0.0, 1.0, 0.0]),
+        );
+        assert_eq!(colors(&mut file, &e), (r, vec![format!("{n:?}")]));
+        e["garments"][0]["appearance"] = green.into();
+        assert_eq!(colors(&mut file, &e), (r, vec![format!("{g:?}")]));
+        e["garments"][0]["pieces"][0]["cuts"][0]["appearance"] = navy.into();
+        assert_eq!(colors(&mut file, &e), (n, vec![format!("{g:?}")]));
     }
 
     #[test]

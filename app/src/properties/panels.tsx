@@ -2,7 +2,6 @@
 // The panels the rail opens: what the editor can change today, in plain words. Every change
 // goes through a command (document/commands.ts) on the store.
 
-import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -15,26 +14,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { Cut, Fabric, Garment, Piece } from "@/format/schema.gen";
+import type { Cut, Garment, Piece } from "@/format/schema.gen";
 import {
-  applyFabricPreset,
-  type ColorTarget,
   cutColor,
-  type FabricField,
-  fabricValue,
+  cutFabric,
+  fabricColor,
   findCut,
   followers,
-  garmentColor,
-  pieceColor,
   renameCut,
-  renameFabric,
   renamePiece,
   renameProject,
   renameSeam,
   selfCollision,
-  setColor,
-  setCutFabric,
-  setFabricValue,
   setMirrored,
   setPieceFabric,
   setPlacement,
@@ -44,7 +35,6 @@ import {
 } from "@/document/commands";
 import type { Entities } from "@/document/entities";
 import type { DocumentStore } from "@/document/store";
-import { FABRIC_PRESETS, findPreset, matchingPreset } from "@/format/presets";
 import type { Selection } from "@/pattern/PatternPanel";
 import { PlaceSelect } from "@/placement/PlaceSelect";
 import {
@@ -56,7 +46,7 @@ import {
   tidy,
 } from "@/placement/places";
 import { DEFAULT_CLOTH_COLOR } from "@/format/colors";
-import { ColorField, NumberField, TextField } from "./fields";
+import { NumberField, TextField } from "./fields";
 
 /** How far a piece placed on another sits off it, mm (Rust `import::ON_TOP_LIFT_MM`). */
 export const ON_TOP_LIFT_MM = 12;
@@ -81,267 +71,6 @@ function Heading({ children }: { children: React.ReactNode }) {
     <h3 className="text-muted-foreground m-0 text-[13px] font-semibold tracking-[0.06em] uppercase">
       {children}
     </h3>
-  );
-}
-
-/** Picks a colour for the garment or a piece: a picker's drag is one undo step, a swatch one each. */
-function pickColor(
-  store: DocumentStore,
-  garmentId: string,
-  target: ColorTarget,
-) {
-  return (color: string | undefined, dragging = false) => {
-    const key = `color:${garmentId}:${target.kind === "piece" ? target.pieceId : "garment"}`;
-    if (dragging) store.beginGesture(key);
-    else store.endGesture();
-    store.execute((e) => setColor(e, garmentId, target, color));
-  };
-}
-
-const FABRIC_UI: {
-  field: FabricField;
-  label: string;
-  unit: string;
-  ends: [string, string];
-  scale?: number;
-  min: number;
-  max: number;
-  log?: boolean;
-  step?: number;
-}[] = [
-  {
-    field: "density",
-    label: "Weight",
-    unit: "g/m²",
-    ends: ["Light", "Heavy"],
-    scale: 1000,
-    min: 30,
-    max: 600,
-  },
-  {
-    field: "thickness",
-    label: "Thickness",
-    unit: "mm",
-    ends: ["Thin", "Thick"],
-    min: 0.1,
-    max: 5.0,
-    step: 0.05,
-  },
-  // Stored in N/m (FORMAT.md), shown in kN/m: a woven's are in the thousands, not the millions.
-  {
-    field: "stretchWarp",
-    label: "Stretch along the grain",
-    unit: "kN/m",
-    ends: ["Stretchy", "Firm"],
-    scale: 1e-3,
-    min: 0.1,
-    max: 2000,
-    log: true,
-  },
-  {
-    field: "stretchWeft",
-    label: "Stretch across the grain",
-    unit: "kN/m",
-    ends: ["Stretchy", "Firm"],
-    scale: 1e-3,
-    min: 0.1,
-    max: 2000,
-    log: true,
-  },
-  // Shear: how much the weave gives when pulled diagonally.
-  {
-    field: "stretchShear",
-    label: "Stretch on the bias",
-    unit: "kN/m",
-    ends: ["Stretchy", "Firm"],
-    scale: 1e-3,
-    min: 0.01,
-    max: 2000,
-    log: true,
-  },
-  {
-    field: "bendingWarp",
-    label: "Stiffness along the grain",
-    unit: "µN·m",
-    ends: ["Drapey", "Stiff"],
-    scale: 1e6,
-    min: 0.1,
-    max: 1000,
-    log: true,
-  },
-  {
-    field: "bendingWeft",
-    label: "Stiffness across the grain",
-    unit: "µN·m",
-    ends: ["Drapey", "Stiff"],
-    scale: 1e6,
-    min: 0.1,
-    max: 1000,
-    log: true,
-  },
-  {
-    field: "friction",
-    label: "Grip on the body",
-    unit: "",
-    ends: ["Slides", "Grips"],
-    min: 0,
-    max: 1.5,
-  },
-];
-
-export function FabricPanel({
-  store,
-  entities,
-  fabric: initialFabric,
-  garment,
-  fabrics,
-}: {
-  store: DocumentStore;
-  entities: Entities;
-  fabric: Fabric | undefined;
-  garment?: Garment;
-  fabrics?: readonly Fabric[];
-}) {
-  const [selectedFabricId, setSelectedFabricId] = useState<string | null>(null);
-  const activeId = selectedFabricId ?? initialFabric?.id;
-  const fabric = fabrics?.find((f) => f.id === activeId) ?? initialFabric;
-
-  if (!fabric) return <Intro>This garment has no fabric.</Intro>;
-
-  const activePreset = matchingPreset(fabric);
-
-  const pick = garment && pickColor(store, garment.id, { kind: "garment" });
-  return (
-    <div className="flex flex-col gap-5">
-      {garment && pick && (
-        <div className="flex flex-col gap-3 border-b pb-5">
-          <Heading>Colour</Heading>
-          <Intro>
-            How the whole garment looks. A piece can have its own colour too
-            (Pieces). The colour doesn't change the drape.
-          </Intro>
-          <ColorField
-            label="Garment colour"
-            value={garmentColor(entities, garment)}
-            shown={DEFAULT_CLOTH_COLOR}
-            onPick={pick}
-            onDragEnd={() => store.endGesture()}
-            onReset={{ label: "Remove the colour", run: () => pick(undefined) }}
-          />
-        </div>
-      )}
-      <Intro>
-        The fabric changes how it hangs, folds and stretches. Pick a physical
-        preset or fine tune below.
-      </Intro>
-
-      {fabrics && fabrics.length > 1 && (
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-[13px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
-            Fabric to edit
-          </Label>
-          <Select
-            value={fabric.id}
-            onValueChange={(id) => setSelectedFabricId(id)}
-          >
-            <SelectTrigger className="h-10 w-full rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white text-[14px]">
-              <SelectValue placeholder="Choose fabric" />
-            </SelectTrigger>
-            <SelectContent>
-              {fabrics.map((f) => (
-                <SelectItem key={f.id} value={f.id}>
-                  {f.name} {f.id === garment?.fabric ? "(Default)" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <Heading>Presets</Heading>
-          {activePreset ? (
-            <span className="rounded-full bg-[#E1E4DE] px-2 py-0.5 text-[11px] font-medium text-foreground">
-              {activePreset.category}
-            </span>
-          ) : (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-              Custom
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-1 gap-1.5">
-          {FABRIC_PRESETS.map((p) => {
-            const isSelected = activePreset?.id === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() =>
-                  store.execute((e) => applyFabricPreset(e, fabric.id, p))
-                }
-                className={`flex flex-col items-start rounded-[10px] border p-2.5 text-left transition-all ${
-                  isSelected
-                    ? "border-[#14181F] bg-[#14181F] text-white shadow-sm"
-                    : "border-[#E1E4DE] bg-white hover:border-[#B5B9B0] hover:bg-[#F9FAF8]"
-                }`}
-              >
-                <div className="flex w-full items-center justify-between">
-                  <span
-                    className={`text-[13px] font-semibold ${isSelected ? "text-white" : "text-foreground"}`}
-                  >
-                    {p.name}
-                  </span>
-                  <span
-                    className={`text-[10px] uppercase font-medium tracking-wide ${isSelected ? "text-white/70" : "text-muted-foreground"}`}
-                  >
-                    {p.category}
-                  </span>
-                </div>
-                <span
-                  className={`text-[11px] mt-0.5 ${isSelected ? "text-white/80" : "text-muted-foreground"}`}
-                >
-                  {Math.round(p.density * 1000)} g/m² ·{" "}
-                  {p.thickness ? `${p.thickness} mm · ` : ""}
-                  {p.friction > 0.35 ? "Sturdy" : "Soft"}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4 border-t pt-4">
-        <Heading>Fine tune</Heading>
-        <TextField
-          label="Name"
-          value={fabric.name}
-          onCommit={(v) => store.execute((e) => renameFabric(e, fabric.id, v))}
-        />
-        {FABRIC_UI.map((f) => (
-          <NumberField
-            key={f.field}
-            {...f}
-            value={fabricValue(fabric, f.field)}
-            onChange={(v, dragging) => {
-              if (dragging)
-                store.beginGesture(`fabric:${fabric.id}:${f.field}`);
-              store.execute((e) => setFabricValue(e, fabric.id, f.field, v));
-            }}
-            onDragEnd={() => store.endGesture()}
-          />
-        ))}
-        {fabric.notes && (
-          <details className="text-muted-foreground text-[13px] leading-snug">
-            <summary className="text-foreground cursor-pointer font-semibold">
-              About these values
-            </summary>
-            <p className="mt-1.5 mb-0">{fabric.notes}</p>
-          </details>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -373,8 +102,9 @@ export function PiecesPanel(props: {
   store: DocumentStore;
   entities: Entities;
   garment: Garment | undefined;
-  fabrics?: readonly Fabric[];
   selection: Selection;
+  /** Opens the Fabric panel on a new fabric for a piece. */
+  onNewFabric: (piece: { id: string; name: string }) => void;
   onSelect: (s: Selection) => void;
   /** Asks Rust for a fresh wrap of the cut at `place`, then makes it an edit. */
   onRewrap: (cutId: string, place: Place) => void;
@@ -403,9 +133,8 @@ export function PiecesPanel(props: {
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {garment.pieces.flatMap((piece) =>
               piece.cuts.map((cut) => {
-                const cutFabric = cut.fabric
-                  ? (props.fabrics?.find((f) => f.id === cut.fabric) ??
-                    findPreset(cut.fabric))
+                const own = cut.fabric
+                  ? cutFabric(props.entities, garment, cut)
                   : undefined;
                 return (
                   <li key={cut.id}>
@@ -435,11 +164,11 @@ export function PiecesPanel(props: {
                       </span>
                       <div className="flex items-center gap-1.5 text-muted-foreground text-[13px]">
                         <span>{whereLabel(garment, cut)}</span>
-                        {cutFabric && (
+                        {own && (
                           <>
                             <span>·</span>
                             <span className="rounded bg-[#E1E4DE] px-1.5 py-0.5 text-[11px] font-medium text-foreground">
-                              {cutFabric.name}
+                              {own.name}
                             </span>
                           </>
                         )}
@@ -472,13 +201,33 @@ export function PiecesPanel(props: {
   );
 }
 
+/** A fabric in a list: its colour and name. */
+function FabricOption({
+  color,
+  name,
+}: {
+  color: string | undefined;
+  name: string;
+}) {
+  return (
+    <span className="flex items-center gap-2">
+      <span
+        aria-hidden
+        className="size-3.5 shrink-0 rounded-full border border-black/10"
+        style={{ background: color ?? DEFAULT_CLOTH_COLOR }}
+      />
+      {name}
+    </span>
+  );
+}
+
 function CutDetails(props: {
   store: DocumentStore;
   entities: Entities;
   garment: Garment;
   piece: Piece;
   cut: Cut;
-  fabrics?: readonly Fabric[];
+  onNewFabric: (piece: { id: string; name: string }) => void;
   onSelect: (s: Selection) => void;
   onRewrap: (cutId: string, place: Place) => void;
   onPlaceIn3d: (() => void) | null;
@@ -494,9 +243,8 @@ function CutDetails(props: {
   );
   const value =
     p.type === "follow" ? `on:${p.cut}` : place ? `one:${place}` : null;
-  const defaultFabric =
-    props.fabrics?.find((f) => f.id === g.fabric) ?? findPreset(g.fabric);
-  const defaultFabricName = defaultFabric?.name ?? "Garment default";
+  const fabrics = props.entities.fabrics;
+  const garmentFabric = fabrics.find((f) => f.id === g.fabric);
 
   /** A slider or box for one number of the wrap. */
   const wrapField = (
@@ -561,12 +309,15 @@ function CutDetails(props: {
       </div>
 
       <div className="flex flex-col gap-2 border-t pt-4">
-        <Heading>Fabric</Heading>
+        {/* <Heading>Fabric</Heading> */}
         <Select
-          value={cut.fabric ?? "default"}
+          value={cut.fabric ?? "garment"}
           onValueChange={(val) => {
-            const nextId = val === "default" ? undefined : val;
-            store.execute((e) => setCutFabric(e, g.id, cut.id, nextId));
+            if (val === "new")
+              return props.onNewFabric({ id: piece.id, name: piece.name });
+            const next = val === "garment" ? undefined : val;
+            // A piece's copies (left and right) stay in one fabric.
+            store.execute((e) => setPieceFabric(e, g.id, piece.id, next));
           }}
         >
           <SelectTrigger
@@ -576,46 +327,33 @@ function CutDetails(props: {
             <SelectValue placeholder="Choose fabric" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">
-              Default ({defaultFabricName})
+            <SelectItem value="garment">
+              <FabricOption
+                color={
+                  garmentFabric && fabricColor(props.entities, garmentFabric)
+                }
+                name={`Garment's (${garmentFabric?.name ?? "default"})`}
+              />
             </SelectItem>
             <SelectSeparator />
             <SelectGroup>
-              <SelectLabel>Presets</SelectLabel>
-              {FABRIC_PRESETS.map((pr) => (
-                <SelectItem key={pr.id} value={pr.id}>
-                  {pr.name} ({pr.category}, {Math.round(pr.density * 1000)}{" "}
-                  g/m²)
-                </SelectItem>
-              ))}
+              <SelectLabel>Fabrics in this project</SelectLabel>
+              {fabrics
+                .filter((f) => f.id !== g.fabric)
+                .map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    <FabricOption
+                      color={fabricColor(props.entities, f)}
+                      name={f.name}
+                    />
+                  </SelectItem>
+                ))}
             </SelectGroup>
-            {props.fabrics &&
-              props.fabrics.some(
-                (f) =>
-                  f.id !== g.fabric &&
-                  !FABRIC_PRESETS.some((pr) => pr.id === f.id),
-              ) && (
-                <>
-                  <SelectSeparator />
-                  <SelectGroup>
-                    <SelectLabel>Custom fabrics in project</SelectLabel>
-                    {props.fabrics
-                      .filter(
-                        (f) =>
-                          f.id !== g.fabric &&
-                          !FABRIC_PRESETS.some((pr) => pr.id === f.id),
-                      )
-                      .map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                  </SelectGroup>
-                </>
-              )}
+            <SelectSeparator />
+            <SelectItem value="new">New fabric…</SelectItem>
           </SelectContent>
         </Select>
-        {piece.cuts.length > 1 && (
+        {piece.cuts.some((c) => c.fabric !== cut.fabric) && (
           <button
             type="button"
             onClick={() =>
@@ -625,32 +363,9 @@ function CutDetails(props: {
             }
             className="text-muted-foreground hover:text-foreground self-start text-xs underline underline-offset-4"
           >
-            Apply {cut.fabric ? "this fabric" : "default"} to all{" "}
-            {piece.cuts.length} cuts of {piece.name}
+            The copies of {piece.name} differ: give all of them this one
           </button>
         )}
-      </div>
-
-      <div className="flex flex-col gap-3 border-t pt-4">
-        <Heading>Colour</Heading>
-        <ColorField
-          label={
-            piece.cuts.length > 1
-              ? `Colour of all ${piece.cuts.length} ${piece.name}`
-              : "Piece colour"
-          }
-          value={pieceColor(props.entities, piece)}
-          shown={garmentColor(props.entities, g) ?? DEFAULT_CLOTH_COLOR}
-          onPick={pickColor(store, g.id, { kind: "piece", pieceId: piece.id })}
-          onDragEnd={() => store.endGesture()}
-          onReset={{
-            label: "Use the garment colour",
-            run: () =>
-              pickColor(store, g.id, { kind: "piece", pieceId: piece.id })(
-                undefined,
-              ),
-          }}
-        />
       </div>
 
       <div className="flex flex-col gap-4 border-t pt-4">

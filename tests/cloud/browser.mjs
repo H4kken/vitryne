@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // M12's done-when in real Chrome (with its GPU), over CDP like tools/bench/chrome-check.mjs:
 //
-//   cloud  <url>   browser A opens the T-shirt example and changes its fabric with no account:
+//   cloud  <url>   browser A opens the T-shirt example and makes a denim with no account:
 //                  it is autosaved as A's draft (this tab holds its lock); an edit while offline
 //                  is kept and saved once back online; after a reload the draft is listed; A
 //                  creates an account (email, password, the code from Mailpit: instance.mjs).
 //                  Export and Duplicate ask for an account first, and a second example asks
 //                  before replacing the draft; with the account, Duplicate makes "(copy)".
-//                  Browser B (a fresh profile) signs in and opens the project, Denim and all.
+//                  Browser B (a fresh profile) signs in and opens the project, its navy denim
+//                  (recoloured offline) the garment's fabric.
 //   none   <url>   the same build with no config.json: the editor says it has no backend.
 //   draw   <url>   M14's done-when: a project from scratch, two rectangles from "Add a shape"
 //                  (front and back, lowered to the hips by their Height), the two side seams
@@ -236,7 +237,9 @@ async function cloud() {
   await a.until('the T-shirt open', loaded);
   const header = `document.querySelector('header')?.innerText ?? ''`;
   await a.until('not saved before an edit', `(${header}).includes('change something to keep it')`);
+  await a.click('New fabric');
   await a.click('Denim');
+  await a.click('Make this fabric');
   await a.until('the autosave', `(${header}).includes('Saved')`, 30000);
   await a.until('the draft notice', `document.body.innerText.includes('is saved as your draft in this browser')`);
   await a.until('the project lock', `navigator.locks.query().then((q) => q.held.some((l) => l.name.startsWith('vitryne-project:')))`);
@@ -244,11 +247,11 @@ async function cloud() {
 
   // Offline: the edit waits in this browser, then reaches the cloud.
   await a.network(true);
-  await a.click('Poplin');
+  await a.click('Navy', { exact: true });
   await a.until('offline', `(${header}).includes('changes kept in this browser')`, 30000);
   await a.shot('offline');
   await a.network(false);
-  await a.click('Denim');
+  await a.click('Use it for the whole garment');
   await a.until('saved again', `(${header}).includes('Saved')`, 90000);
 
   // Another tab of the same browser can't edit it too, until it takes it over.
@@ -323,7 +326,7 @@ async function cloud() {
   // The original, not the copy.
   await b.click('Open T-shirt (Teagan)', { exact: true });
   await b.until('the project open in B', loaded);
-  await b.until('Denim kept', `[...document.querySelectorAll('button')].some((e) => e.innerText.startsWith('Denim') && e.className.includes('bg-[#14181F]'))`);
+  await b.until('Navy denim kept', `[...document.querySelectorAll('button')].some((e) => e.innerText.includes('Navy denim') && e.innerText.includes('Default'))`);
   await b.until('B saved', `(document.querySelector('header')?.innerText ?? '').includes('Saved')`);
   await b.shot('opened');
   const title = await b.evaluate(projectName);

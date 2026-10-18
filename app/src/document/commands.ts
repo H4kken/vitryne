@@ -22,7 +22,7 @@ import type {
   Vec3,
 } from "@/format/schema.gen";
 import { colorName, normalizeColor } from "@/format/colors";
-import { findPreset } from "@/format/presets";
+import { matchingPreset } from "@/format/presets";
 import {
   foldProblem,
   joinEdges,
@@ -281,183 +281,12 @@ export function setFabricValue(
   );
 }
 
-/** Copies all physical properties of a preset onto an existing fabric. */
-export function applyFabricPreset(
-  e: Entities,
-  fabricId: string,
-  preset: Fabric,
-): Command {
-  const before = e.fabrics.find((f) => f.id === fabricId);
-  if (!before) throw new CommandError(`no fabric ${fabricId}`);
-  const after: Fabric = {
-    ...before,
-    name: preset.name,
-    category: preset.category,
-    density: preset.density,
-    thickness: preset.thickness,
-    stretch: { ...preset.stretch },
-    bending: { ...preset.bending },
-    friction: preset.friction,
-    notes: preset.notes,
-  };
-  const problems = schemaErrors("fabric", after);
-  if (problems.length)
-    throw new CommandError(`Apply preset: ${problems.join("; ")}`);
-  return {
-    label: `Apply ${preset.name} preset`,
-    drape: true,
-    changes: [{ slot: { kind: "fabric", id: fabricId }, before, after }],
-  };
-}
-
-/** Changes a garment's default fabric. Adds preset fabric if needed. */
-export function setGarmentFabric(
-  e: Entities,
-  garmentId: string,
-  fabricId: string,
-): Command {
-  const g = garment(e, garmentId);
-  if (g.fabric === fabricId)
-    throw new CommandError("garment already has this fabric");
-  const changes: Change[] = [];
-  const preset = findPreset(fabricId);
-  if (!e.fabrics.some((f) => f.id === fabricId) && preset) {
-    changes.push({
-      slot: { kind: "fabric", id: preset.id },
-      before: undefined,
-      after: preset,
-    });
-    if (e.project && !e.project.fabrics.includes(preset.id)) {
-      changes.push({
-        slot: { kind: "project" },
-        before: e.project,
-        after: { ...e.project, fabrics: [...e.project.fabrics, preset.id] },
-      });
-    }
-  }
-  const afterGarment: Garment = { ...g, fabric: fabricId };
-  changes.push({
-    slot: { kind: "garment", id: garmentId },
-    before: g,
-    after: afterGarment,
-  });
-  return {
-    label: "Change garment fabric",
-    drape: true,
-    changes,
-  };
-}
-
-/** Overrides or resets one cut's fabric. Adds preset fabric if needed. */
-export function setCutFabric(
-  e: Entities,
-  garmentId: string,
-  cutId: string,
-  fabricId: string | undefined,
-): Command {
-  const g = garment(e, garmentId);
-  const found = findCut(g, cutId);
-  if (!found) throw new CommandError(`no cut ${cutId}`);
-  if (found.cut.fabric === fabricId)
-    throw new CommandError("cut already has this fabric");
-  const [i, j] = cutAt(g, cutId);
-
-  const changes: Change[] = [];
-  if (fabricId) {
-    const preset = findPreset(fabricId);
-    if (!e.fabrics.some((f) => f.id === fabricId) && preset) {
-      changes.push({
-        slot: { kind: "fabric", id: preset.id },
-        before: undefined,
-        after: preset,
-      });
-      if (e.project && !e.project.fabrics.includes(preset.id)) {
-        changes.push({
-          slot: { kind: "project" },
-          before: e.project,
-          after: { ...e.project, fabrics: [...e.project.fabrics, preset.id] },
-        });
-      }
-    }
-  }
-
-  const afterGarment = setIn(g, ["pieces", i, "cuts", j, "fabric"], fabricId);
-  const problems = schemaErrors("garment", afterGarment);
-  if (problems.length)
-    throw new CommandError(`Change cut fabric: ${problems.join("; ")}`);
-  changes.push({
-    slot: { kind: "garment", id: garmentId },
-    before: g,
-    after: afterGarment,
-  });
-  return {
-    label: fabricId ? "Change cut fabric" : "Reset cut fabric to default",
-    drape: true,
-    changes,
-  };
-}
-
-/** Overrides or resets all cuts of a piece to a fabric. Adds preset fabric if needed. */
-export function setPieceFabric(
-  e: Entities,
-  garmentId: string,
-  pieceId: string,
-  fabricId: string | undefined,
-): Command {
-  const g = garment(e, garmentId);
-  const pieceIndex = indexOf(g.pieces, pieceId, "piece");
-  const piece = g.pieces[pieceIndex];
-  if (!piece) throw new CommandError(`no piece ${pieceId}`);
-  const allMatch = piece.cuts.every((c) => c.fabric === fabricId);
-  if (allMatch) throw new CommandError("piece already has this fabric");
-
-  const changes: Change[] = [];
-  if (fabricId) {
-    const preset = findPreset(fabricId);
-    if (!e.fabrics.some((f) => f.id === fabricId) && preset) {
-      changes.push({
-        slot: { kind: "fabric", id: preset.id },
-        before: undefined,
-        after: preset,
-      });
-      if (e.project && !e.project.fabrics.includes(preset.id)) {
-        changes.push({
-          slot: { kind: "project" },
-          before: e.project,
-          after: { ...e.project, fabrics: [...e.project.fabrics, preset.id] },
-        });
-      }
-    }
-  }
-
-  let afterGarment = g;
-  for (let j = 0; j < piece.cuts.length; j++) {
-    afterGarment = setIn(
-      afterGarment,
-      ["pieces", pieceIndex, "cuts", j, "fabric"],
-      fabricId,
-    );
-  }
-  const problems = schemaErrors("garment", afterGarment);
-  if (problems.length)
-    throw new CommandError(`Change piece fabric: ${problems.join("; ")}`);
-  changes.push({
-    slot: { kind: "garment", id: garmentId },
-    before: g,
-    after: afterGarment,
-  });
-  return {
-    label: fabricId ? "Change piece fabric" : "Reset piece fabric to default",
-    drape: true,
-    changes,
-  };
-}
-
-// ---- colours: appearances (FORMAT.md, Appearance), how the fabric looks, not how it drapes --
-
-/** What a colour is given to: the garment (its cuts without their own), or every cut of a piece. */
-export type ColorTarget =
-  { kind: "garment" } | { kind: "piece"; pieceId: string };
+// ---- fabrics: how a piece hangs and what colour it is (FORMAT.md, Fabric and Appearance) ----
+//
+// The editor's fabric is one thing to pick: a fabric part and the appearance it names
+// (`fabric.appearance`). Pieces pick fabrics, never colours: a cut's or garment's own appearance
+// (files from before format version 3) is taken away when its fabric changes or is recoloured,
+// so what the person picks is what they see.
 
 function appearanceById(
   e: Entities,
@@ -466,32 +295,81 @@ function appearanceById(
   return id === undefined ? undefined : e.appearances?.find((a) => a.id === id);
 }
 
-/** The colour a cut shows: its own appearance's, else the garment's, else none (the app's). */
+function fabricById(e: Entities, id: string | undefined): Fabric | undefined {
+  return id === undefined ? undefined : e.fabrics.find((f) => f.id === id);
+}
+
+/** A fabric's colour (its appearance's), or none (the app's own). */
+export function fabricColor(e: Entities, f: Fabric): string | undefined {
+  return appearanceById(e, f.appearance)?.color;
+}
+
+/** The fabric a cut is cut from: its own, else the garment's. */
+export function cutFabric(
+  e: Entities,
+  g: Garment,
+  cut: Cut,
+): Fabric | undefined {
+  return fabricById(e, cut.fabric ?? g.fabric);
+}
+
+/**
+ * The colour a cut shows, the nearest one set (FORMAT.md, Appearance): its own appearance, its
+ * own fabric's, the garment's appearance, the garment fabric's; else none (the app's).
+ */
 export function cutColor(
   e: Entities,
   g: Garment,
   cut: Cut,
 ): string | undefined {
-  return (appearanceById(e, cut.appearance) ?? appearanceById(e, g.appearance))
-    ?.color;
+  const fabricLook = (id: string | undefined) =>
+    appearanceById(e, fabricById(e, id)?.appearance);
+  return (
+    appearanceById(e, cut.appearance) ??
+    (cut.fabric === undefined ? undefined : fabricLook(cut.fabric)) ??
+    appearanceById(e, g.appearance) ??
+    fabricLook(g.fabric)
+  )?.color;
 }
 
-/** The garment's own colour (its default), or none. */
-export function garmentColor(e: Entities, g: Garment): string | undefined {
-  return appearanceById(e, g.appearance)?.color;
+/** How many cuts are cut from a fabric, and whether it is a garment's default. */
+export function fabricUse(
+  e: Entities,
+  fabricId: string,
+): { cuts: number; garmentDefault: boolean } {
+  let cuts = 0;
+  let garmentDefault = false;
+  for (const g of e.garments) {
+    if (g.fabric === fabricId) garmentDefault = true;
+    for (const p of g.pieces)
+      for (const c of p.cuts) if ((c.fabric ?? g.fabric) === fabricId) cuts++;
+  }
+  return { cuts, garmentDefault };
 }
 
-/** A piece's own colour, if all its cuts have the same one; none if they follow the garment. */
-export function pieceColor(e: Entities, piece: Piece): string | undefined {
-  const ids = new Set(piece.cuts.map((c) => c.appearance));
-  return ids.size === 1 ? appearanceById(e, [...ids][0])?.color : undefined;
+/** A fabric's name from its colour and kind ("Navy denim"), or the kind's alone. */
+export function fabricName(color: string | undefined, preset: Fabric): string {
+  const named = color === undefined ? undefined : colorName(color);
+  return named === undefined || named === color
+    ? preset.name
+    : `${named} ${preset.name.charAt(0).toLowerCase()}${preset.name.slice(1)}`;
 }
 
-/** Every reference to an appearance in the document, by id: how many. */
-function appearanceUses(gs: readonly Garment[]): Map<string, number> {
+/** Whether `f`'s name is the one `fabricName` would give it (so it may follow its kind and colour). */
+function hasMadeName(e: Entities, f: Fabric): boolean {
+  const kind = matchingPreset(f);
+  return kind !== undefined && f.name === fabricName(fabricColor(e, f), kind);
+}
+
+/** Every reference to an appearance, by id: how many (garments, cuts and fabrics). */
+function appearanceUses(
+  gs: readonly Garment[],
+  fs: readonly Fabric[],
+): Map<string, number> {
   const uses = new Map<string, number>();
   const count = (id: string | undefined) =>
     id !== undefined && uses.set(id, (uses.get(id) ?? 0) + 1);
+  for (const f of fs) count(f.appearance);
   for (const g of gs) {
     count(g.appearance);
     for (const p of g.pieces) for (const c of p.cuts) count(c.appearance);
@@ -499,136 +377,390 @@ function appearanceUses(gs: readonly Garment[]): Map<string, number> {
   return uses;
 }
 
+function checked<T>(kind: Slot["kind"], label: string, v: T): T {
+  const problems = schemaErrors(kind, v);
+  if (problems.length)
+    throw new CommandError(`${label}: ${problems.join("; ")}`);
+  return v;
+}
+
 /**
- * Gives `target` the colour `color` (#rrggbb), or takes its own away (`undefined`: a piece then
- * follows the garment, the garment shows the app's colour). An appearance only the target uses
- * is recoloured in place (so dragging a colour picker is one appearance); otherwise one of the
- * same colour is reused, or a new one made with `newId`. Appearances nothing uses any more are
- * removed. No re-drape: the worker recolours the drape shown.
+ * The changes taking `e` to `next` for the garments, fabrics and appearances, with the project's
+ * lists following. Appearances only a removed reference used are dropped, unless `keep`.
  */
-export function setColor(
+function fabricChanges(
   e: Entities,
-  garmentId: string,
-  target: ColorTarget,
-  color: string | undefined,
-  newId: () => string = () => crypto.randomUUID(),
-): Command {
-  const g = garment(e, garmentId);
-  const c = color === undefined ? undefined : normalizeColor(color);
-  if (color !== undefined && c === undefined)
-    throw new CommandError(`${color} is not a colour (#rrggbb)`);
-  const pieceIndex =
-    target.kind === "piece" ? indexOf(g.pieces, target.pieceId, "piece") : -1;
-  const cuts = g.pieces[pieceIndex]?.cuts ?? [];
-  const refs =
-    target.kind === "garment"
-      ? [g.appearance]
-      : cuts.map((cut) => cut.appearance);
-  const label =
-    c === undefined
-      ? target.kind === "garment"
-        ? "Remove the garment colour"
-        : "Reset a piece colour"
-      : target.kind === "garment"
-        ? "Change the garment colour"
-        : "Change a piece colour";
-
-  const appearances = (e.appearances ?? []).slice();
-  let id: string | undefined;
-  if (c !== undefined) {
-    // In place: the target's one appearance, used by nothing else.
-    const own = new Set(refs);
-    const only = own.size === 1 ? [...own][0] : undefined;
-    const k = appearances.findIndex((a) => a.id === only);
-    const mine = appearances[k];
-    if (
-      only !== undefined &&
-      mine &&
-      appearanceUses(e.garments).get(only) === refs.length
-    ) {
-      if (mine.color === c) throw new CommandError(`${label}: nothing changes`);
-      appearances[k] = { ...mine, color: c, name: colorName(c) };
-      id = only;
-    } else {
-      id = appearances.find((a) => a.color === c)?.id;
-      if (id === undefined) {
-        id = newId();
-        appearances.push({ id, name: colorName(c), color: c });
-      }
-    }
-  }
-
-  let after: Garment = g;
-  if (target.kind === "garment")
-    after = setIn(g, ["appearance"], id) as Garment;
-  else
-    for (let j = 0; j < cuts.length; j++)
-      after = setIn(
-        after,
-        ["pieces", pieceIndex, "cuts", j, "appearance"],
-        id,
-      ) as Garment;
-  const garments = e.garments.map((x) => (x.id === g.id ? after : x));
-  const used = appearanceUses(garments);
-  const kept = appearances.filter((a) => used.has(a.id));
-  const unchanged = after === g || deepEqual(after, g);
-  if (unchanged && deepEqual(kept, e.appearances ?? []))
-    throw new CommandError(`${label}: nothing changes`);
+  label: string,
+  next: {
+    garments?: readonly Garment[];
+    fabrics?: readonly Fabric[];
+    appearances?: readonly Appearance[];
+  },
+): Change[] {
+  const garments = next.garments ?? e.garments;
+  const fabrics = next.fabrics ?? e.fabrics;
+  const used = appearanceUses(garments, fabrics);
+  const was = appearanceUses(e.garments, e.fabrics);
+  // An appearance nothing uses any more goes; one nothing used before stays (a file's own).
+  const appearances = (next.appearances ?? e.appearances ?? []).filter(
+    (a) => used.has(a.id) || !was.has(a.id),
+  );
 
   const changes: Change[] = [];
-  const before = new Map((e.appearances ?? []).map((a) => [a.id, a]));
-  const now = new Map(kept.map((a) => [a.id, a]));
-  for (const a of kept) {
-    if (!deepEqual(before.get(a.id), a))
-      changes.push({
-        slot: { kind: "appearance", id: a.id },
-        before: before.get(a.id),
-        after: a,
-      });
-  }
-  for (const [aid, a] of before) {
-    if (!now.has(aid))
-      changes.push({
-        slot: { kind: "appearance", id: aid },
-        before: a,
-        after: undefined,
-      });
-  }
-  if (!unchanged) {
-    const problems = schemaErrors("garment", after);
-    if (problems.length)
-      throw new CommandError(`${label}: ${problems.join("; ")}`);
-    changes.push({ slot: { kind: "garment", id: g.id }, before: g, after });
-  }
-  for (const ch of changes) {
-    if (ch.slot.kind === "appearance" && ch.after !== undefined) {
-      const problems = schemaErrors("appearance", ch.after);
-      if (problems.length)
-        throw new CommandError(`${label}: ${problems.join("; ")}`);
+  const diff = <T extends { id: string }>(
+    kind: "garment" | "fabric" | "appearance",
+    before: readonly T[],
+    after: readonly T[],
+  ) => {
+    const old = new Map(before.map((x) => [x.id, x]));
+    const now = new Set(after.map((x) => x.id));
+    for (const x of after) {
+      const b = old.get(x.id);
+      if (b !== x && !deepEqual(b, x))
+        changes.push({
+          slot: { kind, id: x.id },
+          before: b,
+          after: checked(kind, label, x),
+        });
     }
-  }
+    for (const [id, b] of old)
+      if (!now.has(id))
+        changes.push({ slot: { kind, id }, before: b, after: undefined });
+  };
+  diff("appearance", e.appearances ?? [], appearances);
+  diff("fabric", e.fabrics, fabrics);
+  diff("garment", e.garments, garments);
+  if (changes.length === 0) throw new CommandError(`${label}: nothing changes`);
+
   if (e.project) {
-    const ids = kept.map((a) => a.id);
-    const listed = e.project.appearances ?? [];
-    if (!deepEqual(listed, ids)) {
-      const project: Project = setIn(
-        e.project,
-        ["appearances"],
-        ids.length ? ids : undefined,
-      );
+    // The project's lists keep their order: gone ids leave, new ones go last.
+    const listed = (was: readonly string[], now: readonly { id: string }[]) => {
+      const ids = new Set(now.map((x) => x.id));
+      const kept = was.filter((id) => ids.has(id));
+      return [...kept, ...[...ids].filter((id) => !kept.includes(id))];
+    };
+    let project: Project = e.project;
+    const fids = listed(project.fabrics, fabrics);
+    if (!deepEqual(project.fabrics, fids))
+      project = setIn(project, ["fabrics"], fids);
+    const aids = listed(project.appearances ?? [], appearances);
+    if (!deepEqual(project.appearances ?? [], aids))
+      project = setIn(project, ["appearances"], aids.length ? aids : undefined);
+    if (project !== e.project)
       changes.push({
         slot: { kind: "project" },
         before: e.project,
         after: project,
       });
-    }
   }
+  return changes;
+}
+
+/** Takes away the own appearance of the cuts `which` picks (and the garment's, if `garment`). */
+function dropLooks(
+  g: Garment,
+  which: (c: Cut) => boolean,
+  garment = false,
+): Garment {
+  let out = g;
+  if (garment && g.appearance !== undefined)
+    out = setIn(out, ["appearance"], undefined) as Garment;
+  g.pieces.forEach((p, i) =>
+    p.cuts.forEach((c, j) => {
+      if (c.appearance !== undefined && which(c))
+        out = setIn(
+          out,
+          ["pieces", i, "cuts", j, "appearance"],
+          undefined,
+        ) as Garment;
+    }),
+  );
+  return out;
+}
+
+export interface NewIds {
+  fabric: string;
+  appearance: string;
+}
+
+const randomIds = (): NewIds => ({
+  fabric: crypto.randomUUID(),
+  appearance: crypto.randomUUID(),
+});
+
+/** The physical values of `from` (its kind), on `f`. */
+function withPhysics(f: Fabric, from: Fabric): Fabric {
+  const out: Fabric = {
+    ...f,
+    category: from.category,
+    density: from.density,
+    stretch: { ...from.stretch },
+    bending: { ...from.bending },
+    friction: from.friction,
+  };
+  if (from.thickness !== undefined) out.thickness = from.thickness;
+  else delete out.thickness;
+  if (from.notes !== undefined) out.notes = from.notes;
+  else delete out.notes;
+  return out;
+}
+
+/**
+ * Adds a fabric of kind `preset` in `color` (#rrggbb), named `name` (default: `fabricName`).
+ * Nothing uses it yet, so nothing re-drapes.
+ */
+export function addFabric(
+  e: Entities,
+  spec: { preset: Fabric; color: string; name?: string },
+  ids: NewIds = randomIds(),
+): Command {
+  const c = normalizeColor(spec.color);
+  if (c === undefined)
+    throw new CommandError(`${spec.color} is not a colour (#rrggbb)`);
+  const name = spec.name?.trim() || fabricName(c, spec.preset);
+  const fabric = withPhysics(
+    { ...spec.preset, id: ids.fabric, name, appearance: ids.appearance },
+    spec.preset,
+  );
+  return {
+    label: "Add a fabric",
+    drape: false,
+    changes: fabricChanges(e, "Add a fabric", {
+      fabrics: [...e.fabrics, fabric],
+      appearances: [
+        ...(e.appearances ?? []),
+        { id: ids.appearance, name: colorName(c), color: c },
+      ],
+    }),
+  };
+}
+
+/** A fabric of another project, with its look, to copy into this one. */
+export interface FabricSource {
+  /** The project it comes from (its `libraryRef.library`). */
+  library: string;
+  fabric: Fabric;
+  appearance?: Appearance;
+}
+
+/**
+ * Copies a fabric (and its appearance) from another project: new ids, and a `libraryRef` saying
+ * where it came from (FORMAT.md, common: the copy is what's used).
+ */
+export function importFabric(
+  e: Entities,
+  src: FabricSource,
+  ids: NewIds = randomIds(),
+): Command {
+  const ref = (entity: string) => ({ library: src.library, entity });
+  const fabric: Fabric = {
+    ...src.fabric,
+    id: ids.fabric,
+    libraryRef: ref(src.fabric.id),
+  };
+  delete fabric.appearance;
+  const appearances = [...(e.appearances ?? [])];
+  if (src.appearance) {
+    fabric.appearance = ids.appearance;
+    appearances.push({
+      ...src.appearance,
+      id: ids.appearance,
+      libraryRef: ref(src.appearance.id),
+    });
+  }
+  return {
+    label: `Add ${fabric.name}`,
+    drape: false,
+    changes: fabricChanges(e, `Add ${fabric.name}`, {
+      fabrics: [...e.fabrics, fabric],
+      appearances,
+    }),
+  };
+}
+
+/**
+ * Recolours a fabric. Its appearance is recoloured in place when nothing else uses it (so a
+ * colour picker's drag is one appearance), else it gets a new one made with `newId`. The cuts
+ * of this fabric lose their own appearances, and so does a garment whose default it is. A name
+ * made from the colour follows it. No re-drape: the worker recolours the drape shown.
+ */
+export function setFabricColor(
+  e: Entities,
+  fabricId: string,
+  color: string,
+  newId: () => string = () => crypto.randomUUID(),
+): Command {
+  const label = "Change a fabric's colour";
+  const f = fabricById(e, fabricId);
+  if (!f) throw new CommandError(`no fabric ${fabricId}`);
+  const c = normalizeColor(color);
+  if (c === undefined)
+    throw new CommandError(`${color} is not a colour (#rrggbb)`);
+
+  const appearances = [...(e.appearances ?? [])];
+  const k = appearances.findIndex((a) => a.id === f.appearance);
+  const own = appearances[k];
+  let id: string;
+  if (own && appearanceUses(e.garments, e.fabrics).get(own.id) === 1) {
+    appearances[k] = { ...own, color: c, name: colorName(c) };
+    id = own.id;
+  } else {
+    id = newId();
+    appearances.push({ id, name: colorName(c), color: c });
+  }
+  let fabric: Fabric = { ...f, appearance: id };
+  const kind = matchingPreset(f);
+  if (kind && hasMadeName(e, f))
+    fabric = { ...fabric, name: fabricName(c, kind) };
+  const garments = e.garments.map((g) =>
+    dropLooks(
+      g,
+      (cut) => (cut.fabric ?? g.fabric) === fabricId,
+      g.fabric === fabricId,
+    ),
+  );
   return {
     label,
     drape: false,
-    changes,
-    coalesce: `color:${g.id}:${target.kind === "piece" ? target.pieceId : "garment"}`,
+    coalesce: `fabric-color:${fabricId}`,
+    changes: fabricChanges(e, label, {
+      garments,
+      fabrics: e.fabrics.map((x) => (x.id === fabricId ? fabric : x)),
+      appearances,
+    }),
   };
+}
+
+/** Gives a fabric the physical values of a preset (its kind); a name made from the kind follows. */
+export function applyFabricPreset(
+  e: Entities,
+  fabricId: string,
+  preset: Fabric,
+): Command {
+  const before = fabricById(e, fabricId);
+  if (!before) throw new CommandError(`no fabric ${fabricId}`);
+  let after = withPhysics(before, preset);
+  if (hasMadeName(e, before) || matchingPreset(before) === undefined)
+    after = { ...after, name: fabricName(fabricColor(e, before), preset) };
+  const label = `Make it ${preset.name.toLowerCase()}`;
+  if (deepEqual(before, after))
+    throw new CommandError(`${label}: nothing changes`);
+  return {
+    label,
+    drape: fabricUse(e, fabricId).cuts > 0,
+    changes: [
+      {
+        slot: { kind: "fabric", id: fabricId },
+        before,
+        after: checked("fabric", label, after),
+      },
+    ],
+  };
+}
+
+/** Removes a fabric no cut uses and no garment has as its default (and its look, if only its). */
+export function deleteFabric(e: Entities, fabricId: string): Command {
+  const f = fabricById(e, fabricId);
+  if (!f) throw new CommandError(`no fabric ${fabricId}`);
+  const use = fabricUse(e, fabricId);
+  if (use.garmentDefault || use.cuts > 0)
+    throw new CommandError(
+      `${f.name} is in use: give its pieces another fabric first`,
+    );
+  return {
+    label: `Delete ${f.name}`,
+    drape: false,
+    changes: fabricChanges(e, `Delete ${f.name}`, {
+      fabrics: e.fabrics.filter((x) => x.id !== fabricId),
+    }),
+  };
+}
+
+/** The garment's default fabric: the one of every cut that names none. Its look comes with it. */
+export function setDefaultFabric(
+  e: Entities,
+  garmentId: string,
+  fabricId: string,
+): Command {
+  const g = garment(e, garmentId);
+  if (!fabricById(e, fabricId)) throw new CommandError(`no fabric ${fabricId}`);
+  if (g.fabric === fabricId)
+    throw new CommandError("the garment already has this fabric");
+  const after = dropLooks(
+    { ...g, fabric: fabricId },
+    (c) => c.fabric === undefined,
+    true,
+  );
+  return {
+    label: "Change the garment's fabric",
+    drape: true,
+    changes: fabricChanges(e, "Change the garment's fabric", {
+      garments: e.garments.map((x) => (x.id === g.id ? after : x)),
+    }),
+  };
+}
+
+/** Gives the cuts `cutIds` of a garment a fabric, or the garment's (`undefined`); their own looks go. */
+function setCutsFabric(
+  e: Entities,
+  g: Garment,
+  cutIds: readonly string[],
+  fabricId: string | undefined,
+  label: string,
+): Command {
+  if (fabricId !== undefined && !fabricById(e, fabricId))
+    throw new CommandError(`no fabric ${fabricId}`);
+  const which = new Set(cutIds);
+  // The garment's own fabric is stored as none: the cut then follows it.
+  const value = fabricId === g.fabric ? undefined : fabricId;
+  let after = g;
+  for (const id of cutIds) {
+    const [i, j] = cutAt(g, id);
+    after = setIn(after, ["pieces", i, "cuts", j, "fabric"], value) as Garment;
+  }
+  after = dropLooks(after, (c) => which.has(c.id));
+  return {
+    label,
+    drape: true,
+    changes: fabricChanges(e, label, {
+      garments: e.garments.map((x) => (x.id === g.id ? after : x)),
+    }),
+  };
+}
+
+/** One cut's fabric, or the garment's (`undefined`). */
+export function setCutFabric(
+  e: Entities,
+  garmentId: string,
+  cutId: string,
+  fabricId: string | undefined,
+): Command {
+  const g = garment(e, garmentId);
+  return setCutsFabric(
+    e,
+    g,
+    [cutId],
+    fabricId,
+    fabricId ? "Change a piece's fabric" : "Use the garment's fabric",
+  );
+}
+
+/** The fabric of every cut of a piece, or the garment's (`undefined`). */
+export function setPieceFabric(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  fabricId: string | undefined,
+): Command {
+  const g = garment(e, garmentId);
+  const piece = g.pieces[indexOf(g.pieces, pieceId, "piece")];
+  return setCutsFabric(
+    e,
+    g,
+    (piece?.cuts ?? []).map((c) => c.id),
+    fabricId,
+    fabricId ? "Change a piece's fabric" : "Use the garment's fabric",
+  );
 }
 
 // ---- simulation settings: the garment's value wins over the project's (FORMAT.md) ----------

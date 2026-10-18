@@ -19,11 +19,17 @@ pub struct Raw {
 pub type Migration = fn(&mut Raw) -> Result<(), String>;
 
 /// Every migration, in order: `MIGRATIONS[k]` takes a file from version k + 1 to k + 2.
-pub const MIGRATIONS: &[Migration] = &[v1_to_v2];
+pub const MIGRATIONS: &[Migration] = &[v1_to_v2, v2_to_v3];
 
 /// Version 2 added appearances (`appearances/<id>.json`, `appearance` on garments and cuts,
 /// `project.appearances`), all optional: a v1 file is already a valid v2 file.
 fn v1_to_v2(_: &mut Raw) -> Result<(), String> {
+    Ok(())
+}
+
+/// Version 3 added `appearance` on fabrics (how a fabric looks by default), optional, and lets a
+/// fabric file hold the appearances its fabrics use: a v2 file is already a valid v3 file.
+fn v2_to_v3(_: &mut Raw) -> Result<(), String> {
     Ok(())
 }
 

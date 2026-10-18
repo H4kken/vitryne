@@ -20,10 +20,13 @@ import {
   reverseSeam,
   revertCommand,
   selfCollision,
+  addFabric,
   cutColor,
-  pieceColor,
-  setColor,
+  deleteFabric,
+  importFabric,
   setCutFabric,
+  setDefaultFabric,
+  setFabricColor,
   setFabricValue,
   setLayout,
   setLayouts,
@@ -40,9 +43,6 @@ import {
   COTTON_JERSEY,
   DENIM,
   FLEECE,
-  ID_DENIM,
-  ID_FLEECE,
-  ID_POPLIN,
   POPLIN,
   WOOL_SUITING,
 } from "@/format/presets";
@@ -60,8 +60,21 @@ function everyCommand(e: Entities): Command[] {
     renameSeam(e, g.id, g.seams![0]!.id, "side"),
     renameFabric(e, fabric.id, "Denim"),
     applyFabricPreset(e, fabric.id, DENIM),
-    setCutFabric(e, g.id, piece.cuts[0]!.id, ID_DENIM),
-    setPieceFabric(e, g.id, piece.id, ID_FLEECE),
+    addFabric(
+      e,
+      { preset: FLEECE, color: "#1F2A44" },
+      { fabric: ID_A, appearance: ID_B },
+    ),
+    importFabric(
+      e,
+      {
+        library: ID_LIB,
+        fabric: { ...DENIM, appearance: ID_C },
+        appearance: NAVY_C,
+      },
+      { fabric: ID_A, appearance: ID_B },
+    ),
+    setFabricColor(e, fabric.id, "#b5282e", () => ID_B),
     // Sewing: the first seam taken out, turned over, and put back as a new one.
     removeSeam(e, g.id, g.seams![0]!.id),
     reverseSeam(e, g.id, g.seams![0]!.id),
@@ -106,20 +119,14 @@ function everyCommand(e: Entities): Command[] {
       [piece.cuts[0]!.id]: { position: [10, 20], rotation: 0 },
       [g.pieces[1]!.cuts[0]!.id]: { position: [-30, 40], rotation: 0.25 },
     }),
-    setColor(e, g.id, { kind: "garment" }, "#1F2A44", () => ID_A),
-    setColor(
-      e,
-      g.id,
-      { kind: "piece", pieceId: piece.id },
-      "#b5282e",
-      () => ID_B,
-    ),
   ];
 }
 
 const ID_A = "01a13cdb-cc05-7000-8000-00000000000a";
 const ID_B = "01a13cdb-cc05-7000-8000-00000000000b";
 const ID_C = "01a13cdb-cc05-7000-8000-00000000000c";
+const ID_LIB = "01a13cdb-cc05-7000-8000-0000000000ff";
+const NAVY_C = { id: ID_C, name: "Navy", color: "#1f2a44" };
 
 describe.each(EXAMPLES)("%s", (name) => {
   const { file, entities } = openExample(name);
@@ -227,97 +234,147 @@ describe.each(EXAMPLES)("%s", (name) => {
   });
 });
 
-describe("colours", () => {
+describe("fabrics", () => {
   const { file, entities } = openExample("tshirt");
   const e0 = deepFreeze(entities);
   const g0 = mainGarment(e0)!;
-  const [front, other] = [g0.pieces[0]!, g0.pieces[1]!];
-  const ids = [ID_A, ID_B, ID_C];
-  const next = () => ids.shift()!;
+  const front = g0.pieces[0]!;
   const run = (e: Entities, cmd: Command) => {
     const after = applyCommand(e, cmd);
     expect(rustRefuses(file, after), cmd.label).toBeNull();
-    expect(cmd.drape).toBe(false);
+    expect(JSON.stringify(revertCommand(after, cmd)), cmd.label).toBe(
+      JSON.stringify(e),
+    );
     return after;
   };
+  const colors = (e: Entities) => {
+    const g = mainGarment(e)!;
+    return g.pieces.map((p) => cutColor(e, g, p.cuts[0]!));
+  };
 
-  it("colours the garment, then a piece over it, and takes them away again", () => {
-    expect(cutColor(e0, g0, front.cuts[0]!)).toBeUndefined();
-    let e = run(e0, setColor(e0, g0.id, { kind: "garment" }, "#1F2A44", next));
+  it("makes a fabric, gives it to a piece, recolours it, and deletes it once unused", () => {
+    expect(colors(e0).every((c) => c === undefined)).toBe(true);
+    const add = addFabric(
+      e0,
+      { preset: DENIM, color: "#1F2A44" },
+      { fabric: ID_A, appearance: ID_B },
+    );
+    expect(add.drape).toBe(false);
+    let e = run(e0, add);
+    expect(e.fabrics.at(-1)).toMatchObject({
+      id: ID_A,
+      name: "Navy denim",
+      appearance: ID_B,
+      density: DENIM.density,
+    });
     expect(e.appearances).toEqual([
-      { id: ID_A, name: "Navy", color: "#1f2a44" },
+      { id: ID_B, name: "Navy", color: "#1f2a44" },
     ]);
-    expect(e.project!.appearances).toEqual([ID_A]);
-    let g = mainGarment(e)!;
+    expect(e.project!.fabrics).toEqual([...e0.project!.fabrics, ID_A]);
+    expect(e.project!.appearances).toEqual([ID_B]);
+
+    const use = setPieceFabric(e, g0.id, front.id, ID_A);
+    expect(use.drape).toBe(true);
+    e = run(e, use);
+    expect(colors(e)[0]).toBe("#1f2a44");
     expect(
-      g.pieces
-        .flatMap((p) => p.cuts)
-        .every((c) => cutColor(e, g, c) === "#1f2a44"),
+      colors(e)
+        .slice(1)
+        .every((c) => c === undefined),
     ).toBe(true);
+    expect(() => deleteFabric(e, ID_A)).toThrow(/in use/);
 
-    // Only the garment uses it: recoloured in place, no new appearance.
-    e = run(e, setColor(e, g.id, { kind: "garment" }, "#3b5a80", next));
+    // Only this fabric uses its look: recoloured in place, and its made-up name follows.
+    const red = setFabricColor(e, ID_A, "#b5282e");
+    expect(red.drape).toBe(false);
+    e = run(e, red);
     expect(e.appearances).toEqual([
-      { id: ID_A, name: "Denim blue", color: "#3b5a80" },
+      { id: ID_B, name: "Red", color: "#b5282e" },
     ]);
+    expect(e.fabrics.at(-1)!.name).toBe("Red denim");
+    expect(colors(e)[0]).toBe("#b5282e");
+    // A name the person gave stays.
+    e = run(e, renameFabric(e, ID_A, "My jeans"));
+    e = run(e, setFabricColor(e, ID_A, "#3b5a80"));
+    expect(e.fabrics.at(-1)!.name).toBe("My jeans");
+    expect(() => setFabricColor(e, ID_A, "#3B5A80")).toThrow(/nothing changes/);
 
-    // A piece of the garment's colour shares its appearance; one of its own gets a new one.
-    e = run(
-      e,
-      setColor(e, g.id, { kind: "piece", pieceId: other.id }, "#3b5a80", next),
-    );
-    expect(e.appearances).toHaveLength(1);
-    e = run(
-      e,
-      setColor(
-        e,
-        mainGarment(e)!.id,
-        { kind: "piece", pieceId: front.id },
-        "#c0643f",
-        next,
-      ),
-    );
-    g = mainGarment(e)!;
-    expect(e.appearances).toHaveLength(2);
-    expect(pieceColor(e, g.pieces[0]!)).toBe("#c0643f");
-    expect(cutColor(e, g, g.pieces[2]!.cuts[0]!)).toBe("#3b5a80");
-
-    // Now shared, the garment's appearance isn't changed in place: the piece keeps its colour.
-    e = run(e, setColor(e, g.id, { kind: "garment" }, "#f4f2ec", next));
-    g = mainGarment(e)!;
-    expect(pieceColor(e, g.pieces[1]!)).toBe("#3b5a80");
-    expect(e.appearances!.map((a) => a.color).sort()).toEqual([
-      "#3b5a80",
-      "#c0643f",
-      "#f4f2ec",
-    ]);
-
-    // Taking colours away removes the appearances nothing uses.
-    for (const p of g.pieces) {
-      if (pieceColor(e, p))
-        e = run(
-          e,
-          setColor(e, g.id, { kind: "piece", pieceId: p.id }, undefined),
-        );
-    }
-    e = run(e, setColor(e, g.id, { kind: "garment" }, undefined));
-    expect(e.appearances).toBeUndefined();
-    expect(e.project!.appearances).toBeUndefined();
+    e = run(e, setPieceFabric(e, g0.id, front.id, undefined));
+    e = run(e, deleteFabric(e, ID_A));
     expect(JSON.stringify(e)).toBe(JSON.stringify(e0));
   });
 
-  it("refuses what is not a colour, or changes nothing", () => {
-    expect(() => setColor(e0, g0.id, { kind: "garment" }, "navy")).toThrow(
+  it("makes another fabric the garment's, its look with it", () => {
+    let e = run(
+      e0,
+      addFabric(
+        e0,
+        { preset: FLEECE, color: "#2f5d43" },
+        { fabric: ID_A, appearance: ID_B },
+      ),
+    );
+    e = run(e, setDefaultFabric(e, g0.id, ID_A));
+    expect(mainGarment(e)!.fabric).toBe(ID_A);
+    expect(colors(e).every((c) => c === "#2f5d43")).toBe(true);
+    // The old one is unused now, so it can go.
+    e = run(e, deleteFabric(e, g0.fabric));
+    expect(e.fabrics.map((f) => f.id)).toEqual([ID_A]);
+  });
+
+  it("gives way to the fabric when a file still has a garment colour of its own", () => {
+    const old = deepFreeze({
+      ...e0,
+      appearances: [{ id: ID_C, name: "Black", color: "#22252a" }],
+      project: { ...e0.project!, appearances: [ID_C] },
+      garments: [{ ...g0, appearance: ID_C }],
+    });
+    expect(rustRefuses(file, old)).toBeNull();
+    expect(colors(old).every((c) => c === "#22252a")).toBe(true);
+    const e = run(
+      old,
+      setFabricColor(old, g0.fabric, "#f4f2ec", () => ID_A),
+    );
+    expect(colors(e).every((c) => c === "#f4f2ec")).toBe(true);
+    expect(mainGarment(e)!.appearance).toBeUndefined();
+    // The garment's colour, used by nothing now, is gone.
+    expect(e.appearances).toEqual([
+      { id: ID_A, name: "White", color: "#f4f2ec" },
+    ]);
+    expect(e.project!.appearances).toEqual([ID_A]);
+  });
+
+  it("copies a fabric from another project with new ids and where it came from", () => {
+    const e = run(
+      e0,
+      importFabric(
+        e0,
+        {
+          library: ID_LIB,
+          fabric: { ...DENIM, appearance: ID_C },
+          appearance: NAVY_C,
+        },
+        { fabric: ID_A, appearance: ID_B },
+      ),
+    );
+    expect(e.fabrics.at(-1)).toMatchObject({
+      id: ID_A,
+      appearance: ID_B,
+      libraryRef: { library: ID_LIB, entity: DENIM.id },
+    });
+    expect(e.appearances).toEqual([
+      { ...NAVY_C, id: ID_B, libraryRef: { library: ID_LIB, entity: ID_C } },
+    ]);
+  });
+
+  it("refuses what is not a colour, or a fabric that isn't there", () => {
+    expect(() => addFabric(e0, { preset: DENIM, color: "navy" })).toThrow(
       CommandError,
     );
-    expect(() => setColor(e0, g0.id, { kind: "garment" }, undefined)).toThrow(
-      /nothing changes/,
+    expect(() => setFabricColor(e0, g0.fabric, "navy")).toThrow(CommandError);
+    expect(() => setCutFabric(e0, g0.id, front.cuts[0]!.id, ID_A)).toThrow(
+      /no fabric/,
     );
-    const e = applyCommand(
-      e0,
-      setColor(e0, g0.id, { kind: "garment" }, "#1f2a44", () => ID_C),
-    );
-    expect(() => setColor(e, g0.id, { kind: "garment" }, "#1F2A44")).toThrow(
+    expect(() => setPieceFabric(e0, g0.id, front.id, undefined)).toThrow(
       /nothing changes/,
     );
   });
@@ -364,39 +421,39 @@ describe("fabric presets and overrides", () => {
     }
   });
 
-  it("overrides cut and piece fabric, adding preset entity when needed, and undoes cleanly", () => {
-    const { file, entities } = openExample("tshirt");
+  it("overrides cut and piece fabric, and undoes cleanly", () => {
+    const { file, entities: e0 } = openExample("tshirt");
+    const entities = applyCommand(
+      e0,
+      addFabric(
+        e0,
+        { preset: POPLIN, color: "#8fb8de" },
+        { fabric: ID_A, appearance: ID_B },
+      ),
+    );
     const g = mainGarment(entities)!;
     const piece = g.pieces[0]!;
     const cut = piece.cuts[0]!;
 
-    // Override one cut to denim
-    const cutCmd = setCutFabric(entities, g.id, cut.id, ID_DENIM);
+    const cutCmd = setCutFabric(entities, g.id, cut.id, ID_A);
     const cutApplied = applyCommand(entities, cutCmd);
-    expect(cutApplied.fabrics.some((f) => f.id === ID_DENIM)).toBe(true);
-    expect(cutApplied.project?.fabrics.includes(ID_DENIM)).toBe(true);
-    const updatedCut = mainGarment(cutApplied)!.pieces[0]!.cuts[0]!;
-    expect(updatedCut.fabric).toBe(ID_DENIM);
+    expect(mainGarment(cutApplied)!.pieces[0]!.cuts[0]!.fabric).toBe(ID_A);
     expect(rustRefuses(file, cutApplied)).toBeNull();
+    expect(JSON.stringify(revertCommand(cutApplied, cutCmd))).toBe(
+      JSON.stringify(entities),
+    );
 
-    // Revert cut override
-    const cutReverted = revertCommand(cutApplied, cutCmd);
-    expect(JSON.stringify(cutReverted)).toBe(JSON.stringify(entities));
-
-    // Override entire piece
-    const pieceCmd = setPieceFabric(entities, g.id, piece.id, ID_POPLIN);
+    const pieceCmd = setPieceFabric(entities, g.id, piece.id, ID_A);
     const pieceApplied = applyCommand(entities, pieceCmd);
-    for (const c of mainGarment(pieceApplied)!.pieces[0]!.cuts) {
-      expect(c.fabric).toBe(ID_POPLIN);
-    }
+    for (const c of mainGarment(pieceApplied)!.pieces[0]!.cuts)
+      expect(c.fabric).toBe(ID_A);
     expect(rustRefuses(file, pieceApplied)).toBeNull();
 
-    // Reset piece fabric to default
-    const resetCmd = setPieceFabric(pieceApplied, g.id, piece.id, undefined);
+    // The garment's own fabric is stored as none.
+    const resetCmd = setPieceFabric(pieceApplied, g.id, piece.id, g.fabric);
     const resetApplied = applyCommand(pieceApplied, resetCmd);
-    for (const c of mainGarment(resetApplied)!.pieces[0]!.cuts) {
+    for (const c of mainGarment(resetApplied)!.pieces[0]!.cuts)
       expect(c.fabric).toBeUndefined();
-    }
     expect(rustRefuses(file, resetApplied)).toBeNull();
   });
 });

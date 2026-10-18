@@ -583,6 +583,10 @@ pub struct Fabric {
     pub bending: Bending,
     /// Coulomb coefficient against the body.
     pub friction: f64,
+    /// How it looks by default (format version 3): the appearance of the cuts that use it and
+    /// name none of their own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<Id>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

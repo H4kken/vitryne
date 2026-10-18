@@ -671,6 +671,7 @@ pub(crate) fn fabric_entity(
             other: Map::new(),
         },
         friction: exact(drape_core::sim::SimSettings::default().friction),
+        appearance: None,
         notes,
         attribution: None,
         library_ref: None,

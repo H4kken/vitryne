@@ -1,7 +1,7 @@
 {
   "format": "vitryne",
   "kind": "project",
-  "formatVersion": 2,
+  "formatVersion": 3,
   "minReaderVersion": 1,
   "generator": "vitryne-format 0.1.0",
   "parts": [

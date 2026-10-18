@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vitryne.app/schema/1/fabric.schema.json",
   "title": "Vitryne format v1: fabrics/<id>.json",
-  "description": "A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity (appearance.schema.json). 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.",
+  "description": "A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity (appearance.schema.json) a fabric can name as its default. 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.",
   "type": "object",
   "properties": {
     "id": { "$ref": "common.schema.json#/$defs/id" },
@@ -51,6 +51,10 @@
       "description": "Coulomb friction coefficient against the body (dimensionless).",
       "type": "number",
       "minimum": 0
+    },
+    "appearance": {
+      "description": "How the fabric looks by default (added in format version 3): the appearance of the cuts that use it and name none of their own. Absent: the app's own.",
+      "$ref": "common.schema.json#/$defs/id"
     },
     "notes": {
       "description": "Where the values come from (measurement, datasheet, paper) or that they're placeholders.",

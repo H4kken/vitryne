@@ -401,23 +401,56 @@ fn appearances_round_trip_and_are_checked() {
         &|e| e.project.as_mut().unwrap()["appearances"] = json!([]),
         "appearances must list every appearance part",
     );
+    refused(
+        &|e| e.fabrics[0]["appearance"] = json!("01a13cdb-cc05-7000-8000-00000000000f"),
+        "fabric Cotton jersey",
+    );
+}
+
+/// A fabric's appearance (format version 3) round-trips, in a project and in a fabric file
+/// that carries the appearances its fabrics use.
+#[test]
+fn fabric_appearances_round_trip() {
+    let mut doc = with_appearances();
+    let mut e = doc.entities();
+    e.fabrics[0]["appearance"] = json!("01a13cdb-cc05-7000-8000-000000000001");
+    doc.set_entities(e).unwrap();
+    let back = Document::from_zip(&doc.to_zip_checked().unwrap())
+        .unwrap()
+        .doc;
+    assert_eq!(back, doc);
+    let navy = back.fabrics[0].appearance.as_ref().unwrap();
+    assert_eq!(back.appearance(navy).unwrap().color, "#1f2a44");
+
+    let mut lib = Document::new(Kind::Fabric);
+    lib.fabrics.push(back.fabrics[0].clone());
+    lib.appearances.push(back.appearance(navy).unwrap().clone());
+    let again = Document::from_zip(&lib.to_zip_checked().unwrap())
+        .unwrap()
+        .doc;
+    assert_eq!(again.appearances.len(), 1);
+    lib.appearances.clear();
+    assert!(lib.to_zip_checked().is_err());
 }
 
 /// A file of every past version opens (migrated) and saves at the current one.
 #[test]
 fn past_versions_open() {
-    let fixture = root().join("crates/vitryne-format/tests/fixtures/v1.vtryf");
-    let opened = Document::open(&fixture).unwrap();
-    assert!(opened.warnings.is_empty(), "{:?}", opened.warnings);
-    let doc = opened.doc;
-    assert_eq!(
-        (doc.kind, doc.format_version),
-        (Kind::Fabric, FORMAT_VERSION)
-    );
-    assert_eq!(doc.fabrics[0].friction, 0.3);
-    let manifest: Value = serde_json::from_slice(&doc.to_entries().unwrap()[1].1).unwrap();
-    assert_eq!(manifest["formatVersion"], FORMAT_VERSION);
-    assert_eq!(manifest["minReaderVersion"], 1);
+    for v in 1..FORMAT_VERSION {
+        let fixture = root().join(format!("crates/vitryne-format/tests/fixtures/v{v}.vtryf"));
+        let opened = Document::open(&fixture).unwrap();
+        assert!(opened.warnings.is_empty(), "v{v}: {:?}", opened.warnings);
+        let doc = opened.doc;
+        assert_eq!(
+            (doc.kind, doc.format_version),
+            (Kind::Fabric, FORMAT_VERSION),
+            "v{v}"
+        );
+        assert_eq!(doc.fabrics[0].friction, 0.3);
+        let manifest: Value = serde_json::from_slice(&doc.to_entries().unwrap()[1].1).unwrap();
+        assert_eq!(manifest["formatVersion"], FORMAT_VERSION);
+        assert_eq!(manifest["minReaderVersion"], 1);
+    }
 }
 
 #[test]

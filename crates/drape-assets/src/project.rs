@@ -82,20 +82,21 @@ pub struct ProjectGarment<'a> {
     pub warnings: Vec<String>,
 }
 
-/// Every cut of `garment` (cut order) with its appearance: its own, else the garment's, else
-/// none.
+/// Every cut of `garment` (cut order) with its appearance, the nearest one set (FORMAT.md,
+/// Appearance): the cut's own, else its own fabric's, else the garment's, else the garment
+/// fabric's, else none.
 pub fn cut_appearances<'a>(
     doc: &'a Document,
     garment: &'a Garment,
 ) -> Vec<(&'a Id, Option<&'a Appearance>)> {
-    let default = garment
-        .appearance
-        .as_ref()
-        .and_then(|id| doc.appearance(id));
+    let look = |id: Option<&Id>| id.and_then(|id| doc.appearance(id));
+    let fabric_look = |id: &Id| look(doc.fabric(id).and_then(|f| f.appearance.as_ref()));
+    let default = look(garment.appearance.as_ref()).or_else(|| fabric_look(&garment.fabric));
     garment
         .cuts()
         .map(|(_, c)| {
-            let own = c.appearance.as_ref().and_then(|id| doc.appearance(id));
+            let own =
+                look(c.appearance.as_ref()).or_else(|| c.fabric.as_ref().and_then(fabric_look));
             (&c.id, own.or(default))
         })
         .collect()
@@ -187,8 +188,8 @@ impl<'a> ProjectGarment<'a> {
         self.cut_fabrics.iter().map(|&f| f.clone()).collect()
     }
 
-    /// Each cut's appearance, in cut order: its own, else the garment's, else none (the app
-    /// shows its own colour).
+    /// Each cut's appearance, in cut order (`cut_appearances`); none: the app shows its own
+    /// colour.
     pub fn panel_appearances(&self) -> Vec<Option<&'a Appearance>> {
         cut_appearances(self.doc, self.garment)
             .into_iter()
