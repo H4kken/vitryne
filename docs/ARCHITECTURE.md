@@ -36,6 +36,37 @@ freezes while the cloth simulates. The worker also holds the file: the browser o
 and writes a project's parts with the same Rust code as the CLI. Frames come from `requestAnimationFrame` inside the
 worker, or from ticks the UI sends where workers lack it.
 
+### Routes
+
+Each URL has its own screen (`app/src/router.tsx`, `app/src/routes/`):
+
+| URL | Screen |
+|---|---|
+| `/` | The start screen. Arriving here (the back button) closes the open project, once its changes are saved or the person decided about them. |
+| `/design/$id` | A cloud project: a loading screen until it is open, then the editor; an error page at that URL if it can't be opened (gone, another account's, offline). Never the start screen. |
+| `/example/$name` | A bundled example not changed yet (`tshirt`, `trousers`, `hoodie`). Its first save moves the URL to `/design/$id`, replacing the history entry. |
+| `/new` | An import, a project from scratch or a file from disk, until its first save gives it an id. |
+
+The editor layout (`editor/layout/EditorLayout.tsx`) is the root route's component and stays
+mounted across all of them: the 3D engine lives in it (an `OffscreenCanvas` can be handed to
+the worker only once), and starting it early is what makes an example open fast. The routes
+render into its outlet, over the editor, and get what they need from `EditorContext`. Opening
+something navigates, and the route opens what its URL names; `useFollowOpen` moves the URL when
+the open project changes from inside the editor (a save giving it an id, an import, closing).
+
+### Files
+
+React code is one component per `.tsx` file and one hook per `useX.ts` file, each named after
+what it exports (`StatusPill.tsx`, `useSewing.ts`); `react/no-multi-comp` in `pnpm run check`
+keeps it so (shadcn's `components/ui/` aside). A helper only its file uses stays in that file;
+one used by several gets its own (`cutLabel.ts`). A hook's result goes to components whole
+(`view={view}`), and they destructure it. Logic modules (`document/commands.ts`,
+`pattern/geometry.ts`, `cloud/projects.ts`, the worker) stay grouped by topic. No barrel
+`index.ts`: imports name the file. The editor's folders: `editor/layout/` (the frame and its
+parts), `editor/hooks/`, `editor/dialogs/`, `editor/start/`, `editor/viewport/`,
+`editor/icons/`; the flat view is `pattern/panel/` (the panel, one hook per tool, the pointer's
+handlers, the drawing components).
+
 ### Look
 
 The editor follows the "Vitryne editor concept" design canvas (claude.ai artifact
@@ -223,7 +254,7 @@ differ). The design, and why:
   `seam_differences`; `document/commands.ts` has `addSeam`, `removeSeam`, `reverseSeam` (so
   undo, validation and recovery work as for every edit); `sewing/` has the seams section of
   the Pieces panel (the sewn list, each seam's page, suggestions); the flat view
-  (`pattern/PatternPanel.tsx`) draws each seam in a colour on its edges and hosts the Sew tool;
+  (`pattern/panel/`) draws each seam in a colour on its edges and hosts the Sew tool;
   the 3D view draws the seams on the cloth (`drape-render/shaders/seams.wgsl`, screen-space
   quads between consecutive paired cloth vertices) while the Sew tool is on, and a seam hovered
   or open in the list alone (`Viewport::set_seam_highlight`).
