@@ -299,6 +299,7 @@ impl Viewport {
             &c.engine.gpu().device,
             c.config.borrow().format,
             garment.mesh(),
+            &garment.desc.sew_pairs,
             sim.solver(),
             &body.render,
         );

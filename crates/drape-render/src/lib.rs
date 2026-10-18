@@ -13,10 +13,19 @@ use drape_core::{mesh::ClothMesh, scene::RenderMesh, sim::Solver};
 pub const NORMALS_SHADER: &str = include_str!("../shaders/normals.wgsl");
 pub const SHADER: &str = include_str!("../shaders/render.wgsl");
 pub const SEAMS_SHADER: &str = include_str!("../shaders/seams.wgsl");
+pub const RIM_SHADER: &str = include_str!("../shaders/rim.wgsl");
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 /// Multisample antialiasing: the scene is drawn with 4 samples per pixel, then resolved into the
 /// caller's view. 4 is the count WebGPU guarantees for render formats without any feature.
 pub const MSAA_SAMPLES: u32 = 4;
+/// Half the thickness the cloth is drawn with, m: 2 mm in all, a little more than most fabrics
+/// so a hem reads at a normal zoom, and within the solver's 2 mm collision thickness so the inner
+/// layer stays off the body.
+pub const CLOTH_HALF_THICKNESS: f32 = 0.001;
+/// Sewn vertices closer than this are drawn as one, m (a closed seam is 1-2 mm open in the solver).
+const WELD_NEAR: f32 = 0.005;
+/// Sewn vertices further apart than this are drawn where they are (a seam still closing), m.
+const WELD_FAR: f32 = 0.015;
 /// The background.
 pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
     r: 0.09,
@@ -212,6 +221,8 @@ struct SeamLines {
 struct MaterialU {
     front: [f32; 4],
     back: [f32; 4],
+    /// x: half the thickness drawn (0: a plain surface).
+    shell: [f32; 4],
 }
 
 struct DrawMesh {
@@ -223,14 +234,22 @@ struct DrawMesh {
     n_indices: u32,
     material: wgpu::BindGroup,
     material_buf: wgpu::Buffer,
+    /// Half the thickness drawn, as in `material_buf`.
+    half_thickness: f32,
 }
 
-/// The cloth: drawn from the solver's positions, its normals recomputed each frame.
+/// The cloth: drawn from the solver's positions with closed seams welded, its normals recomputed
+/// each frame.
 struct Cloth {
+    /// `pos` is the welded copy of the solver's positions.
     draw: DrawMesh,
+    weld_bg: wgpu::BindGroup,
     normals_bg: wgpu::BindGroup,
     normals_groups: u32,
     seam_bg: wgpu::BindGroup,
+    /// The free edges' quads (rim.wgsl).
+    rim_bg: wgpu::BindGroup,
+    rim_count: u32,
 }
 
 /// A frame drawn by `Renderer::snapshot`, on its way back from the GPU.
@@ -281,6 +300,8 @@ pub struct Renderer {
     camera_buf: wgpu::Buffer,
     camera_bg: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
+    rim_pipeline: wgpu::RenderPipeline,
+    weld_pipeline: wgpu::ComputePipeline,
     normals_pipeline: wgpu::ComputePipeline,
     /// None: the collider alone (`body_only`).
     cloth: Option<Cloth>,
@@ -296,15 +317,19 @@ pub struct Renderer {
     show_seams: bool,
 }
 
+/// The cloth a renderer draws: its mesh, sewing pairs and the solver's positions.
+type ClothSource<'a> = (&'a ClothMesh, &'a [(u32, u32)], &'a wgpu::Buffer);
+
 fn material(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     front: [f32; 3],
     back: [f32; 3],
+    half_thickness: f32,
 ) -> (wgpu::BindGroup, wgpu::Buffer) {
     let buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("material"),
-        contents: bytemuck::bytes_of(&material_u(front, back)),
+        contents: bytemuck::bytes_of(&material_u(front, back, half_thickness)),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
     let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -318,22 +343,73 @@ fn material(
     (bg, buf)
 }
 
-fn material_u(front: [f32; 3], back: [f32; 3]) -> MaterialU {
+fn material_u(front: [f32; 3], back: [f32; 3], half_thickness: f32) -> MaterialU {
     MaterialU {
         front: [front[0], front[1], front[2], 1.0],
         back: [back[0], back[1], back[2], 1.0],
+        shell: [half_thickness, 0.0, 0.0, 0.0],
     }
 }
 
+/// For each vertex, the other vertices sewn to it, directly or through others (a corner where
+/// three pieces meet), as CSR: offsets (`n + 1`) and the list.
+fn weld_lists(n: usize, sew: &[(u32, u32)]) -> (Vec<u32>, Vec<u32>) {
+    let mut parent: Vec<u32> = (0..n as u32).collect();
+    fn root(parent: &mut [u32], mut i: u32) -> u32 {
+        while parent[i as usize] != i {
+            parent[i as usize] = parent[parent[i as usize] as usize];
+            i = parent[i as usize];
+        }
+        i
+    }
+    for &(a, b) in sew {
+        let (ra, rb) = (root(&mut parent, a), root(&mut parent, b));
+        parent[ra.max(rb) as usize] = ra.min(rb);
+    }
+    let mut groups: std::collections::BTreeMap<u32, Vec<u32>> = Default::default();
+    for &(a, b) in sew {
+        for v in [a, b] {
+            groups.entry(root(&mut parent, v)).or_default().push(v);
+        }
+    }
+    let mut partners = vec![Vec::new(); n];
+    for mut g in groups.into_values() {
+        g.sort_unstable();
+        g.dedup();
+        for &v in &g {
+            partners[v as usize].extend(g.iter().copied().filter(|&u| u != v));
+        }
+    }
+    let mut off = Vec::with_capacity(n + 1);
+    off.push(0);
+    let mut list = Vec::new();
+    for p in partners {
+        list.extend(p);
+        off.push(list.len() as u32);
+    }
+    (off, list)
+}
+
+/// The mesh's free edges (one triangle): its two vertices and the triangle's third, padded to 4.
+fn free_edges(mesh: &ClothMesh) -> Vec<[u32; 4]> {
+    mesh.edges()
+        .into_iter()
+        .filter(|e| e.opposite.len() == 1)
+        .map(|e| [e.v[0], e.v[1], e.opposite[0], 0])
+        .collect()
+}
+
 impl Renderer {
+    /// `sew`: the sewing pairs (`GarmentDesc::sew_pairs`), drawn welded once their seams close.
     pub fn new(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
         mesh: &ClothMesh,
+        sew: &[(u32, u32)],
         solver: &Solver,
         collider: &RenderMesh,
     ) -> Self {
-        Self::build(device, format, Some((mesh, &solver.pos)), collider)
+        Self::build(device, format, Some((mesh, sew, &solver.pos)), collider)
     }
 
     /// The collider alone, for a garment with no pieces yet.
@@ -345,11 +421,11 @@ impl Renderer {
         Self::build(device, format, None, collider)
     }
 
-    /// `cloth`: its mesh and the solver's positions.
+    /// `cloth`: its mesh, sewing pairs and the solver's positions.
     fn build(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
-        cloth: Option<(&ClothMesh, &wgpu::Buffer)>,
+        cloth: Option<ClothSource>,
         collider: &RenderMesh,
     ) -> Self {
         let init = |label: &str, data: &[u8], usage| {
@@ -364,22 +440,36 @@ impl Renderer {
             label: Some("normals.wgsl"),
             source: wgpu::ShaderSource::Wgsl(NORMALS_SHADER.into()),
         });
-        let normals_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("normals"),
-            layout: None,
-            module: &nmod,
-            entry_point: Some("compute_normals"),
-            compilation_options: Default::default(),
-            cache: None,
-        });
-        // Normals compute.
-        let cloth = cloth.map(|(mesh, pos)| {
+        let compute = |label, entry| {
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some(label),
+                layout: None,
+                module: &nmod,
+                entry_point: Some(entry),
+                compilation_options: Default::default(),
+                cache: None,
+            })
+        };
+        let weld_pipeline = compute("weld", "weld_positions");
+        let normals_pipeline = compute("normals", "compute_normals");
+        // Weld and normals compute.
+        let cloth = cloth.map(|(mesh, sew, solver_pos)| {
             let n = mesh.n_verts() as u32;
             let tris: Vec<u32> = mesh.tris.iter().flatten().copied().collect();
             let (adj_off, adj) = mesh.vertex_triangles();
+            let (weld_off, mut weld) = weld_lists(mesh.n_verts(), sew);
+            let mut rim = free_edges(mesh);
+            let rim_count = rim.len() as u32;
+            // Bindings can't be empty.
+            if weld.is_empty() {
+                weld.push(0);
+            }
+            if rim.is_empty() {
+                rim.push([0; 4]);
+            }
             let nparams = init(
                 "normals-params",
-                bytemuck::cast_slice(&[n, 0, 0, 0]),
+                bytemuck::cast_slice(&[n, WELD_NEAR.to_bits(), WELD_FAR.to_bits(), 0]),
                 wgpu::BufferUsages::UNIFORM,
             );
             let tris_buf = init(
@@ -389,43 +479,71 @@ impl Renderer {
             );
             let adj_off_buf = init("adj-off", bytemuck::cast_slice(&adj_off), st);
             let adj_buf = init("adj", bytemuck::cast_slice(&adj), st);
-            let nrm = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("normals"),
-                size: n as u64 * 16,
-                usage: st | wgpu::BufferUsages::VERTEX,
-                mapped_at_creation: false,
-            });
-            let normals_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("normals"),
-                layout: &normals_pipeline.get_bind_group_layout(0),
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: nparams.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: pos.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: tris_buf.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: adj_off_buf.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 4,
-                        resource: adj_buf.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 5,
-                        resource: nrm.as_entire_binding(),
-                    },
+            let weld_off_buf = init("weld-off", bytemuck::cast_slice(&weld_off), st);
+            let weld_buf = init("weld", bytemuck::cast_slice(&weld), st);
+            let rim_buf = init("rim-edges", bytemuck::cast_slice(&rim), st);
+            let per_vertex = |label| {
+                device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some(label),
+                    size: n as u64 * 16,
+                    usage: st | wgpu::BufferUsages::VERTEX,
+                    mapped_at_creation: false,
+                })
+            };
+            let nrm = per_vertex("normals");
+            let pos = per_vertex("draw-pos");
+            let bind =
+                |label, pipeline: &wgpu::ComputePipeline, buffers: &[(u32, &wgpu::Buffer)]| {
+                    let entries: Vec<_> = buffers
+                        .iter()
+                        .map(|&(binding, b)| wgpu::BindGroupEntry {
+                            binding,
+                            resource: b.as_entire_binding(),
+                        })
+                        .collect();
+                    device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some(label),
+                        layout: &pipeline.get_bind_group_layout(0),
+                        entries: &entries,
+                    })
+                };
+            let weld_bg = bind(
+                "weld",
+                &weld_pipeline,
+                &[
+                    (0, &nparams),
+                    (1, solver_pos),
+                    (6, &weld_off_buf),
+                    (7, &weld_buf),
+                    (8, &pos),
                 ],
-            });
-            (pos.clone(), nrm, tris_buf, tris.len() as u32, n, normals_bg)
+            );
+            let normals_bg = bind(
+                "normals",
+                &normals_pipeline,
+                &[
+                    (0, &nparams),
+                    (1, solver_pos),
+                    (2, &tris_buf),
+                    (3, &adj_off_buf),
+                    (4, &adj_buf),
+                    (5, &nrm),
+                    (6, &weld_off_buf),
+                    (7, &weld_buf),
+                    (8, &pos),
+                ],
+            );
+            (
+                pos,
+                nrm,
+                tris_buf,
+                tris.len() as u32,
+                n,
+                weld_bg,
+                normals_bg,
+                rim_buf,
+                rim_count,
+            )
         });
 
         // Draw pipeline.
@@ -514,13 +632,19 @@ impl Renderer {
         });
 
         let style = Style::default();
-        let cloth_mat = material(device, &mat_bgl, style.cloth, style.cloth_back);
-        let body_mat = material(device, &mat_bgl, style.body, style.body);
+        let cloth_mat = material(
+            device,
+            &mat_bgl,
+            style.cloth,
+            style.cloth_back,
+            CLOTH_HALF_THICKNESS,
+        );
+        let body_mat = material(device, &mat_bgl, style.body, style.body, 0.0);
         let no_tint = |label, n: usize| {
             init(
                 label,
                 bytemuck::cast_slice(&vec![[0f32; 4]; n]),
-                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | st,
             )
         };
         let sp: Vec<[f32; 4]> = collider
@@ -554,6 +678,7 @@ impl Renderer {
             n_indices: si.len() as u32,
             material: body_mat.0,
             material_buf: body_mat.1,
+            half_thickness: 0.0,
         });
 
         // Seam lines: quads from segments of cloth vertices, read from the solver's positions.
@@ -588,7 +713,50 @@ impl Renderer {
                 },
             ],
         });
-        let cloth = cloth.map(|(pos, nrm, index, n_indices, n, normals_bg)| {
+        let storage_entry = |binding| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        };
+        let rim_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("rim"),
+            entries: &[
+                storage_entry(0),
+                storage_entry(1),
+                storage_entry(2),
+                storage_entry(3),
+            ],
+        });
+        let cloth = cloth.map(|c| {
+            let (pos, nrm, index, n_indices, n, weld_bg, normals_bg, rim_buf, rim_count) = c;
+            let tint = no_tint("cloth-tint", n as usize);
+            let rim_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("rim"),
+                layout: &rim_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: pos.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: nrm.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: tint.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: rim_buf.as_entire_binding(),
+                    },
+                ],
+            });
             let seam_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("seams"),
                 layout: &seam_bgl,
@@ -607,16 +775,62 @@ impl Renderer {
                 draw: DrawMesh {
                     pos,
                     nrm,
-                    tint: no_tint("cloth-tint", n as usize),
+                    tint,
                     index,
                     n_indices,
                     material: cloth_mat.0,
                     material_buf: cloth_mat.1,
+                    half_thickness: CLOTH_HALF_THICKNESS,
                 },
+                weld_bg,
                 normals_bg,
                 normals_groups: n.div_ceil(64),
                 seam_bg,
+                rim_bg,
+                rim_count,
             }
+        });
+        let rim_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("rim.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(RIM_SHADER.into()),
+        });
+        let rim_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("rim"),
+            bind_group_layouts: &[Some(&cam_bgl), Some(&mat_bgl), Some(&rim_bgl)],
+            immediate_size: 0,
+        });
+        let rim_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("rim"),
+            layout: Some(&rim_layout),
+            vertex: wgpu::VertexState {
+                module: &rim_module,
+                entry_point: Some("vs_main"),
+                buffers: &[],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &rim_module,
+                entry_point: Some("fs_main"),
+                targets: &[Some(format.into())],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Less),
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: MSAA_SAMPLES,
+                ..Default::default()
+            },
+            multiview_mask: None,
+            cache: None,
         });
         let seam_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("seams.wgsl"),
@@ -681,10 +895,12 @@ impl Renderer {
             camera_buf,
             camera_bg,
             pipeline,
+            rim_pipeline,
             seam_pipeline,
             seam_params,
             seams: None,
             show_seams: false,
+            weld_pipeline,
             normals_pipeline,
             cloth,
             collider,
@@ -769,14 +985,14 @@ impl Renderer {
             queue.write_buffer(
                 &c.draw.material_buf,
                 0,
-                bytemuck::bytes_of(&material_u(s.cloth, s.cloth_back)),
+                bytemuck::bytes_of(&material_u(s.cloth, s.cloth_back, c.draw.half_thickness)),
             );
         }
         if let Some(c) = &self.collider {
             queue.write_buffer(
                 &c.material_buf,
                 0,
-                bytemuck::bytes_of(&material_u(s.body, s.body)),
+                bytemuck::bytes_of(&material_u(s.body, s.body, c.half_thickness)),
             );
         }
     }
@@ -913,6 +1129,10 @@ impl Renderer {
                 label: Some("normals"),
                 timestamp_writes: None,
             });
+            // Welded positions first: the normals are taken from them.
+            pass.set_pipeline(&self.weld_pipeline);
+            pass.set_bind_group(0, &c.weld_bg, &[]);
+            pass.dispatch_workgroups(c.normals_groups, 1, 1);
             pass.set_pipeline(&self.normals_pipeline);
             pass.set_bind_group(0, &c.normals_bg, &[]);
             pass.dispatch_workgroups(c.normals_groups, 1, 1);
@@ -951,7 +1171,16 @@ impl Renderer {
             pass.set_vertex_buffer(1, m.nrm.slice(..));
             pass.set_vertex_buffer(2, m.tint.slice(..));
             pass.set_index_buffer(m.index.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..m.n_indices, 0, 0..1);
+            // A shell: its outer and inner layers.
+            let layers = if m.half_thickness > 0.0 { 2 } else { 1 };
+            pass.draw_indexed(0..m.n_indices, 0, 0..layers);
+        }
+        if let Some(c) = self.cloth.as_ref().filter(|c| c.rim_count > 0) {
+            pass.set_pipeline(&self.rim_pipeline);
+            pass.set_bind_group(0, &self.camera_bg, &[]);
+            pass.set_bind_group(1, &c.draw.material, &[]);
+            pass.set_bind_group(2, &c.rim_bg, &[]);
+            pass.draw(0..6, 0..c.rim_count);
         }
         if let (true, Some(lines), Some(c)) = (self.show_seams, &self.seams, &self.cloth) {
             // About 3 px wide; the viewport in the uniform sizes it.

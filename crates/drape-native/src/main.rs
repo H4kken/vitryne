@@ -1176,6 +1176,7 @@ fn render_frames(
         &g.device,
         Offscreen::FORMAT,
         scene.garment.mesh(),
+        &scene.garment.desc.sew_pairs,
         sim.solver(),
         &scene.body.render,
     );
@@ -1312,6 +1313,7 @@ impl ApplicationHandler for Viewer {
             &engine.gpu().device,
             config.format,
             self.scene.garment.mesh(),
+            &self.scene.garment.desc.sew_pairs,
             sim.solver(),
             &self.scene.body.render,
         );
