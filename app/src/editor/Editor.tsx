@@ -13,6 +13,7 @@ import {
   FastForward,
   GripVertical,
   Link2,
+  Spline,
   Pause,
   Play,
   RotateCcw,
@@ -1123,6 +1124,15 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 empty={
                   <FirstPieceHint onImport={importFile} busy={!!files.busy} />
                 }
+                onEdit={(build) => {
+                  let note: string | undefined;
+                  const done = store.execute((e) => {
+                    const cmd = build(e);
+                    note = cmd.note;
+                    return cmd;
+                  });
+                  if (done && note) files.showInfo(`${note}.`);
+                }}
                 onArrange={(cutId, t) =>
                   garment &&
                   store.execute((e) =>
@@ -1185,6 +1195,13 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                   onClick={() => setFlatTool("move")}
                 >
                   <MoveIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Edit points"
+                  selected={flatTool === "points"}
+                  onClick={() => setFlatTool("points")}
+                >
+                  <Spline className="size-5" />
                 </ToolButton>
                 <ToolButton
                   label="Sew two edges"

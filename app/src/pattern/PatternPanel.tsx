@@ -4,7 +4,10 @@
 // the cursor, dragging empty space pans. The select tool picks a cut and turns it by its round
 // handle; the move tool drags cuts; the sew tool picks whole edges to sew (two clicks, edge
 // then edge: nothing is measured or shown while picking, docs/PATENTS.md). Sewn edges are drawn
-// in a colour per seam. Where a cut sits here is display only (`cut.layout`).
+// in a colour per seam. The point tool edits a piece's outline: drag a point or a curve's
+// handle, double-click an edge to add a point, Delete removes one; a drag that would make the
+// outline cross itself shows red and is dropped, so Rust never has to refuse it. Where a cut
+// sits here is display only (`cut.layout`).
 
 import {
   type ReactNode,
@@ -16,6 +19,28 @@ import {
   useState,
 } from "react";
 import type { Garment, OutlineNode, Piece } from "@/format/schema.gen";
+import {
+  type Command,
+  insertNode,
+  moveNodes as moveNodesCommand,
+  removeNode,
+  setEdge,
+  setNodeType,
+} from "@/document/commands";
+import type { Entities } from "@/document/entities";
+import {
+  curvedEdge,
+  edgeLength,
+  edgePoints,
+  endForLength,
+  isStraight,
+  moveNodes,
+  outlineProblem,
+  pointAlong,
+  straightEdge,
+  withControl,
+} from "./edit";
+import { PointBar } from "./PointBar";
 import {
   apply,
   type Box,
@@ -38,7 +63,15 @@ import { type CutEdge, sameEdge } from "@/sewing/api";
 /** A cut, by its id (and its piece's). */
 export type Selection = { kind: "cut"; pieceId: string; cutId: string } | null;
 
-export type FlatTool = "select" | "move" | "sew";
+export type FlatTool = "select" | "move" | "points" | "sew";
+
+/** The point tool's pick: an outline node, or the edge from it, on one cut of its piece. */
+type PointPick = {
+  kind: "node" | "edge";
+  pieceId: string;
+  cutId: string;
+  nodeId: string;
+} | null;
 
 /** The sew tool's edges and what the user has picked so far. */
 export interface SewingState {
@@ -59,6 +92,11 @@ const SEAM_COLOURS = [
 ];
 /** How close the pointer must be to an edge to pick it, screen pixels. */
 const EDGE_PICK_PX = 10;
+/** The point tool's markers: their size and how close counts as on one, screen pixels. */
+const NODE_PX = 4.5;
+const NODE_PICK_PX = 9;
+const CONTROL_PX = 4;
+const BAD = "#D14343";
 
 /** What the zoom control can do to the view. */
 export interface PatternView {
@@ -180,8 +218,19 @@ function ScaleBar({ mmPerPx }: { mmPerPx: number }) {
   );
 }
 
-/** `color`: the cut's own (its appearance), drawn light so the lines stay readable. */
-function PieceDrawing({ piece, color }: { piece: Piece; color?: string }) {
+/**
+ * `color`: the cut's own (its appearance), drawn light so the lines stay readable. `bad`: an
+ * outline being dragged into a shape that can't be kept.
+ */
+function PieceDrawing({
+  piece,
+  color,
+  bad,
+}: {
+  piece: Piece;
+  color?: string;
+  bad?: boolean;
+}) {
   const outline = outlinePoints(piece);
   const nodes = piece.outline;
   const byId = new Map(nodes.map((n: OutlineNode) => [n.id, n.position]));
@@ -214,7 +263,7 @@ function PieceDrawing({ piece, color }: { piece: Piece; color?: string }) {
         d={pathData(outline, true)}
         fill={color ?? "none"}
         fillOpacity={0.55}
-        stroke="#14181F"
+        stroke={bad ? BAD : "#14181F"}
         strokeWidth={2.5}
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
@@ -267,12 +316,147 @@ function PieceDrawing({ piece, color }: { piece: Piece; color?: string }) {
   );
 }
 
+/**
+ * The point tool's marks on one cut, in the piece frame: every node (a square for a corner, a
+ * diamond for a notch, a dot for a plain point), the picked edge, and the handles of the
+ * curves at the pick.
+ */
+function PointMarks({
+  piece,
+  pick,
+  handles,
+  r,
+}: {
+  piece: Piece;
+  pick: { kind: "node" | "edge"; k: number } | null;
+  handles: Handle[];
+  r: number;
+}) {
+  const nodes = piece.outline;
+  const blue = "#3A63F0";
+  return (
+    <g pointerEvents="none">
+      {pick?.kind === "edge" && (
+        <path
+          d={pathData(edgePoints(nodes, pick.k), false)}
+          fill="none"
+          stroke={blue}
+          strokeWidth={5}
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {handles.map((h) => {
+        const n = nodes[h.k];
+        const end = h.which === 0 ? n : nodes[(h.k + 1) % nodes.length];
+        if (n?.edge.type !== "cubic" || !end) return null;
+        const c = n.edge.controls[h.which];
+        return (
+          <g key={`${h.k}:${h.which}`}>
+            <path
+              d={pathData([end.position, c], false)}
+              stroke={blue}
+              strokeWidth={1.2}
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle
+              cx={c[0]}
+              cy={-c[1]}
+              r={CONTROL_PX * (r / NODE_PX)}
+              fill="#FFFFFF"
+              stroke={blue}
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        );
+      })}
+      {nodes.map((n, k) => {
+        const on = pick?.kind === "node" && pick.k === k;
+        const [x, y] = [n.position[0], -n.position[1]];
+        const paint = {
+          fill: on ? blue : "#FFFFFF",
+          stroke: on ? blue : "#14181F",
+          strokeWidth: 1.5,
+          vectorEffect: "non-scaling-stroke" as const,
+        };
+        if (n.type === "corner")
+          return (
+            <rect
+              key={n.id}
+              x={x - r}
+              y={y - r}
+              width={2 * r}
+              height={2 * r}
+              {...paint}
+            />
+          );
+        if (n.type === "notch")
+          return (
+            <path
+              key={n.id}
+              d={`M${x} ${y - r * 1.3}L${x + r * 1.3} ${y}L${x} ${y + r * 1.3}L${x - r * 1.3} ${y}Z`}
+              {...paint}
+            />
+          );
+        return <circle key={n.id} cx={x} cy={y} r={r * 0.85} {...paint} />;
+      })}
+    </g>
+  );
+}
+
+/** A curve's handle: of the edge from node `k`, 0 at its start, 1 at its end. */
+interface Handle {
+  k: number;
+  which: 0 | 1;
+}
+
+/** The handles shown for a pick: the picked edge's, or those at the picked node. */
+function pickHandles(
+  nodes: readonly OutlineNode[],
+  pick: { kind: "node" | "edge"; k: number } | null,
+): Handle[] {
+  if (!pick) return [];
+  const n = nodes.length;
+  const all: Handle[] =
+    pick.kind === "edge"
+      ? [
+          { k: pick.k, which: 0 },
+          { k: pick.k, which: 1 },
+        ]
+      : [
+          { k: pick.k, which: 0 },
+          { k: (pick.k + n - 1) % n, which: 1 },
+        ];
+  return all.filter((h) => nodes[h.k]?.edge.type === "cubic");
+}
+
+/** A point of the view (mm, y up) in the cut's piece frame (before mirroring and layout). */
+function toPiece(v: CutView, p: P): P {
+  const q = unapply(v.t, p);
+  return v.cut.mirrored ? [-q[0], q[1]] : q;
+}
+
 function cutLabel(v: CutView): string {
   return v.cut.name ?? v.piece.name;
 }
 
+/** A point drag: a node to `to`, or a curve's handle; both from where the pointer went down. */
+interface PointDrag {
+  cut: CutView;
+  /** The outline as it was (the document's). */
+  nodes: readonly OutlineNode[];
+  /** Where the pointer went down (view) and where the dragged thing was (piece frame). */
+  start: P;
+  from: P;
+  moved: boolean;
+  to: P;
+}
+
 type Drag =
   | { kind: "pan"; x: number; y: number; moved: boolean; hit: CutView | null }
+  | ({ kind: "node"; k: number } & PointDrag)
+  | ({ kind: "control"; k: number; which: 0 | 1 } & PointDrag)
   | { kind: "move"; cut: CutView; start: P; t: Transform; moved: boolean }
   | {
       kind: "turn";
@@ -292,6 +476,7 @@ export function PatternPanel({
   sewing,
   cutColors,
   empty,
+  onEdit,
   ref,
 }: {
   garment: Garment | undefined;
@@ -306,9 +491,52 @@ export function PatternPanel({
   cutColors?: ReadonlyMap<string, string>;
   /** Shown over the view while the garment has no pieces. */
   empty?: ReactNode;
+  /** The point tool's edits: a command, built on the current document. */
+  onEdit?: (build: (e: Entities) => Command) => void;
   ref?: Ref<PatternView>;
 }) {
-  const layout = useMemo(() => layoutCuts(garment), [garment]);
+  /** An outline being dragged, drawn as the pointer has it until the edit lands. */
+  const [shape, setShape] = useState<{
+    pieceId: string;
+    outline: OutlineNode[];
+    problem: string | null;
+  } | null>(null);
+  const shown = useMemo(
+    () =>
+      garment && shape
+        ? {
+            ...garment,
+            pieces: garment.pieces.map((p) =>
+              p.id === shape.pieceId
+                ? { ...p, outline: shape.outline as Piece["outline"] }
+                : p,
+            ),
+          }
+        : garment,
+    [garment, shape],
+  );
+  // Cuts without a layout stay where they were first put while their outlines are edited
+  // (laid out again when cuts come or go).
+  const cutKey = `${garment?.id}:${(garment?.pieces ?? []).flatMap((p) => p.cuts.map((c) => c.id)).join(",")}`;
+  const [autos, setAutos] = useState<{
+    key: string;
+    t: ReadonlyMap<string, Transform>;
+  } | null>(null);
+  const keep = autos?.key === cutKey ? autos.t : undefined;
+  const layout = useMemo(
+    () => layoutCuts(shown, undefined, keep),
+    [shown, keep],
+  );
+  if (autos?.key !== cutKey)
+    setAutos({
+      key: cutKey,
+      t: new Map(
+        layout.cuts
+          .filter((v) => !v.cut.layout?.position)
+          .map((v) => [v.cut.id, v.t]),
+      ),
+    });
+  const [pick, setPick] = useState<PointPick>(null);
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1, h: 1 });
   const garmentId = garment?.id;
@@ -429,15 +657,181 @@ export function PatternPanel({
   const selected = selection
     ? cuts.find((v) => v.cut.id === selection.cutId)
     : undefined;
-  // The turn handle, above the selection's top middle (pattern coordinates, y up).
-  const handle: P | null = selected
-    ? [
-        (selected.box.minX + selected.box.maxX) / 2,
-        selected.box.maxY + HANDLE_PX * mmPerPx,
-      ]
-    : null;
+  // The turn handle, above the selection's top middle (pattern coordinates, y up); none
+  // while editing points.
+  const points = tool === "points" && !!onEdit;
+  const handle: P | null =
+    selected && !points
+      ? [
+          (selected.box.minX + selected.box.maxX) / 2,
+          selected.box.maxY + HANDLE_PX * mmPerPx,
+        ]
+      : null;
   const select = (v: CutView | null) =>
     onSelect(v ? { kind: "cut", pieceId: v.piece.id, cutId: v.cut.id } : null);
+
+  // ---- the point tool ----
+  // The pick, while its cut and node are still there.
+  const pickView =
+    points && pick ? cuts.find((v) => v.cut.id === pick.cutId) : undefined;
+  const pickK =
+    pickView && pick
+      ? pickView.piece.outline.findIndex((n) => n.id === pick.nodeId)
+      : -1;
+  const picked =
+    pickView && pick && pickK >= 0
+      ? { kind: pick.kind, k: pickK, v: pickView }
+      : null;
+  const handles = picked ? pickHandles(picked.v.piece.outline, picked) : [];
+  const edit = (build: (e: Entities, garmentId: string) => Command) => {
+    if (garmentId && onEdit) onEdit((e) => build(e, garmentId));
+  };
+  const pickAt = (kind: "node" | "edge", v: CutView, nodeId: string) =>
+    setPick({ kind, pieceId: v.piece.id, cutId: v.cut.id, nodeId });
+
+  /** What the point tool has under the pointer: a handle of the pick, a node, or an edge. */
+  const pointHit = (
+    p: P,
+  ):
+    | { kind: "control"; v: CutView; k: number; which: 0 | 1 }
+    | { kind: "node" | "edge"; v: CutView; k: number }
+    | null => {
+    const near = NODE_PICK_PX * mmPerPx;
+    if (picked) {
+      const q = toPiece(picked.v, p);
+      for (const h of handles) {
+        const n = picked.v.piece.outline[h.k];
+        if (n?.edge.type !== "cubic") continue;
+        const c = n.edge.controls[h.which];
+        if (Math.hypot(q[0] - c[0], q[1] - c[1]) <= near)
+          return { kind: "control", v: picked.v, k: h.k, which: h.which };
+      }
+    }
+    // The topmost cut with a node near, then the topmost with an edge near.
+    const top = [...cuts].reverse();
+    for (const v of top) {
+      const q = toPiece(v, p);
+      let best: { k: number; d: number } | null = null;
+      for (const [k, n] of v.piece.outline.entries()) {
+        const d = Math.hypot(q[0] - n.position[0], q[1] - n.position[1]);
+        if (d <= near && (!best || d < best.d)) best = { k, d };
+      }
+      if (best) return { kind: "node", v, k: best.k };
+    }
+    for (const v of top) {
+      const q = toPiece(v, p);
+      let best: { k: number; d: number } | null = null;
+      for (const k of v.piece.outline.keys()) {
+        const d = distToPolyline(q, edgePoints(v.piece.outline, k));
+        if (d <= EDGE_PICK_PX * mmPerPx && (!best || d < best.d))
+          best = { k, d };
+      }
+      if (best) return { kind: "edge", v, k: best.k };
+    }
+    return null;
+  };
+
+  /** A new point on the edge from node `k` of `v`'s piece, near `at` (piece frame), picked. */
+  const insertAt = (v: CutView, k: number, at: P) => {
+    const node = v.piece.outline[k];
+    if (!node) return;
+    const id = crypto.randomUUID();
+    edit((e, g) => insertNode(e, g, v.piece.id, node.id, [at[0], at[1]], id));
+    pickAt("node", v, id);
+  };
+
+  const removePicked = () => {
+    const node = picked?.v.piece.outline[picked.k];
+    if (!picked || picked.kind !== "node" || !node) return;
+    const pieceId = picked.v.piece.id;
+    edit((e, g) => removeNode(e, g, pieceId, node.id));
+    setPick(null);
+  };
+  const removeRef = useRef(removePicked);
+  useEffect(() => {
+    removeRef.current = removePicked;
+  });
+  useEffect(() => {
+    if (!points) return;
+    const key = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.metaKey ||
+        e.ctrlKey
+      )
+        return;
+      if (e.key === "Escape") setPick(null);
+      else if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        removeRef.current();
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [points]);
+
+  const bar = (() => {
+    const warning = shape?.problem
+      ? `Can't keep this shape: ${shape.problem}`
+      : undefined;
+    const nodes = picked?.v.piece.outline;
+    const node = nodes?.[picked?.k ?? -1];
+    if (!picked || !nodes || !node)
+      return <PointBar kind="hint" warning={warning} />;
+    const { k, v } = picked;
+    const pieceId = v.piece.id;
+    if (picked.kind === "node")
+      return (
+        <PointBar
+          kind="node"
+          type={node.type}
+          warning={warning}
+          onType={(t) => edit((e, g) => setNodeType(e, g, pieceId, node.id, t))}
+          onDelete={removePicked}
+        />
+      );
+    const next = nodes[(k + 1) % nodes.length];
+    const straight = isStraight(node.edge);
+    let angle: number | undefined;
+    if (straight && next) {
+      const dx =
+        (next.position[0] - node.position[0]) * (v.cut.mirrored ? -1 : 1);
+      const dy = next.position[1] - node.position[1];
+      const deg = ((Math.atan2(dy, dx) + v.t.rot) * 180) / Math.PI;
+      angle = ((((deg + 180) % 360) + 360) % 360) - 180 || 0;
+    }
+    return (
+      <PointBar
+        kind="edge"
+        edge={
+          node.edge.type === "cubic"
+            ? "curve"
+            : straight
+              ? "straight"
+              : "traced"
+        }
+        length={edgeLength(nodes, k)}
+        angle={angle}
+        warning={warning}
+        onStraight={() =>
+          edit((e, g) => setEdge(e, g, pieceId, node.id, straightEdge()))
+        }
+        onCurve={() =>
+          edit((e, g) => setEdge(e, g, pieceId, node.id, curvedEdge(nodes, k)))
+        }
+        onLength={(mm) =>
+          next &&
+          edit((e, g) =>
+            moveNodesCommand(e, g, pieceId, {
+              [next.id]: endForLength(nodes, k, mm),
+            }),
+          )
+        }
+        onAddPoint={() => insertAt(v, k, pointAlong(nodes, k, 0.5))}
+      />
+    );
+  })();
   // Panning or zooming during a drag would move the fit under the pointer: freeze it.
   const freeze = () => {
     if (!view) setView(vb);
@@ -454,6 +848,40 @@ export function PatternPanel({
           // A pointer the browser no longer tracks: the drag just stops at the panel's edge.
         }
         const p = toPattern(e);
+        if (points) {
+          const hit = pointHit(p);
+          const nodes = hit?.v.piece.outline;
+          const node = nodes?.[hit?.k ?? -1];
+          if (hit && nodes && node) {
+            if (hit.kind === "edge") {
+              pickAt("edge", hit.v, node.id);
+              return;
+            }
+            freeze();
+            const common = { cut: hit.v, nodes, start: p, moved: false };
+            if (hit.kind === "node") {
+              pickAt("node", hit.v, node.id);
+              drag.current = {
+                ...common,
+                kind: "node",
+                k: hit.k,
+                from: node.position,
+                to: node.position,
+              };
+            } else if (hit.kind === "control" && node.edge.type === "cubic") {
+              const c = node.edge.controls[hit.which];
+              drag.current = {
+                ...common,
+                kind: "control",
+                k: hit.k,
+                which: hit.which,
+                from: c,
+                to: c,
+              };
+            }
+            return;
+          }
+        }
         if (
           selected &&
           handle &&
@@ -523,6 +951,42 @@ export function PatternPanel({
           return;
         }
         const p = toPattern(e);
+        if (d.kind === "node" || d.kind === "control") {
+          if (
+            !d.moved &&
+            Math.hypot(p[0] - d.start[0], p[1] - d.start[1]) < 3 * mmPerPx
+          )
+            return;
+          d.moved = true;
+          let q = p;
+          if (e.shiftKey) {
+            // Shift: along 15° steps from where it started, as seen.
+            const step = (SNAP_DEG * Math.PI) / 180;
+            const len = Math.hypot(p[0] - d.start[0], p[1] - d.start[1]);
+            const ang =
+              Math.round(
+                Math.atan2(p[1] - d.start[1], p[0] - d.start[0]) / step,
+              ) * step;
+            q = [
+              d.start[0] + len * Math.cos(ang),
+              d.start[1] + len * Math.sin(ang),
+            ];
+          }
+          const a = toPiece(d.cut, d.start);
+          const b = toPiece(d.cut, q);
+          d.to = [d.from[0] + b[0] - a[0], d.from[1] + b[1] - a[1]];
+          const id = d.nodes[d.k]?.id ?? "";
+          const outline =
+            d.kind === "node"
+              ? moveNodes(d.nodes, new Map([[id, d.to]]))
+              : withControl(d.nodes, d.k, d.which, d.to);
+          setShape({
+            pieceId: d.cut.piece.id,
+            outline,
+            problem: outlineProblem(outline),
+          });
+          return;
+        }
         if (d.kind === "move") {
           d.moved = true;
           setLive({
@@ -554,7 +1018,26 @@ export function PatternPanel({
         drag.current = null;
         if (!d) return;
         if (d.kind === "pan") {
-          if (!d.moved) select(d.hit);
+          if (!d.moved) {
+            select(d.hit);
+            setPick(null);
+          }
+          return;
+        }
+        if (d.kind === "node" || d.kind === "control") {
+          const s = shape;
+          setShape(null);
+          const node = d.nodes[d.k];
+          // A shape that can't be kept goes back: it never becomes a command.
+          if (!d.moved || !s || s.problem || !node) return;
+          const pieceId = d.cut.piece.id;
+          const to = d.to;
+          const edge = s.outline[d.k]?.edge;
+          if (d.kind === "node")
+            edit((e, g) =>
+              moveNodesCommand(e, g, pieceId, { [node.id]: [to[0], to[1]] }),
+            );
+          else if (edge) edit((e, g) => setEdge(e, g, pieceId, node.id, edge));
           return;
         }
         if (
@@ -574,8 +1057,17 @@ export function PatternPanel({
       onPointerCancel={() => {
         drag.current = null;
         setLive(null);
+        setShape(null);
       }}
-      onDoubleClick={() => setView(null)}
+      onDoubleClick={(e) => {
+        if (points) {
+          const p = toPattern(e);
+          const hit = pointHit(p);
+          if (hit?.kind === "edge") insertAt(hit.v, hit.k, toPiece(hit.v, p));
+          if (hit) return;
+        }
+        setView(null);
+      }}
     >
       <svg
         className={garment ? "block h-full w-full" : "hidden"}
@@ -612,6 +1104,7 @@ export function PatternPanel({
                 <PieceDrawing
                   piece={v.piece}
                   color={cutColors?.get(v.cut.id)}
+                  bad={!!shape?.problem && shape.pieceId === v.piece.id}
                 />
                 {/* Seams, one colour each, on the edges they sew. */}
                 {(garment?.seams ?? []).flatMap((seam, i) =>
@@ -662,6 +1155,14 @@ export function PatternPanel({
                         />
                       );
                     })}
+                {points && (
+                  <PointMarks
+                    piece={v.piece}
+                    pick={picked?.v.cut.id === v.cut.id ? picked : null}
+                    handles={picked?.v.cut.id === v.cut.id ? handles : []}
+                    r={NODE_PX * mmPerPx}
+                  />
+                )}
               </g>
               <text
                 x={(v.box.minX + v.box.maxX) / 2}
@@ -713,6 +1214,11 @@ export function PatternPanel({
       </svg>
       {garment && <ScaleBar mmPerPx={mmPerPx} />}
       {garment && !layout.cuts.length && empty}
+      {points && garment && layout.cuts.length > 0 && (
+        <div className="pointer-events-none absolute bottom-[76px] left-1/2 z-10 -translate-x-1/2">
+          {bar}
+        </div>
+      )}
     </div>
   );
 }

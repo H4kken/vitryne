@@ -25,7 +25,7 @@ const CURVE_TOLERANCE_MM = 0.1;
 const CURVE_MAX_SEGMENTS = 256;
 
 /** Rust's `round_mm`: 0.001 mm, halves away from zero, no -0. */
-function roundMm(x: number): number {
+export function roundMm(x: number): number {
   return (Math.sign(x) * Math.round(Math.abs(x) * 1000)) / 1000 + 0;
 }
 
@@ -64,7 +64,11 @@ export function edgeInterior(edge: Edge | undefined, from: P, to: P): P[] {
 
 /** The outline as a closed polyline: each node, then its edge's points. */
 export function outlinePoints(piece: Piece): P[] {
-  const nodes = piece.outline as OutlineNode[];
+  return nodesPoints(piece.outline);
+}
+
+/** `outlinePoints` of a loop of nodes (Rust `outline_points`). */
+export function nodesPoints(nodes: readonly OutlineNode[]): P[] {
   const pts: P[] = [];
   nodes.forEach((n, k) => {
     pts.push(n.position);
@@ -213,6 +217,8 @@ export interface CutView {
 export function layoutCuts(
   g: Garment | undefined,
   gap = 80,
+  /** Where cuts without a layout were put before, kept (so editing a piece doesn't shuffle them). */
+  keep?: ReadonlyMap<string, Transform>,
 ): { cuts: CutView[]; box: Box } {
   const items = (g?.pieces ?? []).flatMap((piece) =>
     piece.cuts.map((cut) => {
@@ -248,7 +254,7 @@ export function layoutCuts(
     const l = cut.layout;
     const t: Transform = l?.position
       ? { x: l.position[0], y: l.position[1], rot: l.rotation ?? 0 }
-      : auto;
+      : (keep?.get(cut.id) ?? auto);
     cuts.push({ piece, cut, pts, t, box: bounds(pts.map((p) => apply(t, p))) });
   }
   // Nothing yet: a metre square around the origin, where a first piece is drawn.

@@ -7,17 +7,26 @@
 import type {
   Appearance,
   Cut,
+  Edge,
   Fabric,
   Garment,
+  OutlineNode,
   Piece,
   Placement,
   Project,
   Seam,
   Source,
+  Vec2,
   Vec3,
 } from "@/format/schema.gen";
 import { colorName, normalizeColor } from "@/format/colors";
 import { findPreset } from "@/format/presets";
+import {
+  joinEdges,
+  moveNodes as movedNodes,
+  outlineProblem,
+  splitEdge,
+} from "@/pattern/edit";
 import {
   type Entities,
   getEntity,
@@ -45,6 +54,8 @@ export interface Command {
    * undo step.
    */
   coalesce?: string;
+  /** What the editor tells the person about it: what else went, what now works differently. */
+  note?: string;
 }
 
 /** A command that can't be built or can't apply: nothing changed. */
@@ -958,6 +969,263 @@ export function reverseSeam(
     garmentId,
     (x) => setIn(x, ["seams", i, "b"], reversedRuns(seam.b)),
     { label: "Reverse a seam", drape: true },
+  );
+}
+
+// ---- M14: editing points (an outline's nodes and edges) ------------------------------------
+
+function pieceIndex(g: Garment, pieceId: string): [number, Piece] {
+  const i = indexOf(g.pieces, pieceId, "piece");
+  const piece = g.pieces[i];
+  if (!piece) throw new CommandError(`no piece ${pieceId}`);
+  return [i, piece];
+}
+
+function nodeIndex(piece: Piece, nodeId: string): number {
+  return indexOf(piece.outline, nodeId, "point");
+}
+
+/** How many edges a seam side walks (Rust's pairing compares these). */
+function sideEdges(g: Garment, runs: readonly Run[]): number {
+  let n = 0;
+  for (const r of runs) {
+    const piece = findCut(g, r.cut)?.piece;
+    if (!piece) continue;
+    if (r.line !== undefined) {
+      const nodes = piece.lines?.find((l) => l.id === r.line)?.nodes ?? [];
+      const i = nodes.findIndex((x) => x.id === r.from);
+      const j = nodes.findIndex((x) => x.id === r.to);
+      if (i >= 0 && j >= 0) n += Math.abs(i - j);
+      continue;
+    }
+    const m = piece.outline.length;
+    const i = piece.outline.findIndex((x) => x.id === r.from);
+    const j = piece.outline.findIndex((x) => x.id === r.to);
+    if (i >= 0 && j >= 0)
+      n += r.direction === "cw" ? (i - j + m) % m : (j - i + m) % m;
+  }
+  return n;
+}
+
+function seamTitle(s: Seam): string {
+  return s.name ? `The seam “${s.name}”` : "A seam";
+}
+
+/**
+ * Seams whose pairing changes from `before` to `after` (FORMAT.md, Seams: with `nodes`
+ * pairing, sides through the same number of points meet point to point, else by length).
+ */
+function pairingNotes(before: Garment, after: Garment): string[] {
+  const out: string[] = [];
+  for (const s of after.seams ?? []) {
+    const old = before.seams?.find((x) => x.id === s.id);
+    if (!old || s.pairing === "length") continue;
+    const was = sideEdges(before, old.a) === sideEdges(before, old.b);
+    const now = sideEdges(after, s.a) === sideEdges(after, s.b);
+    if (was && !now)
+      out.push(
+        `${seamTitle(s)} now matches its sides by length: one side has a point the other hasn't`,
+      );
+    else if (!was && now)
+      out.push(`${seamTitle(s)} now matches its sides point to point`);
+  }
+  return out;
+}
+
+/** The piece's outline replaced, checked as Rust will (FORMAT.md: a simple, counter-clockwise polygon). */
+function withOutline(
+  g: Garment,
+  i: number,
+  outline: OutlineNode[],
+  label: string,
+): Garment {
+  const why = outlineProblem(outline);
+  if (why) throw new CommandError(`${label}: ${why}`);
+  return setIn(g, ["pieces", i, "outline"], outline);
+}
+
+function finitePoint(p: readonly number[]): boolean {
+  return p.length === 2 && p.every(Number.isFinite);
+}
+
+/** Outline nodes moved to new places (piece frame, mm); a drag is one of these. */
+export function moveNodes(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  to: Readonly<Record<string, Vec2>>,
+): Command {
+  const ids = Object.keys(to);
+  if (!ids.length) throw new CommandError("no point to move");
+  if (!Object.values(to).every(finitePoint))
+    throw new CommandError("a point's place must be numbers");
+  const label = ids.length === 1 ? "Move a point" : "Move points";
+  const [i, piece] = pieceIndex(garment(e, garmentId), pieceId);
+  for (const id of ids) nodeIndex(piece, id);
+  return editGarment(
+    e,
+    garmentId,
+    (g) =>
+      withOutline(
+        g,
+        i,
+        movedNodes(piece.outline, new Map(Object.entries(to))),
+        label,
+      ),
+    { label, drape: true },
+  );
+}
+
+/** A new plain point `id` on the edge from node `fromId`, where it passes nearest to `at`. */
+export function insertNode(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  fromId: string,
+  at: Vec2,
+  id: string,
+): Command {
+  const label = "Add a point";
+  if (!finitePoint(at))
+    throw new CommandError("a point's place must be numbers");
+  const before = garment(e, garmentId);
+  const [i, piece] = pieceIndex(before, pieceId);
+  const outline = splitEdge(piece.outline, nodeIndex(piece, fromId), at, id);
+  if (!outline)
+    throw new CommandError(`${label}: too close to the end of the edge`);
+  const cmd = editGarment(
+    e,
+    garmentId,
+    (g) => withOutline(g, i, outline, label),
+    { label, drape: true },
+  );
+  const notes = pairingNotes(before, cmd.changes[0]?.after as Garment);
+  return notes.length ? { ...cmd, note: notes.join(". ") } : cmd;
+}
+
+/**
+ * Node `nodeId` taken off the outline; its two edges become one. Seams that start or end
+ * there and folds that end there go with it, in the same command, and the note says so.
+ */
+export function removeNode(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  nodeId: string,
+): Command {
+  const label = "Delete a point";
+  const before = garment(e, garmentId);
+  const [i, piece] = pieceIndex(before, pieceId);
+  const k = nodeIndex(piece, nodeId);
+  if (piece.outline.length <= 3)
+    throw new CommandError(`${label}: a piece needs at least three points`);
+  const cuts = new Set(piece.cuts.map((c) => c.id));
+  const uses = (r: Run) =>
+    r.line === undefined &&
+    cuts.has(r.cut) &&
+    (r.from === nodeId || r.to === nodeId);
+  const goneSeams = (before.seams ?? []).filter((s) =>
+    [...s.a, ...s.b].some(uses),
+  );
+  const goneFolds = (piece.folds ?? []).filter(
+    (f) => f.from === nodeId || f.to === nodeId,
+  );
+  const cmd = editGarment(
+    e,
+    garmentId,
+    (g) => {
+      let out = withOutline(g, i, joinEdges(piece.outline, k), label);
+      if (goneSeams.length)
+        out = setIn(
+          out,
+          ["seams"],
+          (g.seams ?? []).filter((s) => !goneSeams.includes(s)),
+        );
+      if (goneFolds.length) {
+        const folds = (piece.folds ?? []).filter((f) => !goneFolds.includes(f));
+        out = setIn(
+          out,
+          ["pieces", i, "folds"],
+          folds.length ? folds : undefined,
+        );
+      }
+      return out;
+    },
+    { label, drape: true },
+  );
+  const notes: string[] = [];
+  const named = goneSeams.map((s) => s.name).filter((x) => x !== undefined);
+  if (goneSeams.length)
+    notes.push(
+      goneSeams.length === 1
+        ? `${seamTitle(goneSeams[0] as Seam)} started or ended there and was removed`
+        : `${goneSeams.length} seams that started or ended there were removed${named.length ? ` (${named.join(", ")})` : ""}`,
+    );
+  if (goneFolds.length)
+    notes.push(
+      goneFolds.length === 1
+        ? "The fold that ended there was removed"
+        : `${goneFolds.length} folds that ended there were removed`,
+    );
+  notes.push(...pairingNotes(before, cmd.changes[0]?.after as Garment));
+  return notes.length ? { ...cmd, note: notes.join(". ") } : cmd;
+}
+
+const NODE_TYPE_NAMES = {
+  corner: "a corner",
+  notch: "a notch",
+  point: "a plain point",
+} as const;
+
+/** A node made a corner (it ends a whole edge for sewing), a notch or a plain point. */
+export function setNodeType(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  nodeId: string,
+  type: OutlineNode["type"],
+): Command {
+  const [i, piece] = pieceIndex(garment(e, garmentId), pieceId);
+  return setValue(
+    e,
+    { kind: "garment", id: garmentId },
+    ["pieces", i, "outline", nodeIndex(piece, nodeId), "type"],
+    type,
+    { label: `Make a point ${NODE_TYPE_NAMES[type]}`, drape: false },
+  );
+}
+
+/** The edge from node `nodeId` replaced: made straight, made a curve, or a curve reshaped. */
+export function setEdge(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  nodeId: string,
+  edge: Edge,
+): Command {
+  const [i, piece] = pieceIndex(garment(e, garmentId), pieceId);
+  const k = nodeIndex(piece, nodeId);
+  const old = piece.outline[k]?.edge;
+  const label =
+    edge.type === "polyline"
+      ? "Straighten an edge"
+      : old?.type === "cubic"
+        ? "Shape a curve"
+        : "Curve an edge";
+  const pts = edge.type === "cubic" ? edge.controls : edge.points;
+  if (!pts.every(finitePoint))
+    throw new CommandError(`${label}: a point's place must be numbers`);
+  return editGarment(
+    e,
+    garmentId,
+    (g) =>
+      withOutline(
+        g,
+        i,
+        piece.outline.map((n, j) => (j === k ? { ...n, edge } : n)),
+        label,
+      ),
+    { label, drape: true },
   );
 }
 
