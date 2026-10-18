@@ -476,6 +476,9 @@ function input(m: Input) {
       gizmoSent = "";
       if (m.cut === null) post({ kind: "gizmo", gizmo: null });
       return;
+    case "highlight":
+      v.set_highlight(m.cut ?? undefined);
+      return;
     case "wheel":
       v.zoom(m.steps);
       return;

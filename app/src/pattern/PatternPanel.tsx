@@ -792,6 +792,7 @@ export function PatternPanel({
   onArrange,
   sewing,
   cutColors,
+  highlight = null,
   empty,
   onEdit,
   onDrawn,
@@ -814,6 +815,8 @@ export function PatternPanel({
   sewing?: SewingState;
   /** Each coloured cut's colour (#rrggbb), by cut id. */
   cutColors?: ReadonlyMap<string, string>;
+  /** A cut picked out (hovered in the pieces list): outlined, the others faded. */
+  highlight?: string | null;
   /** Shown over the view while the garment has no pieces. */
   empty?: ReactNode;
   /** The point tool's edits: a command, built on the current document. */
@@ -2166,8 +2169,13 @@ export function PatternPanel({
         <Grid box={vb} mmPerPx={mmPerPx} />
         {cuts.map((v) => {
           const on = inGroup.has(v.cut.id);
+          const lit = highlight === v.cut.id;
           return (
-            <g key={v.cut.id}>
+            <g
+              key={v.cut.id}
+              opacity={highlight && !lit ? 0.3 : undefined}
+              className="transition-opacity duration-150"
+            >
               <g transform={svgTransform(v.t, !!v.cut.mirrored)}>
                 <PieceDrawing
                   piece={v.piece}
@@ -2175,6 +2183,17 @@ export function PatternPanel({
                   bad={!!shape?.problem && shape.pieceId === v.piece.id}
                   marked={markPicked?.cutId === v.cut.id ? markPicked : null}
                 />
+                {lit && (
+                  <path
+                    d={pathData(outlinePoints(v.piece), true)}
+                    fill="none"
+                    stroke="#3A63F0"
+                    strokeWidth={5}
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                    className="pointer-events-none"
+                  />
+                )}
                 {/* Seams, one colour each, on the edges they sew. */}
                 {(garment?.seams ?? []).flatMap((seam, i) =>
                   [...seam.a, ...seam.b]

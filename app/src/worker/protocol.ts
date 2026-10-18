@@ -88,6 +88,8 @@ export type Input =
   | { kind: "place"; cut: number; placement: string }
   /** Report cut `cut`'s handles (panel index) in `gizmo` events, or none. */
   | { kind: "gizmo"; cut: number | null }
+  /** Picks out cut `cut` (its id) on the cloth, the others faded; or none. */
+  | { kind: "highlight"; cut: string | null }
   /** One display frame, sent by the UI where workers have no requestAnimationFrame. */
   | { kind: "tick" };
 

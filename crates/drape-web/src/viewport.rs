@@ -73,14 +73,50 @@ struct Core {
     show_seams: Cell<bool>,
     lost: Arc<AtomicBool>,
     style: Cell<Style>,
+    /// The cut picked out (hovered in the editor's list): the other cuts fade. Kept for later
+    /// drapes.
+    highlight: RefCell<Option<String>>,
     /// Offscreen target for `measure_frame` (same size/format as the canvas, never presented).
     offscreen: RefCell<Option<(wgpu::TextureView, u32, u32)>>,
 }
+
+/// How far the cuts other than the highlighted one go towards the background colour.
+const HIGHLIGHT_FADE: f32 = 0.7;
 
 impl Core {
     /// Whether frames advance the drape.
     fn stepping(&self) -> bool {
         !self.paused.get() && !self.placing.get()
+    }
+
+    /// Writes `live`'s panel colours to its renderer, the cuts other than the highlighted one
+    /// faded towards the background (`plain`: none faded, for thumbnails).
+    fn paint(&self, live: &Live, plain: bool) {
+        let colors = live.colors.borrow();
+        let picked = self.highlight.borrow();
+        let picked = picked
+            .as_deref()
+            .filter(|_| !plain)
+            .and_then(|id| live.cuts.iter().position(|c| c == id));
+        let queue = &self.engine.gpu().queue;
+        let renderer = live.renderer.borrow();
+        let Some(k) = picked else {
+            return renderer.set_panel_colors(queue, &live.panels, &colors);
+        };
+        let style = self.style.get();
+        let faded: Vec<_> = colors
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let c = c.unwrap_or(style.cloth);
+                Some(if i == k {
+                    c
+                } else {
+                    std::array::from_fn(|j| c[j] + (style.background[j] - c[j]) * HIGHLIGHT_FADE)
+                })
+            })
+            .collect();
+        renderer.set_panel_colors(queue, &live.panels, &faded);
     }
 
     fn aspect(&self) -> f32 {
@@ -153,6 +189,7 @@ impl Viewport {
                 show_seams: Cell::new(false),
                 lost,
                 style: Cell::new(Style::default()),
+                highlight: RefCell::new(None),
                 offscreen: RefCell::new(None),
             }),
         })
@@ -245,7 +282,6 @@ impl Viewport {
         );
         renderer.set_style(&c.engine.gpu().queue, &c.style.get());
         let panels: Vec<_> = garment.desc.groups.iter().map(|(_, r)| r.clone()).collect();
-        renderer.set_panel_colors(&c.engine.gpu().queue, &panels, &p.panel_colors);
         renderer.set_seams(
             &c.engine.gpu().device,
             &drape_render::seam_segments(&garment.desc.seams),
@@ -262,6 +298,9 @@ impl Viewport {
             colors: RefCell::new(p.panel_colors.clone()),
             export_fabrics: RefCell::new(p.export_fabrics.clone()),
         }));
+        if let Some(live) = c.live.borrow().as_ref() {
+            c.paint(live, false);
+        }
         Ok(baked)
     }
 
@@ -283,6 +322,9 @@ impl Viewport {
         let gpu = self.core.engine.gpu();
         if let Some(live) = self.core.live.borrow().as_ref() {
             live.renderer.borrow_mut().set_style(&gpu.queue, &style);
+            if self.core.highlight.borrow().is_some() {
+                self.core.paint(live, false);
+            }
         }
         if let Some(bare) = self.core.bare.borrow().as_ref() {
             bare.renderer.borrow_mut().set_style(&gpu.queue, &style);
@@ -300,23 +342,33 @@ impl Viewport {
         let Ok(looks) = file.file.looks() else {
             return;
         };
-        let mut colors = live.colors.borrow_mut();
-        let mut export = live.export_fabrics.borrow_mut();
-        for (k, id) in live.cuts.iter().enumerate() {
-            if let Some(look) = looks.get(id) {
-                if let Some(c) = colors.get_mut(k) {
-                    *c = look.color;
-                }
-                if let Some(e) = export.get_mut(k) {
-                    *e = look.export.clone();
+        {
+            let mut colors = live.colors.borrow_mut();
+            let mut export = live.export_fabrics.borrow_mut();
+            for (k, id) in live.cuts.iter().enumerate() {
+                if let Some(look) = looks.get(id) {
+                    if let Some(c) = colors.get_mut(k) {
+                        *c = look.color;
+                    }
+                    if let Some(e) = export.get_mut(k) {
+                        *e = look.export.clone();
+                    }
                 }
             }
         }
-        live.renderer.borrow().set_panel_colors(
-            &self.core.engine.gpu().queue,
-            &live.panels,
-            &colors,
-        );
+        self.core.paint(&live, false);
+    }
+
+    /// Picks out cut `cut` (its id): the other cuts fade until it is none. Kept for later
+    /// drapes; a cut the drape doesn't have fades nothing.
+    pub fn set_highlight(&self, cut: Option<String>) {
+        if *self.core.highlight.borrow() == cut {
+            return;
+        }
+        *self.core.highlight.borrow_mut() = cut;
+        if let Some(live) = self.core.live.borrow().as_ref() {
+            self.core.paint(live, false);
+        }
     }
 
     /// Drops the drape (a document that can't be draped); the body stays cached.
@@ -700,9 +752,19 @@ impl Viewport {
                 (Some(live), _) => {
                     let (target, distance) = live.sim.garment().desc.camera;
                     let camera = OrbitCamera::looking_at(target, distance);
-                    live.renderer
-                        .borrow_mut()
-                        .snapshot(&gpu.device, &gpu.queue, w, h, &camera)
+                    // The thumbnail shows every cut in its colour, even while one is picked out.
+                    let picked = c.highlight.borrow().is_some();
+                    if picked {
+                        c.paint(&live, true);
+                    }
+                    let shot =
+                        live.renderer
+                            .borrow_mut()
+                            .snapshot(&gpu.device, &gpu.queue, w, h, &camera);
+                    if picked {
+                        c.paint(&live, false);
+                    }
+                    shot
                 }
                 (None, Some(bare)) => {
                     let camera = OrbitCamera::looking_at(bare.camera.0, bare.camera.1);

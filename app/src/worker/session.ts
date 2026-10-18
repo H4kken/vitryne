@@ -114,6 +114,8 @@ export class EngineSession {
     if (this.style) client.send({ kind: "style", rgb: this.style });
     if (this.gizmoCut !== null)
       client.send({ kind: "gizmo", cut: this.gizmoCut });
+    if (this.highlightCut !== null)
+      client.send({ kind: "highlight", cut: this.highlightCut });
     if (this.restore) void this.reopen(client, this.restore);
   }
 
@@ -452,6 +454,15 @@ export class EngineSession {
     this.gizmoCut = cut;
     if (cut === null) this.set({ gizmo: null });
     this.client?.send({ kind: "gizmo", cut });
+  }
+
+  private highlightCut: string | null = null;
+
+  /** Picks out this cut (its id) on the cloth, the others faded; or none. */
+  highlight(cut: string | null) {
+    if (cut === this.highlightCut) return;
+    this.highlightCut = cut;
+    this.client?.send({ kind: "highlight", cut });
   }
 
   /** Shows a cut at a placement while its handle is dragged (no edit yet). */

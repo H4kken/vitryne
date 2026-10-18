@@ -519,6 +519,14 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     selection && garment ? findCut(garment, selection.cutId) : undefined;
   const shownSelection = selected ? selection : null;
 
+  // A cut hovered in the pieces list: picked out in 2D and 3D (only in the file it's in).
+  const [hovered, setHovered] = useState<string | null>(null);
+  const shownHovered =
+    hovered && garment && findCut(garment, hovered) ? hovered : null;
+  useEffect(() => {
+    session.highlight(shownHovered);
+  }, [session, shownHovered]);
+
   const select = useCallback(
     (s: Selection) => {
       setSelection(s);
@@ -1150,6 +1158,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                       setPanel("fabric");
                     }}
                     onSelect={select}
+                    onHover={setHovered}
                     onRewrap={rewrap}
                     onPlaceIn3d={
                       placing
@@ -1235,6 +1244,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                   onPick: pickEdge,
                 }}
                 cutColors={cutColors}
+                highlight={shownHovered}
                 empty={
                   <FirstPieceHint
                     onDraw={() => setFlatTool("draw")}

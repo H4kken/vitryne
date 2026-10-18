@@ -2,6 +2,7 @@
 // The panels the rail opens: what the editor can change today, in plain words. Every change
 // goes through a command (document/commands.ts) on the store.
 
+import { useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -106,12 +107,20 @@ export function PiecesPanel(props: {
   /** Opens the Fabric panel on a new fabric for a piece. */
   onNewFabric: (piece: { id: string; name: string }) => void;
   onSelect: (s: Selection) => void;
+  /** A cut hovered in the list (picked out in the views), or none. */
+  onHover: (cutId: string | null) => void;
   /** Asks Rust for a fresh wrap of the cut at `place`, then makes it an edit. */
   onRewrap: (cutId: string, place: Place) => void;
   /** Switches to placing in 3D (null when already there). */
   onPlaceIn3d: (() => void) | null;
 }) {
-  const { store, garment, selection } = props;
+  const { store, garment, selection, onHover } = props;
+  // The list goes away when a cut is picked: nothing stays hovered.
+  const listed = !selection;
+  useEffect(() => {
+    if (!listed) onHover(null);
+    return () => onHover(null);
+  }, [listed, onHover]);
   if (!garment) return <Intro>This project has no garment.</Intro>;
   const found = selection ? findCut(garment, selection.cutId) : undefined;
   const seams = garment.seams ?? [];
@@ -130,7 +139,10 @@ export function PiecesPanel(props: {
             Pick a piece to name it and choose where it starts on the body:
             here, in the flat view, or with Select in 3D.
           </Intro>
-          <ul className="m-0 flex list-none flex-col gap-1 p-0">
+          <ul
+            className="m-0 flex list-none flex-col gap-1 p-0"
+            onPointerLeave={() => onHover(null)}
+          >
             {garment.pieces.flatMap((piece) =>
               piece.cuts.map((cut) => {
                 const own = cut.fabric
@@ -140,6 +152,9 @@ export function PiecesPanel(props: {
                   <li key={cut.id}>
                     <button
                       type="button"
+                      onPointerEnter={() => onHover(cut.id)}
+                      onFocus={() => onHover(cut.id)}
+                      onBlur={() => onHover(null)}
                       onClick={() =>
                         props.onSelect({
                           kind: "cut",
