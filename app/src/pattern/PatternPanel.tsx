@@ -6,7 +6,9 @@
 // then edge: nothing is measured or shown while picking, docs/PATENTS.md). Sewn edges are drawn
 // in a colour per seam. The point tool edits a piece's outline: drag a point or a curve's
 // handle, double-click an edge to add a point, Delete removes one; a drag that would make the
-// outline cross itself shows red and is dropped, so Rust never has to refuse it. Where a cut
+// outline cross itself shows red and is dropped, so Rust never has to refuse it. The pen tool
+// draws a new piece: click for a straight edge, drag for a curve, close on the first point (or
+// Enter); it snaps to the grid, 15° steps and the drawn piece's own points only. Where a cut
 // sits here is display only (`cut.layout`).
 
 import {
@@ -18,7 +20,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { Garment, OutlineNode, Piece } from "@/format/schema.gen";
+import type { Garment, OutlineNode, Piece, Vec2 } from "@/format/schema.gen";
 import {
   type Command,
   insertNode,
@@ -41,6 +43,16 @@ import {
   withControl,
 } from "./edit";
 import { PointBar } from "./PointBar";
+import { DrawBar } from "./DrawBar";
+import {
+  framed,
+  type PenPoint,
+  penEdge,
+  penOutline,
+  penProblem,
+  snapPoint,
+  snapStep,
+} from "./draw";
 import {
   apply,
   type Box,
@@ -52,8 +64,10 @@ import {
   outlinePoints,
   distToPolyline,
   edgeInterior,
+  flattenCubic,
   type P,
   pathData,
+  roundMm,
   runPoints,
   type Transform,
   unapply,
@@ -63,7 +77,7 @@ import { type CutEdge, sameEdge } from "@/sewing/api";
 /** A cut, by its id (and its piece's). */
 export type Selection = { kind: "cut"; pieceId: string; cutId: string } | null;
 
-export type FlatTool = "select" | "move" | "points" | "sew";
+export type FlatTool = "select" | "move" | "points" | "draw" | "sew";
 
 /** The point tool's pick: an outline node, or the edge from it, on one cut of its piece. */
 type PointPick = {
@@ -102,6 +116,8 @@ const BAD = "#D14343";
 export interface PatternView {
   zoom(factor: number): void;
   reset(): void;
+  /** Where a new piece's bottom left goes so it sits right of the pieces there (mm). */
+  freeSpot(): Vec2;
 }
 
 const NOTCH_MM = 10;
@@ -405,6 +421,141 @@ function PointMarks({
   );
 }
 
+/** The pen's points joined by the edges it draws, as one polyline (`closed`: back to the first). */
+function penPath(points: readonly PenPoint[], closed: boolean): P[] {
+  const out: P[] = [];
+  const n = points.length;
+  for (let k = 0; k < n; k++) {
+    const a = points[k] as PenPoint;
+    out.push(a.at);
+    if (k + 1 === n && !closed) break;
+    const b = points[(k + 1) % n] as PenPoint;
+    const e = penEdge(a, b);
+    if (e.type === "cubic")
+      out.push(...flattenCubic(a.at, e.controls[0], e.controls[1], b.at));
+  }
+  if (closed && points[0]) out.push(points[0].at);
+  return out;
+}
+
+/**
+ * The piece being drawn, in view coordinates: its edges so far, the edge to the pointer, the
+ * points (the first one ringed when a click there closes the piece) and the handle being
+ * dragged.
+ */
+function PenMarks({
+  points,
+  live,
+  end,
+  closable,
+  bad,
+  r,
+}: {
+  points: readonly PenPoint[];
+  live: P[] | null;
+  end: PenPoint | null;
+  closable: boolean;
+  bad: boolean;
+  r: number;
+}) {
+  const blue = "#3A63F0";
+  const ink = bad ? BAD : "#14181F";
+  const first = points[0];
+  const dot = (p: P, key: string, on = false) => (
+    <rect
+      key={key}
+      x={p[0] - r}
+      y={-p[1] - r}
+      width={2 * r}
+      height={2 * r}
+      fill={on ? blue : "#FFFFFF"}
+      stroke={on ? blue : ink}
+      strokeWidth={1.5}
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+  return (
+    <g pointerEvents="none">
+      {points.length >= 2 && (
+        <path
+          d={pathData(penPath(points, bad), false)}
+          fill="none"
+          stroke={ink}
+          strokeWidth={2.5}
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {live && (
+        <path
+          d={pathData(live, false)}
+          fill="none"
+          stroke={blue}
+          strokeWidth={2}
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {end && first && points.length >= 2 && !closable && (
+        <path
+          d={pathData([end.at, first.at], false)}
+          fill="none"
+          stroke={blue}
+          strokeWidth={1.2}
+          strokeDasharray="4 5"
+          opacity={0.6}
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {end?.out && (
+        <g>
+          <path
+            d={pathData(
+              [
+                [2 * end.at[0] - end.out[0], 2 * end.at[1] - end.out[1]],
+                end.out,
+              ],
+              false,
+            )}
+            stroke={blue}
+            strokeWidth={1.2}
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle
+            cx={end.out[0]}
+            cy={-end.out[1]}
+            r={CONTROL_PX * (r / NODE_PX)}
+            fill="#FFFFFF"
+            stroke={blue}
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
+      )}
+      {points.map((p, k) => dot(p.at, `${k}`, k === 0 && closable))}
+      {first && closable && (
+        <circle
+          cx={first.at[0]}
+          cy={-first.at[1]}
+          r={r * 2.4}
+          fill="none"
+          stroke={blue}
+          strokeWidth={1.5}
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {end && !closable && (
+        <circle
+          cx={end.at[0]}
+          cy={-end.at[1]}
+          r={r * 0.6}
+          fill={blue}
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+    </g>
+  );
+}
+
 /** A curve's handle: of the edge from node `k`, 0 at its start, 1 at its end. */
 interface Handle {
   k: number;
@@ -458,6 +609,15 @@ type Drag =
   | ({ kind: "node"; k: number } & PointDrag)
   | ({ kind: "control"; k: number; which: 0 | 1 } & PointDrag)
   | { kind: "move"; cut: CutView; start: P; t: Transform; moved: boolean }
+  /** The pen: a point being put down (`closing`: on the first one), dragged for a curve. */
+  | {
+      kind: "pen";
+      at: P;
+      closing: boolean;
+      x: number;
+      y: number;
+      moved: boolean;
+    }
   | {
       kind: "turn";
       cut: CutView;
@@ -477,6 +637,7 @@ export function PatternPanel({
   cutColors,
   empty,
   onEdit,
+  onDrawn,
   ref,
 }: {
   garment: Garment | undefined;
@@ -493,6 +654,8 @@ export function PatternPanel({
   empty?: ReactNode;
   /** The point tool's edits: a command, built on the current document. */
   onEdit?: (build: (e: Entities) => Command) => void;
+  /** The pen closed a piece: its outline (own frame) and where that frame's origin is drawn. */
+  onDrawn?: (outline: OutlineNode[], origin: Vec2) => void;
   ref?: Ref<PatternView>;
 }) {
   /** An outline being dragged, drawn as the pointer has it until the edit lands. */
@@ -515,21 +678,25 @@ export function PatternPanel({
         : garment,
     [garment, shape],
   );
-  // Cuts without a layout stay where they were first put while their outlines are edited
-  // (laid out again when cuts come or go).
-  const cutKey = `${garment?.id}:${(garment?.pieces ?? []).flatMap((p) => p.cuts.map((c) => c.id)).join(",")}`;
+  // Cuts without a layout stay where they were first put while outlines are edited and cuts
+  // with a layout (a drawn piece) come or go; laid out again when one without a layout comes.
+  const unplaced = (garment?.pieces ?? []).flatMap((p) =>
+    p.cuts.filter((c) => !c.layout?.position).map((c) => c.id),
+  );
   const [autos, setAutos] = useState<{
-    key: string;
+    garment: string | undefined;
     t: ReadonlyMap<string, Transform>;
   } | null>(null);
-  const keep = autos?.key === cutKey ? autos.t : undefined;
+  const kept =
+    autos?.garment === garment?.id && unplaced.every((id) => autos?.t.has(id));
+  const keep = kept ? autos?.t : undefined;
   const layout = useMemo(
     () => layoutCuts(shown, undefined, keep),
     [shown, keep],
   );
-  if (autos?.key !== cutKey)
+  if (!kept)
     setAutos({
-      key: cutKey,
+      garment: garment?.id,
       t: new Map(
         layout.cuts
           .filter((v) => !v.cut.layout?.position)
@@ -604,6 +771,10 @@ export function PatternPanel({
   useImperativeHandle(ref, () => ({
     zoom: (factor: number) => zoomAt(1 / factor),
     reset: () => setView(null),
+    freeSpot: (): Vec2 =>
+      layout.cuts.length
+        ? [Math.round(layout.box.maxX + 80), Math.round(layout.box.minY)]
+        : [0, 0],
   }));
 
   // The wheel listener is added once (non-passive); it calls the current zoomAt.
@@ -661,7 +832,7 @@ export function PatternPanel({
   // while editing points.
   const points = tool === "points" && !!onEdit;
   const handle: P | null =
-    selected && !points
+    selected && !points && tool !== "draw"
       ? [
           (selected.box.minX + selected.box.maxX) / 2,
           selected.box.maxY + HANDLE_PX * mmPerPx,
@@ -771,6 +942,134 @@ export function PatternPanel({
     return () => window.removeEventListener("keydown", key);
   }, [points]);
 
+  // ---- the pen ----
+  const drawing = tool === "draw" && !!onDrawn;
+  const [pen, setPen] = useState<{
+    points: PenPoint[];
+    /** Where the next point would go (snapped), and its handle while it is dragged. */
+    cursor: P | null;
+    handle: P | null;
+    problem: string | null;
+  }>({ points: [], cursor: null, handle: null, problem: null });
+  const penRef = useRef(pen);
+  useEffect(() => {
+    penRef.current = pen;
+  });
+  // Another tool, or another garment: the piece being drawn is dropped.
+  const penKey = `${drawing}:${garmentId}`;
+  const [penFor, setPenFor] = useState(penKey);
+  if (penFor !== penKey) {
+    setPenFor(penKey);
+    setPen({ points: [], cursor: null, handle: null, problem: null });
+  }
+  /** Space held: dragging pans while drawing. */
+  const spaceDown = useRef(false);
+
+  /** Where the pen puts a point for this pointer event. */
+  const penAt = (e: {
+    clientX: number;
+    clientY: number;
+    shiftKey: boolean;
+    altKey: boolean;
+  }): P => {
+    const raw = toPattern(e);
+    const pts = pen.points.map((x) => x.at);
+    return snapPoint(raw, {
+      step: e.altKey ? 0 : snapStep(mmPerPx),
+      near: e.altKey ? 0 : NODE_PICK_PX * mmPerPx,
+      own: e.altKey ? [] : pts,
+      from: e.shiftKey ? pts.at(-1) : undefined,
+    });
+  };
+  const isFirst = (p: P) => {
+    const first = pen.points[0];
+    return (
+      pen.points.length >= 3 &&
+      !!first &&
+      Math.hypot(p[0] - first.at[0], p[1] - first.at[1]) <= 1e-6
+    );
+  };
+  /** The pen's piece closed: handed on if it can be a piece, else it says why. */
+  const closePen = (points: PenPoint[]) => {
+    const problem = penProblem(points);
+    if (problem) {
+      setPen((x) => ({ ...x, points, problem, handle: null }));
+      return;
+    }
+    const { outline, origin } = framed(
+      penOutline(points, () => crypto.randomUUID()),
+    );
+    setPen({ points: [], cursor: null, handle: null, problem: null });
+    onDrawn?.(outline, origin);
+  };
+  const closeRef = useRef(closePen);
+  useEffect(() => {
+    closeRef.current = closePen;
+  });
+  useEffect(() => {
+    if (!drawing) return;
+    const down = (e: KeyboardEvent) => {
+      if (e.key === " ") spaceDown.current = true;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.metaKey ||
+        e.ctrlKey
+      )
+        return;
+      const now = penRef.current;
+      if (e.key === "Escape")
+        setPen({ points: [], cursor: null, handle: null, problem: null });
+      else if (e.key === "Enter" && now.points.length >= 3) {
+        e.preventDefault();
+        closeRef.current(now.points);
+      } else if (
+        (e.key === "Backspace" || e.key === "Delete") &&
+        now.points.length
+      ) {
+        e.preventDefault();
+        setPen((x) => ({ ...x, points: x.points.slice(0, -1), problem: null }));
+      }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === " ") spaceDown.current = false;
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, [drawing]);
+
+  /** The edge being drawn: from the last point to the pointer (to the first one when closing). */
+  const lastPen = pen.points.at(-1);
+  const liveEnd: PenPoint | null =
+    lastPen && pen.cursor
+      ? {
+          at: pen.cursor,
+          out:
+            pen.handle ??
+            (isFirst(pen.cursor) ? pen.points[0]?.out : undefined),
+        }
+      : null;
+  const liveEdge =
+    lastPen && liveEnd ? penPath([lastPen, liveEnd], false) : null;
+  let liveLength = 0;
+  liveEdge?.forEach((q, i) => {
+    const prev = liveEdge[i - 1];
+    if (prev) liveLength += Math.hypot(q[0] - prev[0], q[1] - prev[1]);
+  });
+  const liveAngle =
+    lastPen && pen.cursor
+      ? (Math.atan2(
+          pen.cursor[1] - lastPen.at[1],
+          pen.cursor[0] - lastPen.at[0],
+        ) *
+          180) /
+          Math.PI || 0
+      : 0;
+
   const bar = (() => {
     const warning = shape?.problem
       ? `Can't keep this shape: ${shape.problem}`
@@ -840,14 +1139,31 @@ export function PatternPanel({
   return (
     <div
       ref={host}
-      className={`flat-grid relative h-full w-full touch-none overflow-hidden ${tool === "move" ? "cursor-move" : tool === "sew" ? "cursor-crosshair" : "cursor-default"}`}
+      className={`flat-grid relative h-full w-full touch-none overflow-hidden ${tool === "move" ? "cursor-move" : tool === "sew" || drawing ? "cursor-crosshair" : "cursor-default"}`}
       onPointerDown={(e) => {
+        // On a bar or hint over the view: its own buttons take it (capturing the pointer
+        // here would send their clicks to the view).
+        if (e.target !== e.currentTarget && !(e.target instanceof SVGElement))
+          return;
         try {
           e.currentTarget.setPointerCapture(e.pointerId);
         } catch {
           // A pointer the browser no longer tracks: the drag just stops at the panel's edge.
         }
         const p = toPattern(e);
+        if (drawing && e.button === 0 && !spaceDown.current) {
+          const at = penAt(e);
+          drag.current = {
+            kind: "pen",
+            at,
+            closing: isFirst(at),
+            x: e.clientX,
+            y: e.clientY,
+            moved: false,
+          };
+          setPen((x) => ({ ...x, cursor: at, handle: null, problem: null }));
+          return;
+        }
         if (points) {
           const hit = pointHit(p);
           const nodes = hit?.v.piece.outline;
@@ -933,7 +1249,19 @@ export function PatternPanel({
       }}
       onPointerMove={(e) => {
         const d = drag.current;
-        if (!d) return;
+        if (drawing && (!d || d.kind === "pen")) {
+          if (!d) {
+            const at = penAt(e);
+            if (pen.cursor?.[0] !== at[0] || pen.cursor?.[1] !== at[1])
+              setPen((x) => ({ ...x, cursor: at }));
+            return;
+          }
+          if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3)
+            d.moved = true;
+          if (d.moved) setPen((x) => ({ ...x, handle: toPattern(e) }));
+          return;
+        }
+        if (!d || d.kind === "pen") return;
         if (d.kind === "pan") {
           if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3)
             d.moved = true;
@@ -1013,10 +1341,28 @@ export function PatternPanel({
           t: { x: d.centre[0] - x, y: d.centre[1] - y, rot },
         });
       }}
-      onPointerUp={() => {
+      onPointerUp={(e) => {
         const d = drag.current;
         drag.current = null;
         if (!d) return;
+        if (d.kind === "pen") {
+          const out = d.moved ? toPattern(e) : undefined;
+          if (d.closing) {
+            const [first, ...rest] = pen.points;
+            if (first) closePen([{ ...first, out: out ?? first.out }, ...rest]);
+            return;
+          }
+          // A click on the last point again (a double click) puts nothing down.
+          const last = pen.points.at(-1);
+          if (!out && last && last.at[0] === d.at[0] && last.at[1] === d.at[1])
+            return;
+          setPen((x) => ({
+            ...x,
+            points: [...x.points, { at: d.at, ...(out ? { out } : {}) }],
+            handle: null,
+          }));
+          return;
+        }
         if (d.kind === "pan") {
           if (!d.moved) {
             select(d.hit);
@@ -1058,8 +1404,13 @@ export function PatternPanel({
         drag.current = null;
         setLive(null);
         setShape(null);
+        setPen((x) => ({ ...x, handle: null }));
       }}
+      onPointerLeave={() =>
+        drawing && !drag.current && setPen((x) => ({ ...x, cursor: null }))
+      }
       onDoubleClick={(e) => {
+        if (drawing) return;
         if (points) {
           const p = toPattern(e);
           const hit = pointHit(p);
@@ -1178,6 +1529,21 @@ export function PatternPanel({
             </g>
           );
         })}
+        {drawing && (
+          <PenMarks
+            points={pen.points}
+            live={liveEdge}
+            end={
+              liveEnd ??
+              (pen.cursor
+                ? { at: pen.cursor, ...(pen.handle ? { out: pen.handle } : {}) }
+                : null)
+            }
+            closable={!!pen.cursor && isFirst(pen.cursor)}
+            bad={!!pen.problem}
+            r={NODE_PX * mmPerPx}
+          />
+        )}
         {selected && handle && (
           <g>
             <rect
@@ -1213,9 +1579,49 @@ export function PatternPanel({
         )}
       </svg>
       {garment && <ScaleBar mmPerPx={mmPerPx} />}
-      {garment && !layout.cuts.length && empty}
+      {garment && !layout.cuts.length && !drawing && empty}
+      {drawing && garment && (
+        <div className="pointer-events-none absolute bottom-[76px] left-1/2 z-10 w-max max-w-[calc(100%-32px)] -translate-x-1/2">
+          <DrawBar
+            key={pen.points.length}
+            points={pen.points.length}
+            length={liveLength}
+            angle={liveAngle}
+            warning={
+              pen.problem
+                ? `Can't make this a piece: ${pen.problem}`
+                : undefined
+            }
+            onPlace={(mm, deg) => {
+              if (!lastPen) return;
+              const a = (deg * Math.PI) / 180;
+              const at: P = [
+                roundMm(lastPen.at[0] + mm * Math.cos(a)),
+                roundMm(lastPen.at[1] + mm * Math.sin(a)),
+              ];
+              setPen((x) => ({
+                ...x,
+                points: [...x.points, { at }],
+                cursor: at,
+                problem: null,
+              }));
+            }}
+            onUndo={() =>
+              setPen((x) => ({
+                ...x,
+                points: x.points.slice(0, -1),
+                problem: null,
+              }))
+            }
+            onClose={() => closePen(pen.points)}
+            onCancel={() =>
+              setPen({ points: [], cursor: null, handle: null, problem: null })
+            }
+          />
+        </div>
+      )}
       {points && garment && layout.cuts.length > 0 && (
-        <div className="pointer-events-none absolute bottom-[76px] left-1/2 z-10 -translate-x-1/2">
+        <div className="pointer-events-none absolute bottom-[76px] left-1/2 z-10 w-max max-w-[calc(100%-32px)] -translate-x-1/2">
           {bar}
         </div>
       )}

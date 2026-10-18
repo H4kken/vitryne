@@ -15,10 +15,12 @@ import {
   Link2,
   Spline,
   Pause,
+  PenTool,
   Play,
   RotateCcw,
   Shapes,
   SlidersHorizontal,
+  SquarePlus,
   Upload,
   X,
 } from "lucide-react";
@@ -43,6 +45,7 @@ import { moveProjects } from "@/cloud/projects";
 import type { Cloud } from "@/cloud/useCloud";
 import {
   type Addition,
+  addPiece,
   addPieces,
   addSeam,
   cutColor,
@@ -53,7 +56,7 @@ import {
   type Bounds,
 } from "@/document/commands";
 import { mainGarment } from "@/document/entities";
-import type { Placement } from "@/format/schema.gen";
+import type { OutlineNode, Placement, Vec2 } from "@/format/schema.gen";
 import { type DocState, DocumentStore, useDocument } from "@/document/store";
 import { cn } from "@/lib/utils";
 import {
@@ -62,7 +65,8 @@ import {
   type PatternView,
   type Selection,
 } from "@/pattern/PatternPanel";
-import { type Place, tidy } from "@/placement/places";
+import { newPiece } from "@/pattern/draw";
+import { PAIRS, type Pair, type Place, tidy } from "@/placement/places";
 import {
   FabricPanel,
   PANEL_TITLES,
@@ -103,6 +107,7 @@ import {
 } from "./icons";
 import { ExportDialog } from "./ExportDialog";
 import { ImportDialog, type TextFile } from "./ImportDialog";
+import { type NewPiece, NewPieceDialog } from "./NewPieceDialog";
 import { StartScreen } from "./StartScreen";
 import { useFiles } from "./useFiles";
 import { useProjectRoute } from "./useProjectRoute";
@@ -302,6 +307,12 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const [tool, setTool] = useState<PointerTool>("turn");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
   const [importing, setImporting] = useState<TextFile | null>(null);
+  /** A new piece being added: the pen's outline and where it was drawn, or a ready shape. */
+  const [adding, setAdding] = useState<{
+    outline: OutlineNode[] | null;
+    origin?: Vec2;
+    key: number;
+  } | null>(null);
   const [importKey, setImportKey] = useState(0);
   const [exporting, setExporting] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -561,6 +572,38 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     },
     [garment, session, store, files],
   );
+
+  /** A drawn piece or a ready shape added: wrapped where the person chose (Rust), one edit. */
+  const addNewPiece = async (n: NewPiece) => {
+    const g = garment;
+    if (!g || !adding) return;
+    const places: string[] = n.place.startsWith("pair:")
+      ? [...PAIRS[n.place.slice(5) as Pair].places]
+      : [n.place.slice(4)];
+    const uuid = () => crypto.randomUUID();
+    const piece = newPiece({
+      id: uuid(),
+      name: n.name,
+      outline: n.outline,
+      cutIds: places.map(uuid),
+      origin: adding.origin ?? pattern.current?.freeSpot() ?? [0, 0],
+    });
+    const r = JSON.parse(
+      await session.placePiece(JSON.stringify(piece), places),
+    ) as { placements: Omit<Placement, "type">[]; bounds: Bounds | null };
+    const placed = {
+      ...piece,
+      cuts: piece.cuts.map((c, k) => ({
+        ...c,
+        placement: { type: "wrap", ...r.placements[k] } as Placement,
+      })) as typeof piece.cuts,
+    };
+    if (!store.execute((e) => addPiece(e, g.id, placed, r.bounds ?? undefined)))
+      throw new Error(store.state.refused ?? "the piece could not be added");
+    setAdding(null);
+    setFlatTool("select");
+    setSelection({ kind: "cut", pieceId: placed.id, cutId: placed.cuts[0].id });
+  };
 
   /**
    * A file picked or dropped: a .vtry opens as a new project; a DXF goes to the import dialog (a
@@ -1122,7 +1165,17 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 }}
                 cutColors={cutColors}
                 empty={
-                  <FirstPieceHint onImport={importFile} busy={!!files.busy} />
+                  <FirstPieceHint
+                    onDraw={() => setFlatTool("draw")}
+                    onShape={() =>
+                      setAdding({ outline: null, key: Date.now() })
+                    }
+                    onImport={importFile}
+                    busy={!!files.busy}
+                  />
+                }
+                onDrawn={(outline, origin) =>
+                  setAdding({ outline, origin, key: Date.now() })
                 }
                 onEdit={(build) => {
                   let note: string | undefined;
@@ -1202,6 +1255,19 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                   onClick={() => setFlatTool("points")}
                 >
                   <Spline className="size-5" />
+                </ToolButton>
+                <ToolButton
+                  label="Draw a piece"
+                  selected={flatTool === "draw"}
+                  onClick={() => setFlatTool("draw")}
+                >
+                  <PenTool className="size-5" />
+                </ToolButton>
+                <ToolButton
+                  label="Add a shape"
+                  onClick={() => setAdding({ outline: null, key: Date.now() })}
+                >
+                  <SquarePlus className="size-5" />
                 </ToolButton>
                 <ToolButton
                   label="Sew two edges"
@@ -1538,6 +1604,13 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         }
         onClose={() => setImporting(null)}
         onImport={runImport}
+      />
+      <NewPieceDialog
+        key={adding?.key}
+        open={adding}
+        defaultName={`Piece ${(garment?.pieces.length ?? 0) + 1}`}
+        onClose={() => setAdding(null)}
+        onAdd={addNewPiece}
       />
       <ExportDialog
         open={exporting}
@@ -1922,7 +1995,12 @@ function ToolButton(props: {
 }
 
 /** The flat view of a garment with no pieces yet. */
-function FirstPieceHint(props: { onImport: () => void; busy: boolean }) {
+function FirstPieceHint(props: {
+  onDraw: () => void;
+  onShape: () => void;
+  onImport: () => void;
+  busy: boolean;
+}) {
   return (
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
       <div className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-[#E1E4DE] bg-white px-7 py-6 text-center shadow-[0_10px_24px_rgba(20,24,31,.08)]">
@@ -1930,18 +2008,28 @@ function FirstPieceHint(props: { onImport: () => void; busy: boolean }) {
           Draw your first piece
         </h2>
         <p className="text-body-text m-0 text-[15px]">
-          The drawing tools are on their way. For now, bring pieces in from a
-          DXF pattern.
+          Draw its outline with the pen, start from a shape with typed sizes, or
+          bring pieces in from a DXF pattern.
         </p>
-        <Button
-          variant="secondary"
-          className="gap-2"
-          onClick={props.onImport}
-          disabled={props.busy}
-        >
-          <Upload className="size-4" />
-          Import pieces
-        </Button>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button className="gap-2" onClick={props.onDraw}>
+            <PenTool className="size-4" />
+            Draw
+          </Button>
+          <Button variant="secondary" className="gap-2" onClick={props.onShape}>
+            <SquarePlus className="size-4" />
+            Shape
+          </Button>
+          <Button
+            variant="secondary"
+            className="gap-2"
+            onClick={props.onImport}
+            disabled={props.busy}
+          >
+            <Upload className="size-4" />
+            Import
+          </Button>
+        </div>
       </div>
     </div>
   );

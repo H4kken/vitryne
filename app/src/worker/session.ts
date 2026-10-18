@@ -336,6 +336,11 @@ export class EngineSession {
     return (await this.need().request("rewrap", { cut, place })).rewrapped;
   }
 
+  /** A drawn piece wrapped around the body (`project::PlacedPiece`, JSON). */
+  async placePiece(piece: string, places: string[]): Promise<string> {
+    return (await this.need().request("placePiece", { piece, places })).placed;
+  }
+
   /** Every whole edge of every cut (`seams::CutEdge[]`, JSON). */
   async sewingEdges(): Promise<string> {
     return (await this.need().request("sewingEdges", {})).edges;

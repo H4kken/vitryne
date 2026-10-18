@@ -192,6 +192,10 @@ const handlers: Handlers = {
     return { rewrapped: needFile().rewrap(cut, place) };
   },
 
+  async placePiece({ piece, places }) {
+    return { placed: needFile().place_piece(piece, JSON.stringify(places)) };
+  },
+
   async sewingEdges() {
     return { edges: needFile().sewing_edges() };
   },

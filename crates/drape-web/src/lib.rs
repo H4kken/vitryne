@@ -430,6 +430,18 @@ impl VtryFile {
         let r = self.file.rewrap(cut, place)?;
         Ok(serde_json::to_string(&r).expect("rewrap serializes"))
     }
+
+    /// A new piece (`piece`: its JSON, cuts included) wrapped around the body, cut `k` at
+    /// `places[k]` (a JSON array of `placement::BodyPlace` names): `project::PlacedPiece` as
+    /// JSON. The project is unchanged.
+    pub fn place_piece(&self, piece: &str, places: &str) -> Result<String, JsValue> {
+        let piece: vitryne_format::Piece =
+            serde_json::from_str(piece).map_err(|e| format!("the piece: {e}"))?;
+        let places: Vec<BodyPlace> =
+            serde_json::from_str(places).map_err(|e| format!("the places: {e}"))?;
+        let r = self.file.place_piece(&piece, &places)?;
+        Ok(serde_json::to_string(&r).expect("placed piece serializes"))
+    }
 }
 
 /// A garment meshed and placed, waiting for its body (see `PreparedInfo`).

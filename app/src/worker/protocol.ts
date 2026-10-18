@@ -166,6 +166,11 @@ export interface Requests {
     args: { cut: string; place: string };
     reply: { rewrapped: string };
   };
+  /** A drawn piece (JSON) wrapped around the body, cut k at places[k] (Rust `project::PlacedPiece`, JSON); nothing changes. */
+  placePiece: {
+    args: { piece: string; places: string[] };
+    reply: { placed: string };
+  };
   /** Every whole edge of every cut, sewn or free (Rust `seams::CutEdge[]`, JSON). */
   sewingEdges: { args: Record<string, never>; reply: { edges: string } };
   /** Suggested seams for the free edges (Rust `seams::SeamProposal[]`, JSON); nothing changes. */

@@ -1229,6 +1229,47 @@ export function setEdge(
   );
 }
 
+/**
+ * A drawn piece added to a garment, its cuts already placed (Rust's `place_piece`). `bounds`: a
+ * new collision box for the garment, when the piece needs a bigger one.
+ */
+export function addPiece(
+  e: Entities,
+  garmentId: string,
+  piece: Piece,
+  bounds?: Bounds,
+): Command {
+  const label = "Add a piece";
+  const why = outlineProblem(piece.outline);
+  if (why) throw new CommandError(`${label}: ${why}`);
+  const g = garment(e, garmentId);
+  const ids = new Set([
+    ...g.pieces.flatMap((p) => [
+      p.id,
+      ...p.cuts.map((c) => c.id),
+      ...p.outline.map((n) => n.id),
+    ]),
+    ...(g.seams ?? []).map((s) => s.id),
+  ]);
+  const own = [
+    piece.id,
+    ...piece.cuts.map((c) => c.id),
+    ...piece.outline.map((n) => n.id),
+  ];
+  if (own.some((id) => ids.has(id)) || new Set(own).size !== own.length)
+    throw new CommandError(`${label}: an id is used twice`);
+  return editGarment(
+    e,
+    garmentId,
+    (x) => {
+      let out = setIn(x, ["pieces"], [...x.pieces, piece]);
+      if (bounds) out = setIn(out, ["simulation", "collisionBounds"], bounds);
+      return out;
+    },
+    { label, drape: true },
+  );
+}
+
 /** What an import adds to a garment (Rust `import::Addition`). */
 export interface Addition {
   pieces: Piece[];

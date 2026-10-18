@@ -21,7 +21,7 @@ use drape_core::{
 };
 use glam::Vec3;
 use serde::Serialize;
-use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Placement, Wrap};
+use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Piece, Placement, Wrap};
 
 pub struct ProjectFile {
     doc: Document,
@@ -87,6 +87,15 @@ pub struct Rewrapped {
     pub placement: Wrap,
     /// A collision box for the garment when its own wouldn't cover the cut there (or it has
     /// none, so that moving pieces doesn't change the body's SDF).
+    pub bounds: Option<Bounds>,
+}
+
+/// A new piece wrapped around the body (`ProjectFile::place_piece`).
+#[derive(Debug, Serialize)]
+pub struct PlacedPiece {
+    /// Each cut's wrap, in the piece's cut order.
+    pub placements: Vec<Wrap>,
+    /// A collision box for the garment when its own wouldn't cover the piece.
     pub bounds: Option<Bounds>,
 }
 
@@ -321,34 +330,89 @@ impl ProjectFile {
             .garment
             .simulation
             .as_ref()
-            .and_then(|s| s.collision_bounds.clone());
-        let bounds = match own {
-            None => Some(import_bounds(&body)),
-            Some(b) => {
-                // 5 cm to spare: the cloth moves inwards from where it starts, mostly.
-                let inside = |p: &Vec3| {
-                    (0..3).all(|k| {
-                        let x = p[k] as f64 * 1000.0;
-                        x >= b.min[k] + 50.0 && x <= b.max[k] - 50.0
-                    })
-                };
-                if outline.iter().all(inside) {
-                    None
-                } else {
-                    let i = import_bounds(&body);
-                    Some(Bounds {
-                        min: [0, 1, 2].map(|k| b.min[k].min(i.min[k])),
-                        max: [0, 1, 2].map(|k| b.max[k].max(i.max[k])),
-                        other: b.other.clone(),
-                    })
-                }
-            }
-        };
+            .and_then(|s| s.collision_bounds.as_ref());
         Ok(Rewrapped {
             placement: wrap,
-            bounds,
+            bounds: grown_bounds(own, &body, &outline),
         })
     }
+
+    /// A new piece (drawn in the editor, not in the garment yet) wrapped around the body: cut
+    /// `k` at `places[k]` (`rewrap` for each), and the box the garment needs with it. The
+    /// project is unchanged: the editor adds the piece as an edit.
+    pub fn place_piece(&self, piece: &Piece, places: &[BodyPlace]) -> Result<PlacedPiece, String> {
+        if piece.cuts.len() != places.len() {
+            return Err(format!(
+                "{} cuts and {} places",
+                piece.cuts.len(),
+                places.len()
+            ));
+        }
+        let (regions, body) = self.body()?;
+        let facts = BodyFacts::measure(&body, regions)?;
+        let placements = piece
+            .cuts
+            .iter()
+            .zip(places)
+            .map(|(c, &place)| rewrap(piece, c, place, regions, &facts))
+            .collect::<Result<Vec<_>, _>>()?;
+        // The garment as it will be, to place the cuts in it.
+        let mut doc = self.doc.clone();
+        let garment_id = doc
+            .project
+            .as_ref()
+            .and_then(|p| p.garments.first())
+            .ok_or("the project has no garment")?
+            .clone();
+        let mut placed = piece.clone();
+        for (c, w) in placed.cuts.iter_mut().zip(&placements) {
+            c.placement = Placement::Wrap(w.clone());
+        }
+        doc.garments
+            .iter_mut()
+            .find(|g| g.id == garment_id)
+            .ok_or("garment missing")?
+            .pieces
+            .push(placed.clone());
+        let pg = ProjectGarment::new(&doc)?;
+        let mut bounds: Option<Bounds> = None;
+        for c in &placed.cuts {
+            let outline = pg.placed_outline(&c.id, &c.placement)?;
+            let own = bounds.as_ref().or(pg
+                .garment
+                .simulation
+                .as_ref()
+                .and_then(|s| s.collision_bounds.as_ref()));
+            if let Some(b) = grown_bounds(own, &body, &outline) {
+                bounds = Some(b);
+            }
+        }
+        Ok(PlacedPiece { placements, bounds })
+    }
+}
+
+/// The collision box a garment needs for a cut placed at `outline` (m), if its own box `own`
+/// doesn't cover it (or it has none, so that moving pieces doesn't change the body's SDF).
+fn grown_bounds(own: Option<&Bounds>, body: &[Vec3], outline: &[Vec3]) -> Option<Bounds> {
+    let Some(b) = own else {
+        return Some(import_bounds(body));
+    };
+    // 5 cm to spare: the cloth moves inwards from where it starts, mostly.
+    let inside = |p: &Vec3| {
+        (0..3).all(|k| {
+            let x = p[k] as f64 * 1000.0;
+            x >= b.min[k] + 50.0 && x <= b.max[k] - 50.0
+        })
+    };
+    if outline.iter().all(inside) {
+        return None;
+    }
+    let i = import_bounds(body);
+    Some(Bounds {
+        min: [0, 1, 2].map(|k| b.min[k].min(i.min[k])),
+        max: [0, 1, 2].map(|k| b.max[k].max(i.max[k])),
+        other: b.other.clone(),
+    })
 }
 
 #[cfg(test)]
@@ -612,6 +676,47 @@ mod tests {
         let r = file.rewrap(front, BodyPlace::BodyFront).unwrap();
         let b = r.bounds.unwrap();
         assert_eq!((b.min[1], b.max[1]), (0.0, 1720.0));
+    }
+
+    /// A drawn piece, not in the garment yet, wrapped as a pair on the legs: each cut gets its
+    /// leg's wrap (the mirrored one on the left), and the trousers' box already covers it.
+    #[test]
+    fn place_piece_wraps_each_cut() {
+        let (file, _) = ProjectFile::open(&example_zip("trousers")).unwrap();
+        let node = |id: &str, x: f64, y: f64| {
+            serde_json::json!({"id": id, "type": "corner", "position": [x, y],
+                "edge": {"type": "polyline", "points": []}})
+        };
+        let piece: Piece = serde_json::from_value(serde_json::json!({
+            "id": "0192f0a0-0000-7000-8000-000000000001",
+            "name": "Panel",
+            "outline": [
+                node("0192f0a0-0000-7000-8000-000000000002", 0.0, 0.0),
+                node("0192f0a0-0000-7000-8000-000000000003", 300.0, 0.0),
+                node("0192f0a0-0000-7000-8000-000000000004", 300.0, 500.0),
+                node("0192f0a0-0000-7000-8000-000000000005", 0.0, 500.0),
+            ],
+            "cuts": [
+                {"id": "0192f0a0-0000-7000-8000-000000000006",
+                 "placement": {"type": "wrap", "region": "torso", "angle": 0, "radius": 1, "top": 0}},
+                {"id": "0192f0a0-0000-7000-8000-000000000007", "mirrored": true,
+                 "placement": {"type": "wrap", "region": "torso", "angle": 0, "radius": 1, "top": 0}},
+            ],
+        }))
+        .unwrap();
+        let places = [BodyPlace::LegRightFront, BodyPlace::LegLeftFront];
+        let r = file.place_piece(&piece, &places).unwrap();
+        assert_eq!(r.placements.len(), 2);
+        assert_eq!(r.placements[0].region, "leg-right");
+        assert_eq!(r.placements[1].region, "leg-left");
+        assert!(r.placements.iter().all(|w| w.radius > 10.0));
+        assert!(r.bounds.is_none());
+        // Up on the head it needs more room; a count that doesn't match is refused.
+        let r = file
+            .place_piece(&piece, &[BodyPlace::HeadRight, BodyPlace::HeadLeft])
+            .unwrap();
+        assert!(r.bounds.is_some());
+        assert!(file.place_piece(&piece, &places[..1]).is_err());
     }
 
     #[test]
