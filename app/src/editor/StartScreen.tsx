@@ -91,7 +91,7 @@ export function StartScreen(props: {
                   Import a file
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  A DXF pattern or a .vtry project, or drop it here
+                  A DXF pattern or a .vtry project
                 </span>
               </span>
             </button>
