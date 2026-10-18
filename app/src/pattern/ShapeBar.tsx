@@ -74,9 +74,6 @@ export function ShapeBar(props: {
           </button>
         ))}
       </div>
-      <span className="rounded-lg bg-white/90 px-2 py-1 text-[13px] text-[#4A514B]">
-        Drag to draw it · click for {size(props.kind)} · Shift: as wide as high
-      </span>
     </div>
   );
 }

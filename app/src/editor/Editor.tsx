@@ -310,7 +310,8 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const [tool, setTool] = useState<PointerTool>("turn");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
-  // Cmd (Ctrl) held turns the Select tool into Move until it is let go.
+  // Cmd (Ctrl) held drags pieces as Move does until it is let go, from the tools that don't
+  // use the key themselves.
   const [modHeld, setModHeld] = useState(false);
   useEffect(() => {
     const key = (e: KeyboardEvent) => setModHeld(e.metaKey || e.ctrlKey);
@@ -324,8 +325,13 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       window.removeEventListener("blur", blur);
     };
   }, []);
-  const flatToolNow: FlatTool =
-    flatTool === "select" && modHeld ? "move" : flatTool;
+  const moveHeld =
+    modHeld &&
+    (flatTool === "select" ||
+      flatTool === "draw" ||
+      flatTool === "marks" ||
+      flatTool === "shape");
+  const flatToolNow: FlatTool = moveHeld ? "move" : flatTool;
   const [importing, setImporting] = useState<TextFile | null>(null);
   /** A piece the pen drew, being named and placed: its outline and where it was drawn. */
   const [adding, setAdding] = useState<{
@@ -1205,7 +1211,8 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 garment={garment}
                 selection={shownSelection}
                 onSelect={select}
-                tool={flatToolNow}
+                tool={flatTool}
+                moving={moveHeld}
                 sewing={{
                   edges,
                   picked: picks ? [...picks.a, ...picks.b] : [],
@@ -1328,21 +1335,21 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 </ToolButton>
                 <ToolButton
                   label="Draw a piece"
-                  selected={flatTool === "draw"}
+                  selected={flatToolNow === "draw"}
                   onClick={() => setFlatTool("draw")}
                 >
                   <PenTool className="size-5" />
                 </ToolButton>
                 <ToolButton
                   label="Lines, notches, folds and grain"
-                  selected={flatTool === "marks"}
+                  selected={flatToolNow === "marks"}
                   onClick={() => setFlatTool("marks")}
                 >
                   <PencilRuler className="size-5" />
                 </ToolButton>
                 <ToolButton
                   label="Add a shape"
-                  selected={flatTool === "shape"}
+                  selected={flatToolNow === "shape"}
                   onClick={() => setFlatTool("shape")}
                 >
                   <SquarePlus className="size-5" />
