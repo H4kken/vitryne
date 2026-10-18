@@ -234,10 +234,40 @@ zero), as a closed loop of **nodes** in counter-clockwise order. Each node has a
 - **Node types:** `corner` (the outline turns), `notch` (an alignment notch), `point` (anything
   else worth naming: fold ends, where an internal line meets the outline, a point added so a seam
   can start or end there).
-- **Edges:** v1 has `polyline` only: the points strictly between the node and the next one, empty
-  for a straight edge. The edge from a node is identified by that node's id.
+- **Edges:** `polyline`: the points strictly between the node and the next one, empty for a
+  straight edge. `cubic` (extension `VTRY_curves`, below): one Bézier segment to the next node,
+  its two control points in `controls`. The edge from a node is identified by that node's id.
 - An edge between two nodes is the unit the rest of the format refers to. Points without ids
   inside an edge are geometry only.
+
+#### Curved edges (`VTRY_curves`)
+
+```json
+{ "id": "…", "type": "point", "position": [0.0, 300.0],
+  "edge": { "type": "cubic", "controls": [[55.228, 300.0], [100.0, 255.228]] } }
+```
+
+- **One segment per edge.** A longer smooth curve is several cubic edges joined at `point` nodes;
+  a `point` node doesn't end a whole edge for sewing (only corners do), so a curve made of
+  several segments is still one edge to sew.
+- **Flattening is part of the format.** Everything that needs the curve as points (meshing,
+  seams, suggestions, DXF export, the editor's drawing) uses the same polyline: `n` evenly
+  spaced parameters, `n = ceil(sqrt(0.75 M / 0.1 mm))` clamped to 1..256, where
+  `M = max(|p0 − 2c1 + c2|, |c1 − 2c2 + p3|)` (the flatness bound for 0.1 mm), each point rounded
+  to 0.001 mm. The reference is `vitryne_format::flatten_cubic`.
+- **The extension is listed by content.** A writer puts `VTRY_curves` in `extensionsUsed` and
+  `extensionsRequired` when any edge is a cubic and leaves it out otherwise, so a file without
+  curves is exactly what it was, and a reader that doesn't know curves refuses a file with them
+  rather than drawing straight edges.
+- **Outlines are simple polygons.** As flattened, an outline must run counter-clockwise, never
+  cross or touch itself, and have no two consecutive nodes in the same place (0.01 mm) on a
+  straight edge. These rules held for every file already; readers now check them.
+
+**Why Béziers, one per edge:** they are what drawing tools make and what people know from
+vector editors; one segment per edge keeps every handle attached to a node with an id, so a
+curve can be edited again after saving. **Why flattening is specified:** two readers must mesh
+and sew the same curve; leaving the tolerance to each would make results differ between the CLI
+and the browser.
 
 **Why nodes with edges, not a flat list of points with ids:** only the points that matter
 (corners, notches) need identity. Giving all 700 points of a T-shirt an id would triple the file
@@ -629,7 +659,7 @@ How the planned features fit, without breaking v1 files:
 | **Avatars from measurements** | `avatar.source = {generator, measurements}`, with `body.glb` as the generated (and regenerable) mesh. |
 | **Animations and poses** | glTF skins and animations in `body.glb`; a project-level `pose` reference. The cache key gains the pose. |
 | **Collaboration** | Stable ids per entity are what operation-based sync needs; per-entity parts let edits travel as small objects. Metadata (authors, comments) goes on entities in `extras` or an extension. The file stays a snapshot. |
-| **Seam allowance, curved edges** | `VTRY_seam_allowance` per edge; new `edge.type` values (`arc`, `cubic`), which a reader that doesn't know them must refuse, so they go in `extensionsRequired` until they're core. |
+| **Seam allowance, arcs** | `VTRY_seam_allowance` per edge; new `edge.type` values (`arc`), which a reader that doesn't know them must refuse, so they go in `extensionsRequired` until they're core, as `cubic` does (`VTRY_curves`, [Curved edges](#curved-edges-vtry_curves)). |
 
 ## Interop
 

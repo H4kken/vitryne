@@ -25,6 +25,7 @@ import {
   linePoints,
   outlinePoints,
   distToPolyline,
+  edgeInterior,
   type P,
   pathData,
   runPoints,
@@ -187,8 +188,12 @@ function PieceDrawing({ piece, color }: { piece: Piece; color?: string }) {
   const ticks = nodes.flatMap((n, k) => {
     if (n.type !== "notch") return [];
     const prev = nodes[(k + nodes.length - 1) % nodes.length];
-    const next = n.edge.points[0] ?? nodes[(k + 1) % nodes.length]?.position;
-    const before = prev?.edge.points.at(-1) ?? prev?.position;
+    const after = nodes[(k + 1) % nodes.length]?.position ?? n.position;
+    const next = edgeInterior(n.edge, n.position, after)[0] ?? after;
+    const before = prev
+      ? (edgeInterior(prev.edge, prev.position, n.position).at(-1) ??
+        prev.position)
+      : undefined;
     if (!next || !before) return [];
     const tx = next[0] - before[0];
     const ty = next[1] - before[1];

@@ -82,6 +82,10 @@ export interface Extensions {
  */
 export type Vec2 = [number, number];
 /**
+ * The path from this node to the next one: a polyline (core) or a cubic Bézier (extension VTRY_curves). Other curve types (arcs) may be added by later versions or extensions.
+ */
+export type Edge = PolylineEdge | CubicEdge;
+/**
  * Where the cut starts before sewing. wrap: rolled onto a cylinder around an avatar region. follow: on top of another cut (a pocket on a front), lifted off it.
  */
 export type Placement = {
@@ -281,11 +285,29 @@ export interface OutlineNode {
   };
 }
 /**
- * The path from this node to the next one. polyline: the points strictly between the two nodes, in order (empty for a straight edge). Other curve types (arcs, Béziers) may be added by later versions or extensions.
+ * The points strictly between the two nodes, in order (empty for a straight edge).
  */
-export interface Edge {
+export interface PolylineEdge {
   type: 'polyline';
   points: Vec2[];
+  extensions?: Extensions;
+  /**
+   * Application-specific data with no meaning in the format. Preserved, never interpreted.
+   */
+  extras?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * One cubic Bézier segment from this node to the next (extension VTRY_curves, which a file using it lists in extensionsUsed and extensionsRequired). Its two control points, mm, in the piece frame.
+ */
+export interface CubicEdge {
+  type: 'cubic';
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  controls: [Vec2, Vec2];
   extensions?: Extensions;
   /**
    * Application-specific data with no meaning in the format. Preserved, never interpreted.

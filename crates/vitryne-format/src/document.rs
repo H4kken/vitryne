@@ -71,6 +71,15 @@ pub fn avatar_path(id: &Id) -> String {
     format!("avatars/{id}/avatar.json")
 }
 
+/// `list` with `name` in it (kept where it was, else at the end) or left out.
+fn with_extension(list: &[String], name: &str, on: bool) -> Vec<String> {
+    let mut out: Vec<String> = list.iter().filter(|e| on || *e != name).cloned().collect();
+    if on && !out.iter().any(|e| e == name) {
+        out.push(name.into());
+    }
+    out
+}
+
 /// What an entity path holds.
 enum Slot {
     Project,
@@ -211,6 +220,8 @@ impl Document {
                 f.bytes.clone(),
             ));
         }
+        // Official extensions are listed by what the file holds, not by what it was read with.
+        let curves = self.garments.iter().any(Garment::uses_curves);
         let manifest = Manifest {
             format: "vitryne".into(),
             kind: self.kind,
@@ -227,8 +238,8 @@ impl Document {
                     other: self.part_other.get(path).cloned().unwrap_or_default(),
                 })
                 .collect(),
-            extensions_used: self.extensions_used.clone(),
-            extensions_required: self.extensions_required.clone(),
+            extensions_used: with_extension(&self.extensions_used, EXT_CURVES, curves),
+            extensions_required: with_extension(&self.extensions_required, EXT_CURVES, curves),
             other: self.manifest_other.clone(),
         };
         let mut out = vec![

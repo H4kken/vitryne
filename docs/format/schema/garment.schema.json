@@ -135,7 +135,14 @@
       "unevaluatedProperties": false
     },
     "edge": {
-      "description": "The path from this node to the next one. polyline: the points strictly between the two nodes, in order (empty for a straight edge). Other curve types (arcs, Béziers) may be added by later versions or extensions.",
+      "description": "The path from this node to the next one: a polyline (core) or a cubic Bézier (extension VTRY_curves). Other curve types (arcs) may be added by later versions or extensions.",
+      "oneOf": [
+        { "$ref": "#/$defs/polylineEdge" },
+        { "$ref": "#/$defs/cubicEdge" }
+      ]
+    },
+    "polylineEdge": {
+      "description": "The points strictly between the two nodes, in order (empty for a straight edge).",
       "type": "object",
       "properties": {
         "type": { "const": "polyline" },
@@ -147,6 +154,23 @@
         "extras": { "$ref": "common.schema.json#/$defs/extras" }
       },
       "required": ["type", "points"],
+      "unevaluatedProperties": false
+    },
+    "cubicEdge": {
+      "description": "One cubic Bézier segment from this node to the next (extension VTRY_curves, which a file using it lists in extensionsUsed and extensionsRequired). Its two control points, mm, in the piece frame.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "cubic" },
+        "controls": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/vec2" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+        "extras": { "$ref": "common.schema.json#/$defs/extras" }
+      },
+      "required": ["type", "controls"],
       "unevaluatedProperties": false
     },
     "line": {

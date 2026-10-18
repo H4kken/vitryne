@@ -239,13 +239,13 @@ impl ProjectFile {
 
     /// Every whole edge of every cut of the first garment, and whether a seam sews it.
     pub fn sewing_edges(&self) -> Result<Vec<CutEdge>, String> {
-        Ok(seams::cut_edges(ProjectGarment::new(&self.doc)?.garment))
+        seams::cut_edges(ProjectGarment::new(&self.doc)?.garment)
     }
 
     /// Suggested seams for the edges nothing sews yet, best first. The user accepts or
     /// rejects each one; nothing changes here.
     pub fn suggest_seams(&self) -> Result<Vec<SeamProposal>, String> {
-        Ok(seams::propose(ProjectGarment::new(&self.doc)?.garment))
+        seams::propose(ProjectGarment::new(&self.doc)?.garment)
     }
 
     /// The seam picked whole edges make: one or more per side (docs/PATENTS.md, rule 1:

@@ -272,6 +272,106 @@ fn finite(v: &[f64]) -> bool {
     v.iter().all(|x| x.is_finite())
 }
 
+/// Two outline nodes closer than this are in the same place, mm.
+const SAME_PLACE_MM: f64 = 0.01;
+
+/// An outline is a simple polygon, counter-clockwise (FORMAT.md, Pieces and outlines): no two
+/// consecutive nodes in the same place, no edge crossing or touching another. The polygon is the
+/// outline as meshed (`outline_points`, curves flattened).
+fn check_outline_shape(outline: &[Node]) -> Result<(), String> {
+    let n = outline.len();
+    for (k, a) in outline.iter().enumerate() {
+        let b = &outline[(k + 1) % n];
+        let d = (a.position[0] - b.position[0]).hypot(a.position[1] - b.position[1]);
+        // A polyline that leaves and comes back is caught as a crossing below.
+        let straight = a
+            .edge
+            .as_ref()
+            .is_some_and(|e| e.is_cubic() || e.points.as_ref().is_some_and(Vec::is_empty));
+        if d < SAME_PLACE_MM && straight {
+            return Err(format!("nodes {} and {} are in the same place", a.id, b.id));
+        }
+    }
+    let mut pts = outline_points(outline)?;
+    pts.dedup();
+    if pts.len() > 1 && pts.first() == pts.last() {
+        pts.pop();
+    }
+    if pts.len() < 3 {
+        return Err("the outline has no area".into());
+    }
+    let area: f64 = (0..pts.len())
+        .map(|i| {
+            let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
+            a[0] * b[1] - b[0] * a[1]
+        })
+        .sum::<f64>()
+        / 2.0;
+    if area <= 0.0 {
+        return Err(if area == 0.0 {
+            "the outline has no area".into()
+        } else {
+            "the outline runs clockwise; it must run counter-clockwise".into()
+        });
+    }
+    if let Some((i, j)) = self_crossing(&pts) {
+        return Err(format!(
+            "the outline crosses itself (near ({:.1}, {:.1}) mm and ({:.1}, {:.1}) mm)",
+            pts[i][0], pts[i][1], pts[j][0], pts[j][1]
+        ));
+    }
+    Ok(())
+}
+
+/// The first pair of non-adjacent segments (by their start vertex) of the closed polygon `pts`
+/// (no repeated consecutive points) that cross or touch. Segments are swept in order of their
+/// left end, so only those overlapping in x are compared.
+fn self_crossing(pts: &[Vec2]) -> Option<(usize, usize)> {
+    let n = pts.len();
+    let seg = |i: usize| (pts[i], pts[(i + 1) % n]);
+    let mut order: Vec<usize> = (0..n).collect();
+    let lo = |i: usize| seg(i).0[0].min(seg(i).1[0]);
+    let hi = |i: usize| seg(i).0[0].max(seg(i).1[0]);
+    order.sort_by(|&a, &b| lo(a).total_cmp(&lo(b)).then(a.cmp(&b)));
+    for (k, &i) in order.iter().enumerate() {
+        for &j in &order[k + 1..] {
+            if lo(j) > hi(i) {
+                break;
+            }
+            let adjacent = (i + 1) % n == j || (j + 1) % n == i;
+            if !adjacent && segments_meet(seg(i), seg(j)) {
+                return Some((i.min(j), i.max(j)));
+            }
+        }
+    }
+    None
+}
+
+fn orient(a: Vec2, b: Vec2, c: Vec2) -> f64 {
+    (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+}
+
+/// Whether two closed segments share a point.
+fn segments_meet((a, b): (Vec2, Vec2), (c, d): (Vec2, Vec2)) -> bool {
+    let within = |p: Vec2, q: Vec2, r: Vec2| {
+        r[0] >= p[0].min(q[0])
+            && r[0] <= p[0].max(q[0])
+            && r[1] >= p[1].min(q[1])
+            && r[1] <= p[1].max(q[1])
+    };
+    let (d1, d2) = (orient(c, d, a), orient(c, d, b));
+    let (d3, d4) = (orient(a, b, c), orient(a, b, d));
+    if ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
+        && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
+    {
+        return true;
+    }
+    (d1 == 0.0 && within(c, d, a))
+        || (d2 == 0.0 && within(c, d, b))
+        || (d3 == 0.0 && within(a, b, c))
+        || (d4 == 0.0 && within(a, b, d))
+}
+
 fn check_garment(
     g: &Garment,
     fabrics: &BTreeSet<&Id>,
@@ -317,21 +417,26 @@ fn check_garment(
                     n.id
                 ))),
                 (Some(e), true) => {
-                    if e.kind != EDGE_POLYLINE {
-                        r.errors.push(pa(format!(
-                            "edge type {:?} is not supported (made with a newer Vitryne?)",
-                            e.kind
-                        )));
+                    if let Err(m) = e.check() {
+                        r.errors.push(pa(m));
                     }
-                    if !e.points.iter().all(|q| finite(q)) {
+                    let mut pts = e.points.iter().flatten().chain(e.controls.iter().flatten());
+                    if !pts.all(|q| finite(q)) {
                         r.errors.push(pa("an edge point is not a number".into()));
                     }
                 }
                 (None, false) => {}
             }
         };
+        let before = r.errors.len();
         for n in &p.outline {
             check_node(n, true, r);
+        }
+        if r.errors.len() == before
+            && p.outline.len() >= 3
+            && let Err(m) = check_outline_shape(&p.outline)
+        {
+            r.errors.push(pa(m));
         }
         for l in &p.lines {
             if l.nodes.len() < 2 {

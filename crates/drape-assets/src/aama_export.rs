@@ -30,7 +30,7 @@ use std::fmt::Write as _;
 
 use glam::DVec2;
 use serde::Serialize;
-use vitryne_format::{Document, EDGE_POLYLINE, Garment, Id, Kind, Node, NodeType, Piece};
+use vitryne_format::{Document, Garment, Id, Kind, Node, NodeType, Piece};
 
 /// How far the two halves of a fold may differ for the piece to be written folded, mm.
 pub const FOLD_TOL_MM: f64 = 0.01;
@@ -186,21 +186,20 @@ fn v(p: [f64; 2]) -> DVec2 {
     DVec2::new(p[0], p[1])
 }
 
-/// Every vertex of a node path (outline or line), and where each node is in it.
+/// Every vertex of a node path (outline or line), curves flattened (`Edge::interior`; DXF-AAMA
+/// has polylines only), and where each node is in it.
 fn path(nodes: &[Node], what: &str) -> Result<(Vec<DVec2>, Vec<usize>), String> {
     let mut pts = Vec::new();
     let mut at = Vec::new();
-    for n in nodes {
+    for (k, n) in nodes.iter().enumerate() {
         at.push(pts.len());
         pts.push(v(n.position));
         if let Some(e) = &n.edge {
-            if e.kind != EDGE_POLYLINE {
-                return Err(format!(
-                    "{what}: edge type {:?} can't be written to DXF yet",
-                    e.kind
-                ));
-            }
-            pts.extend(e.points.iter().map(|&p| v(p)));
+            let next = nodes[(k + 1) % nodes.len()].position;
+            let inner = e
+                .interior(n.position, next)
+                .map_err(|m| format!("{what}: {m}"))?;
+            pts.extend(inner.into_iter().map(v));
         }
     }
     Ok((pts, at))
@@ -723,9 +722,74 @@ mod tests {
             doc.garments[0].pieces[0]
                 .outline
                 .iter()
-                .map(|nd| 1 + nd.edge.as_ref().map_or(0, |e| e.points.len()))
+                .map(|nd| 1 + nd
+                    .edge
+                    .as_ref()
+                    .map_or(0, |e| e.points.as_ref().map_or(0, Vec::len)))
                 .sum::<usize>()
         );
+    }
+
+    /// DXF-AAMA has polylines only: a cubic edge is written flattened, the same points every
+    /// other reader of the file uses (`Edge::interior`).
+    #[test]
+    fn a_curved_edge_is_written_flattened() {
+        let mut doc = example("tshirt");
+        let piece = doc.garments[0]
+            .pieces
+            .iter_mut()
+            .find(|p| p.folds.is_empty())
+            .unwrap();
+        let name = piece.name.clone();
+        let n = piece.outline.len();
+        let k = (0..n)
+            .find(|&k| {
+                piece.outline[k]
+                    .edge
+                    .as_ref()
+                    .is_some_and(|e| e.points.as_ref().is_some_and(Vec::is_empty))
+            })
+            .unwrap();
+        let (a, b) = (
+            piece.outline[k].position,
+            piece.outline[(k + 1) % n].position,
+        );
+        let l = (b[0] - a[0]).hypot(b[1] - a[1]);
+        let out = [(b[1] - a[1]) / l * 4.0, -(b[0] - a[0]) / l * 4.0];
+        let at = |t: f64| {
+            [
+                vitryne_format::round_mm(a[0] + (b[0] - a[0]) * t + out[0]),
+                vitryne_format::round_mm(a[1] + (b[1] - a[1]) * t + out[1]),
+            ]
+        };
+        piece.outline[k].edge = Some(vitryne_format::Edge::cubic(at(1.0 / 3.0), at(2.0 / 3.0)));
+        let curve = piece.outline[k]
+            .edge
+            .as_ref()
+            .unwrap()
+            .interior(a, b)
+            .unwrap();
+        assert!(curve.len() > 3, "{}", curve.len());
+        let want = vitryne_format::outline_points(&piece.outline).unwrap();
+        assert!(
+            doc.validate().errors.is_empty(),
+            "{:?}",
+            doc.validate().errors
+        );
+
+        let out = export_document(&doc).unwrap();
+        let (pieces, _) = aama::read(&out.text).unwrap();
+        let got = pieces.iter().find(|p| p.name == name).unwrap();
+        assert_eq!(got.boundary.len(), want.len());
+        for q in &curve {
+            let q = glam::Vec2::new(q[0] as f32, q[1] as f32) * 0.001;
+            let near = got
+                .boundary
+                .iter()
+                .map(|p| p.distance(q))
+                .fold(f32::MAX, f32::min);
+            assert!(near < 1e-5, "{q:?} is {near} m from the written outline");
+        }
     }
 
     #[test]

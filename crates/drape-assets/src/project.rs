@@ -350,7 +350,8 @@ impl<'a> ProjectGarment<'a> {
                 let next = &piece.outline[(k + 1) % n];
                 let edge = node.edge.as_ref().ok_or("outline node without edge")?;
                 let mut pts = vec![t(node.position)];
-                pts.extend(edge.points.iter().map(|&q| t(q)));
+                let inner = edge.interior(node.position, next.position)?;
+                pts.extend(inner.into_iter().map(&t));
                 pts.push(t(next.position));
                 let name = node.name.clone().unwrap_or_else(|| k.to_string());
                 lab.push((pts[0], name.clone()));
@@ -424,13 +425,10 @@ impl<'a> ProjectGarment<'a> {
                             let (lo, hi) = (i.min(j), i.max(j));
                             // The polyline from node lo to node hi, in the cut's frame.
                             let t = cut_transform(cut);
-                            let mut pts = Vec::new();
-                            for node in &line.nodes[lo..hi] {
-                                pts.push(t(node.position));
-                                let e = node.edge.as_ref().ok_or("line node without edge")?;
-                                pts.extend(e.points.iter().map(|&q| t(q)));
-                            }
-                            pts.push(t(line.nodes[hi].position));
+                            let pts: Vec<Vec2> = vitryne_format::path_points(&line.nodes, lo, hi)?
+                                .into_iter()
+                                .map(&t)
+                                .collect();
                             let k = match panels[pi].inner.iter().position(|e| e.pts == pts) {
                                 Some(k) => k,
                                 None => {

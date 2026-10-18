@@ -207,14 +207,29 @@ pub struct Node {
 }
 
 pub const EDGE_POLYLINE: &str = "polyline";
+pub const EDGE_CUBIC: &str = "cubic";
+/// The extension a file with a `cubic` edge uses and requires (FORMAT.md, Edges); writers add
+/// it, or leave it out, by what the file holds.
+pub const EXT_CURVES: &str = "VTRY_curves";
+/// How far a flattened curve may stray from the true one, mm.
+pub const CURVE_TOLERANCE_MM: f64 = 0.1;
+/// The most straight segments one cubic edge is flattened into.
+const CURVE_MAX_SEGMENTS: usize = 256;
 
-/// v1 has `polyline` only: the points strictly between the node and the next. The type is kept
-/// as a string so a newer edge type survives a round trip; geometry refuses it.
+/// The path from a node to the next. `polyline`: the points strictly between the two nodes.
+/// `cubic` (extension `VTRY_curves`): one Bézier segment, its two control points in
+/// `controls`. The type is kept as a string so a newer edge type survives a round trip;
+/// geometry refuses it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Edge {
     #[serde(rename = "type")]
     pub kind: String,
-    pub points: Vec<Vec2>,
+    /// A polyline's points (always written for one, even empty); absent on a cubic.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub points: Option<Vec<Vec2>>,
+    /// A cubic's control points; absent on a polyline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub controls: Option<[Vec2; 2]>,
     #[serde(flatten)]
     pub other: Other,
 }
@@ -223,10 +238,111 @@ impl Edge {
     pub fn polyline(points: Vec<Vec2>) -> Self {
         Self {
             kind: EDGE_POLYLINE.into(),
-            points,
+            points: Some(points),
+            controls: None,
             other: Other::new(),
         }
     }
+
+    pub fn cubic(c1: Vec2, c2: Vec2) -> Self {
+        Self {
+            kind: EDGE_CUBIC.into(),
+            points: None,
+            controls: Some([c1, c2]),
+            other: Other::new(),
+        }
+    }
+
+    pub fn is_cubic(&self) -> bool {
+        self.kind == EDGE_CUBIC
+    }
+
+    /// Whether this reader can use the edge: a known type with the members it needs, and no
+    /// other's.
+    pub fn check(&self) -> Result<(), String> {
+        match (self.kind.as_str(), &self.points, &self.controls) {
+            (EDGE_POLYLINE, Some(_), None) | (EDGE_CUBIC, None, Some(_)) => Ok(()),
+            (EDGE_POLYLINE | EDGE_CUBIC, ..) => Err(format!(
+                "a {} edge needs {} only",
+                self.kind,
+                if self.is_cubic() {
+                    "controls"
+                } else {
+                    "points"
+                }
+            )),
+            (k, ..) => Err(format!(
+                "edge type {k:?} is not supported (made with a newer Vitryne?)"
+            )),
+        }
+    }
+
+    /// The points strictly between `from` (this edge's node) and `to` (the next node) that the
+    /// edge passes through, mm: a polyline's own points, or a cubic flattened (`flatten_cubic`).
+    /// Every reader of edge geometry goes through this, so curves mean the same everywhere.
+    pub fn interior(&self, from: Vec2, to: Vec2) -> Result<Vec<Vec2>, String> {
+        self.check()?;
+        Ok(match (&self.points, &self.controls) {
+            (_, Some([c1, c2])) => flatten_cubic(from, *c1, *c2, to),
+            (Some(p), _) => p.clone(),
+            (None, None) => unreachable!("checked"),
+        })
+    }
+}
+
+/// A cubic Bézier from `p0` to `p3` as the points strictly between them, at evenly spaced
+/// parameters. The count comes from the standard flatness bound: n segments stray at most
+/// `max|B''| / (8 n²)`, and `max|B''| <= 6 max(|p0 - 2c1 + c2|, |c1 - 2c2 + p3|)`, so
+/// `n = ceil(sqrt(0.75 M / tolerance))`. Points are snapped to the format's 0.001 mm grid so a
+/// file flattens identically everywhere.
+pub fn flatten_cubic(p0: Vec2, c1: Vec2, c2: Vec2, p3: Vec2) -> Vec<Vec2> {
+    let dd = |a: Vec2, b: Vec2, c: Vec2| (a[0] - 2.0 * b[0] + c[0]).hypot(a[1] - 2.0 * b[1] + c[1]);
+    let m = dd(p0, c1, c2).max(dd(c1, c2, p3));
+    let n = (0.75 * m / CURVE_TOLERANCE_MM).sqrt().ceil();
+    let n = if n.is_finite() {
+        (n as usize).clamp(1, CURVE_MAX_SEGMENTS)
+    } else {
+        1
+    };
+    (1..n)
+        .map(|k| {
+            let t = k as f64 / n as f64;
+            let u = 1.0 - t;
+            let (a, b, c, d) = (u * u * u, 3.0 * u * u * t, 3.0 * u * t * t, t * t * t);
+            [
+                round_mm(a * p0[0] + b * c1[0] + c * c2[0] + d * p3[0]),
+                round_mm(a * p0[1] + b * c1[1] + c * c2[1] + d * p3[1]),
+            ]
+        })
+        .collect()
+}
+
+/// Every vertex of a closed outline (each node, then its edge's interior), mm.
+pub fn outline_points(outline: &[Node]) -> Result<Vec<Vec2>, String> {
+    let n = outline.len();
+    let mut pts = Vec::new();
+    for (k, node) in outline.iter().enumerate() {
+        pts.push(node.position);
+        let next = &outline[(k + 1) % n];
+        let e = node.edge.as_ref().ok_or("outline node without edge")?;
+        pts.extend(e.interior(node.position, next.position)?);
+    }
+    Ok(pts)
+}
+
+/// The vertices of a node path (outline or line) from node `lo` to node `hi` (`lo <= hi`;
+/// `hi` may be `nodes.len()` on an outline, meaning back to the first node), mm.
+pub fn path_points(nodes: &[Node], lo: usize, hi: usize) -> Result<Vec<Vec2>, String> {
+    let n = nodes.len();
+    let mut pts = Vec::new();
+    for k in lo..hi {
+        let (a, b) = (&nodes[k], &nodes[(k + 1) % n]);
+        pts.push(a.position);
+        let e = a.edge.as_ref().ok_or("node without edge")?;
+        pts.extend(e.interior(a.position, b.position)?);
+    }
+    pts.push(nodes[hi % n].position);
+    Ok(pts)
 }
 
 /// An internal line: an open path of nodes, each with the edge to the next except the last.
@@ -378,6 +494,16 @@ pub struct Run {
 }
 
 impl Garment {
+    /// Whether any outline or line edge is a curve (extension `VTRY_curves`).
+    pub fn uses_curves(&self) -> bool {
+        self.pieces.iter().any(|p| {
+            p.outline
+                .iter()
+                .chain(p.lines.iter().flat_map(|l| &l.nodes))
+                .any(|n| n.edge.as_ref().is_some_and(Edge::is_cubic))
+        })
+    }
+
     pub fn piece_of_cut(&self, cut: &Id) -> Option<(&Piece, &Cut)> {
         self.pieces
             .iter()
@@ -407,7 +533,8 @@ impl Garment {
             for n in nodes {
                 round2(&mut n.position);
                 if let Some(e) = &mut n.edge {
-                    e.points.iter_mut().for_each(round2);
+                    e.points.iter_mut().flatten().for_each(round2);
+                    e.controls.iter_mut().flatten().for_each(round2);
                 }
             }
             if let Some(g) = &mut p.grain {
@@ -621,5 +748,63 @@ impl View {
             round3(&mut c.target);
             c.distance = round_mm(c.distance);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_straight_cubic_flattens_to_nothing_between() {
+        let p = flatten_cubic([0.0, 0.0], [100.0, 0.0], [200.0, 0.0], [300.0, 0.0]);
+        assert!(p.is_empty(), "{p:?}");
+    }
+
+    /// A quarter circle (the usual 0.5523 handles), r = 200 mm: within the tolerance plus the
+    /// Bézier's own error (~0.03%), snapped to the grid, endpoints left out, evenly spread.
+    #[test]
+    fn a_curve_stays_within_tolerance() {
+        let r = 200.0;
+        let k = 0.552_284_749_8 * r;
+        let p = flatten_cubic([r, 0.0], [r, k], [k, r], [0.0, r]);
+        assert!(p.len() > 8 && p.len() < 256, "{}", p.len());
+        let mut prev = [r, 0.0];
+        for q in p.iter().chain([&[0.0, r]]) {
+            let off = (q[0].hypot(q[1]) - r).abs();
+            assert!(off < CURVE_TOLERANCE_MM + 0.06, "{q:?} is {off} mm off");
+            // The chord's middle is within the tolerance of the circle too.
+            let mid = [(prev[0] + q[0]) / 2.0, (prev[1] + q[1]) / 2.0];
+            assert!(r - mid[0].hypot(mid[1]) < CURVE_TOLERANCE_MM + 0.06);
+            prev = *q;
+        }
+        for q in &p {
+            assert_eq!(q[0], round_mm(q[0]));
+            assert_eq!(q[1], round_mm(q[1]));
+        }
+        assert_eq!(p, flatten_cubic([r, 0.0], [r, k], [k, r], [0.0, r]));
+    }
+
+    #[test]
+    fn degenerate_curves_stay_finite_and_bounded() {
+        assert!(flatten_cubic([0.0; 2], [0.0; 2], [0.0; 2], [0.0; 2]).is_empty());
+        let huge = flatten_cubic([0.0, 0.0], [1e9, 1e9], [-1e9, 1e9], [1.0, 0.0]);
+        assert_eq!(huge.len(), CURVE_MAX_SEGMENTS - 1);
+        let nan = flatten_cubic([0.0, 0.0], [f64::NAN, 0.0], [1.0, 1.0], [2.0, 0.0]);
+        assert!(nan.is_empty());
+    }
+
+    #[test]
+    fn unknown_and_mixed_edges_are_refused() {
+        let mut e = Edge::polyline(Vec::new());
+        e.kind = "arc".into();
+        assert!(
+            e.interior([0.0; 2], [1.0, 0.0])
+                .unwrap_err()
+                .contains("not supported")
+        );
+        let mut e = Edge::polyline(Vec::new());
+        e.controls = Some([[0.0; 2]; 2]);
+        assert!(e.check().is_err());
     }
 }

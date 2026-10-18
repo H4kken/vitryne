@@ -42,7 +42,7 @@ pub const FORMAT_VERSION: u32 = 2;
 /// The `minReaderVersion` it writes: the oldest reader that can open its files correctly.
 pub const MIN_READER_VERSION: u32 = 1;
 /// The extensions this reader implements (a file requiring any other is refused).
-pub const SUPPORTED_EXTENSIONS: &[&str] = &[];
+pub const SUPPORTED_EXTENSIONS: &[&str] = &[model::EXT_CURVES];
 pub const GENERATOR: &str = concat!("vitryne-format ", env!("CARGO_PKG_VERSION"));
 
 #[derive(Debug, Clone, PartialEq)]

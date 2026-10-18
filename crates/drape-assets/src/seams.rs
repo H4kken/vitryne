@@ -66,14 +66,15 @@ struct Converted {
     nodes: Vec<Vec<Id>>,
 }
 
-fn convert(g: &Garment) -> Converted {
+fn convert(g: &Garment) -> Result<Converted, String> {
     let mut pieces = Vec::new();
     let mut nodes = Vec::new();
     for p in &g.pieces {
         let mut boundary: Vec<Vec2> = Vec::new();
         let mut landmarks = Vec::new();
         let mut ids = Vec::new();
-        for n in &p.outline {
+        let count = p.outline.len();
+        for (k, n) in p.outline.iter().enumerate() {
             // A point node that ends a fold is a corner of the outline (a centre hem, a centre
             // neck); any other point (a sleeve-cap top) only splits a seam and no edge.
             let fold_end = p.folds.iter().any(|f| f.from == n.id || f.to == n.id);
@@ -92,8 +93,12 @@ fn convert(g: &Garment) -> Converted {
             }
             boundary.push(Vec2::new(n.position[0] as f32, n.position[1] as f32) * MM);
             if let Some(e) = &n.edge {
+                let next = p.outline[(k + 1) % count].position;
+                let inner = e
+                    .interior(n.position, next)
+                    .map_err(|m| format!("piece {}: {m}", p.name))?;
                 boundary.extend(
-                    e.points
+                    inner
                         .iter()
                         .map(|q| Vec2::new(q[0] as f32, q[1] as f32) * MM),
                 );
@@ -111,7 +116,7 @@ fn convert(g: &Garment) -> Converted {
         });
         nodes.push(ids);
     }
-    Converted { pieces, nodes }
+    Ok(Converted { pieces, nodes })
 }
 
 fn piece_of_cut<'a>(g: &'a Garment, cut: &Id) -> Option<(usize, &'a FPiece)> {
@@ -182,8 +187,8 @@ fn edge_sewn(p: &FPiece, cut: &Id, from: &Id, to: &Id, pairs: &HashSet<(Id, Id, 
 }
 
 /// Every whole edge of every cut, with whether a seam already sews it.
-pub fn cut_edges(g: &Garment) -> Vec<CutEdge> {
-    let conv = convert(g);
+pub fn cut_edges(g: &Garment) -> Result<Vec<CutEdge>, String> {
+    let conv = convert(g)?;
     let pairs = sewn_pairs(g);
     let mut out = Vec::new();
     for e in &edges(&conv.pieces) {
@@ -200,7 +205,7 @@ pub fn cut_edges(g: &Garment) -> Vec<CutEdge> {
             });
         }
     }
-    out
+    Ok(out)
 }
 
 fn run(cut: &Id, from: &Id, to: &Id, direction: Direction) -> Run {
@@ -372,8 +377,8 @@ fn proposals_for(
 
 /// Suggested seams for the garment's free whole edges, best first. Free is per cut: once one
 /// sleeve is sewn, the other sleeve's edges are still offered.
-pub fn propose(g: &Garment) -> Vec<SeamProposal> {
-    let conv = convert(g);
+pub fn propose(g: &Garment) -> Result<Vec<SeamProposal>, String> {
+    let conv = convert(g)?;
     let pairs = sewn_pairs(g);
     let all = edges(&conv.pieces);
     let mut sewn: HashSet<(Id, usize)> = HashSet::new();
@@ -391,10 +396,10 @@ pub fn propose(g: &Garment) -> Vec<SeamProposal> {
         }
         capacity.push(free);
     }
-    suggest_with(&conv.pieces, &all, &capacity)
+    Ok(suggest_with(&conv.pieces, &all, &capacity)
         .iter()
         .flat_map(|s| proposals_for(g, &conv, &all, &sewn, s))
-        .collect()
+        .collect())
 }
 
 /// The index in `all` of the whole edge a pick names, or why it isn't one.
@@ -417,7 +422,7 @@ fn find_edge(
 
 /// The seam two picked whole edges make. Refuses anything that isn't a whole edge of its cut.
 pub fn join(g: &Garment, a: &EdgePick, b: &EdgePick) -> Result<SeamProposal, String> {
-    let conv = convert(g);
+    let conv = convert(g)?;
     let all = edges(&conv.pieces);
     let (ia, ib) = (find_edge(g, &conv, &all, a)?, find_edge(g, &conv, &all, b)?);
     if a.cut == b.cut && ia == ib {
@@ -508,7 +513,7 @@ pub fn join_chains(g: &Garment, a: &[EdgePick], b: &[EdgePick]) -> Result<SeamPr
     if let ([x], [y]) = (a, b) {
         return join(g, x, y);
     }
-    let conv = convert(g);
+    let conv = convert(g)?;
     let all = edges(&conv.pieces);
     let find_all = |side: &'_ [EdgePick]| -> Result<Vec<usize>, String> {
         side.iter().map(|p| find_edge(g, &conv, &all, p)).collect()
@@ -557,14 +562,14 @@ fn run_length_mm(g: &Garment, r: &Run) -> Option<f64> {
     let j = nodes.iter().position(|x| x.id == r.to)?;
     let dist = |a: [f64; 2], b: [f64; 2]| ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt();
     // The edge from node k to node k + 1, along its points.
-    let edge_len = |k: usize| -> f64 {
+    let edge_len = |k: usize| -> Option<f64> {
         let (a, b) = (&nodes[k], &nodes[(k + 1) % n]);
         let mut pts = vec![a.position];
         if let Some(e) = &a.edge {
-            pts.extend(e.points.iter().copied());
+            pts.extend(e.interior(a.position, b.position).ok()?);
         }
         pts.push(b.position);
-        pts.windows(2).map(|w| dist(w[0], w[1])).sum()
+        Some(pts.windows(2).map(|w| dist(w[0], w[1])).sum::<f64>())
     };
     let ccw = r.line.is_some() || r.direction != Some(Direction::Cw);
     let mut total = 0.0;
@@ -572,11 +577,11 @@ fn run_length_mm(g: &Garment, r: &Run) -> Option<f64> {
     let mut steps = 0;
     while k != j && steps <= n {
         if ccw {
-            total += edge_len(k);
+            total += edge_len(k)?;
             k = (k + 1) % n;
         } else {
             k = (k + n - 1) % n;
-            total += edge_len(k);
+            total += edge_len(k)?;
         }
         steps += 1;
     }
@@ -637,7 +642,7 @@ mod tests {
         let full = example(name);
         let mut bare = full.clone();
         bare.seams.clear();
-        let proposals = propose(&bare);
+        let proposals = propose(&bare).unwrap();
         // A seam of the file is reproduced when a proposal covers its edges on the same cuts
         // (either way round).
         let cuts = |runs: &[Run]| -> Vec<(Id, Id, Id)> {
@@ -694,7 +699,7 @@ mod tests {
                 r.direction
             )
         };
-        let conv = convert(&g);
+        let conv = convert(&g).unwrap();
         for (i, e) in edges(&conv.pieces).iter().enumerate() {
             println!(
                 "E{i:2} {} {}-{} len {:.1} turn {:+.2} side {:+.2} mid {} notches {:?}",
@@ -708,7 +713,7 @@ mod tests {
                 e.notches
             );
         }
-        for s in propose(&g) {
+        for s in propose(&g).unwrap() {
             println!(
                 "{:.2} {:+.0}% {:?}: {} | {}",
                 s.score,
@@ -723,7 +728,7 @@ mod tests {
     #[test]
     fn a_pick_must_be_a_whole_edge() {
         let g = example("tshirt");
-        let es = cut_edges(&g);
+        let es = cut_edges(&g).unwrap();
         assert!(es.iter().all(|e| !e.sewn || e.length > 0.0));
         let a = &es[0];
         let b = es.iter().find(|e| e.cut != a.cut).unwrap();
@@ -750,7 +755,7 @@ mod tests {
     #[test]
     fn chains_of_whole_edges_make_one_seam() {
         let g = example("tshirt");
-        let es = cut_edges(&g);
+        let es = cut_edges(&g).unwrap();
         let pick = |e: &CutEdge| EdgePick {
             cut: e.cut.clone(),
             from: e.from.clone(),
@@ -815,7 +820,7 @@ mod tests {
     fn the_examples_are_fully_sewn() {
         // Every seam of an example covers edges: the free-edge list notices them as sewn.
         let g = example("tshirt");
-        let es = cut_edges(&g);
+        let es = cut_edges(&g).unwrap();
         assert!(es.iter().any(|e| e.sewn));
     }
 }

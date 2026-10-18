@@ -7,9 +7,11 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use vitryne_format::{
-    Document, Error, FORMAT_VERSION, Kind,
+    Document, EXT_CURVES, Edge, Error, FORMAT_VERSION, Kind,
     container::{self, Entries},
     glb,
+    manifest::Manifest,
+    round_mm,
 };
 
 const EXAMPLES: [&str; 3] = ["tshirt", "trousers", "hoodie"];
@@ -255,7 +257,7 @@ fn malformed_files_are_refused() {
     );
     invalid(
         "unknown edge type",
-        &|f| part(f, "garments/")["pieces"][0]["outline"][0]["edge"]["type"] = json!("cubic"),
+        &|f| part(f, "garments/")["pieces"][0]["outline"][0]["edge"]["type"] = json!("arc"),
         "not supported",
     );
     invalid(
@@ -456,7 +458,10 @@ fn written_parts_match_the_schemas() {
     let docs = EXAMPLES
         .iter()
         .map(|name| (*name, Document::open(&example(name)).unwrap().doc))
-        .chain([("tshirt with colours", with_appearances())]);
+        .chain([
+            ("tshirt with colours", with_appearances()),
+            ("tshirt with a curve", with_curve()),
+        ]);
     for (name, doc) in docs {
         for (p, bytes) in doc.to_entries().unwrap() {
             if !p.ends_with(".json") {
@@ -562,4 +567,144 @@ fn physical_ranges_are_checked() {
     let mut e = d.entities();
     e.project.as_mut().unwrap()["simulation"]["targetVertices"] = json!(50);
     assert!(d.set_entities(e).is_err());
+}
+
+/// The T-shirt with its first piece's longest straight edge bowed outwards 5 mm as a cubic.
+fn with_curve() -> Document {
+    let mut doc = Document::open(&example("tshirt")).unwrap().doc;
+    let outline = &mut doc.garments[0].pieces[0].outline;
+    let n = outline.len();
+    let len = |k: usize, o: &[vitryne_format::Node]| {
+        let (a, b) = (o[k].position, o[(k + 1) % n].position);
+        (b[0] - a[0]).hypot(b[1] - a[1])
+    };
+    let k = (0..n)
+        .filter(|&k| {
+            outline[k]
+                .edge
+                .as_ref()
+                .is_some_and(|e| e.points.as_ref().is_some_and(Vec::is_empty))
+        })
+        .max_by(|&i, &j| len(i, outline).total_cmp(&len(j, outline)))
+        .expect("a straight edge");
+    let (a, b) = (outline[k].position, outline[(k + 1) % n].position);
+    let l = len(k, outline);
+    // Counter-clockwise outline: outwards is to the right of the edge.
+    let out = [(b[1] - a[1]) / l * 5.0, -(b[0] - a[0]) / l * 5.0];
+    let at = |t: f64| {
+        [
+            round_mm(a[0] + (b[0] - a[0]) * t + out[0] * 4.0 / 3.0),
+            round_mm(a[1] + (b[1] - a[1]) * t + out[1] * 4.0 / 3.0),
+        ]
+    };
+    outline[k].edge = Some(Edge::cubic(at(1.0 / 3.0), at(2.0 / 3.0)));
+    doc
+}
+
+fn manifest_of(doc: &Document) -> Manifest {
+    let (_, bytes) = doc
+        .to_entries()
+        .unwrap()
+        .into_iter()
+        .find(|(p, _)| p == "manifest.json")
+        .unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+/// A curve is written as `controls`, survives a round trip, and makes the file use and require
+/// VTRY_curves; without curves the extension goes again and the file is the example's bytes.
+#[test]
+fn curved_edges_round_trip_and_require_their_extension() {
+    let doc = with_curve();
+    assert!(
+        doc.validate().errors.is_empty(),
+        "{:?}",
+        doc.validate().errors
+    );
+    let m = manifest_of(&doc);
+    assert_eq!(m.extensions_used, [EXT_CURVES]);
+    assert_eq!(m.extensions_required, [EXT_CURVES]);
+    let entries = doc.to_entries().unwrap();
+    let garment = entries
+        .iter()
+        .find(|(p, _)| p.starts_with("garments/"))
+        .unwrap();
+    let text = String::from_utf8(garment.1.clone()).unwrap();
+    assert!(
+        text.contains("\"type\": \"cubic\""),
+        "no cubic edge written"
+    );
+    let back = Document::from_entries(Entries {
+        files: entries.clone(),
+        warnings: Vec::new(),
+    })
+    .unwrap()
+    .doc;
+    assert_eq!(back.garments, doc.garments);
+    assert_eq!(back.to_entries().unwrap(), entries);
+
+    // Straight again: no extension, the example's own bytes.
+    let original = Document::open(&example("tshirt")).unwrap().doc;
+    let mut again = back;
+    again.garments = original.garments.clone();
+    assert_eq!(manifest_of(&again).extensions_used, Vec::<String>::new());
+    assert_eq!(again.to_entries().unwrap(), original.to_entries().unwrap());
+}
+
+/// An outline must be a simple polygon, counter-clockwise, with its edges well formed.
+#[test]
+fn outline_shapes_are_checked() {
+    let doc = Document::open(&example("tshirt")).unwrap().doc;
+    let refused = |what: &str, edit: &dyn Fn(&mut Vec<vitryne_format::Node>), says: &str| {
+        let mut d = doc.clone();
+        edit(&mut d.garments[0].pieces[0].outline);
+        let errors = d.validate().errors;
+        assert!(
+            errors.iter().any(|e| e.contains(says)),
+            "{what}: {errors:?}"
+        );
+    };
+    refused(
+        "mirrored",
+        &|o| {
+            for n in o.iter_mut() {
+                n.position[0] = -n.position[0];
+                for q in n.edge.as_mut().unwrap().points.iter_mut().flatten() {
+                    q[0] = -q[0];
+                }
+            }
+        },
+        "clockwise",
+    );
+    refused(
+        "a node thrown across the piece",
+        &|o| {
+            let far = o[o.len() / 2].position;
+            let near = o[0].position;
+            o[0].position = [far[0] + (far[0] - near[0]), far[1] + (far[1] - near[1])];
+        },
+        "crosses itself",
+    );
+    refused(
+        "two nodes on one spot",
+        &|o| {
+            o[1].position = o[0].position;
+            o[0].edge = Some(Edge::polyline(Vec::new()));
+        },
+        "same place",
+    );
+    refused(
+        "a cubic with points",
+        &|o| {
+            let mut e = Edge::cubic([0.0, 0.0], [1.0, 1.0]);
+            e.points = Some(Vec::new());
+            o[0].edge = Some(e);
+        },
+        "controls only",
+    );
+    refused(
+        "a cubic control that isn't a number",
+        &|o| o[0].edge = Some(Edge::cubic([f64::NAN, 0.0], [1.0, 1.0])),
+        "not a number",
+    );
 }

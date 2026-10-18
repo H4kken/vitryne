@@ -4,6 +4,7 @@
 
 import type {
   Cut,
+  Edge,
   Garment,
   Line,
   OutlineNode,
@@ -19,13 +20,57 @@ export interface Box {
   maxY: number;
 }
 
+/** How far a flattened curve may stray, mm (Rust `CURVE_TOLERANCE_MM`). */
+const CURVE_TOLERANCE_MM = 0.1;
+const CURVE_MAX_SEGMENTS = 256;
+
+/** Rust's `round_mm`: 0.001 mm, halves away from zero, no -0. */
+function roundMm(x: number): number {
+  return (Math.sign(x) * Math.round(Math.abs(x) * 1000)) / 1000 + 0;
+}
+
+/**
+ * A cubic Bézier as the points strictly between its ends: Rust's `flatten_cubic` (same count,
+ * same parameters, same grid), so the view shows the curve the mesher uses.
+ */
+export function flattenCubic(p0: P, c1: P, c2: P, p3: P): P[] {
+  const dd = (a: P, b: P, c: P) =>
+    Math.hypot(a[0] - 2 * b[0] + c[0], a[1] - 2 * b[1] + c[1]);
+  const m = Math.max(dd(p0, c1, c2), dd(c1, c2, p3));
+  const raw = Math.ceil(Math.sqrt((0.75 * m) / CURVE_TOLERANCE_MM));
+  const n = Number.isFinite(raw)
+    ? Math.min(Math.max(raw, 1), CURVE_MAX_SEGMENTS)
+    : 1;
+  const out: P[] = [];
+  for (let k = 1; k < n; k++) {
+    const t = k / n;
+    const u = 1 - t;
+    const [a, b, c, d] = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+    out.push([
+      roundMm(a * p0[0] + b * c1[0] + c * c2[0] + d * p3[0]),
+      roundMm(a * p0[1] + b * c1[1] + c * c2[1] + d * p3[1]),
+    ]);
+  }
+  return out;
+}
+
+/** The points strictly between an edge's node `from` and the next node `to` (Rust `Edge::interior`). */
+export function edgeInterior(edge: Edge | undefined, from: P, to: P): P[] {
+  if (!edge) return [];
+  if (edge.type === "cubic")
+    return flattenCubic(from, edge.controls[0], edge.controls[1], to);
+  return edge.points as P[];
+}
+
 /** The outline as a closed polyline: each node, then its edge's points. */
 export function outlinePoints(piece: Piece): P[] {
+  const nodes = piece.outline as OutlineNode[];
   const pts: P[] = [];
-  for (const n of piece.outline as OutlineNode[]) {
+  nodes.forEach((n, k) => {
     pts.push(n.position);
-    for (const q of n.edge.points ?? []) pts.push(q as P);
-  }
+    const next = nodes[(k + 1) % nodes.length] ?? n;
+    pts.push(...edgeInterior(n.edge, n.position, next.position));
+  });
   return pts;
 }
 
@@ -46,15 +91,19 @@ export function runPoints(
   const first = nodes[i];
   if (!first || end < 0) return [];
   const pts: P[] = [first.position];
+  const inner = (k: number) => {
+    const a = nodes[k];
+    const b = nodes[(k + 1) % n];
+    return a && b ? edgeInterior(a.edge, a.position, b.position) : [];
+  };
   for (let steps = 0; i !== end && steps <= n; steps++) {
-    const here = nodes[i];
     if (ccw) {
-      for (const q of here?.edge.points ?? []) pts.push(q as P);
+      pts.push(...inner(i));
       i = (i + 1) % n;
     } else {
       i = (i + n - 1) % n;
-      for (const q of [...(nodes[i]?.edge.points ?? [])].reverse())
-        pts.push(q as P);
+      // A copy: a polyline's points are the document's own (frozen) array.
+      pts.push(...[...inner(i)].reverse());
     }
     const there = nodes[i];
     if (there) pts.push(there.position);
@@ -84,10 +133,11 @@ export function distToPolyline([px, py]: P, pts: readonly P[]): number {
 
 export function linePoints(line: Line): P[] {
   const pts: P[] = [];
-  for (const n of line.nodes) {
+  line.nodes.forEach((n, k) => {
     pts.push(n.position);
-    for (const q of n.edge?.points ?? []) pts.push(q as P);
-  }
+    const next = line.nodes[k + 1];
+    if (next) pts.push(...edgeInterior(n.edge, n.position, next.position));
+  });
   return pts;
 }
 

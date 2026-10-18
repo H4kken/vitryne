@@ -245,20 +245,16 @@ pub fn suggest(name: &str, cuts: usize, all: &[&str]) -> Option<Choice> {
 }
 
 /// A piece's outline in a cut's frame (mirrored or not), m.
-fn cut_outline(piece: &Piece, mirrored: bool) -> Vec<Vec2> {
-    let mut pts = Vec::new();
-    for n in &piece.outline {
-        pts.push(n.position);
-        if let Some(e) = &n.edge {
-            pts.extend(e.points.iter().copied());
-        }
-    }
-    pts.iter()
+fn cut_outline(piece: &Piece, mirrored: bool) -> Result<Vec<Vec2>, String> {
+    let pts = vitryne_format::outline_points(&piece.outline)
+        .map_err(|m| format!("piece {}: {m}", piece.name))?;
+    Ok(pts
+        .iter()
         .map(|&[x, y]| {
             let x = (x / 1000.0) as f32;
             Vec2::new(if mirrored { -x } else { x }, (y / 1000.0) as f32)
         })
-        .collect()
+        .collect())
 }
 
 impl DxfImport {
@@ -472,7 +468,7 @@ impl DxfImport {
                 .cuts
                 .iter()
                 .map(|cut| cut_outline(piece, cut.mirrored))
-                .collect();
+                .collect::<Result<_, _>>()?;
             for ((cut, place), outline) in piece.cuts.iter_mut().zip(places).zip(outlines) {
                 cut.placement = match (place, &c) {
                     (Some(place), _) => {
@@ -660,7 +656,7 @@ pub fn rewrap(
         Placement::Follow(_) => None,
     };
     let (s, c) = (rotation.unwrap_or(0.0) as f32).sin_cos();
-    let outline: Vec<Vec2> = cut_outline(piece, cut.mirrored)
+    let outline: Vec<Vec2> = cut_outline(piece, cut.mirrored)?
         .into_iter()
         .map(|q| Vec2::new(c * q.x - s * q.y, s * q.x + c * q.y))
         .collect();
