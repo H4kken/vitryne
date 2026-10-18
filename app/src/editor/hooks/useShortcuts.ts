@@ -6,8 +6,9 @@ import { type RefObject, useEffect } from "react";
 import { findCut, removeCuts } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
 import type { Garment } from "@/format/schema.gen";
-import type { FlatTool, Selection } from "@/pattern/PatternPanel";
+
 import type { EngineSession } from "@/worker/session";
+import type { FlatTool, Selection } from "@/pattern/panel/types";
 
 export function useShortcuts(o: {
   session: EngineSession;

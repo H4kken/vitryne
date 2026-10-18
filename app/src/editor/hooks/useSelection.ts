@@ -6,9 +6,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { findCut } from "@/document/commands";
 import type { Garment } from "@/format/schema.gen";
-import type { Selection } from "@/pattern/PatternPanel";
+
 import type { PanelId } from "@/properties/panelTitles";
 import type { EngineSession } from "@/worker/session";
+import type { Selection } from "@/pattern/panel/types";
 
 export function useSelection(o: {
   session: EngineSession;

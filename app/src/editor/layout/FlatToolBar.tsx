@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { Link2, Spline, PencilRuler, PenTool, SquarePlus } from "lucide-react";
-import { type FlatTool } from "@/pattern/PatternPanel";
+
 import { SelectIcon } from "../icons/SelectIcon";
 import { ToolButton } from "./ToolButton";
+import type { FlatTool } from "@/pattern/panel/types";
 
 /** The flat view's floating tool bar: Select, the pattern tools, and Sew. */
 export function FlatToolBar({

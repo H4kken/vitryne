@@ -15,7 +15,7 @@ import type { Cloud } from "@/cloud/useCloud";
 import { mainGarment } from "@/document/entities";
 import { DocumentStore, useDocument } from "@/document/store";
 import type { OutlineNode, Vec2 } from "@/format/schema.gen";
-import type { FlatTool, PatternView } from "@/pattern/PatternPanel";
+
 import type { ShapeKind } from "@/pattern/draw";
 import { DiskFiles } from "@/storage/storage";
 import type { PointerTool } from "@/worker/protocol";
@@ -57,6 +57,7 @@ import { RecoveryBanner } from "./RecoveryBanner";
 import { SidePanel } from "./SidePanel";
 import { Splitter } from "./Splitter";
 import { TopBar } from "./TopBar";
+import type { FlatTool, PatternView } from "@/pattern/panel/types";
 
 export function EditorLayout({ cloud }: { cloud: Cloud }) {
   const session = useMemo(() => new EngineSession(), []);

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { IconProps } from "./Stroke";
-import { Stroke } from "./Stroke";
+import { type IconProps, Stroke } from "./Stroke";
 
 /** "Show flat pieces": a flat garment piece. */
 export const FlatIcon = (p: IconProps) => (

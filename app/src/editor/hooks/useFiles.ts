@@ -157,7 +157,7 @@ export function useFiles(
       () => pushToCloud(false),
       () => !store.state.empty && store.state.dirty && !blockedNow.current,
     );
-  }, [autosave, pushToCloud, store]);
+  }, [autosave, pushToCloud, store, blockedNow]);
   useEffect(() => () => autosave.dispose(), [autosave]);
 
   useAutosaveTriggers(autosave, doc, blocked, cloud.user);

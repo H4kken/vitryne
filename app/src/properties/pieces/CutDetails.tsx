@@ -23,7 +23,7 @@ import {
 } from "@/document/commands";
 import type { Entities } from "@/document/entities";
 import type { DocumentStore } from "@/document/store";
-import type { Selection } from "@/pattern/PatternPanel";
+
 import { PlaceSelect } from "@/placement/PlaceSelect";
 import {
   degrees,
@@ -37,6 +37,7 @@ import { TextField } from "../TextField";
 import { FabricOption } from "./FabricOption";
 import { PanelHeading } from "@/components/PanelHeading";
 import { NumberField } from "../NumberField";
+import type { Selection } from "@/pattern/panel/types";
 
 /** How far a piece placed on another sits off it, mm (Rust `import::ON_TOP_LIFT_MM`). */
 export const ON_TOP_LIFT_MM = 12;

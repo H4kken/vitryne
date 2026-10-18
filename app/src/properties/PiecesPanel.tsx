@@ -7,7 +7,7 @@ import type { Cut, Garment } from "@/format/schema.gen";
 import { cutColor, cutFabric, findCut } from "@/document/commands";
 import type { Entities } from "@/document/entities";
 import type { DocumentStore } from "@/document/store";
-import type { Selection } from "@/pattern/PatternPanel";
+
 import { type Place, PLACES, placeOf } from "@/placement/places";
 import { DEFAULT_CLOTH_COLOR } from "@/format/colors";
 import { type Sewing, SeamsSection } from "@/sewing/SeamsSection";
@@ -15,6 +15,7 @@ import { cutName } from "./cutName";
 import { PanelIntro } from "@/components/PanelIntro";
 import { SeamDetails } from "@/sewing/SeamDetails";
 import { CutDetails } from "./pieces/CutDetails";
+import type { Selection } from "@/pattern/panel/types";
 
 /** Where a cut starts, in a few words. */
 function whereLabel(g: Garment, cut: Cut): string {

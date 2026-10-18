@@ -6,11 +6,12 @@ import { type RefObject, useCallback } from "react";
 import { addPiece, type Bounds, setPlacement } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
 import type { Garment, Placement, Vec2 } from "@/format/schema.gen";
-import type { PatternView } from "@/pattern/PatternPanel";
+
 import { newPiece } from "@/pattern/draw";
 import { PAIRS, type Pair, type Place } from "@/placement/places";
 import type { EngineSession } from "@/worker/session";
 import type { NewPiece } from "../dialogs/NewPieceDialog";
+import type { PatternView } from "@/pattern/panel/types";
 
 export function usePieceActions(o: {
   session: EngineSession;

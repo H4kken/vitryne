@@ -7,11 +7,7 @@ import { setLayouts } from "@/document/commands";
 import type { Garment, OutlineNode, Vec2 } from "@/format/schema.gen";
 import { type DocState, DocumentStore } from "@/document/store";
 import { cn } from "@/lib/utils";
-import {
-  type FlatTool,
-  PatternPanel,
-  type PatternView,
-} from "@/pattern/PatternPanel";
+import { PatternPanel } from "@/pattern/panel/PatternPanel";
 import { type ShapeKind } from "@/pattern/draw";
 import { type EngineState } from "@/worker/session";
 import { type NewPiece } from "../dialogs/NewPieceDialog";
@@ -23,6 +19,7 @@ import type { SplitView } from "../hooks/useSplitView";
 import type { useSelection } from "../hooks/useSelection";
 import type { useSewing } from "../hooks/useSewing";
 import { FlatToolBar } from "./FlatToolBar";
+import type { PatternView, FlatTool } from "@/pattern/panel/types";
 
 export function FlatView(props: {
   view: SplitView;

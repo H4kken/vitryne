@@ -6,9 +6,10 @@
 import { useEffect } from "react";
 import { findCut } from "@/document/commands";
 import type { Garment } from "@/format/schema.gen";
-import type { Selection } from "@/pattern/PatternPanel";
+
 import type { PointerTool } from "@/worker/protocol";
 import type { EngineSession, EngineState } from "@/worker/session";
+import type { Selection } from "@/pattern/panel/types";
 
 export function useDrapeControls(o: {
   session: EngineSession;
