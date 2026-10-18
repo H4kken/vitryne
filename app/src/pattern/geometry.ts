@@ -286,3 +286,38 @@ export function inside([x, y]: P, poly: readonly P[]): boolean {
   }
   return c;
 }
+
+/** Whether the closed outline `poly` and the box overlap: an edge crosses it, or one is inside the other. */
+export function touchesBox(poly: readonly P[], b: Box): boolean {
+  const pb = bounds(poly);
+  if (
+    pb.maxX < b.minX ||
+    pb.minX > b.maxX ||
+    pb.maxY < b.minY ||
+    pb.minY > b.maxY
+  )
+    return false;
+  const inBox = ([x, y]: P) =>
+    x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY;
+  if (poly.some(inBox)) return true;
+  const corners: P[] = [
+    [b.minX, b.minY],
+    [b.maxX, b.minY],
+    [b.maxX, b.maxY],
+    [b.minX, b.maxY],
+  ];
+  if (corners.some((c) => inside(c, poly))) return true;
+  // Neither holds a point of the other: they overlap only where edges cross.
+  const cross = (a: P, c: P, d: P) =>
+    (c[0] - a[0]) * (d[1] - a[1]) - (c[1] - a[1]) * (d[0] - a[0]);
+  const crosses = (a: P, c: P, d: P, e: P) =>
+    cross(a, c, d) * cross(a, c, e) < 0 && cross(d, e, a) * cross(d, e, c) < 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i] as P;
+    const c = poly[(i + 1) % poly.length] as P;
+    for (let k = 0; k < 4; k++)
+      if (crosses(a, c, corners[k] as P, corners[(k + 1) % 4] as P))
+        return true;
+  }
+  return false;
+}

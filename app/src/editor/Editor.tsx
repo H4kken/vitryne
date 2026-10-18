@@ -52,7 +52,8 @@ import {
   cutColor,
   findCut,
   renameProject,
-  setLayout,
+  removeCuts,
+  setLayouts,
   setPlacement,
   type Bounds,
 } from "@/document/commands";
@@ -66,7 +67,7 @@ import {
   type PatternView,
   type Selection,
 } from "@/pattern/PatternPanel";
-import { newPiece } from "@/pattern/draw";
+import { newPiece, type ShapeKind } from "@/pattern/draw";
 import { PAIRS, type Pair, type Place, tidy } from "@/placement/places";
 import {
   FabricPanel,
@@ -109,6 +110,7 @@ import {
 import { ExportDialog } from "./ExportDialog";
 import { ImportDialog, type TextFile } from "./ImportDialog";
 import { type NewPiece, NewPieceDialog } from "./NewPieceDialog";
+import { ShapeBar } from "@/pattern/ShapeBar";
 import { StartScreen } from "./StartScreen";
 import { useFiles } from "./useFiles";
 import { useProjectRoute } from "./useProjectRoute";
@@ -307,11 +309,28 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   }, []);
   const [tool, setTool] = useState<PointerTool>("turn");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
+  const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
+  // Cmd (Ctrl) held turns the Select tool into Move until it is let go.
+  const [modHeld, setModHeld] = useState(false);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => setModHeld(e.metaKey || e.ctrlKey);
+    const blur = () => setModHeld(false);
+    window.addEventListener("keydown", key);
+    window.addEventListener("keyup", key);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("keyup", key);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
+  const flatToolNow: FlatTool =
+    flatTool === "select" && modHeld ? "move" : flatTool;
   const [importing, setImporting] = useState<TextFile | null>(null);
-  /** A new piece being added: the pen's outline and where it was drawn, or a ready shape. */
+  /** A piece the pen drew, being named and placed: its outline and where it was drawn. */
   const [adding, setAdding] = useState<{
-    outline: OutlineNode[] | null;
-    origin?: Vec2;
+    outline: OutlineNode[];
+    origin: Vec2;
     key: number;
   } | null>(null);
   const [importKey, setImportKey] = useState(0);
@@ -575,9 +594,9 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   );
 
   /** A drawn piece or a ready shape added: wrapped where the person chose (Rust), one edit. */
-  const addNewPiece = async (n: NewPiece) => {
+  const addNewPiece = async (n: NewPiece, origin?: Vec2) => {
     const g = garment;
-    if (!g || !adding) return;
+    if (!g) return;
     const places: string[] = n.place.startsWith("pair:")
       ? [...PAIRS[n.place.slice(5) as Pair].places]
       : [n.place.slice(4)];
@@ -587,7 +606,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
       name: n.name,
       outline: n.outline,
       cutIds: places.map(uuid),
-      origin: adding.origin ?? pattern.current?.freeSpot() ?? [0, 0],
+      origin: origin ?? pattern.current?.freeSpot() ?? [0, 0],
     });
     const r = JSON.parse(
       await session.placePiece(JSON.stringify(piece), places),
@@ -754,6 +773,34 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         return;
       }
       if (typing || mod) return;
+      // Delete takes the picked pieces out, in 2D or 3D; the 2D tools that pick points or
+      // lines keep it for those.
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        !(
+          show2d &&
+          (flatTool === "points" || flatTool === "draw" || flatTool === "marks")
+        )
+      ) {
+        const g = garment;
+        const s = shownSelection;
+        if (!g || !s) return;
+        e.preventDefault();
+        const ids = [s.cutId, ...(s.also ?? [])].filter(
+          (id) => !!findCut(g, id),
+        );
+        let note: string | undefined;
+        const done = store.execute((x) => {
+          const cmd = removeCuts(x, g.id, ids);
+          note = cmd.note;
+          return cmd;
+        });
+        if (done) {
+          setSelection(null);
+          if (note) files.showInfo(`${note}.`);
+        }
+        return;
+      }
       const c = session.state.controls;
       if (e.key === " ") session.setControls({ paused: !c.paused });
       else if (k === "f") session.setControls({ fast: !c.fast });
@@ -763,7 +810,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [session, store, save]);
+  }, [session, store, save, show2d, flatTool, garment, shownSelection, files]);
 
   const message =
     files.notice?.kind === "error"
@@ -1158,7 +1205,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 garment={garment}
                 selection={shownSelection}
                 onSelect={select}
-                tool={flatTool}
+                tool={flatToolNow}
                 sewing={{
                   edges,
                   picked: picks ? [...picks.a, ...picks.b] : [],
@@ -1168,15 +1215,26 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 empty={
                   <FirstPieceHint
                     onDraw={() => setFlatTool("draw")}
-                    onShape={() =>
-                      setAdding({ outline: null, key: Date.now() })
-                    }
+                    onShape={() => setFlatTool("shape")}
                     onImport={importFile}
                     busy={!!files.busy}
                   />
                 }
                 onDrawn={(outline, origin) =>
                   setAdding({ outline, origin, key: Date.now() })
+                }
+                shapeKind={shapeKind}
+                onShape={(outline, origin) =>
+                  void addNewPiece(
+                    {
+                      outline,
+                      name: `Piece ${(garment?.pieces.length ?? 0) + 1}`,
+                      place: "one:body-front",
+                    },
+                    origin,
+                  ).catch((e: Error) =>
+                    files.showError("Could not add the shape", e),
+                  )
                 }
                 onEdit={(build) => {
                   let note: string | undefined;
@@ -1187,13 +1245,19 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                   });
                   if (done && note) files.showInfo(`${note}.`);
                 }}
-                onArrange={(cutId, t) =>
+                onArrange={(moved) =>
                   garment &&
                   store.execute((e) =>
-                    setLayout(e, garment.id, cutId, {
-                      position: [t.x, t.y],
-                      rotation: t.rot,
-                    }),
+                    setLayouts(
+                      e,
+                      garment.id,
+                      Object.fromEntries(
+                        [...moved].map(([cutId, t]) => [
+                          cutId,
+                          { position: [t.x, t.y], rotation: t.rot },
+                        ]),
+                      ),
+                    ),
                   )
                 }
               />
@@ -1234,18 +1298,23 @@ export function Editor({ cloud }: { cloud: Cloud }) {
               </ZoomButton>
             </div>
 
+            {!doc.empty && flatTool === "shape" && (
+              <div className="absolute bottom-[76px] left-1/2 z-10 w-max max-w-[calc(100%-32px)] -translate-x-1/2">
+                <ShapeBar kind={shapeKind} onKind={setShapeKind} />
+              </div>
+            )}
             {!doc.empty && (
               <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
                 <ToolButton
                   label="Select"
-                  selected={flatTool === "select"}
+                  selected={flatToolNow === "select"}
                   onClick={() => setFlatTool("select")}
                 >
                   <SelectIcon />
                 </ToolButton>
                 <ToolButton
                   label="Move"
-                  selected={flatTool === "move"}
+                  selected={flatToolNow === "move"}
                   onClick={() => setFlatTool("move")}
                 >
                   <MoveIcon />
@@ -1273,7 +1342,8 @@ export function Editor({ cloud }: { cloud: Cloud }) {
                 </ToolButton>
                 <ToolButton
                   label="Add a shape"
-                  onClick={() => setAdding({ outline: null, key: Date.now() })}
+                  selected={flatTool === "shape"}
+                  onClick={() => setFlatTool("shape")}
                 >
                   <SquarePlus className="size-5" />
                 </ToolButton>
@@ -1618,7 +1688,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         open={adding}
         defaultName={`Piece ${(garment?.pieces.length ?? 0) + 1}`}
         onClose={() => setAdding(null)}
-        onAdd={addNewPiece}
+        onAdd={(n) => addNewPiece(n, adding?.origin)}
       />
       <ExportDialog
         open={exporting}

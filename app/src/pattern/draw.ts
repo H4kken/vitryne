@@ -232,6 +232,34 @@ export function shapeOutline(
   ];
 }
 
+/** Each shape's sizes to start from, mm. */
+export const SHAPE_START: Record<ShapeKind, ShapeSize> = {
+  rectangle: { width: 500, height: 700 },
+  ellipse: { width: 300, height: 300 },
+  tube: { width: 600, top: 400, height: 600 },
+};
+
+/**
+ * The sizes of a shape dragged out `w` by `h` mm (on the grid); a tube keeps the starting
+ * shape's top to bottom ratio. `even` (Shift): as wide as high, the larger of the two.
+ */
+export function shapeFromDrag(
+  kind: ShapeKind,
+  w: number,
+  h: number,
+  even = false,
+): ShapeSize {
+  const [width, height] = even ? [Math.max(w, h), Math.max(w, h)] : [w, h];
+  const start = SHAPE_START.tube;
+  return {
+    width: roundMm(width),
+    height: roundMm(height),
+    ...(kind === "tube"
+      ? { top: roundMm((width * (start.top ?? start.width)) / start.width) }
+      : {}),
+  };
+}
+
 /** Why a shape's sizes can't make a piece, or null. */
 export function shapeProblem(kind: ShapeKind, s: ShapeSize): string | null {
   const sizes = [s.width, s.height, ...(kind === "tube" ? [s.top ?? 0] : [])];

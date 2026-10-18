@@ -859,25 +859,49 @@ export function setLayout(
   cutId: string,
   layout: Layout,
 ): Command {
-  if (![...layout.position, layout.rotation].every(Number.isFinite))
+  return setLayouts(e, garmentId, { [cutId]: layout });
+}
+
+/** Where several cuts sit in the flat view, as one edit (a group of cuts moved together). */
+export function setLayouts(
+  e: Entities,
+  garmentId: string,
+  layouts: Readonly<Record<string, Layout>>,
+): Command {
+  const ids = Object.keys(layouts);
+  if (
+    !ids.length ||
+    !ids.every((id) => {
+      const l = layouts[id] as Layout;
+      return [...l.position, l.rotation].every(Number.isFinite);
+    })
+  )
     throw new CommandError("a layout must be numbers");
   return editGarment(
     e,
     garmentId,
     (g) => {
-      const [i, j] = cutAt(g, cutId);
-      const old = g.pieces[i]?.cuts[j]?.layout;
-      // Unknown members of the layout stay.
-      let l: Record<string, unknown> = { ...(old ?? {}) };
-      l = setIn(l, ["position"], layout.position);
-      l = setIn(
-        l,
-        ["rotation"],
-        layout.rotation === 0 ? undefined : layout.rotation,
-      );
-      return setIn(g, ["pieces", i, "cuts", j, "layout"], l);
+      for (const cutId of ids) {
+        const layout = layouts[cutId] as Layout;
+        const [i, j] = cutAt(g, cutId);
+        const old = g.pieces[i]?.cuts[j]?.layout;
+        // Unknown members of the layout stay.
+        let l: Record<string, unknown> = { ...(old ?? {}) };
+        l = setIn(l, ["position"], layout.position);
+        l = setIn(
+          l,
+          ["rotation"],
+          layout.rotation === 0 ? undefined : layout.rotation,
+        );
+        g = setIn(g, ["pieces", i, "cuts", j, "layout"], l);
+      }
+      return g;
     },
-    { label: "Arrange the pieces", drape: false, coalesce: `layout:${cutId}` },
+    {
+      label: "Arrange the pieces",
+      drape: false,
+      coalesce: `layout:${[...ids].sort().join(",")}`,
+    },
   );
 }
 
@@ -1463,6 +1487,62 @@ export function addPiece(
     },
     { label, drape: true },
   );
+}
+
+/**
+ * Cuts taken out of a garment, as one edit: a piece with no cut left goes too, and so do the
+ * seams that sew any of them and the cuts placed on them (a pocket on a front taken out), which
+ * the note says.
+ */
+export function removeCuts(
+  e: Entities,
+  garmentId: string,
+  cutIds: readonly string[],
+): Command {
+  const g = garment(e, garmentId);
+  for (const id of cutIds) cutAt(g, id);
+  const asked = new Set(cutIds);
+  const gone = new Set<string>();
+  for (const id of cutIds) for (const f of followers(g, id)) gone.add(f);
+  const pieces = g.pieces
+    .map((p) => ({ ...p, cuts: p.cuts.filter((c) => !gone.has(c.id)) }))
+    .filter((p) => p.cuts.length > 0);
+  const seams = (g.seams ?? []).filter(
+    (s) => ![...s.a, ...s.b].some((r) => gone.has(r.cut)),
+  );
+  const piecesGone = g.pieces.length - pieces.length;
+  const label =
+    gone.size === 1 && piecesGone === 1
+      ? "Delete a piece"
+      : gone.size === 1
+        ? "Delete a cut"
+        : "Delete pieces";
+  const lost = (g.seams ?? []).length - seams.length;
+  const also = gone.size - asked.size;
+  const notes: string[] = [];
+  if (also)
+    notes.push(
+      also === 1
+        ? "The cut placed on it was removed too"
+        : `${also} cuts placed on them were removed too`,
+    );
+  if (lost)
+    notes.push(
+      lost === 1
+        ? "The seam that sewed it was removed"
+        : `${lost} seams that sewed them were removed`,
+    );
+  const cmd = editGarment(
+    e,
+    garmentId,
+    (x) => {
+      let out = setIn(x, ["pieces"], pieces);
+      if (x.seams) out = setIn(out, ["seams"], seams);
+      return out;
+    },
+    { label, drape: true },
+  );
+  return notes.length ? { ...cmd, note: notes.join(". ") } : cmd;
 }
 
 /** What an import adds to a garment (Rust `import::Addition`). */

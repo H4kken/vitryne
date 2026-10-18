@@ -15,6 +15,7 @@ import {
   renameProject,
   recoverChanges,
   removeSeam,
+  removeCuts,
   renameSeam,
   reverseSeam,
   revertCommand,
@@ -25,6 +26,7 @@ import {
   setCutFabric,
   setFabricValue,
   setLayout,
+  setLayouts,
   setMirrored,
   setPieceFabric,
   setPlacement,
@@ -93,6 +95,16 @@ function everyCommand(e: Entities): Command[] {
     setLayout(e, g.id, piece.cuts[0]!.id, {
       position: [120, -40],
       rotation: 0.5,
+    }),
+    removeCuts(e, g.id, [piece.cuts[0]!.id]),
+    removeCuts(
+      e,
+      g.id,
+      g.pieces.flatMap((p) => p.cuts.map((c) => c.id)),
+    ),
+    setLayouts(e, g.id, {
+      [piece.cuts[0]!.id]: { position: [10, 20], rotation: 0 },
+      [g.pieces[1]!.cuts[0]!.id]: { position: [-30, 40], rotation: 0.25 },
     }),
     setColor(e, g.id, { kind: "garment" }, "#1F2A44", () => ID_A),
     setColor(
@@ -174,6 +186,24 @@ describe.each(EXAMPLES)("%s", (name) => {
         lift: 12,
       }),
     ).toThrow(/itself/);
+  });
+
+  it("deletes cuts with their seams, and a piece with its last cut", () => {
+    const g = mainGarment(frozen)!;
+    const piece = g.pieces.find((p) =>
+      (g.seams ?? []).some((s) =>
+        [...s.a, ...s.b].some((r) => p.cuts.some((c) => c.id === r.cut)),
+      ),
+    )!;
+    const ids = piece.cuts.map((c) => c.id);
+    const cmd = removeCuts(frozen, g.id, ids);
+    const after = mainGarment(applyCommand(frozen, cmd))!;
+    expect(after.pieces.some((p) => p.id === piece.id)).toBe(false);
+    const cuts = new Set(after.pieces.flatMap((p) => p.cuts.map((c) => c.id)));
+    for (const s of after.seams ?? [])
+      for (const r of [...s.a, ...s.b]) expect(cuts.has(r.cut)).toBe(true);
+    expect(cmd.note).toMatch(/seam/);
+    expect(() => removeCuts(frozen, g.id, ["nope"])).toThrow(CommandError);
   });
 
   it("refuses to apply or revert from a state it does not expect", () => {

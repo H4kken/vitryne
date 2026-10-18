@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from "vitest";
-import { edgeInterior, flattenCubic, layoutCuts } from "./geometry";
+import { edgeInterior, flattenCubic, layoutCuts, touchesBox } from "./geometry";
 
 describe("flattenCubic", () => {
   it("leaves a straight curve with nothing between its ends", () => {
@@ -62,5 +62,43 @@ describe("layoutCuts", () => {
       expect(cuts).toEqual([]);
       expect(box).toEqual({ minX: -500, minY: -500, maxX: 500, maxY: 500 });
     }
+  });
+});
+
+describe("touchesBox", () => {
+  const square = [
+    [0, 0],
+    [100, 0],
+    [100, 100],
+    [0, 100],
+  ] as const;
+  const box = (minX: number, minY: number, maxX: number, maxY: number) => ({
+    minX,
+    minY,
+    maxX,
+    maxY,
+  });
+
+  it("is true for a box over a corner, inside the outline, or round it", () => {
+    expect(touchesBox(square, box(90, 90, 200, 200))).toBe(true);
+    expect(touchesBox(square, box(40, 40, 60, 60))).toBe(true);
+    expect(touchesBox(square, box(-10, -10, 110, 110))).toBe(true);
+  });
+
+  it("is true for a thin box across the outline, holding no corner of it", () => {
+    expect(touchesBox(square, box(-10, 45, 110, 55))).toBe(true);
+  });
+
+  it("is false for a box apart, or in a notch of the outline's box only", () => {
+    expect(touchesBox(square, box(120, 0, 200, 100))).toBe(false);
+    const ell = [
+      [0, 0],
+      [100, 0],
+      [100, 20],
+      [20, 20],
+      [20, 100],
+      [0, 100],
+    ] as const;
+    expect(touchesBox(ell, box(50, 50, 90, 90))).toBe(false);
   });
 });

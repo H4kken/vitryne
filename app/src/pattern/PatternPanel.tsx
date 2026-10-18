@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The flat pieces view: every cut of the garment (a mirrored one drawn mirrored) with its
 // folds, grain line, notches and internal lines, where its layout puts it. Wheel zooms around
-// the cursor, dragging empty space pans. The select tool picks a cut and turns it by its round
-// handle; the move tool drags cuts; the sew tool picks whole edges to sew (two clicks, edge
+// the cursor, dragging empty space pans (with the select tool: Space-drag or the middle button).
+// The select tool picks a cut (Shift adds or takes one out), or every cut a box dragged out
+// touches, and turns a lone pick by its round handle; the move tool drags cuts, a group of
+// picked cuts together; the shape tool drags out a ready shape (a click: its starting size); the
+// sew tool picks whole edges to sew (two clicks, edge
 // then edge: nothing is measured or shown while picking, docs/PATENTS.md). Sewn edges are drawn
 // in a colour per seam. The point tool edits a piece's outline: drag a point or a curve's
 // handle, double-click an edge to add a point, Delete removes one; a drag that would make the
@@ -58,6 +61,11 @@ import { MarkBar, type MarkKind } from "./MarkBar";
 import {
   framed,
   type PenPoint,
+  type ShapeKind,
+  SHAPE_START,
+  shapeFromDrag,
+  shapeOutline,
+  shapeProblem,
   penEdge,
   penLine,
   penOutline,
@@ -73,6 +81,7 @@ import {
   inside,
   layoutCuts,
   linePoints,
+  nodesPoints,
   outlinePoints,
   distToPolyline,
   edgeInterior,
@@ -81,15 +90,25 @@ import {
   pathData,
   roundMm,
   runPoints,
+  touchesBox,
   type Transform,
   unapply,
 } from "./geometry";
 import { type CutEdge, sameEdge } from "@/sewing/api";
 
-/** A cut, by its id (and its piece's). */
-export type Selection = { kind: "cut"; pieceId: string; cutId: string } | null;
+/**
+ * A cut, by its id (and its piece's): the one the properties and the 3D view show. `also`: other
+ * cuts picked with it in the flat view (a box dragged round them, or Shift-clicks), moved with it.
+ */
+export type Selection = {
+  kind: "cut";
+  pieceId: string;
+  cutId: string;
+  also?: readonly string[];
+} | null;
 
-export type FlatTool = "select" | "move" | "points" | "draw" | "marks" | "sew";
+export type FlatTool =
+  "select" | "move" | "points" | "draw" | "shape" | "marks" | "sew";
 
 /** The marks tool's pick: a line, fold or grain line of one cut's piece. */
 type MarkPick = {
@@ -711,7 +730,12 @@ type Drag =
   | { kind: "pan"; x: number; y: number; moved: boolean; hit: CutView | null }
   | ({ kind: "node"; k: number } & PointDrag)
   | ({ kind: "control"; k: number; which: 0 | 1 } & PointDrag)
-  | { kind: "move"; cut: CutView; start: P; t: Transform; moved: boolean }
+  /** Cuts dragged together (the one under the pointer and the rest of the selection). */
+  | { kind: "move"; cuts: CutView[]; start: P; moved: boolean }
+  /** The select tool: a box dragged out over the view; `add` keeps what was picked (Shift). */
+  | { kind: "box"; from: P; x: number; y: number; moved: boolean; add: boolean }
+  /** The shape tool: a shape dragged out from `from` (a click puts a default one there). */
+  | { kind: "shape"; from: P; x: number; y: number; moved: boolean }
   /** The marks tool: a line's point being put down (piece frame), dragged for a curve. */
   | {
       kind: "line";
@@ -752,14 +776,16 @@ export function PatternPanel({
   empty,
   onEdit,
   onDrawn,
+  shapeKind = "rectangle",
+  onShape,
   ref,
 }: {
   garment: Garment | undefined;
   selection: Selection;
   onSelect: (s: Selection) => void;
   tool: FlatTool;
-  /** A cut moved or turned: its new layout (one edit per drag). */
-  onArrange: (cutId: string, t: Transform) => void;
+  /** Cuts moved or turned: their new layouts, by cut id (one edit per drag). */
+  onArrange: (t: ReadonlyMap<string, Transform>) => void;
   /** For the sew tool: the whole edges to pick from. */
   sewing?: SewingState;
   /** Each coloured cut's colour (#rrggbb), by cut id. */
@@ -770,6 +796,10 @@ export function PatternPanel({
   onEdit?: (build: (e: Entities) => Command) => void;
   /** The pen closed a piece: its outline (own frame) and where that frame's origin is drawn. */
   onDrawn?: (outline: OutlineNode[], origin: Vec2) => void;
+  /** The shape tool's shape. */
+  shapeKind?: ShapeKind;
+  /** The shape tool put a shape down: its outline (own frame) and where that origin is drawn. */
+  onShape?: (outline: OutlineNode[], origin: Vec2) => void;
   ref?: Ref<PatternView>;
 }) {
   /** An outline being dragged, drawn as the pointer has it until the edit lands. */
@@ -830,10 +860,10 @@ export function PatternPanel({
   const setView = (box: Box | null) =>
     setUserView(box ? { garment: garmentId, box } : null);
   const drag = useRef<Drag | null>(null);
-  /** A cut being dragged or turned, drawn where the pointer has it until the edit lands. */
-  const [live, setLive] = useState<{ cutId: string; t: Transform } | null>(
-    null,
-  );
+  /** Cuts being dragged or turned, drawn where the pointer has them until the edit lands. */
+  const [live, setLive] = useState<ReadonlyMap<string, Transform> | null>(null);
+  /** The select tool's box being dragged out, and the shape tool's shape (pattern mm). */
+  const [box, setBox] = useState<{ from: P; to: P } | null>(null);
 
   useEffect(() => {
     const el = host.current;
@@ -846,8 +876,9 @@ export function PatternPanel({
   }, []);
 
   const cuts = layout.cuts.map((v) => {
-    if (live?.cutId !== v.cut.id) return v;
-    return { ...v, t: live.t, box: bounds(v.pts.map((p) => apply(live.t, p))) };
+    const t = live?.get(v.cut.id);
+    if (!t) return v;
+    return { ...v, t, box: bounds(v.pts.map((p) => apply(t, p))) };
   });
   // The same box in SVG coordinates (y down), with room for the labels.
   const all = {
@@ -942,11 +973,24 @@ export function PatternPanel({
   const selected = selection
     ? cuts.find((v) => v.cut.id === selection.cutId)
     : undefined;
+  /** Every picked cut: the selection and those picked with it. */
+  const inGroup = new Set(
+    selection ? [selection.cutId, ...(selection.also ?? [])] : [],
+  );
+  // The selection first: it stays the one the properties show.
+  const group = cuts
+    .filter((v) => inGroup.has(v.cut.id))
+    .sort((a, b) => +(b === selected) - +(a === selected));
   // The turn handle, above the selection's top middle (pattern coordinates, y up); none
   // while editing points.
   const points = tool === "points" && !!onEdit;
   const handle: P | null =
-    selected && !points && tool !== "draw" && tool !== "marks"
+    selected &&
+    group.length === 1 &&
+    !points &&
+    tool !== "draw" &&
+    tool !== "shape" &&
+    tool !== "marks"
       ? [
           (selected.box.minX + selected.box.maxX) / 2,
           selected.box.maxY + HANDLE_PX * mmPerPx,
@@ -954,6 +998,28 @@ export function PatternPanel({
       : null;
   const select = (v: CutView | null) =>
     onSelect(v ? { kind: "cut", pieceId: v.piece.id, cutId: v.cut.id } : null);
+  /** Picks `views`, the first being the one the properties show. */
+  const selectAll = (views: readonly CutView[]) => {
+    const [first, ...rest] = views;
+    onSelect(
+      first
+        ? {
+            kind: "cut",
+            pieceId: first.piece.id,
+            cutId: first.cut.id,
+            ...(rest.length ? { also: rest.map((v) => v.cut.id) } : {}),
+          }
+        : null,
+    );
+  };
+  /** The select tool's click: picks the cut alone, or with Shift adds it or takes it out. */
+  const clickCut = (v: CutView | null, shift: boolean) => {
+    if (!shift) return select(v);
+    if (!v) return;
+    selectAll(
+      inGroup.has(v.cut.id) ? group.filter((x) => x !== v) : [...group, v],
+    );
+  };
 
   // ---- the point tool ----
   // The pick, while its cut and node are still there.
@@ -1076,8 +1142,57 @@ export function PatternPanel({
     setPenFor(penKey);
     setPen({ points: [], cursor: null, handle: null, problem: null });
   }
-  /** Space held: dragging pans while drawing. */
+  /** Space held: dragging pans while drawing or picking with a box. */
   const spaceDown = useRef(false);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === " ") spaceDown.current = e.type === "keydown";
+    };
+    const blur = () => {
+      spaceDown.current = false;
+    };
+    window.addEventListener("keydown", key);
+    window.addEventListener("keyup", key);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("keyup", key);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
+
+  // ---- the shape tool ----
+  /** Shift held while dragging a shape out: as wide as high. */
+  const [even, setEven] = useState(false);
+  /** Where a shape's corner goes for the pointer at `p`: on the grid the pen snaps to. */
+  const shapeAt = (p: P): P => {
+    const step = snapStep(mmPerPx);
+    return [Math.round(p[0] / step) * step, Math.round(p[1] / step) * step];
+  };
+  /**
+   * The shape a drag from `from` to `to` makes: its sizes, and where its bottom left goes (it
+   * fills the box from where the drag started). No `to`: a click, the starting sizes centred
+   * there.
+   */
+  const shapeDrop = (from: P, to: P | null, square: boolean) => {
+    const size = to
+      ? shapeFromDrag(
+          shapeKind,
+          Math.abs(to[0] - from[0]),
+          Math.abs(to[1] - from[1]),
+          square,
+        )
+      : SHAPE_START[shapeKind];
+    const origin: Vec2 = to
+      ? [
+          roundMm(to[0] < from[0] ? from[0] - size.width : from[0]),
+          roundMm(to[1] < from[1] ? from[1] - size.height : from[1]),
+        ]
+      : [roundMm(from[0] - size.width / 2), roundMm(from[1] - size.height / 2)];
+    return { size, origin, problem: shapeProblem(shapeKind, size) };
+  };
+  const shapePreview =
+    tool === "shape" && box ? shapeDrop(box.from, box.to, even) : null;
 
   /** Where the pen puts a point for this pointer event. */
   const penAt = (e: {
@@ -1123,7 +1238,6 @@ export function PatternPanel({
   useEffect(() => {
     if (!drawing) return;
     const down = (e: KeyboardEvent) => {
-      if (e.key === " ") spaceDown.current = true;
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
@@ -1145,15 +1259,8 @@ export function PatternPanel({
         setPen((x) => ({ ...x, points: x.points.slice(0, -1), problem: null }));
       }
     };
-    const up = (e: KeyboardEvent) => {
-      if (e.key === " ") spaceDown.current = false;
-    };
     window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
+    return () => window.removeEventListener("keydown", down);
   }, [drawing]);
 
   /** The edge being drawn: from the last point to the pointer (to the first one when closing). */
@@ -1562,7 +1669,7 @@ export function PatternPanel({
   return (
     <div
       ref={host}
-      className={`flat-grid relative h-full w-full touch-none overflow-hidden ${tool === "move" ? "cursor-move" : tool === "sew" || drawing ? "cursor-crosshair" : "cursor-default"}`}
+      className={`flat-grid relative h-full w-full touch-none overflow-hidden ${tool === "move" ? "cursor-move" : tool === "sew" || tool === "shape" || drawing ? "cursor-crosshair" : "cursor-default"}`}
       onPointerDown={(e) => {
         // On a bar or hint over the view: its own buttons take it (capturing the pointer
         // here would send their clicks to the view).
@@ -1650,16 +1757,35 @@ export function PatternPanel({
             return;
           }
         }
+        if (tool === "shape" && onShape && e.button === 0) {
+          freeze();
+          drag.current = {
+            kind: "shape",
+            from: shapeAt(p),
+            x: e.clientX,
+            y: e.clientY,
+            moved: false,
+          };
+          return;
+        }
         const hit = hitCut(p);
         if (tool === "move" && hit) {
           freeze();
-          select(hit);
+          // A picked cut takes the others picked with it; another is picked alone.
+          const moving = inGroup.has(hit.cut.id) ? group : [hit];
+          if (!inGroup.has(hit.cut.id)) select(hit);
+          drag.current = { kind: "move", cuts: moving, start: p, moved: false };
+          return;
+        }
+        if (tool === "select" && e.button === 0 && !spaceDown.current) {
+          freeze();
           drag.current = {
-            kind: "move",
-            cut: hit,
-            start: p,
-            t: hit.t,
+            kind: "box",
+            from: p,
+            x: e.clientX,
+            y: e.clientY,
             moved: false,
+            add: e.shiftKey,
           };
           return;
         }
@@ -1713,6 +1839,15 @@ export function PatternPanel({
         }
         if (!d || d.kind === "pen" || d.kind === "line" || d.kind === "grain")
           return;
+        if (d.kind === "box" || d.kind === "shape") {
+          if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3)
+            d.moved = true;
+          if (!d.moved) return;
+          const p = toPattern(e);
+          setBox({ from: d.from, to: d.kind === "shape" ? shapeAt(p) : p });
+          setEven(e.shiftKey);
+          return;
+        }
         if (d.kind === "pan") {
           if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3)
             d.moved = true;
@@ -1768,14 +1903,15 @@ export function PatternPanel({
         }
         if (d.kind === "move") {
           d.moved = true;
-          setLive({
-            cutId: d.cut.cut.id,
-            t: {
-              ...d.t,
-              x: d.t.x + p[0] - d.start[0],
-              y: d.t.y + p[1] - d.start[1],
-            },
-          });
+          const [dx, dy] = [p[0] - d.start[0], p[1] - d.start[1]];
+          setLive(
+            new Map(
+              d.cuts.map((v) => [
+                v.cut.id,
+                { ...v.t, x: v.t.x + dx, y: v.t.y + dy },
+              ]),
+            ),
+          );
           return;
         }
         // Turn about the box's centre: that point of the cut stays put.
@@ -1787,10 +1923,11 @@ export function PatternPanel({
         }
         rot = Math.atan2(Math.sin(rot), Math.cos(rot));
         const [x, y] = apply({ x: 0, y: 0, rot }, d.local);
-        setLive({
-          cutId: d.cut.cut.id,
-          t: { x: d.centre[0] - x, y: d.centre[1] - y, rot },
-        });
+        setLive(
+          new Map([
+            [d.cut.cut.id, { x: d.centre[0] - x, y: d.centre[1] - y, rot }],
+          ]),
+        );
       }}
       onPointerUp={(e) => {
         const d = drag.current;
@@ -1852,6 +1989,38 @@ export function PatternPanel({
           }
           return;
         }
+        if (d.kind === "box") {
+          const b = box;
+          setBox(null);
+          if (!d.moved || !b) return clickCut(hitCut(d.from), d.add);
+          const area = bounds([b.from, b.to]);
+          const hits = cuts.filter((v) =>
+            touchesBox(
+              v.pts.map((q) => apply(v.t, q)),
+              area,
+            ),
+          );
+          selectAll(
+            d.add
+              ? [...group, ...hits.filter((v) => !inGroup.has(v.cut.id))]
+              : hits,
+          );
+          return;
+        }
+        if (d.kind === "shape") {
+          setBox(null);
+          const out = shapeDrop(
+            d.from,
+            d.moved ? shapeAt(toPattern(e)) : null,
+            e.shiftKey,
+          );
+          if (out.problem) return;
+          onShape?.(
+            shapeOutline(shapeKind, out.size, () => crypto.randomUUID()),
+            out.origin,
+          );
+          return;
+        }
         if (d.kind === "node" || d.kind === "control") {
           const s = shape;
           setShape(null);
@@ -1868,23 +2037,36 @@ export function PatternPanel({
           else if (edge) edit((e, g) => setEdge(e, g, pieceId, node.id, edge));
           return;
         }
+        const ids =
+          d.kind === "move" ? d.cuts.map((v) => v.cut.id) : [d.cut.cut.id];
         if (
           live &&
-          live.cutId === d.cut.cut.id &&
+          ids.every((id) => live.has(id)) &&
           (d.kind === "turn" || d.moved)
         ) {
           const round = (x: number) => Math.round(x * 1000) / 1000;
-          onArrange(d.cut.cut.id, {
-            x: round(live.t.x),
-            y: round(live.t.y),
-            rot: Math.round(live.t.rot * 1e4) / 1e4,
-          });
+          onArrange(
+            new Map(
+              ids.map((id) => {
+                const t = live.get(id) as Transform;
+                return [
+                  id,
+                  {
+                    x: round(t.x),
+                    y: round(t.y),
+                    rot: Math.round(t.rot * 1e4) / 1e4,
+                  },
+                ];
+              }),
+            ),
+          );
         }
         setLive(null);
       }}
       onPointerCancel={() => {
         drag.current = null;
         setLive(null);
+        setBox(null);
         setShape(null);
         setPen((x) => ({ ...x, handle: null }));
         setGrainLive(null);
@@ -1935,7 +2117,7 @@ export function PatternPanel({
         </defs>
         <Grid box={vb} mmPerPx={mmPerPx} />
         {cuts.map((v) => {
-          const on = selection?.cutId === v.cut.id;
+          const on = inGroup.has(v.cut.id);
           return (
             <g key={v.cut.id}>
               <g transform={svgTransform(v.t, !!v.cut.mirrored)}>
@@ -2058,6 +2240,73 @@ export function PatternPanel({
             r={NODE_PX * mmPerPx}
           />
         )}
+        {/* Several cuts picked: a dashed box round each. */}
+        {group.length > 1 &&
+          (tool === "select" || tool === "move" || tool === "sew") &&
+          group.map((v) => (
+            <rect
+              key={v.cut.id}
+              x={v.box.minX - 12}
+              y={-v.box.maxY - 12}
+              width={v.box.maxX - v.box.minX + 24}
+              height={v.box.maxY - v.box.minY + 24}
+              fill="none"
+              stroke="#3A63F0"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          ))}
+        {/* The select tool's box being dragged out. */}
+        {box && tool !== "shape" && (
+          <rect
+            x={Math.min(box.from[0], box.to[0])}
+            y={-Math.max(box.from[1], box.to[1])}
+            width={Math.abs(box.to[0] - box.from[0])}
+            height={Math.abs(box.to[1] - box.from[1])}
+            fill="#3A63F0"
+            fillOpacity={0.08}
+            stroke="#3A63F0"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        )}
+        {/* The shape being dragged out, with its sizes. */}
+        {shapePreview && (
+          <g pointerEvents="none">
+            <path
+              transform={`translate(${shapePreview.origin[0]} ${-shapePreview.origin[1]}) scale(1 -1)`}
+              d={pathData(
+                nodesPoints(
+                  shapeOutline(shapeKind, shapePreview.size, () => ""),
+                ),
+                true,
+              )}
+              fill="#FFFFFF"
+              fillOpacity={0.7}
+              stroke={shapePreview.problem ? BAD : "#3A63F0"}
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+              strokeLinejoin="round"
+            />
+            <text
+              x={shapePreview.origin[0] + shapePreview.size.width / 2}
+              y={
+                -shapePreview.origin[1] - shapePreview.size.height - 8 * mmPerPx
+              }
+              textAnchor="middle"
+              fill={shapePreview.problem ? BAD : "#3A63F0"}
+              fontSize={12 * mmPerPx}
+              className="font-sans font-semibold tabular-nums select-none"
+            >
+              {shapeKind === "tube"
+                ? `${Math.round(shapePreview.size.top ?? 0)} / ${Math.round(shapePreview.size.width)} × ${Math.round(shapePreview.size.height)} mm`
+                : `${Math.round(shapePreview.size.width)} × ${Math.round(shapePreview.size.height)} mm`}
+            </text>
+          </g>
+        )}
         {selected && handle && (
           <g>
             <rect
@@ -2093,7 +2342,7 @@ export function PatternPanel({
         )}
       </svg>
       {garment && <ScaleBar mmPerPx={mmPerPx} />}
-      {garment && !layout.cuts.length && !drawing && empty}
+      {garment && !layout.cuts.length && !drawing && tool !== "shape" && empty}
       {drawing && garment && (
         <div className="pointer-events-none absolute bottom-[76px] left-1/2 z-10 w-max max-w-[calc(100%-32px)] -translate-x-1/2">
           <DrawBar
