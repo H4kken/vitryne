@@ -4,8 +4,9 @@
 // picked line or fold can be deleted, a picked grain line reset to the default (+y).
 
 import { RotateCcw, Trash2, Undo2 } from "lucide-react";
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { BarSegment } from "./BarSegment";
+import { BarDivider } from "./BarDivider";
+import { MarkAction } from "./MarkAction";
 
 export type MarkKind = "line" | "notch" | "fold" | "grain";
 
@@ -31,49 +32,6 @@ const KINDS: { kind: MarkKind; label: string; hint: string }[] = [
     hint: "Drag across a piece along its grain (the fabric's warp)",
   },
 ];
-
-function Segment(props: {
-  on: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={props.on}
-      onClick={props.onClick}
-      className={cn(
-        "h-8 rounded-lg px-2.5 text-[13px] font-medium",
-        props.on ? "bg-[#14181F] text-white" : "hover:bg-[#F4F5F2]",
-      )}
-    >
-      {props.children}
-    </button>
-  );
-}
-
-function Action(props: {
-  onClick: () => void;
-  title?: string;
-  disabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={props.title}
-      disabled={props.disabled}
-      onClick={props.onClick}
-      className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium hover:bg-[#F4F5F2] disabled:opacity-40"
-    >
-      {props.children}
-    </button>
-  );
-}
-
-function Divider() {
-  return <span className="mx-1 h-5 w-px bg-[#E1E4DE]" />;
-}
 
 const PICKED = { line: "A line", fold: "A fold", grain: "The grain line" };
 
@@ -106,15 +64,15 @@ export function MarkBar(props: {
       )}
       <div className="flex flex-wrap items-center justify-center gap-0.5 rounded-[12px] border border-[#E1E4DE] bg-white p-1 shadow-[0_4px_16px_rgba(20,24,31,.08)]">
         {KINDS.map((k) => (
-          <Segment
+          <BarSegment
             key={k.kind}
             on={props.kind === k.kind}
             onClick={() => props.onKind(k.kind)}
           >
             {k.label}
-          </Segment>
+          </BarSegment>
         ))}
-        <Divider />
+        <BarDivider />
         {props.drawing ? (
           <>
             <span className="px-1.5 text-[13px] text-[#4A514B]">
@@ -122,31 +80,31 @@ export function MarkBar(props: {
                 ? "Click the next point"
                 : `${props.drawing.points} points`}
             </span>
-            <Action
+            <MarkAction
               onClick={props.drawing.onFinish}
               disabled={props.drawing.points < 2}
               title="Finish the line (Enter)"
             >
               Finish
-            </Action>
-            <Action
+            </MarkAction>
+            <MarkAction
               onClick={props.drawing.onUndo}
               title="Take the last point back (Backspace)"
             >
               <Undo2 className="size-4" />
-            </Action>
-            <Action onClick={props.drawing.onCancel} title="Cancel (Esc)">
+            </MarkAction>
+            <MarkAction onClick={props.drawing.onCancel} title="Cancel (Esc)">
               Cancel
-            </Action>
+            </MarkAction>
           </>
         ) : props.folding ? (
           <>
             <span className="px-1.5 text-[13px] text-[#4A514B]">
               Now click the fold's other end
             </span>
-            <Action onClick={props.folding.onCancel} title="Cancel (Esc)">
+            <MarkAction onClick={props.folding.onCancel} title="Cancel (Esc)">
               Cancel
-            </Action>
+            </MarkAction>
           </>
         ) : props.picked ? (
           <>
@@ -154,16 +112,19 @@ export function MarkBar(props: {
               {PICKED[props.picked.what]}
             </span>
             {props.picked.what === "grain" ? (
-              <Action
+              <MarkAction
                 onClick={props.picked.onRemove}
                 title="Back to the default: the piece's +y (Delete)"
               >
                 <RotateCcw className="size-4" /> Reset
-              </Action>
+              </MarkAction>
             ) : (
-              <Action onClick={props.picked.onRemove} title="Delete (Delete)">
+              <MarkAction
+                onClick={props.picked.onRemove}
+                title="Delete (Delete)"
+              >
                 <Trash2 className="size-4" /> Delete
-              </Action>
+              </MarkAction>
             )}
           </>
         ) : (

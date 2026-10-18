@@ -4,8 +4,8 @@
 // A click opens the project; the ⋯ menu renames, duplicates and exports (an account) or
 // deletes it. An anonymous user's one draft is a card like any other.
 
-import { useEffect, useRef, useState } from "react";
-import { Ellipsis, Shirt } from "lucide-react";
+import { useRef, useState } from "react";
+import { Ellipsis } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,27 +30,12 @@ import {
   fileName,
   projectZip,
   renameProject,
-  thumbnailUrl,
 } from "./projects";
 import type { Cloud } from "./useCloud";
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-
-/** "Edited 5 minutes ago", "Edited yesterday", then the date. */
-export function editedAgo(iso: string, now = Date.now()): string {
-  const s = (new Date(iso).getTime() - now) / 1000;
-  const a = Math.abs(s);
-  if (a < 60) return "Edited just now";
-  if (a < 3600)
-    return `Edited ${relative.format(Math.round(s / 60), "minute")}`;
-  if (a < 86400)
-    return `Edited ${relative.format(Math.round(s / 3600), "hour")}`;
-  if (a < 7 * 86400)
-    return `Edited ${relative.format(Math.round(s / 86400), "day")}`;
-  return `Edited ${new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
-}
+import { errorMessage } from "./errorMessage";
+import { ProjectThumbnail } from "./ProjectThumbnail";
+import { RenameField } from "./RenameField";
+import { editedAgo } from "./editedAgo";
 
 export function ProjectGrid(props: {
   cloud: Cloud;
@@ -83,7 +68,7 @@ export function ProjectGrid(props: {
       await run();
       cloud.refresh();
     } catch (e) {
-      setError(`Could not ${what} ${p.name}: ${message(e)}`);
+      setError(`Could not ${what} ${p.name}: ${errorMessage(e)}`);
     } finally {
       setWorking(null);
     }
@@ -158,7 +143,7 @@ export function ProjectGrid(props: {
               }
               className="block cursor-pointer outline-none disabled:cursor-default disabled:opacity-60"
             >
-              <Thumbnail cloud={cloud} sha={p.thumbnail} />
+              <ProjectThumbnail cloud={cloud} sha={p.thumbnail} />
             </button>
             <div className="flex items-start gap-1 px-4 pt-3 pb-3.5">
               <div className="flex min-w-0 grow flex-col gap-0.5">
@@ -291,70 +276,5 @@ export function ProjectGrid(props: {
         </DialogContent>
       </Dialog>
     </section>
-  );
-}
-
-/** The project's thumbnail, or a plain garment while it has none (or it doesn't load). */
-function Thumbnail({ cloud, sha }: { cloud: Cloud; sha: string | null }) {
-  const [src, setSrc] = useState<{ sha: string; url: string } | null>(null);
-  useEffect(() => {
-    if (!sha) return;
-    let live = true;
-    void cloud
-      .backend()
-      .then((b) => thumbnailUrl(b, sha))
-      .then(
-        (url) => live && setSrc({ sha, url }),
-        () => undefined,
-      );
-    return () => {
-      live = false;
-    };
-  }, [cloud, sha]);
-  const url = src && src.sha === sha ? src.url : null;
-  return (
-    <span className="bg-canvas-3d flex aspect-[4/3] w-full items-center justify-center overflow-hidden">
-      {url ? (
-        <img
-          src={url}
-          alt=""
-          className="h-full w-full object-cover"
-          draggable={false}
-        />
-      ) : (
-        <Shirt
-          className="size-14 text-[#B9C0B4]"
-          strokeWidth={1.2}
-          aria-hidden="true"
-        />
-      )}
-    </span>
-  );
-}
-
-function RenameField({
-  name,
-  onDone,
-  ref,
-}: {
-  name: string;
-  onDone: (name: string | null) => void;
-  ref: React.Ref<HTMLInputElement>;
-}) {
-  const [text, setText] = useState(name);
-  return (
-    <input
-      ref={ref}
-      aria-label="Project name"
-      value={text}
-      onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={() => onDone(text.trim() || null)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-        if (e.key === "Escape") onDone(null);
-      }}
-      className="-mx-1 rounded-md border-[1.5px] border-[#14181F] px-1 text-[15px] font-semibold outline-none"
-    />
   );
 }

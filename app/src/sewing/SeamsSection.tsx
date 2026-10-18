@@ -7,24 +7,12 @@
 
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { removeSeam, renameSeam, reverseSeam } from "@/document/commands";
+import { removeSeam } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
 import type { Garment, Seam } from "@/format/schema.gen";
-import { TextField } from "@/properties/fields";
-import {
-  describeSide,
-  differenceNote,
-  type SeamProposal,
-  sideTitle,
-} from "./api";
-
-function Heading({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="text-muted-foreground m-0 text-[13px] font-semibold tracking-[0.06em] uppercase">
-      {children}
-    </h3>
-  );
-}
+import { describeSide, type SeamProposal, sideTitle } from "./api";
+import { PanelHeading } from "@/components/PanelHeading";
+import { seamTitle } from "./seamTitle";
 
 /** What the seams section needs from the editor: suggestions live there. */
 export interface Sewing {
@@ -42,11 +30,6 @@ export interface Sewing {
   onOpen: (seamId: string | null) => void;
 }
 
-/** A seam's title: its number in the garment. */
-function seamTitle(g: Garment, seam: Seam): string {
-  return `Seam ${(g.seams ?? []).indexOf(seam) + 1}`;
-}
-
 /** Under the title: its name, or the pieces it joins. */
 function seamSubtitle(g: Garment, seam: Seam): string {
   return seam.name || `${sideTitle(g, seam.a)} with ${sideTitle(g, seam.b)}`;
@@ -61,7 +44,7 @@ export function SeamsSection(props: {
   const seams = garment.seams ?? [];
   return (
     <div className="flex flex-col gap-3 border-t pt-4">
-      <Heading>Seams</Heading>
+      <PanelHeading>Seams</PanelHeading>
       {seams.length === 0 ? (
         <p className="text-muted-foreground m-0 text-sm leading-snug">
           A seam joins one edge of a piece to an edge of another. Sew whole
@@ -158,59 +141,6 @@ export function SeamsSection(props: {
             ))}
           </ul>
         ))}
-    </div>
-  );
-}
-
-/** One seam's page: its name, which way it is sewn, and deleting it. */
-export function SeamDetails(props: {
-  store: DocumentStore;
-  garment: Garment;
-  seam: Seam;
-  sewing: Sewing;
-}) {
-  const { store, garment: g, seam, sewing } = props;
-  const note = differenceNote(sewing.differences[seam.id]);
-  return (
-    <div className="flex flex-col gap-4">
-      <button
-        type="button"
-        onClick={() => sewing.onOpen(null)}
-        className="text-muted-foreground hover:text-foreground self-start text-sm underline underline-offset-4"
-      >
-        All pieces
-      </button>
-      <h2 className="m-0 text-[17px] font-semibold">{seamTitle(g, seam)}</h2>
-      <TextField
-        label="Description"
-        value={seam.name ?? ""}
-        placeholder={`${sideTitle(g, seam.a)} with ${sideTitle(g, seam.b)}`}
-        onCommit={(v) => store.execute((e) => renameSeam(e, g.id, seam.id, v))}
-      />
-      <div className="text-muted-foreground flex flex-col gap-1 text-[13px] leading-snug">
-        <span>{describeSide(g, seam.a)}</span>
-        <span>{describeSide(g, seam.b)}</span>
-        {note && <span className="text-foreground">{note}</span>}
-      </div>
-      <div className="flex flex-col gap-2 border-t pt-4">
-        <Button
-          variant="outline"
-          onClick={() => store.execute((e) => reverseSeam(e, g.id, seam.id))}
-        >
-          Flip direction
-        </Button>
-        <Button
-          variant="outline"
-          className="text-destructive hover:text-destructive"
-          onClick={() => {
-            if (store.execute((e) => removeSeam(e, g.id, seam.id)))
-              sewing.onOpen(null);
-          }}
-        >
-          <Trash2 className="size-4" />
-          Delete seam
-        </Button>
-      </div>
     </div>
   );
 }

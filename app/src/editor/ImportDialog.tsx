@@ -15,9 +15,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { bounds, type P, pathData } from "@/pattern/geometry";
 import { PlaceSelect } from "@/placement/PlaceSelect";
 import type { EngineSession } from "@/worker/session";
+import { encodeChoice } from "./encodeChoice";
+import { leftOut } from "./leftOut";
+import { decodeChoice } from "./decodeChoice";
+import { ImportThumb } from "./ImportThumb";
 
 /** A text file the user picked or dropped. */
 export interface TextFile {
@@ -53,92 +56,6 @@ export interface Preview {
     suggestion: Choice | null;
   }[];
   unused: string[];
-}
-
-export function encodeChoice(c: Choice): string {
-  switch (c.type) {
-    case "leave":
-      return "leave";
-    case "one":
-      return `one:${c.place}`;
-    case "pair":
-      return `pair:${c.pair}`;
-    case "on":
-      return `on:${c.piece}`;
-  }
-}
-
-export function decodeChoice(v: string): Choice {
-  if (v === "leave") return { type: "leave" };
-  const [kind, rest] = [
-    v.slice(0, v.indexOf(":")),
-    v.slice(v.indexOf(":") + 1),
-  ];
-  if (kind === "one") return { type: "one", place: rest };
-  if (kind === "pair") return { type: "pair", pair: rest };
-  return { type: "on", piece: rest };
-}
-
-/** The standard's layers the importer doesn't use, in words (ASTM D6673 layer table). */
-const LAYERS: Record<string, string> = {
-  "3": "curve points",
-  "5": "grade reference lines",
-  "9": "stripe reference lines",
-  "10": "plaid reference lines",
-  "11": "internal cutouts",
-  "12": "intersection points",
-  "13": "drill holes",
-  "15": "annotation text",
-};
-
-/** What the import leaves out, one line each. */
-export function leftOut(p: Preview): string[] {
-  const r = p.report;
-  const lines: string[] = [];
-  for (const [layer, n] of r.ignored_layers) {
-    lines.push(
-      `${n} item${n === 1 ? "" : "s"} on layer ${layer}${LAYERS[layer] ? ` (${LAYERS[layer]})` : ""}`,
-    );
-  }
-  if (r.blocks_without_boundary.length) {
-    lines.push(
-      `${r.blocks_without_boundary.length} block(s) with no closed outline, so not pieces: ${r.blocks_without_boundary.join(", ")}`,
-    );
-  }
-  for (const [type, n] of r.skipped_entity_types)
-    lines.push(
-      `${n} ${type} entit${n === 1 ? "y" : "ies"} the importer doesn't read`,
-    );
-  if (r.bulge_segments)
-    lines.push(
-      `${r.bulge_segments} curved segment(s) imported as straight lines`,
-    );
-  if (p.unused.length)
-    lines.push(`Pieces the sewing file doesn't use: ${p.unused.join(", ")}`);
-  return lines;
-}
-
-function Thumb({ outline }: { outline: [number, number][] }) {
-  const b = bounds(outline as P[]);
-  const pad = Math.max(b.maxX - b.minX, b.maxY - b.minY) * 0.08;
-  return (
-    <svg
-      width={56}
-      height={56}
-      viewBox={`${b.minX - pad} ${-b.maxY - pad} ${b.maxX - b.minX + 2 * pad} ${b.maxY - b.minY + 2 * pad}`}
-      className="shrink-0 rounded-lg bg-[#F4F5F2]"
-      aria-hidden="true"
-    >
-      <path
-        d={pathData(outline as P[], true)}
-        fill="#FFFFFF"
-        stroke="#14181F"
-        strokeWidth={1.6}
-        vectorEffect="non-scaling-stroke"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 export function ImportDialog(props: {
@@ -264,7 +181,7 @@ export function ImportDialog(props: {
                     key={x.name}
                     className="flex items-center gap-3 rounded-2xl border border-[#E1E4DE] p-2.5"
                   >
-                    <Thumb outline={x.outline} />
+                    <ImportThumb outline={x.outline} />
                     <div className="flex min-w-0 grow flex-col gap-0.5">
                       <label
                         htmlFor={`${ids}-${x.name}`}

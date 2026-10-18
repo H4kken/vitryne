@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { Logo } from "@/editor/icons/Logo";
 import { Loader2 } from "lucide-react";
-import { Logo } from "@/editor/icons";
 
 /** Over the editor while the project or example a URL names opens. */
 export function ProjectLoading({ text }: { text: string }) {

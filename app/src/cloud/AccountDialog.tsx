@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The cloud screens (docs/CLOUD.md): the person's projects, and the account dialog. No sign-up
-// wall: anyone can try the editor, and their work is kept as one draft (an anonymous user); a
-// free account keeps every project, opens them anywhere, and exports. Codes come by email and are
-// typed here, so no link or redirect can lose work not saved yet.
+// The account dialog (docs/CLOUD.md). No sign-up wall: anyone can try the editor, and their
+// work is kept as one draft (an anonymous user); a free account keeps every project, opens them
+// anywhere, and exports. Codes come by email and are typed here, so no link or redirect can lose
+// work not saved yet.
 
 import { useEffect, useState } from "react";
-import { Cloud as CloudIcon, Copy, Trash2 } from "lucide-react";
+import { Cloud as CloudIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,221 +17,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ProjectSummary, Usage } from "./backend";
-import {
-  deleteAccount,
-  deleteProject,
-  duplicateProject,
-  exportAll,
-  fetchAhead,
-  moveProjects,
-} from "./projects";
+import type { Usage } from "./backend";
+import { deleteAccount, exportAll, moveProjects } from "./projects";
 import type { Cloud } from "./useCloud";
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
-function save(name: string, bytes: ArrayBuffer, type: string) {
-  const url = URL.createObjectURL(new Blob([bytes], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
-
-/** The person's projects: open, duplicate (an account), delete. */
-export function CloudProjectList(props: {
-  cloud: Cloud;
-  projects: ProjectSummary[];
-  busy: boolean;
-  onOpen: (id: string) => void;
-}) {
-  const [working, setWorking] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const account = props.cloud.user && !props.cloud.user.anonymous;
-
-  const duplicate = async (p: ProjectSummary) => {
-    setWorking(p.id);
-    setError(null);
-    try {
-      await duplicateProject(await props.cloud.backend(), p.id);
-      props.cloud.refresh();
-    } catch (e) {
-      setError(`Could not duplicate ${p.name}: ${message(e)}`);
-    } finally {
-      setWorking(null);
-    }
-  };
-
-  const remove = async (p: ProjectSummary) => {
-    setWorking(p.id);
-    setError(null);
-    try {
-      await deleteProject(await props.cloud.backend(), p.id);
-      props.cloud.refresh();
-    } catch (e) {
-      setError(`Could not delete ${p.name}: ${message(e)}`);
-    } finally {
-      setWorking(null);
-      setConfirm(null);
-    }
-  };
-
-  if (!props.projects.length)
-    return (
-      <p className="text-muted-foreground m-0 text-sm">
-        No projects yet. Change an example or import a pattern, and it is saved
-        here.
-      </p>
-    );
-  return (
-    <div className="flex flex-col gap-2">
-      <ul className="m-0 flex list-none flex-col divide-y divide-[#E1E4DE] p-0">
-        {props.projects.map((p) => (
-          <li key={p.id} className="flex flex-wrap items-center gap-2 py-2.5">
-            <button
-              type="button"
-              disabled={props.busy || working !== null}
-              onClick={() => props.onOpen(p.id)}
-              // Pointing at a project starts its download, so the click opens it sooner.
-              onPointerEnter={() =>
-                void props.cloud.backend().then(
-                  (b) => fetchAhead(b, p.id),
-                  () => undefined,
-                )
-              }
-              onFocus={() =>
-                void props.cloud.backend().then(
-                  (b) => fetchAhead(b, p.id),
-                  () => undefined,
-                )
-              }
-              className="flex min-w-0 grow flex-col text-left disabled:opacity-60"
-            >
-              <span className="truncate text-[15px] font-semibold">
-                {p.name}
-              </span>
-              <span className="text-muted-foreground text-xs">
-                {new Date(p.updatedAt).toLocaleString()} ·{" "}
-                {formatBytes(p.bytes)}
-              </span>
-            </button>
-            {confirm === p.id ? (
-              <>
-                <span className="text-sm">Delete for good?</span>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={working !== null}
-                  onClick={() => void remove(p)}
-                >
-                  Delete
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setConfirm(null)}
-                >
-                  Keep
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={props.busy || working !== null}
-                  onClick={() => props.onOpen(p.id)}
-                >
-                  Open
-                </Button>
-                {account && (
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label={`Duplicate ${p.name}`}
-                    disabled={working !== null}
-                    onClick={() => void duplicate(p)}
-                  >
-                    <Copy className="size-4" />
-                  </Button>
-                )}
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={`Delete ${p.name}`}
-                  disabled={working !== null}
-                  onClick={() => setConfirm(p.id)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-      {error && <p className="m-0 text-sm text-[#8A2410]">{error}</p>}
-    </div>
-  );
-}
-
-export function CloudProjectsDialog(props: {
-  cloud: Cloud;
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  busy: boolean;
-  onOpen: (id: string) => void;
-}) {
-  const { cloud, open } = props;
-  // `backend` and `refresh` are stable; `cloud` itself changes with every new list.
-  const { backend, refresh } = cloud;
-  useEffect(() => {
-    if (open)
-      void backend().then(
-        () => refresh(),
-        () => undefined,
-      );
-  }, [open, backend, refresh]);
-  return (
-    <Dialog open={open} onOpenChange={props.onOpenChange}>
-      <DialogContent className="max-w-[560px] rounded-[20px] p-6">
-        <DialogHeader>
-          <DialogTitle className="font-display text-2xl font-bold">
-            Your projects
-          </DialogTitle>
-          <DialogDescription className="text-body-text text-[15px]">
-            {!cloud.user
-              ? "Nothing saved from this browser yet. Sign in to see the projects in your account."
-              : cloud.user.anonymous
-                ? "Without an account you keep one project, your draft. Create a free account to keep several."
-                : "Open one, duplicate it, or delete it."}
-          </DialogDescription>
-        </DialogHeader>
-        {cloud.user && cloud.projects && (
-          <div className="max-h-[50vh] overflow-y-auto">
-            <CloudProjectList
-              cloud={cloud}
-              projects={cloud.projects}
-              busy={props.busy}
-              onOpen={(id) => {
-                props.onOpenChange(false);
-                props.onOpen(id);
-              }}
-            />
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
+import { errorMessage } from "./errorMessage";
+import { GoogleIcon } from "./GoogleIcon";
+import { formatBytes } from "./formatBytes";
 
 type Step =
   | { at: "home" }
@@ -243,6 +34,15 @@ type Step =
   | { at: "delete" };
 
 const MIN_PASSWORD = 8;
+
+function save(name: string, bytes: ArrayBuffer, type: string) {
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
 
 /**
  * Cloud account: sign in (email and password, or Google), create an account from the anonymous
@@ -298,7 +98,7 @@ export function AccountDialog(props: {
     try {
       await f();
     } catch (e) {
-      setError(message(e));
+      setError(errorMessage(e));
     } finally {
       setWorking(null);
     }
@@ -724,29 +524,5 @@ export function AccountDialog(props: {
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-/** Google's "G", in its own colours (its brand rules for sign-in buttons). */
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 18 18" className="size-[18px]" aria-hidden="true">
-      <path
-        fill="#4285F4"
-        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"
-      />
-      <path
-        fill="#34A853"
-        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M3.97 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"
-      />
-      <path
-        fill="#EA4335"
-        d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"
-      />
-    </svg>
   );
 }

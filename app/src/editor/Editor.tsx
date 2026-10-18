@@ -42,7 +42,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SaveStatus } from "@/cloud/autosave";
-import { AccountDialog, CloudProjectsDialog } from "@/cloud/CloudDialogs";
 import { ProjectGrid } from "@/cloud/ProjectGrid";
 import { fabricKey, projectFabrics } from "@/cloud/fabrics";
 import { moveProjects } from "@/cloud/projects";
@@ -74,12 +73,6 @@ import { newPiece, type ShapeKind } from "@/pattern/draw";
 import { PAIRS, type Pair, type Place, tidy } from "@/placement/places";
 import { FabricPanel, type FabricView } from "@/properties/FabricPanel";
 import {
-  PANEL_TITLES,
-  type PanelId,
-  PiecesPanel,
-  SettingsPanel,
-} from "@/properties/panels";
-import {
   type CutEdge,
   parseDifferences,
   parseEdges,
@@ -93,17 +86,6 @@ import { type EngineState, EngineSession, useEngine } from "@/worker/session";
 import { EditorContext } from "./EditorContext";
 import { type Example, exampleId, fetchAvatar, listExamples } from "./examples";
 import { Gizmo } from "./Gizmo";
-import {
-  CubeIcon,
-  FabricIcon,
-  FlatIcon,
-  Logo,
-  PinchIcon,
-  RedoIcon,
-  SelectIcon,
-  TurnIcon,
-  UndoIcon,
-} from "./icons";
 import { ExportDialog } from "./ExportDialog";
 import { ImportDialog, type TextFile } from "./ImportDialog";
 import { type NewPiece, NewPieceDialog } from "./NewPieceDialog";
@@ -114,6 +96,20 @@ import { useFollowOpen } from "./useFollowOpen";
 import { useStarted } from "./useStarted";
 import { useThumbnails } from "./useThumbnails";
 import { Viewport } from "./Viewport";
+import { PANEL_TITLES, type PanelId } from "@/properties/panelTitles";
+import { Logo } from "./icons/Logo";
+import { UndoIcon } from "./icons/UndoIcon";
+import { RedoIcon } from "./icons/RedoIcon";
+import { FlatIcon } from "./icons/FlatIcon";
+import { CubeIcon } from "./icons/CubeIcon";
+import { FabricIcon } from "./icons/FabricIcon";
+import { PiecesPanel } from "@/properties/PiecesPanel";
+import { SettingsPanel } from "@/properties/SettingsPanel";
+import { SelectIcon } from "./icons/SelectIcon";
+import { TurnIcon } from "./icons/TurnIcon";
+import { PinchIcon } from "./icons/PinchIcon";
+import { AccountDialog } from "@/cloud/AccountDialog";
+import { CloudProjectsDialog } from "@/cloud/CloudProjectsDialog";
 
 const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 

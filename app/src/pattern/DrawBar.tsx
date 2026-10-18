@@ -5,65 +5,11 @@
 // another piece's length (docs/PATENTS.md).
 
 import { Check, Undo2, X } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
+import { DrawNumberField } from "./DrawNumberField";
+import { BarButton } from "./BarButton";
 
-function NumberField(props: {
-  label: string;
-  unit: string;
-  value: number;
-  draft: string | null;
-  onDraft: (v: string | null) => void;
-  onEnter: () => void;
-}) {
-  return (
-    <label className="flex items-center gap-1.5 text-[13px] text-[#4A514B]">
-      {props.label}
-      <input
-        aria-label={`${props.label}, ${props.unit}`}
-        inputMode="decimal"
-        className="h-8 w-[72px] rounded-lg border-[1.5px] border-[#D5D9D1] bg-white px-2 text-right text-[13px] text-[#14181F] tabular-nums"
-        value={props.draft ?? props.value.toFixed(1)}
-        onChange={(e) => props.onDraft(e.target.value)}
-        onFocus={(e) => props.onDraft(e.currentTarget.value)}
-        onBlur={() =>
-          props.draft === props.value.toFixed(1) && props.onDraft(null)
-        }
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            props.onEnter();
-          }
-          if (e.key === "Escape") {
-            props.onDraft(null);
-            e.currentTarget.blur();
-          }
-        }}
-      />
-      {props.unit}
-    </label>
-  );
-}
-
-function BarButton(props: {
-  onClick: () => void;
-  title: string;
-  disabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={props.title}
-      disabled={props.disabled}
-      onClick={props.onClick}
-      className="flex h-8 items-center gap-1 rounded-lg px-2.5 text-[13px] font-medium hover:bg-[#F4F5F2] disabled:opacity-40"
-    >
-      {props.children}
-    </button>
-  );
-}
-
-const number = (v: string | null) => Number(v?.replace(",", "."));
+const parseDecimal = (v: string | null) => Number(v?.replace(",", "."));
 
 export function DrawBar(props: {
   /** Points put down so far. */
@@ -81,8 +27,8 @@ export function DrawBar(props: {
   const [length, setLength] = useState<string | null>(null);
   const [angle, setAngle] = useState<string | null>(null);
   const place = () => {
-    const mm = length === null ? props.length : number(length);
-    const deg = angle === null ? props.angle : number(angle);
+    const mm = length === null ? props.length : parseDecimal(length);
+    const deg = angle === null ? props.angle : parseDecimal(angle);
     if (!(Number.isFinite(mm) && mm > 0 && Number.isFinite(deg))) return;
     props.onPlace(mm, deg);
     setLength(null);
@@ -113,7 +59,7 @@ export function DrawBar(props: {
           </span>
         ) : (
           <>
-            <NumberField
+            <DrawNumberField
               label="Length"
               unit="mm"
               value={props.length}
@@ -121,7 +67,7 @@ export function DrawBar(props: {
               onDraft={setLength}
               onEnter={place}
             />
-            <NumberField
+            <DrawNumberField
               label="Angle"
               unit="°"
               value={props.angle}

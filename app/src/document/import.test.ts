@@ -5,13 +5,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  type Choice,
-  decodeChoice,
-  encodeChoice,
-  leftOut,
-  type Preview,
-} from "@/editor/ImportDialog";
+import { type Choice, type Preview } from "@/editor/ImportDialog";
 import { placeOf } from "@/placement/places";
 import { openExample, rustRefuses, wasm } from "@/test/rust";
 import {
@@ -23,6 +17,9 @@ import {
   setPlacement,
 } from "./commands";
 import { mainGarment, parseEntities } from "./entities";
+import { decodeChoice } from "@/editor/decodeChoice";
+import { encodeChoice } from "@/editor/encodeChoice";
+import { leftOut } from "@/editor/leftOut";
 
 const repo = resolve(import.meta.dirname, "../../..");
 const tshirtDxf = readFileSync(

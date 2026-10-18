@@ -5,70 +5,12 @@
 // only: nothing here compares pieces (docs/PATENTS.md, rule 5).
 
 import { Plus, Trash2 } from "lucide-react";
-import { type ReactNode, useState } from "react";
 import type { OutlineNode } from "@/format/schema.gen";
-import { cn } from "@/lib/utils";
+import { BarSegment } from "./BarSegment";
+import { BarDivider } from "./BarDivider";
+import { LengthField } from "./LengthField";
 
 export type EdgeKind = "straight" | "curve" | "traced";
-
-function Segment(props: {
-  on: boolean;
-  onClick: () => void;
-  title?: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={props.title}
-      aria-pressed={props.on}
-      onClick={props.onClick}
-      className={cn(
-        "h-8 rounded-lg px-2.5 text-[13px] font-medium",
-        props.on ? "bg-[#14181F] text-white" : "hover:bg-[#F4F5F2]",
-      )}
-    >
-      {props.children}
-    </button>
-  );
-}
-
-function Divider() {
-  return <span className="mx-1 h-5 w-px bg-[#E1E4DE]" />;
-}
-
-/** A length in mm: drafted while typing, committed on Enter or leaving the field. */
-function LengthField(props: { value: number; onCommit: (mm: number) => void }) {
-  const shown = props.value.toFixed(1);
-  const [draft, setDraft] = useState<string | null>(null);
-  const commit = () => {
-    const v = Number(draft?.replace(",", "."));
-    if (draft !== null && draft !== shown && Number.isFinite(v) && v > 0)
-      props.onCommit(v);
-    setDraft(null);
-  };
-  return (
-    <label className="flex items-center gap-1.5 text-[13px] text-[#4A514B]">
-      Length
-      <input
-        aria-label="Edge length, mm"
-        inputMode="decimal"
-        className="h-8 w-20 rounded-lg border-[1.5px] border-[#D5D9D1] bg-white px-2 text-right text-[13px] text-[#14181F] tabular-nums"
-        value={draft ?? shown}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
-          if (e.key === "Escape") {
-            setDraft(null);
-            e.currentTarget.blur();
-          }
-        }}
-      />
-      mm
-    </label>
-  );
-}
 
 const TYPES: { type: OutlineNode["type"]; label: string; title: string }[] = [
   {
@@ -122,16 +64,16 @@ export function PointBar(
         {props.kind === "node" && (
           <>
             {TYPES.map((t) => (
-              <Segment
+              <BarSegment
                 key={t.type}
                 on={props.type === t.type}
                 title={t.title}
                 onClick={() => props.type !== t.type && props.onType(t.type)}
               >
                 {t.label}
-              </Segment>
+              </BarSegment>
             ))}
-            <Divider />
+            <BarDivider />
             <button
               type="button"
               onClick={props.onDelete}
@@ -144,20 +86,20 @@ export function PointBar(
         )}
         {props.kind === "edge" && (
           <>
-            <Segment
+            <BarSegment
               on={props.edge === "straight"}
               onClick={() => props.edge !== "straight" && props.onStraight()}
             >
               Straight
-            </Segment>
-            <Segment
+            </BarSegment>
+            <BarSegment
               on={props.edge === "curve"}
               title="A curve with two handles to drag"
               onClick={() => props.edge !== "curve" && props.onCurve()}
             >
               Curve
-            </Segment>
-            <Divider />
+            </BarSegment>
+            <BarDivider />
             {props.edge === "straight" ? (
               <LengthField value={props.length} onCommit={props.onLength} />
             ) : (
@@ -170,7 +112,7 @@ export function PointBar(
                 {props.angle.toFixed(1)}°
               </span>
             )}
-            <Divider />
+            <BarDivider />
             <button
               type="button"
               onClick={props.onAddPoint}

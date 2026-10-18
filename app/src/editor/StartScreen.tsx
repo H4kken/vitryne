@@ -4,7 +4,10 @@
 // scratch; or start from one of the bundled examples), then the person's projects as cards.
 
 import { type Example, exampleId, fetchExample } from "./examples";
-import { ImportIcon, Logo, PRESET_ART, ScratchIcon } from "./icons";
+import { ImportIcon } from "./icons/ImportIcon";
+import { Logo } from "./icons/Logo";
+import { PRESET_ART } from "./icons/presetArt";
+import { ScratchIcon } from "./icons/ScratchIcon";
 
 /** What each bundled example is made of. */
 const PRESET_NOTES: Record<string, string> = {
