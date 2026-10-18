@@ -1,0 +1,14 @@
+{
+  "id": "01a13b86-0001-72d1-aac3-be5bb35e3a10",
+  "name": "Drawn skirt",
+  "garments": [
+    "01a13b86-0002-7614-8da8-dfc1e74c8a50"
+  ],
+  "avatar": "01a13cdb-cc04-728e-9afd-3f992133737d",
+  "fabrics": [
+    "01a13cdb-cc03-7001-8000-000000000001"
+  ],
+  "simulation": {
+    "targetVertices": 10000
+  }
+}

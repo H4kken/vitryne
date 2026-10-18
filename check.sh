@@ -76,7 +76,7 @@ done
 echo ok
 
 step "regression drapes (golden suite)"
-# The three example projects at 10k vertices, 600 frames each, against tests/regression/*.json and *.pos:
+# The three example projects and the drawn skirt at 10k vertices, 600 frames each, against tests/regression/*.json and *.pos:
 # rest frame, final shape, penetration, self-intersections, strain, seam gap. After an
 # intended change: `target/release/drape regress --update`, and say why in the commit.
 cargo build --release -p drape-native --locked

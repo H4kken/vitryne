@@ -8,5 +8,7 @@
 *.mp4   filter=lfs diff=lfs merge=lfs -text
 *.webm  filter=lfs diff=lfs merge=lfs -text
 # Example projects stay plain files so a clone (or a GitHub zip download) opens them without
-# git-lfs: their avatar mesh is under the 1 MiB rule, like assets/body's OBJ.
+# git-lfs: their avatar mesh is under the 1 MiB rule, like assets/body's OBJ. So does the drawn
+# skirt the golden suite drapes (the same mesh, so the same blob).
 examples/**/*.glb -filter -diff -merge binary
+tests/regression/**/*.glb -filter -diff -merge binary

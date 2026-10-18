@@ -1,0 +1,18 @@
+{
+  "id": "01a13cdb-cc03-7001-8000-000000000001",
+  "name": "Cotton jersey",
+  "category": "knit",
+  "density": 0.15,
+  "thickness": 0.45,
+  "stretch": {
+    "warp": 14000.0,
+    "weft": 9000.0,
+    "shear": 3500.0
+  },
+  "bending": {
+    "warp": 6e-6,
+    "weft": 4e-6
+  },
+  "friction": 0.3,
+  "notes": "100% cotton single jersey knit, 150 g/m², typical everyday T-shirt. Soft, compliant drape following body contours. Kawabata (1980) Table 2.2; Miguel et al. (2012)."
+}

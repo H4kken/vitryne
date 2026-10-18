@@ -1184,3 +1184,80 @@ project is in one place rather than passed around as files.
   (CLOUD.md, Setting up the backend, step 6).
 - Google sign-in still untested end to end (as in M12).
 - Sharing a project with someone else is the next step this prepares; not started.
+
+## M14 — Pattern creation tools (2026-10-18, waiting for review)
+
+Drawing and editing pieces in the editor, in six phases (plan agreed with you on 2026-10-18):
+curved edges in the format, start from scratch, edit points, draw new pieces, lines, notches,
+folds and grain, and this wrap-up.
+
+| Criterion | Status |
+|---|---|
+| From a blank project, two drawn rectangles plus the suggested side seams drape as a skirt (Chrome and the golden) | **Met**, with two findings fixed on the way (below). Golden: `tests/regression/skirt.vtry`, made by the editor's own commands in `app/src/document/skirt.test.ts`, drapes at rest (frame 163) with no penetration and no self-intersections. Real Chrome against the local stack (`node tests/cloud/browser.mjs draw`): *Start from scratch*, two 450 × 400 mm rectangles from *Add a shape* on the body front and back, Height 1000 mm, *Suggest seams* lists the bottoms, the tops and the two side pairs, *Sew* on the two sides, and the 3D view shows the same skirt as the native golden; no console errors. |
+| Curves survive save, reopen and DXF export; the examples' bytes don't change | **Met.** Phase 1's Rust tests (curve round trip, deterministic flattening, DXF export of a curved piece); the examples and goldens are byte-identical (`./check.sh` diffs `examples/` against `drape convert`). In Chrome an ellipse (four cubic edges) is autosaved to the local backend and comes back after a reload. |
+| Every new command applies, is accepted by Rust, and reverts to identical JSON | **Met.** Per-command tests (`outline.test.ts`, `draw.test.ts`, `marks.test.ts`), and a second fast-check run per example that mixes the eleven M14 commands with the settings edits (40 sessions of up to 30 steps): Rust holds the UI's document after every step, accepts every state the UI let through, and undoing everything saves the original bytes. |
+| No interaction measures across pieces or snaps to another piece's length | **Met** by design and review: lengths and angles are of one edge of the piece being edited or drawn; snapping is to the grid, 15° and the drawn piece's own points (docs/PATENTS.md, the new M14 table). |
+| `./check.sh` | **Met**: all passed in 80 s (Rust, both clippys, 111 app tests in 16 files, web build, examples unchanged, four golden drapes: the three samples at 0.00 mm shape difference, and the skirt). |
+
+### What changed
+
+| Commit | What |
+|---|---|
+| b665c93 phase 1 | Edge type `cubic` behind `VTRY_curves` (listed only when a file has a curve), one flattening (`Edge::interior`, 0.1 mm, grid-snapped) for meshing, seams, suggestions and DXF export; the validator refuses self-crossing, clockwise and degenerate outlines. |
+| 4b72115 phase 2 | *Start from scratch*: `import::empty_project`, a garment may have no pieces, the body alone in 3D. |
+| c2e889b phase 3 | *Edit points*: drag points and curve handles, add, delete, corner/notch/point, straight/curve, a straight edge's length typed; `moveNodes`, `insertNode`, `removeNode`, `setNodeType`, `setEdge`; a TS port of Rust's outline check so a bad drag never becomes a command. |
+| 6acef78 phase 4 | *Draw a piece* (pen: click for straight, drag for a curve, length and angle typed) and *Add a shape* (rectangle, ellipse, tube); `NewPieceDialog` with the import dialog's body places, once or as a pair; `VtryFile.place_piece`; `addPiece`. |
+| 5d5a050 phase 5 | *Lines, notches, folds and grain*: `addLine`, `removeLine`, `addFold`, `removeFold`, `setGrain`, notches through `insertNode`; fold and line checks in Rust and TS. |
+| phase 6 | The skirt golden (`skirt.test.ts` makes the file, `drape regress` drapes it; `--toml` skips it, it has no sidecar); pattern-tool fast-check sessions; `browser.mjs draw`; the two fixes below; ARCHITECTURE (Pattern tools), PATENTS (how M14 follows the rules), README, CONTRIBUTING. |
+
+### Found by the done-when, and fixed
+
+- **The suggestions sewed two rectangles into a bag.** `suggest.rs` ranks by score plus sewn
+  length, so a chain of three edges (right side, top, left side) against the same on the other
+  piece outranked the two side seams and took their edges. A run of several edges now carries
+  on only through a corner where the outline turns less than 45° (`RUN_CORNER`): one smooth line
+  split by a corner. The samples' floors are unchanged (T-shirt 10/10, trousers 5/6, hoodie
+  4/17); the trousers' list of wrong extras changes (5 entries become 6), which a person skips
+  either way.
+- **Drawn pieces' suggestions all read "a corner to a corner".** Their corners have no names,
+  so the four suggestions for two rectangles looked identical. The seam list now says where an
+  unnamed edge sits in its own piece as drawn ("Front: the right side", "Back: the bottom";
+  mirrored for a mirrored cut). Within one piece only (rule 5).
+
+### Decisions
+
+- **The skirt is lowered with the Height field.** Body places start at the neck (a top's
+  neckline); there is no hips place. The golden and the Chrome check set Height to 1000 mm, as
+  a person would in Pieces. A "Hips, front/back" body place would make bottoms one step
+  shorter; left for you to decide.
+- **The skirt's sizes:** 450 × 400 mm panels, 900 mm round, against this avatar's ~670 mm waist
+  and ~950 mm hips, so it rests on the hips. Wider panels (2 × 540 mm) slide to the floor; a
+  550 mm length never rests (the hem spans the open stance).
+- **The golden records a known weakness**, like the hoodie's: the skirt is stretched over the
+  hips (as a jersey tube skirt is) and the solver puts that stretch in the row of edges along
+  each side seam (strain p99 34.7%, max 105%, all next to the seams, on the outer thighs) rather
+  than across the panel. It is the load-carrying weakness behind the trousers' 5.4% (M2), more
+  visible here; not tuned in a wrap-up phase.
+- **The Chrome check is a committed script** (`tests/cloud/browser.mjs draw`), next to M12's.
+
+### Numbers
+
+- Skirt golden: 10,118 vertices, rest frame 163, penetration 0, persistent self-intersections
+  0, strain p50 0.9% / p90 9.2% / p99 34.7%, seam gap 2.7 mm; ~5 s per drape (Apple M2).
+- Golden suite: four cases, about 25 s on the M2 (the skirt adds ~5 s).
+- Fast-check: the pattern-tool runs take about 4 s for the three examples (40 sessions each).
+  Measured over 200 sessions per example, each M14 step applies in most cases (moves ~90%,
+  removing a point nearly always, adding a piece about a third of the time with random sizes);
+  dragging a curve's handle applies rarely, because a session seldom has a curve yet.
+
+### Open items
+
+- **Your review**, and counsel's on the PATENTS.md M14 table with the earlier open items.
+- The draft notice keeps the project name it had when first saved ("Untitled is saved as your
+  draft…" after a rename): cosmetic, from the MVP fixes.
+- Not in this Chrome check: DXF export of a curved piece (export needs an account; covered by
+  the Rust test), the pen (checked in Chrome in phase 4, against an unreachable backend), and
+  dragging points, lines and folds (covered by the command and fast-check tests, not by a
+  browser run).
+- Later (plan): symmetric editing, seam allowance (`VTRY_seam_allowance`), arcs, fitting a
+  smooth curve to imported polylines.

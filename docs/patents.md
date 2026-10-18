@@ -81,9 +81,10 @@ edges by two clicks; a seam highlighted in 2D and 3D.
 A passive warning on a finished whole-edge pair ("these edges differ by 8%") is probably outside
 the claims above, but confirm it with counsel before shipping it.
 
-## How the editor follows these rules (M8)
+## How the editor follows these rules (M8, M14)
 
-Where each rule is implemented, so a reviewer can check it. See ARCHITECTURE.md, "Sewing".
+Where each rule is implemented, so a reviewer can check it. See ARCHITECTURE.md, "Sewing" and
+"Pattern tools".
 
 | Rule | In the code |
 |---|---|
@@ -93,6 +94,14 @@ Where each rule is implemented, so a reviewer can check it. See ARCHITECTURE.md,
 | 4 no ML | Hand-set scores; nothing learned. |
 | 5 no cross-piece measure tool | There is none. The seam list shows a length difference of an existing seam only, as text. |
 | 6 parametric fit | Not touched in M8. |
+
+Drawing and editing pieces (M14) is not covered by any listed claim. Where it meets the rules:
+
+| Rule | In the code |
+|---|---|
+| 1 whole edges only | An edited outline keeps its seams as whole-edge runs: a node a seam starts or ends on can't go without the seam (`removeNode` removes both in one command and says so); a point or notch added inside an edge leaves it whole. Sewing a drawn piece is the same Sew tool and suggestions. |
+| 3 geometry-derived suggestions | Unchanged inputs. A run of several edges now continues only through a gentle corner (under 45°, `suggest.rs` `RUN_CORNER`), and the seam list names a drawn piece's edges by where they sit in that piece ("the right side"): both from the piece's own outline. |
+| 5 no cross-piece measure tool | Lengths and angles are shown and typed for one edge of the piece being edited or drawn (`PointBar`, `DrawBar`). The pen and the line tool snap to the grid, 15° steps and the drawn piece's own points only (`pattern/draw.ts` `snapPoint`); nothing snaps an edge to another piece's length (the core of '773). The seam list's sentence stays the only place two lengths are compared. |
 
 ## What this research did not cover
 

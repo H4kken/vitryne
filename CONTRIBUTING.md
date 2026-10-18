@@ -95,13 +95,16 @@ It checks:
 - `cargo test` (including the worker's open, edit, undo, save path on the three examples);
 - the app: the wasm build, the production bundle, the format types and validators up to date with
   `docs/format/schema/`, `tsc`, eslint, and vitest (commands and guardrails, and random edit
-  sessions checked against the worker's Rust after every step);
+  sessions, pattern tools included, checked against the worker's Rust after every step);
 - that `examples/` is what `drape convert` writes;
-- the golden regression suite on your GPU (`drape regress`): the three sample garments at 10k
-  vertices, 600 frames, compared with `tests/regression/` on rest frame, final shape (0.5 mm;
+- the golden regression suite on your GPU (`drape regress`): the three sample garments and a
+  skirt drawn in the editor (`tests/regression/skirt.vtry`) at 10k vertices, 600 frames, compared with `tests/regression/` on rest frame, final shape (0.5 mm;
   20 mm for the hoodie, whose neck junction is chaotic), penetration, self-intersections, edge
   strain and seam gap. After an intended change, re-record with
-  `target/release/drape regress --update` and explain the difference in the commit message.
+  `target/release/drape regress --update` and explain the difference in the commit message. The
+  skirt's file is made by the editor's own commands (`app/src/document/skirt.test.ts`, which
+  fails if the file differs); after an intended change to them, re-record it with
+  `SKIRT_UPDATE=1 pnpm exec vitest run src/document/skirt.test.ts` in `app/`.
 
 ## Rules for engine changes
 

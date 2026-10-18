@@ -33,6 +33,10 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
   non-linear stretch, bending, sewing springs, SDF avatar collision, and self-collision untangling.
 - **2D & 3D Garment Design:** Interactive 2D pattern inspection and flat arrangement alongside a 3D
   viewport with orbit camera, interactive cloth pinching/pulling, and placement handles.
+- **Pattern Drafting:** Start from scratch or from any pattern: draw pieces with a pen (straight
+  edges and curves), or start from a rectangle, ellipse or tube with typed sizes; drag points
+  and curve handles, add notches, internal lines, folds and a grain line; type lengths and
+  angles as you draw. Every edit can be undone, and the drape follows.
 - **Whole-Edge Sewing Engine:** Two-click seam creation with chain detection and automatic geometric
   seam suggestions that pair matching seams in seconds. Designed deliberately to avoid proprietary
   free-sewing patent restrictions ([docs/PATENTS.md](docs/PATENTS.md)).

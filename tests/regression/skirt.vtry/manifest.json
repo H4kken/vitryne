@@ -1,0 +1,39 @@
+{
+  "format": "vitryne",
+  "kind": "project",
+  "formatVersion": 2,
+  "minReaderVersion": 1,
+  "generator": "vitryne-format 0.1.0",
+  "parts": [
+    {
+      "path": "project.json",
+      "mediaType": "application/json",
+      "sha256": "25ef007195049e5e181f8163e6e350822e567d53c4ad158a095a18f2280254de"
+    },
+    {
+      "path": "garments/01a13b86-0002-7614-8da8-dfc1e74c8a50.json",
+      "mediaType": "application/json",
+      "sha256": "5f603b7a35aedf193829104d9a43c3ee2c2aaec0d5facab2f9738a366bed7308"
+    },
+    {
+      "path": "fabrics/01a13cdb-cc03-7001-8000-000000000001.json",
+      "mediaType": "application/json",
+      "sha256": "7efe74b1da21bfeaa243ea592198d12d3f128970ad35fec18eb7de85270ae3b2"
+    },
+    {
+      "path": "avatars/01a13cdb-cc04-728e-9afd-3f992133737d/avatar.json",
+      "mediaType": "application/json",
+      "sha256": "93648cfa1b3d16268f32fd78a5c18ca6f5bb616aa472726d288c9b33c5bb2d33"
+    },
+    {
+      "path": "view.json",
+      "mediaType": "application/json",
+      "sha256": "a9a876d08550ddf01b8b851d470d7b63492e1b9ef3bda2ddddb4a3ea68caf6df"
+    },
+    {
+      "path": "avatars/01a13cdb-cc04-728e-9afd-3f992133737d/body.glb",
+      "mediaType": "model/gltf-binary",
+      "sha256": "f28df65b49ec9f11e73c77a1f210e5a2f350541edd33268e3383870a6c3e5ee4"
+    }
+  ]
+}

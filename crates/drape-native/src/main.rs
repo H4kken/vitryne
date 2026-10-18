@@ -8,7 +8,8 @@
 //!   drape bench-drag [--drag-seconds S] [--seed N] [--max-offset M] [--min-pull S] [--out file.json]
 //!                           drape to rest, then scripted random drags (stability criterion)
 //!   drape regress [--update] [--only NAME] [--dir tests/regression] [--toml]
-//!                           the golden regression suite (examples/*.vtry, 10k, 600 frames);
+//!                           the golden regression suite (examples/*.vtry and the drawn skirt,
+//!                           10k, 600 frames);
 //!                           exit 1 on any difference beyond tolerance, --update re-records,
 //!                           --toml drapes the garment.toml sidecars instead (same goldens)
 //!   drape export-bench-assets <dir>
@@ -887,37 +888,62 @@ impl Scene {
     }
 }
 
-/// The golden cases: (name, project file, the garment.toml it was converted from, golden shape
-/// tolerance mm, persistent self-intersection slack, note). Both paths must match one golden. The hoodie never rests and its neck junction is chaotic
-/// (native vs Chrome differ by up to 11 mm at the end, PROGRESS.md M2), so its shape tolerance
-/// is wide and its intersection count has headroom; it still catches a real change.
-const REGRESSION_CASES: [(&str, &str, &str, f32, f32, &str); 3] = [
-    (
-        "tshirt",
-        "examples/tshirt.vtry",
-        "assets/garments/tshirt/garment.toml",
-        0.5,
-        0.0,
-        "FreeSewing Teagan at chest ease 18%, knit jersey, 10k vertices, self-collision.",
-    ),
-    (
-        "trousers",
-        "examples/trousers.vtry",
-        "assets/garments/trousers/garment.toml",
-        0.5,
-        0.0,
-        "FreeSewing Titan, twill (woven), 10k vertices, self-collision.",
-    ),
-    (
-        "hoodie",
-        "examples/hoodie.vtry",
-        "assets/garments/hoodie/garment.toml",
-        20.0,
-        0.25,
-        "FreeSewing Hugo, known weaknesses recorded on purpose: never rests, ~136 persistent \
-         self-intersections at the hood junction, seam gap ~34 mm (PROGRESS.md M2). A fix \
-         will show up here as a difference to re-record.",
-    ),
+/// A golden case of `drape regress`.
+struct RegressionCase {
+    name: &'static str,
+    project: &'static str,
+    /// The garment.toml the project was converted from (`--toml`); both paths must match one
+    /// golden. None for a project made in the editor.
+    sidecar: Option<&'static str>,
+    /// Golden shape tolerance, mm.
+    shape_tol: f32,
+    /// Persistent self-intersection slack.
+    slack: f32,
+    note: &'static str,
+}
+
+/// The golden cases. The hoodie never rests and its neck junction is chaotic (native vs Chrome
+/// differ by up to 11 mm at the end, PROGRESS.md M2), so its shape tolerance is wide and its
+/// intersection count has headroom; it still catches a real change.
+const REGRESSION_CASES: [RegressionCase; 4] = [
+    RegressionCase {
+        name: "tshirt",
+        project: "examples/tshirt.vtry",
+        sidecar: Some("assets/garments/tshirt/garment.toml"),
+        shape_tol: 0.5,
+        slack: 0.0,
+        note: "FreeSewing Teagan at chest ease 18%, knit jersey, 10k vertices, self-collision.",
+    },
+    RegressionCase {
+        name: "trousers",
+        project: "examples/trousers.vtry",
+        sidecar: Some("assets/garments/trousers/garment.toml"),
+        shape_tol: 0.5,
+        slack: 0.0,
+        note: "FreeSewing Titan, twill (woven), 10k vertices, self-collision.",
+    },
+    RegressionCase {
+        name: "hoodie",
+        project: "examples/hoodie.vtry",
+        sidecar: Some("assets/garments/hoodie/garment.toml"),
+        shape_tol: 20.0,
+        slack: 0.25,
+        note: "FreeSewing Hugo, known weaknesses recorded on purpose: never rests, ~136 persistent \
+                 self-intersections at the hood junction, seam gap ~34 mm (PROGRESS.md M2). A fix \
+                 will show up here as a difference to re-record.",
+    },
+    RegressionCase {
+        name: "skirt",
+        project: "tests/regression/skirt.vtry",
+        sidecar: None,
+        shape_tol: 0.5,
+        slack: 0.0,
+        note: "Drawn in the editor (M14): two rectangles on a blank project, lowered to the hips, \
+                 the side seams from the suggestions (app/src/document/skirt.test.ts makes the \
+                 file). Known weakness recorded on purpose: the tube is stretched over the hips \
+                 and the solver puts that stretch in the row of edges along each side seam \
+                 (strain p99 ~35%).",
+    },
 ];
 
 /// Runs (or, with `update`, records) the cases. Returns true if everything passed.
@@ -927,15 +953,32 @@ fn regress(engine: &Engine, dir: &str, only: Option<&str>, update: bool, toml: b
     };
     std::fs::create_dir_all(dir).expect("regression dir");
     let mut all_ok = true;
-    for (name, project, sidecar, shape_tol, slack, note) in REGRESSION_CASES {
+    for RegressionCase {
+        name,
+        project,
+        sidecar,
+        shape_tol,
+        slack,
+        note,
+    } in REGRESSION_CASES
+    {
         if only.is_some_and(|o| o != name) {
             continue;
         }
+        let garment = if toml {
+            let Some(sidecar) = sidecar else {
+                println!("{name}: skipped (no garment.toml)");
+                continue;
+            };
+            sidecar
+        } else {
+            project
+        };
         let mut a: Vec<String> = [
             "--scene",
             "garment",
             "--garment",
-            if toml { sidecar } else { project },
+            garment,
             "--verts",
             "10000",
             "--self-collision",

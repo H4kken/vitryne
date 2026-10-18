@@ -31,6 +31,8 @@ pub struct Edge {
     pub touches_middle: bool,
     /// Signed total turning along the edge, radians (+ = turns left, counter-clockwise).
     pub turn: f32,
+    /// How sharply the outline turns at corner `to`, into the next edge, radians (unsigned).
+    pub end_turn: f32,
 }
 
 /// A proposed seam: side `a` sewn to side `b`, each one whole edge or a chain of two whole
@@ -131,6 +133,11 @@ pub fn edges(pieces: &[Piece]) -> Vec<Edge> {
                     })
                     .sum::<f32>()
             };
+            let end_turn = {
+                let d0 = p.boundary[b] - p.boundary[(b + n - 1) % n];
+                let d1 = p.boundary[(b + 1) % n] - p.boundary[b];
+                d0.perp_dot(d1).atan2(d0.dot(d1)).abs()
+            };
             let side = (verts.iter().sum::<f32>() / verts.len() as f32 - mid) / half;
             // An end on the middle line (a centre hem, a centre neck), not an edge passing across it
             // (a sleeve cap).
@@ -147,6 +154,7 @@ pub fn edges(pieces: &[Piece]) -> Vec<Edge> {
                 side,
                 touches_middle,
                 turn,
+                end_turn,
             });
         }
     }
@@ -184,6 +192,10 @@ fn score(a: &Edge, b: &Edge) -> Option<(f32, f32)> {
 const CURVED: f32 = 0.4;
 /// A chain's two sides must agree in length at least this well.
 const CHAIN_RATIO: f32 = 0.85;
+/// A run of edges carries on through a corner only if the outline turns less than this there
+/// (radians, 45°): the corner splits one smooth line. Through a sharper corner, two rectangles'
+/// sides and top made one chain against each other, closing them into a bag.
+const RUN_CORNER: f32 = std::f32::consts::FRAC_PI_4;
 
 /// The penalties that depend on where the edges sit and how they bend, for sides made of
 /// `a_edges` and `b_edges`.
@@ -221,7 +233,7 @@ fn adjust(edges: &[Edge], a: &[usize], b: &[usize], mut s: f32) -> f32 {
 }
 
 /// Runs of consecutive edges on one piece, as lists of edge indices: every single edge, and
-/// every run of two or three (never the whole outline).
+/// every run of two or three (never the whole outline) through gentle corners (`RUN_CORNER`).
 fn runs(edges: &[Edge]) -> Vec<Vec<usize>> {
     let mut out = Vec::new();
     let mut start = 0;
@@ -234,8 +246,11 @@ fn runs(edges: &[Edge]) -> Vec<Vec<usize>> {
         for k in 0..m {
             for len in 1..=3.min(m.saturating_sub(1).max(1)) {
                 let run: Vec<usize> = (0..len).map(|d| start + (k + d) % m).collect();
-                // Consecutive: each edge starts where the previous one ended.
-                if run.windows(2).all(|w| edges[w[0]].to == edges[w[1]].from) {
+                // Consecutive: each edge starts where the previous one ended, the outline carrying
+                // on there.
+                if run.windows(2).all(|w| {
+                    edges[w[0]].to == edges[w[1]].from && edges[w[0]].end_turn < RUN_CORNER
+                }) {
                     out.push(run);
                 }
             }

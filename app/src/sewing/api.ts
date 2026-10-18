@@ -4,6 +4,7 @@
 // a cut's corners, named by those corners.
 
 import type { Garment, Seam } from "@/format/schema.gen";
+import { bounds, outlinePoints, runPoints } from "@/pattern/geometry";
 
 type Run = Seam["a"][number];
 
@@ -59,6 +60,31 @@ function nodeName(g: Garment, cutId: string, nodeId: string): string {
   return "a corner";
 }
 
+/**
+ * Where an outline run sits in its piece as the flat view draws it (a mirrored cut mirrored):
+ * "the left side", "the top", ...; null near the middle, or for a line. For pieces whose
+ * corners have no names (drawn ones). Within one piece only (docs/PATENTS.md, rule 5).
+ */
+function runPlace(g: Garment, r: Run): string | null {
+  if (r.line !== undefined) return null;
+  for (const p of g.pieces) {
+    const cut = p.cuts.find((c) => c.id === r.cut);
+    if (!cut) continue;
+    const run = runPoints(p, r.from, r.to, r.direction !== "cw");
+    if (!run.length) return null;
+    const box = bounds(outlinePoints(p));
+    const mean = (k: 0 | 1) => run.reduce((a, q) => a + q[k], 0) / run.length;
+    let u = (2 * (mean(0) - box.minX)) / (box.maxX - box.minX || 1) - 1;
+    const v = (2 * (mean(1) - box.minY)) / (box.maxY - box.minY || 1) - 1;
+    if (cut.mirrored) u = -u;
+    if (Math.max(Math.abs(u), Math.abs(v)) < 0.35) return null;
+    if (Math.abs(u) >= Math.abs(v))
+      return u < 0 ? "the left side" : "the right side";
+    return v < 0 ? "the bottom" : "the top";
+  }
+  return null;
+}
+
 function cutLabel(g: Garment, cutId: string): string {
   for (const p of g.pieces) {
     const c = p.cuts.find((x) => x.id === cutId);
@@ -70,10 +96,13 @@ function cutLabel(g: Garment, cutId: string): string {
 /** "Front, from hem, left side to underarm, left", or "Right sleeve + Front" for a chain. */
 export function describeSide(g: Garment, runs: readonly Run[]): string {
   return runs
-    .map(
-      (r) =>
-        `${cutLabel(g, r.cut)}: ${nodeName(g, r.cut, r.from)} to ${nodeName(g, r.cut, r.to)}`,
-    )
+    .map((r) => {
+      const [from, to] = [nodeName(g, r.cut, r.from), nodeName(g, r.cut, r.to)];
+      // Unnamed corners (a drawn piece): where the edge is says more.
+      const place =
+        from === "a corner" && to === "a corner" ? runPlace(g, r) : null;
+      return `${cutLabel(g, r.cut)}: ${place ?? `${from} to ${to}`}`;
+    })
     .join(", then ");
 }
 

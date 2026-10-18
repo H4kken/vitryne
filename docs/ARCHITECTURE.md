@@ -49,8 +49,9 @@ the renderer as a `drape_render::Style`; a garment or piece with a colour (an ap
 FORMAT.md) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour edits
 don't re-drape: after every document update the worker calls `Viewport::set_looks`, which
 recolours the drape shown and its export materials. The 3D tool bar has the concept's Select,
-Turn view and Pinch fabric; the flat one its Select and Move. Parts of the concept that belong
-to later milestones (print, fit, share, editing points, drawing from scratch) are not built yet.
+Turn view and Pinch fabric; the flat one its Select and Move, then the pattern tools (M14,
+below) and Sew. Parts of the concept that belong to later milestones (print, fit, share) are not
+built yet.
 
 ### Worker protocol
 
@@ -116,8 +117,8 @@ document changes. What keeps the document from silently going wrong:
 Tests (`app/src/**/*.test.ts`, `pnpm run check`): every command applies, is accepted by Rust (the
 worker's wasm built for Node) and reverts to the identical document; the store's undo,
 coalescing, rollback, restart and debounce; and fast-check sessions of random edits, undos and
-redos on the three examples, with Rust holding the UI's document after every step and undo-all
-saving the original bytes.
+redos on the three examples (one run with the settings commands, one adding the pattern tools'),
+with Rust holding the UI's document after every step and undo-all saving the original bytes.
 
 ### Speed
 
@@ -237,6 +238,50 @@ differ). The design, and why:
 - **Limits.** Geometry alone cannot tell the hoodie's cuff, waistband and neck binding apart
   (near-equal lengths): they, the pocket's internal line and the hood neck chain over three cuts
   are picked by hand. `drape frames --seams` renders the seams natively.
+
+### Pattern tools (M14)
+
+The flat view's tool bar draws and edits pieces: **Edit points**, **Draw a piece** (the pen),
+**Add a shape** (rectangle, ellipse, tube with typed sizes) and **Lines, notches, folds and
+grain**. The start screen's *Start from scratch* opens an empty project (Rust
+`import::empty_project`: the test avatar, cotton jersey, a garment with no pieces) on the flat
+view.
+
+- **Curves are in the file.** An edge is a `polyline` or, with the `VTRY_curves` extension, a
+  `cubic` (one Bézier segment; a smooth curve is several, joined at `point` nodes). The
+  extension is listed only when a file has a curve, so the examples' bytes don't change and
+  older readers refuse curved files cleanly. Rust flattens a cubic in one place
+  (`vitryne_format::Edge::interior`: fixed 0.1 mm tolerance, snapped to the 0.001 mm grid, so a
+  file flattens the same everywhere); meshing, seams, suggestions and DXF export (AAMA has no
+  curves) all go through it. The validator refuses a self-crossing or clockwise outline and a
+  fold that leaves its piece; a line that leaves its piece is a warning (a sloppy DXF still
+  opens).
+- **Every edit is a command** (`document/commands.ts`): `moveNodes`, `insertNode`, `removeNode`,
+  `setNodeType`, `setEdge`, `addPiece`, `addLine`, `removeLine`, `addFold`, `removeFold`,
+  `setGrain`. A drag is one command at the end of the gesture (one undo step, one re-drape).
+  Removing a node or a line takes the seams and folds that need it in the same command, and the
+  editor says what went (a command's `note`).
+- **The UI refuses before Rust has to.** `pattern/edit.ts` ports Rust's outline check
+  (`check_outline_shape`) and the fold and line checks, so a drag that would cross the outline
+  or push a fold out shows red and never becomes a command; Rust still validates every state.
+  `pattern/edit.ts` also splits curves exactly (de Casteljau) and joins edges; `pattern/draw.ts`
+  has the pen's paths, the ready shapes and the snapping. The bars over the flat view
+  (`PointBar`, `DrawBar`, `MarkBar`) show and take lengths and angles.
+- **Where a new piece goes** is the import dialog's body places, once or as a pair
+  (`NewPieceDialog`); Rust wraps it there (`VtryFile.place_piece`: `rewrap` per cut and the
+  collision box it needs) and `addPiece` adds it as one undo step. Body places start at the
+  neck; a bottom is lowered with the placement's Height.
+- **Patents** ([PATENTS.md](PATENTS.md)). Lengths and angles are shown and typed for one edge
+  of the piece being edited or drawn, never across pieces. The pen snaps to the grid, to 15°
+  steps and to the drawn piece's own points only: nothing snaps to another piece's edge length.
+  An edited edge keeps its whole-edge seams. Drawn pieces have no named corners, so the seam
+  list describes their edges by where they sit in their own piece ("Front: the right side").
+- **Tests.** Each command applies, is accepted by Rust and reverts to the identical JSON
+  (`document/outline.test.ts`, `draw.test.ts`, `marks.test.ts`); the fast-check sessions mix
+  them with the settings edits. `document/skirt.test.ts` builds a skirt from a blank project
+  with the same commands (two rectangles, lowered to the hips, the side seams from the
+  suggestions) and checks it is `tests/regression/skirt.vtry`, which `drape regress` drapes as
+  a golden case.
 
 ### Pattern export (M13)
 

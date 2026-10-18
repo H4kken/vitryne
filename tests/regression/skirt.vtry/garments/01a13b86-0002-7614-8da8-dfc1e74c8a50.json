@@ -1,0 +1,171 @@
+{
+  "id": "01a13b86-0002-7614-8da8-dfc1e74c8a50",
+  "name": "Untitled",
+  "fabric": "01a13cdb-cc03-7001-8000-000000000001",
+  "simulation": {
+    "engine": {
+      "self_collision": true,
+      "self_rebuild_every": 4
+    },
+    "collisionBounds": {
+      "min": [-550.0, 0.0, -260.0],
+      "max": [550.0, 1720.0, 360.0]
+    }
+  },
+  "pieces": [
+    {
+      "id": "01a13cdb-dd07-7000-8000-000000000005",
+      "name": "Front",
+      "outline": [
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000001",
+          "type": "corner",
+          "position": [0.0, 0.0],
+          "edge": {
+            "type": "polyline",
+            "points": []
+          }
+        },
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000002",
+          "type": "corner",
+          "position": [450.0, 0.0],
+          "edge": {
+            "type": "polyline",
+            "points": []
+          }
+        },
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000003",
+          "type": "corner",
+          "position": [450.0, 400.0],
+          "edge": {
+            "type": "polyline",
+            "points": []
+          }
+        },
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000004",
+          "type": "corner",
+          "position": [0.0, 400.0],
+          "edge": {
+            "type": "polyline",
+            "points": []
+          }
+        }
+      ],
+      "cuts": [
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000006",
+          "placement": {
+            "type": "wrap",
+            "region": "torso",
+            "angle": 0.0,
+            "radius": 204.0,
+            "top": 1000.0
+          },
+          "layout": {
+            "position": [0.0, 0.0]
+          }
+        }
+      ]
+    },
+    {
+      "id": "01a13cdb-dd07-7000-8000-000000000011",
+      "name": "Back",
+      "outline": [
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000007",
+          "type": "corner",
+          "position": [0.0, 0.0],
+          "edge": {
+            "type": "polyline",
+            "points": []
+          }
+        },
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000008",
+          "type": "corner",
+          "position": [450.0, 0.0],
+          "edge": {
+            "type": "polyline",
+            "points": []
+          }
+        },
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000009",
+          "type": "corner",
+          "position": [450.0, 400.0],
+          "edge": {
+            "type": "polyline",
+            "points": []
+          }
+        },
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000010",
+          "type": "corner",
+          "position": [0.0, 400.0],
+          "edge": {
+            "type": "polyline",
+            "points": []
+          }
+        }
+      ],
+      "cuts": [
+        {
+          "id": "01a13cdb-dd07-7000-8000-000000000012",
+          "placement": {
+            "type": "wrap",
+            "region": "torso",
+            "angle": 3.141592653589793,
+            "radius": 204.0,
+            "top": 1000.0
+          },
+          "layout": {
+            "position": [550.0, 0.0]
+          }
+        }
+      ]
+    }
+  ],
+  "seams": [
+    {
+      "id": "01a13cdb-dd07-7000-8000-000000000013",
+      "a": [
+        {
+          "cut": "01a13cdb-dd07-7000-8000-000000000006",
+          "from": "01a13cdb-dd07-7000-8000-000000000002",
+          "to": "01a13cdb-dd07-7000-8000-000000000003",
+          "direction": "ccw"
+        }
+      ],
+      "b": [
+        {
+          "cut": "01a13cdb-dd07-7000-8000-000000000012",
+          "from": "01a13cdb-dd07-7000-8000-000000000007",
+          "to": "01a13cdb-dd07-7000-8000-000000000010",
+          "direction": "cw"
+        }
+      ]
+    },
+    {
+      "id": "01a13cdb-dd07-7000-8000-000000000014",
+      "a": [
+        {
+          "cut": "01a13cdb-dd07-7000-8000-000000000006",
+          "from": "01a13cdb-dd07-7000-8000-000000000004",
+          "to": "01a13cdb-dd07-7000-8000-000000000001",
+          "direction": "ccw"
+        }
+      ],
+      "b": [
+        {
+          "cut": "01a13cdb-dd07-7000-8000-000000000012",
+          "from": "01a13cdb-dd07-7000-8000-000000000009",
+          "to": "01a13cdb-dd07-7000-8000-000000000008",
+          "direction": "cw"
+        }
+      ]
+    }
+  ]
+}

@@ -2,6 +2,8 @@
 // The sewing helpers (M8) against the T-shirt example and Rust's answers for it.
 import { describe, expect, it } from "vitest";
 import { mainGarment } from "@/document/entities";
+import type { Garment, Piece } from "@/format/schema.gen";
+import { shapeOutline } from "@/pattern/draw";
 import { distToPolyline, runPoints } from "@/pattern/geometry";
 import { openExample } from "@/test/rust";
 import {
@@ -58,5 +60,38 @@ describe("sewing helpers", () => {
     expect(differenceNote(undefined)).toBeNull();
     const e: CutEdge = { cut: "c", from: "a", to: "b", length: 1, sewn: false };
     expect(sameEdge(e, { cut: "c", from: "b", to: "a" })).toBe(true);
+  });
+
+  it("says where an edge of a drawn piece is, its corners having no names", () => {
+    let n = 0;
+    const outline = shapeOutline(
+      "rectangle",
+      { width: 400, height: 300 },
+      () => `n${++n}`,
+    );
+    const cut = (id: string, mirrored: boolean) => ({
+      id,
+      ...(mirrored ? { mirrored } : {}),
+      placement: { type: "wrap", region: "torso", angle: 0, radius: 1, top: 0 },
+    });
+    const g = {
+      pieces: [
+        {
+          id: "p",
+          name: "Front",
+          outline,
+          cuts: [cut("c", false), cut("m", true)],
+        } as unknown as Piece,
+      ],
+    } as unknown as Garment;
+    // Counter-clockwise from the bottom left: n1 n2 bottom, n2 n3 right, n3 n4 top, n4 n1 left.
+    const side = (c: string, from: string, to: string, direction = "ccw") =>
+      describeSide(g, [{ cut: c, from, to, direction } as never]);
+    expect(side("c", "n2", "n3")).toBe("Front: the right side");
+    expect(side("c", "n3", "n2", "cw")).toBe("Front: the right side");
+    expect(side("c", "n3", "n4")).toBe("Front: the top");
+    expect(side("c", "n1", "n2")).toBe("Front: the bottom");
+    // A mirrored cut is drawn mirrored: its right is the drawing's left.
+    expect(side("m", "n4", "n1")).toBe("Front: the right side");
   });
 });
