@@ -78,6 +78,9 @@ importers:
       json-schema-to-typescript:
         specifier: ^16.0.0
         version: 16.0.0
+      prettier:
+        specifier: ^3.9.10
+        version: 3.9.10
       supabase:
         specifier: 2.118.0
         version: 2.118.0
