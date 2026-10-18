@@ -14,6 +14,10 @@ export async function listExamples(): Promise<Example[]> {
   return (await r.json()) as Example[];
 }
 
+/** An example's id: its file name without `.vtry` (`tshirt`), as in `/example/$name`. */
+export const exampleId = (e: Example) =>
+  (e.file.split("/").pop() ?? e.file).replace(/\.vtry$/, "");
+
 const fetched = new Map<string, Promise<ArrayBuffer>>();
 
 /** An example's file, downloaded once per page (`fetchExample` early: pointing at it). */

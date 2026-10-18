@@ -13,6 +13,8 @@ export interface FileRef {
   form: FileData["form"];
   /** A cloud project (always the folder form): saves go back to it. */
   cloud?: CloudRef;
+  /** A bundled example not saved yet (its id, as in `/example/$name`). */
+  example?: string;
 }
 
 export interface Opened {

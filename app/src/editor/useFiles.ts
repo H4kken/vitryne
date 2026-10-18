@@ -44,8 +44,13 @@ export interface CloudAccess {
   refresh(): void;
 }
 
+/** A project or example a URL named that couldn't be opened: `key` is `design:<id>` or `example:<name>`. */
+export type OpenError = { key: string; message: string } | null;
+
 /** Why this tab can't edit the open cloud project: another tab has it, or took it over. */
 export type Blocked = "elsewhere" | "taken" | null;
+
+const errorText = (e: unknown) => (e as Error).message ?? String(e);
 
 /** An anonymous user's draft (their one project), to save a new project over. */
 async function draftOf(b: CloudBackend): Promise<CloudRef | null> {
@@ -81,6 +86,7 @@ export function useFiles(
     cancelled?: () => void;
   } | null>(null);
   const [recovery, setRecovery] = useState<Recovery | null>(null);
+  const [openError, setOpenError] = useState<OpenError>(null);
   /** The file as opened or last saved, for the recovery copy. */
   const original = useRef<FileData | null>(null);
   /** Bumped by every open and close: a save that finishes after one is about another document. */
@@ -100,10 +106,7 @@ export function useFiles(
   const toldDraft = useRef(false);
 
   const fail = (what: string, e: unknown) =>
-    setNotice({
-      kind: "error",
-      text: `${what}: ${(e as Error).message ?? String(e)}`,
-    });
+    setNotice({ kind: "error", text: `${what}: ${errorText(e)}` });
 
   /**
    * Saves the confirmed document to the cloud: over the project it came from, as a new one
@@ -234,6 +237,7 @@ export function useFiles(
       );
       nextDocument();
       autosave.reset();
+      setOpenError(null);
       store.load(r.name, parseEntities(entities), warnings, rev, opts);
       original.current = copyFileData(data);
       // A document not in the cloud yet becomes a project at its first save.
@@ -314,17 +318,16 @@ export function useFiles(
       );
     });
 
-  /** `fromDisk`: a file, which becomes a new cloud project at once (an example waits for an edit). */
+  /** A file from disk, which becomes a new cloud project at once (an example waits for an edit). */
   const openWith = (
     pick: () => Promise<{ ref: FileRef; data: FileData } | null>,
-    fromDisk = false,
   ) =>
     guarded(async () => {
       const o = await pick();
       if (!o) return;
       setBusy("Opening");
       try {
-        await load(o.ref, o.data, { unsaved: fromDisk });
+        await load(o.ref, o.data, { unsaved: true });
         setNotice(null);
       } finally {
         setBusy(null);
@@ -378,16 +381,35 @@ export function useFiles(
     }
   };
 
-  /** `undone`: called when the project isn't opened (the user cancelled, or it failed). */
-  const openCloud = (id: string, undone?: () => void) =>
-    guarded(
-      () =>
-        loadCloud(id).catch((e: unknown) => {
-          undone?.();
-          throw e;
-        }),
-      undone,
-    );
+  /** A failed open is kept in `openError` (its page says why); `cancelled`: the user kept what was open. */
+  const openCloud = (id: string, cancelled?: () => void) =>
+    guarded(() => {
+      setOpenError(null);
+      return loadCloud(id).catch((e: unknown) =>
+        setOpenError({ key: `design:${id}`, message: errorText(e) }),
+      );
+    }, cancelled);
+
+  /** A bundled example, not saved until it is changed; failures and `cancelled` as `openCloud`. */
+  const openExample = (
+    name: string,
+    file: string,
+    bytes: () => Promise<ArrayBuffer>,
+    cancelled?: () => void,
+  ) =>
+    guarded(async () => {
+      setOpenError(null);
+      setBusy("Opening");
+      try {
+        const data: FileData = { form: "zip", bytes: await bytes() };
+        await load({ name: file, form: "zip", example: name }, data);
+        setNotice(null);
+      } catch (e) {
+        setOpenError({ key: `example:${name}`, message: errorText(e) });
+      } finally {
+        setBusy(null);
+      }
+    }, cancelled);
 
   // The recovery copy follows the confirmed document while it has changes not saved.
   useEffect(() => {
@@ -532,20 +554,19 @@ export function useFiles(
     showInfo: (text: string) => setNotice({ kind: "info", text }),
     /** A .vtry picked or dropped: a new project. */
     openVtry: (file: File) =>
-      openWith(
-        async () => ({
-          ref: { name: file.name, form: "zip" },
-          data: { form: "zip", bytes: await file.arrayBuffer() },
-        }),
-        true,
-      ),
-    openFolder: () => openWith(() => disk.openFolder(), true),
-    openData: (r: FileRef, data: () => Promise<FileData>) =>
-      openWith(async () => ({ ref: r, data: await data() })),
+      openWith(async () => ({
+        ref: { name: file.name, form: "zip" },
+        data: { form: "zip", bytes: await file.arrayBuffer() },
+      })),
+    openFolder: () => openWith(() => disk.openFolder()),
+    openExample,
+    /** Why the project or example the URL names couldn't be opened. */
+    openError,
     close: (undone?: () => void) =>
       guarded(() => {
         nextDocument();
         autosave.reset();
+        setOpenError(null);
         store.close();
         session.closeDocument();
         original.current = null;

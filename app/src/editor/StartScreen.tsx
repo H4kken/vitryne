@@ -3,7 +3,7 @@
 // file, picked or dropped anywhere here: a DXF pattern, or a .vtry project; start from
 // scratch; or start from one of the bundled examples), then the person's projects as cards.
 
-import { type Example, fetchExample } from "./examples";
+import { type Example, exampleId, fetchExample } from "./examples";
 import { ImportIcon, Logo, PRESET_ART, ScratchIcon } from "./icons";
 
 /** What each bundled example is made of. */
@@ -13,13 +13,10 @@ const PRESET_NOTES: Record<string, string> = {
   hoodie: "Hood, pocket and sleeves",
 };
 
-const presetId = (e: Example) =>
-  (e.file.split("/").pop() ?? e.file).replace(/\.vtry$/, "");
-
 /** The concept's order; any other example after them. */
 const ORDER = ["tshirt", "trousers", "hoodie"];
 const rank = (e: Example) =>
-  (ORDER.indexOf(presetId(e)) + ORDER.length + 1) % (ORDER.length + 1);
+  (ORDER.indexOf(exampleId(e)) + ORDER.length + 1) % (ORDER.length + 1);
 
 const TILE =
   "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E1E4DE] bg-white text-left transition-[transform,box-shadow] duration-150 hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)] disabled:opacity-60 cursor-pointer";
@@ -116,7 +113,7 @@ export function StartScreen(props: {
             {[...props.examples]
               .sort((a, b) => rank(a) - rank(b))
               .map((ex) => {
-                const id = presetId(ex);
+                const id = exampleId(ex);
                 const art = PRESET_ART[id];
                 return (
                   <button

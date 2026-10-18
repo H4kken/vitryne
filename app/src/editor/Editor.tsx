@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The editor's frame, after the "Vitryne editor concept" canvas: a top bar, a rail that opens
 // one panel at a time, and one canvas showing either the 3D drape or the flat pieces, with a
-// status pill, a hint, zoom and a floating tool bar. The start screen covers it while nothing
-// is open (the 3D engine starts underneath, so a preset opens fast). A DXF picked or dropped
+// status pill, a hint, zoom and a floating tool bar. It is the layout of every URL: the route's
+// screen goes in its outlet (src/routes/: the start screen at `/`, a loading or error page while
+// a project URL opens), over the editor, so the 3D engine starts underneath and a preset opens fast. A DXF picked or dropped
 // opens the import dialog; with the Select tool the 3D view shows where pieces start, and the
 // selected one's handles.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Outlet, useNavigate } from "@tanstack/react-router";
 import {
   Cloud as CloudIcon,
   Download,
@@ -88,12 +90,8 @@ import {
 import { DiskFiles } from "@/storage/storage";
 import type { PointerTool } from "@/worker/protocol";
 import { type EngineState, EngineSession, useEngine } from "@/worker/session";
-import {
-  type Example,
-  fetchAvatar,
-  fetchExample,
-  listExamples,
-} from "./examples";
+import { EditorContext } from "./EditorContext";
+import { type Example, exampleId, fetchAvatar, listExamples } from "./examples";
 import { Gizmo } from "./Gizmo";
 import {
   CubeIcon,
@@ -112,7 +110,8 @@ import { type NewPiece, NewPieceDialog } from "./NewPieceDialog";
 import { ShapeBar } from "@/pattern/ShapeBar";
 import { StartScreen } from "./StartScreen";
 import { useFiles } from "./useFiles";
-import { useProjectRoute } from "./useProjectRoute";
+import { useFollowOpen } from "./useFollowOpen";
+import { useStarted } from "./useStarted";
 import { useThumbnails } from "./useThumbnails";
 import { Viewport } from "./Viewport";
 
@@ -142,7 +141,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const disk = useMemo(() => new DiskFiles(), []);
   const doc = useDocument(store);
   const files = useFiles(session, store, disk, doc, cloud);
-  useProjectRoute(files, doc.empty);
+  const ready = useStarted(files.started);
+  useFollowOpen(files, doc.empty, ready);
+  const navigate = useNavigate();
+  const openProject = (id: string) =>
+    void navigate({ to: "/design/$id", params: { id } });
   useThumbnails(
     session,
     engine,
@@ -197,8 +200,10 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const cloudRefresh = cloud.refresh;
   const userId = cloud.user?.id;
   const filesNow = useRef(files);
+  const navigateNow = useRef(navigate);
   useEffect(() => {
     filesNow.current = files;
+    navigateNow.current = navigate;
   });
   useEffect(() => {
     void cloudBackend().then(
@@ -227,7 +232,11 @@ export function Editor({ cloud }: { cloud: Cloud }) {
               `Signed in. ${r.moved} project${r.moved === 1 ? "" : "s"} from this browser moved to your account.`,
             );
         } else if (stash.reopen) {
-          filesNow.current.openCloud(stash.reopen);
+          void navigateNow.current({
+            to: "/design/$id",
+            params: { id: stash.reopen },
+            replace: true,
+          });
         }
       },
       () => undefined,
@@ -358,7 +367,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   const canvasBox = useRef<HTMLDivElement>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 1, h: 1 });
   const [selection, setSelection] = useState<Selection>(null);
-  const [examples, setExamples] = useState<Example[]>([]);
+  const [examples, setExamples] = useState<Example[] | null>(null);
   const [examplesError, setExamplesError] = useState<string | null>(null);
   const pattern = useRef<PatternView>(null);
 
@@ -753,11 +762,12 @@ export function Editor({ cloud }: { cloud: Cloud }) {
   };
 
   const openPreset = (ex: Example) =>
-    startNew(() =>
-      files.openData(
-        { name: ex.file.split("/").pop() ?? ex.file, form: "zip" },
-        async () => ({ form: "zip", bytes: await fetchExample(ex) }),
-      ),
+    startNew(
+      () =>
+        void navigate({
+          to: "/example/$name",
+          params: { name: exampleId(ex) },
+        }),
     );
   /** An empty project, opened on the flat view (its hint says how to start). */
   const startScratch = () =>
@@ -974,6 +984,66 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         </Card>
       )}
     </>
+  );
+
+  const startScreen = (
+    <StartScreen
+      examples={examples ?? []}
+      busy={files.busy}
+      onPreset={openPreset}
+      onScratch={startScratch}
+      onImport={importFile}
+      dropProps={dropProps}
+      onOpenFolder={disk.opensFolders ? openFolder : null}
+      account={
+        <CloudButton user={cloud.user} onClick={() => setAccountOpen(true)} />
+      }
+      projects={
+        // Nobody signed in yet: nothing saved, so no list to wait for.
+        !cloud.user || cloud.projects ? (
+          <ProjectGrid
+            cloud={cloud}
+            projects={cloud.projects ?? []}
+            title={draft ? "Your draft" : "Your projects"}
+            note={
+              draft && (
+                <p className="text-body-text m-0 text-[15px]">
+                  Without an account you keep one project.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setAccountOpen(true)}
+                    className="text-foreground font-semibold underline underline-offset-4"
+                  >
+                    Create a free account
+                  </button>{" "}
+                  to keep more and open them anywhere.
+                </p>
+              )
+            }
+            busy={!!files.busy}
+            onOpen={openProject}
+          />
+        ) : null
+      }
+      banner={
+        <>
+          {recoveryBanner}
+          {message && (
+            <div className="mx-auto mt-2 w-[calc(100%-64px)] max-w-[1056px]">
+              <Card
+                tone="error"
+                onDismiss={() => (
+                  files.dismissNotice(),
+                  setExamplesError(null)
+                )}
+              >
+                {message}
+              </Card>
+            </div>
+          )}
+        </>
+      }
+    />
   );
 
   return (
@@ -1586,68 +1656,18 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         <div className="fixed inset-0 z-50 cursor-col-resize select-none pointer-events-auto" />
       )}
 
-      {doc.empty && (
-        <StartScreen
-          examples={examples}
-          busy={files.busy}
-          onPreset={openPreset}
-          onScratch={startScratch}
-          onImport={importFile}
-          dropProps={dropProps}
-          onOpenFolder={disk.opensFolders ? openFolder : null}
-          account={
-            <CloudButton
-              user={cloud.user}
-              onClick={() => setAccountOpen(true)}
-            />
-          }
-          projects={
-            // Nobody signed in yet: nothing saved, so no list to wait for.
-            !cloud.user || cloud.projects ? (
-              <ProjectGrid
-                cloud={cloud}
-                projects={cloud.projects ?? []}
-                title={draft ? "Your draft" : "Your projects"}
-                note={
-                  draft && (
-                    <p className="text-body-text m-0 text-[15px]">
-                      Without an account you keep one project.{" "}
-                      <button
-                        type="button"
-                        onClick={() => setAccountOpen(true)}
-                        className="text-foreground font-semibold underline underline-offset-4"
-                      >
-                        Create a free account
-                      </button>{" "}
-                      to keep more and open them anywhere.
-                    </p>
-                  )
-                }
-                busy={!!files.busy}
-                onOpen={(id) => files.openCloud(id)}
-              />
-            ) : null
-          }
-          banner={
-            <>
-              {recoveryBanner}
-              {message && (
-                <div className="mx-auto mt-2 w-[calc(100%-64px)] max-w-[1056px]">
-                  <Card
-                    tone="error"
-                    onDismiss={() => (
-                      files.dismissNotice(),
-                      setExamplesError(null)
-                    )}
-                  >
-                    {message}
-                  </Card>
-                </div>
-              )}
-            </>
-          }
-        />
-      )}
+      <EditorContext
+        value={{
+          files,
+          doc,
+          ready,
+          examples,
+          examplesError,
+          startScreen,
+        }}
+      >
+        <Outlet />
+      </EditorContext>
       {!doc.empty && files.recovery && (
         <div className="absolute inset-x-0 top-16 z-20">{recoveryBanner}</div>
       )}
@@ -1719,7 +1739,7 @@ export function Editor({ cloud }: { cloud: Cloud }) {
         open={cloudOpen}
         onOpenChange={setCloudOpen}
         busy={!!files.busy}
-        onOpen={(id) => files.openCloud(id)}
+        onOpen={openProject}
       />
 
       <Dialog

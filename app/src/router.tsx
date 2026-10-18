@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The editor's URLs: `/` (the start screen, or a project not in the cloud yet) and
-// `/design/$id` (a cloud project). The editor stays mounted across them (the 3D engine lives in
-// it): the routes render nothing, and `editor/useProjectRoute.ts` keeps the URL and the open
-// project in step. Any other path goes to `/`.
+// The editor's URLs, each with its own screen (src/routes/): `/` the start screen,
+// `/design/$id` a cloud project, `/example/$name` a bundled example not changed yet, `/new` a
+// project before its first save. The editor layout (`App` → `Editor`) stays mounted across
+// them, because the 3D engine lives in it; the routes render into its outlet. Any other path goes
+// to `/`.
 
 import {
   createRootRoute,
@@ -11,14 +12,35 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { App } from "./App";
+import { DesignRoute } from "./routes/DesignRoute";
+import { ExampleRoute } from "./routes/ExampleRoute";
+import { HomeRoute } from "./routes/HomeRoute";
+import { NewRoute } from "./routes/NewRoute";
 
 const rootRoute = createRootRoute({ component: App });
 
-const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/" });
+const homeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: HomeRoute,
+});
 
-export const designRoute = createRoute({
+const newRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/new",
+  component: NewRoute,
+});
+
+const designRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/design/$id",
+  component: DesignRoute,
+});
+
+const exampleRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/example/$name",
+  component: ExampleRoute,
 });
 
 const elseRoute = createRoute({
@@ -30,7 +52,13 @@ const elseRoute = createRoute({
 });
 
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([homeRoute, designRoute, elseRoute]),
+  routeTree: rootRoute.addChildren([
+    homeRoute,
+    newRoute,
+    designRoute,
+    exampleRoute,
+    elseRoute,
+  ]),
 });
 
 declare module "@tanstack/react-router" {
