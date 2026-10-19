@@ -3,27 +3,11 @@
 </p>
 <h2 align="center">The #1 Open-Source Clothes Modelling Software</h2>
 
-<p align="center">
-  <img src="docs/media/drape.gif" alt="Vitryne 3D cloth drape in real time" width="512" />
-</p>
-
 <br />
 
 # Why Vitryne
 
 Vitryne gives indie creators, small and established clothing brands the tool they need to easily create clothes before manufacturing. Vitryne is the software for creatives that saves you time and boost your creativity.
-
-<br />
-
-# Installation
-
-### <img src="./app/public/images/cloud.svg" width="14" height="14"/> Cloud
-
-The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryne.app) and start creating in under a minute, with no infrastructure to manage and always up to date.
-
-### <img src="./app/public/images/server.svg" width="14" height="14"/> Self-hosting
-
-🏗️ Documentation Work in progress
 
 <br />
 
@@ -61,42 +45,15 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
   </tr>
 </table>
 
-- **Real-time GPU Cloth Simulation:** Extended Position Based Dynamics (XPBD) cloth solver with
-  non-linear stretch, bending, sewing springs, SDF avatar collision, and self-collision untangling.
-- **2D & 3D Garment Design:** Interactive 2D pattern inspection and flat arrangement alongside a 3D
-  viewport with orbit camera, interactive cloth pinching/pulling, and placement handles.
+# Installation
 
-  <img src="docs/media/pinch-and-place.gif" alt="Placing the front of a T-shirt with its handles, draping it again, then pinching and pulling the hem" width="800" />
+### <img src="./app/public/images/cloud.svg" width="14" height="14"/> Cloud
 
-- **Pattern Drafting:** Start from scratch or from any pattern: draw pieces with a pen (straight
-  edges and curves), or start from a rectangle, ellipse or tube with typed sizes; drag points
-  and curve handles, add notches, internal lines, folds and a grain line; type lengths and
-  angles as you draw. Every edit can be undone, and the drape follows.
+The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryne.app) and start creating in under a minute, with no infrastructure to manage and always up to date.
 
-  <img src="docs/media/pattern-drafting.gif" alt="Drawing a skirt piece with the pen, a typed length and a curved hem, then notches, a grain line and an edited point" width="800" />
+### <img src="./app/public/images/server.svg" width="14" height="14"/> Self-hosting
 
-- **Whole-Edge Sewing Engine:** Two-click seam creation with chain detection and automatic geometric
-  seam suggestions that pair matching seams in seconds. Designed deliberately to avoid proprietary
-  free-sewing patent restrictions ([docs/PATENTS.md](docs/PATENTS.md)).
-
-  <img src="docs/media/sewing.gif" alt="Sewing an unsewn T-shirt from the seam suggestions and the two-click Sew tool, then draping it" width="800" />
-
-- **Physical Fabric Presets:** Calibrated physical fabric parameters (weight, directional stretch and
-  bending stiffness, thickness, friction) for Cotton jersey, Denim, Poplin shirting, Fleece, and Wool
-  suiting ([docs/FABRICS.md](docs/FABRICS.md)), with multi-material simulation support.
-
-  <img src="docs/media/fabric-presets.gif" alt="The same T-shirt draped again in denim, then in fleece" width="800" />
-
-- **Production 3D Export:** Export draped 3D garments to standard glTF 2.0 (`.glb`) or Wavefront
-  OBJ (`.obj` + `.mtl`) with real-world 1:1 metre scale, vertex normals, double-sided PBR cloth
-  materials, and UVs mapped directly to 2D pattern coordinates for texture printing.
-- **Pattern Export (DXF-AAMA):** Export the pattern pieces back to cutting and CAD tools as
-  DXF-AAMA (ASTM D6673), in millimetres, with corners, notches, grain lines, internal lines,
-  quantities and cut-on-fold pieces as halves with a mirror line. Outlines are sewing lines (no
-  seam allowance yet).
-- **Saved as You Go:** Projects autosave to the cloud, like Figma or Canva. Try everything
-  without an account (your work is kept as a draft); a free account keeps every project and
-  exports. No telemetry.
+🏗️ Documentation Work in progress
 
 <br />
 
