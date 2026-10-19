@@ -32,22 +32,30 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
 <table align="center">
   <tr>
     <td width="50%">
-      <img src="docs/media/pattern-drafting.gif" alt="Drawing a skirt piece with the pen, a typed length and a curved hem, then notches, a grain line and an edited point" width="800" />
+      <picture>
+        <img src="docs/media/pattern-drafting.gif" alt="Drawing a skirt piece with the pen, a typed length and a curved hem, then notches, a grain line and an edited point" width="800" />
+      </picture>
       <p align="center">Draw precise patterns</p>
     </td>
     <td width="50%">
-      <img src="docs/media/sewing.gif" alt="Sewing an unsewn T-shirt from the seam suggestions and the two-click Sew tool, then draping it" width="800" />
+      <picture>
+        <img src="docs/media/sewing.gif" alt="Sewing an unsewn T-shirt from the seam suggestions and the two-click Sew tool, then draping it" width="800" />
+      </picture>
       <p align="center">Easily sew pieces together</p>
     </td>
     
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/media/pinch-and-place.gif" alt="Placing the front of a T-shirt with its handles, draping it again, then pinching and pulling the hem" />
+      <picture>
+        <img src="docs/media/pinch-and-place.gif" alt="Placing the front of a T-shirt with its handles, draping it again, then pinching and pulling the hem" />
+      </picture>
       <p align="center">Pinch & Place</p>
     </td>
     <td width="50%">
-      <img src="docs/media/fabric-presets.gif" alt="The same T-shirt draped again in denim, then in fleece" width="800" />
+      <picture>
+        <img src="docs/media/fabric-presets.gif" alt="The same T-shirt draped again in denim, then in fleece" width="800" />
+      </picture>
       <p align="center">Customise Fabrics to your taste</p>
     </td>
   </tr>
