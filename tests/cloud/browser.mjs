@@ -237,11 +237,11 @@ async function cloud() {
   await a.until('the T-shirt open', loaded);
   const header = `document.querySelector('header')?.innerText ?? ''`;
   await a.until('not saved before an edit', `(${header}).includes('change something to keep it')`);
+  await a.click('Fabric', { exact: true });
   await a.click('New fabric');
   await a.click('Denim');
   await a.click('Make this fabric');
   await a.until('the autosave', `(${header}).includes('Saved')`, 30000);
-  await a.until('the draft notice', `document.body.innerText.includes('is saved as your draft in this browser')`);
   await a.until('the project lock', `navigator.locks.query().then((q) => q.held.some((l) => l.name.startsWith('vitryne-project:')))`);
   await a.shot('autosaved');
 

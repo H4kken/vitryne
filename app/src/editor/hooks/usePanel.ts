@@ -8,7 +8,7 @@ import type { PanelId } from "@/properties/panelTitles";
  * displayed while the side panel closes, so it slides away with its content.
  */
 export function usePanel() {
-  const [panel, setPanelState] = useState<PanelId | null>("fabric");
+  const [panel, setPanelState] = useState<PanelId | null>(null);
   const [displayedPanel, setDisplayedPanel] = useState<PanelId>("fabric");
   const setPanel = useCallback((p: PanelId | null) => {
     setPanelState(p);

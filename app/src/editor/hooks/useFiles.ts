@@ -95,7 +95,6 @@ export function useFiles(
   );
   const lastCollect = useRef(0);
   /** The anonymous user was told once that their draft is in the cloud. */
-  const toldDraft = useRef(false);
 
   const fail = (what: string, e: unknown) =>
     setNotice({ kind: "error", text: `${what}: ${errorText(e)}` });
@@ -133,13 +132,6 @@ export function useFiles(
       store.markSaved(name, entities);
       original.current = copyFileData(data);
       setRef({ name, form: "folder", cloud: saved });
-      if (b.user()?.anonymous && !toldDraft.current) {
-        toldDraft.current = true;
-        setNotice({
-          kind: "info",
-          text: `${name} is saved as your draft in this browser. Create a free account (Cloud, top right) to keep it for good and open it anywhere.`,
-        });
-      }
       if (!prev || prev.id !== saved.id) c.refresh();
       // Parts no project uses any more (older than a day), best effort.
       if (Date.now() - lastCollect.current > COLLECT_EVERY_MS) {
