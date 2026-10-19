@@ -29,20 +29,56 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
 
 # Features
 
+<table align="center">
+  <tr>
+    <td width="50%">
+      <img src="docs/media/pattern-drafting.gif" alt="Drawing a skirt piece with the pen, a typed length and a curved hem, then notches, a grain line and an edited point" width="800" />
+      <p align="center">Draw precise patterns</p>
+    </td>
+    <td width="50%">
+      <img src="docs/media/sewing.gif" alt="Sewing an unsewn T-shirt from the seam suggestions and the two-click Sew tool, then draping it" width="800" />
+      <p align="center">Easily sew pieces together</p>
+    </td>
+    
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/media/pinch-and-place.gif" alt="Placing the front of a T-shirt with its handles, draping it again, then pinching and pulling the hem" />
+      <p align="center">Pinch & Place</p>
+    </td>
+    <td width="50%">
+      <img src="docs/media/fabric-presets.gif" alt="The same T-shirt draped again in denim, then in fleece" width="800" />
+      <p align="center">Customise Fabrics to your taste</p>
+    </td>
+  </tr>
+</table>
+
 - **Real-time GPU Cloth Simulation:** Extended Position Based Dynamics (XPBD) cloth solver with
   non-linear stretch, bending, sewing springs, SDF avatar collision, and self-collision untangling.
 - **2D & 3D Garment Design:** Interactive 2D pattern inspection and flat arrangement alongside a 3D
   viewport with orbit camera, interactive cloth pinching/pulling, and placement handles.
+
+  <img src="docs/media/pinch-and-place.gif" alt="Placing the front of a T-shirt with its handles, draping it again, then pinching and pulling the hem" width="800" />
+
 - **Pattern Drafting:** Start from scratch or from any pattern: draw pieces with a pen (straight
   edges and curves), or start from a rectangle, ellipse or tube with typed sizes; drag points
   and curve handles, add notches, internal lines, folds and a grain line; type lengths and
   angles as you draw. Every edit can be undone, and the drape follows.
+
+  <img src="docs/media/pattern-drafting.gif" alt="Drawing a skirt piece with the pen, a typed length and a curved hem, then notches, a grain line and an edited point" width="800" />
+
 - **Whole-Edge Sewing Engine:** Two-click seam creation with chain detection and automatic geometric
   seam suggestions that pair matching seams in seconds. Designed deliberately to avoid proprietary
   free-sewing patent restrictions ([docs/PATENTS.md](docs/PATENTS.md)).
+
+  <img src="docs/media/sewing.gif" alt="Sewing an unsewn T-shirt from the seam suggestions and the two-click Sew tool, then draping it" width="800" />
+
 - **Physical Fabric Presets:** Calibrated physical fabric parameters (weight, directional stretch and
   bending stiffness, thickness, friction) for Cotton jersey, Denim, Poplin shirting, Fleece, and Wool
   suiting ([docs/FABRICS.md](docs/FABRICS.md)), with multi-material simulation support.
+
+  <img src="docs/media/fabric-presets.gif" alt="The same T-shirt draped again in denim, then in fleece" width="800" />
+
 - **Production 3D Export:** Export draped 3D garments to standard glTF 2.0 (`.glb`) or Wavefront
   OBJ (`.obj` + `.mtl`) with real-world 1:1 metre scale, vertex normals, double-sided PBR cloth
   materials, and UVs mapped directly to 2D pattern coordinates for texture printing.
