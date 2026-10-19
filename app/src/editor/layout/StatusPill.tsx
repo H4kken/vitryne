@@ -33,7 +33,8 @@ export function StatusPill({
     [text, dot] = ["Flat pieces. 3D follows your edits", "bg-live"];
   else if (placing)
     [text, dot] = ["Placing pieces. The drape waits", "bg-line"];
-  else if (engine.controls.paused) [text, dot] = ["Paused", "bg-line"];
+  else if (engine.controls.paused)
+    [text, dot] = ["Paused. Press Play to drape", "bg-line"];
   else text = "Fabric is settling live";
   const s = engine.stats;
   const detail = s
