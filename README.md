@@ -45,6 +45,8 @@ Vitryne gives indie creators, small and established clothing brands the tool the
   </tr>
 </table>
 
+<br />
+
 # Installation
 
 ### <img src="./app/public/images/cloud.svg" width="14" height="14"/> Cloud
@@ -53,7 +55,7 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
 
 ### <img src="./app/public/images/server.svg" width="14" height="14"/> Self-hosting
 
-🏗️ Documentation Work in progress
+Guide coming soon...
 
 <br />
 
