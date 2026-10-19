@@ -72,7 +72,7 @@ export class EngineSession {
     drape: null,
     drapeError: null,
     // Paused at first: the drape runs once the person presses Play.
-    controls: { fast: false, paused: true, placing: false, seams: false },
+    controls: { fast: false, paused: false, placing: false, seams: false },
     gizmo: null,
   };
 

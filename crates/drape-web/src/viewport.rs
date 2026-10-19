@@ -89,9 +89,10 @@ struct Core {
 const HIGHLIGHT_FADE: f32 = 0.7;
 
 impl Core {
-    /// Whether frames advance the drape.
+    /// Whether frames advance the drape: when not paused, or while the cloth is held (a pinch
+    /// works on a paused drape, which stays where it is let go).
     fn stepping(&self) -> bool {
-        !self.paused.get() && !self.placing.get()
+        (!self.paused.get() || self.pulling.get().is_some()) && !self.placing.get()
     }
 
     /// Gives `live`'s renderer the seams to draw: the highlighted one alone, or all of them
