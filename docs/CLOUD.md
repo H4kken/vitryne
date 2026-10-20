@@ -91,11 +91,12 @@ has no backups, so use Pro for a public instance):
    application*, authorized redirect URI `https://<ref>.supabase.co/auth/v1/callback`), its ID and
    secret here. The editor shows *Continue with Google* only when it is on.
 3. **Authentication, Emails:** connect an SMTP provider (Supabase's own sender only reaches the
-   project's team, a few emails an hour; Resend or Brevo have free tiers), and paste
-   `supabase/templates/*.html` into *Confirm signup*, *Change email address* and *Reset password*
-   (subject: "Your Vitryne code"). They show the 6-digit code; the defaults show a link.
+   project's team, a few emails an hour; Resend or Brevo have free tiers). Every email carries a
+   link: the default templates work. `supabase/templates/*.html` say the same in Vitryne's words,
+   to paste into *Change email address* (what confirms a new account), *Confirm signup* and
+   *Reset password* if you like (subjects in `supabase/config.toml`).
 4. **Authentication, URL configuration:** the site URL and the redirect URLs are the editor's
-   address (Google comes back there).
+   address (Google and the email links come back there).
 5. **Limits** (optional): `update vitryne_private.limits set quota_bytes = …, max_projects = …,
    max_anonymous_projects = …, anonymous_days = …;` in the SQL editor. Parts are capped at 50 MB
    each, the free plan's file limit.
@@ -168,14 +169,23 @@ with their draft.
 
 **Email and password, or Google.**
 
-- **Create an account:** email and password (8 characters or more). The email gets the current
-  user (anonymous, or a new anonymous one), confirmed by a **6-digit code** sent to it
-  (`updateUser({ email })` → `verifyOtp` type `email_change`), then the password is set. The
-  **same user** becomes the account: same id, the draft is now one of its projects.
-- **Sign in:** email and password. **Forgot password:** a code by email (`resetPasswordForEmail`
-  → `verifyOtp` type `recovery`), then a new password.
-- **Codes, not links,** in every email: a link opens another tab or a redirect, and could lose
-  work not saved yet. The code is typed in the dialog.
+- **Create an account:** email and password (8 characters or more), both given to the current
+  user (anonymous, or a new anonymous one) at once (`updateUser({ email, password })`). Auth
+  emails a **link** that confirms the address; until it is opened the user stays anonymous and
+  the password doesn't sign in. The dialog says *Check your email* and waits: every few seconds,
+  and whenever the tab comes back to the front, it asks Auth whether the user is an account now
+  (`getUser`), then refreshes the session (`watchConfirmation`, for the hour the link works). The
+  link can be opened anywhere (another tab, a phone): this tab keeps its work and notices. A tab
+  the link opens in this browser is signed in too. The **same user** becomes the account: same
+  id, the draft is now one of its projects. *Send it again* resends the link (`resend` type
+  `email_change`).
+- **Sign in:** email and password. **Forgot password:** a link by email (`/auth/v1/recover`,
+  without PKCE so the link works on any device). The tab asking says *Check your email* and keeps
+  its work; the link opens the editor signed in to the account (the session in the URL, taken
+  out before Auth's client sees it), whose account dialog asks for the new password. An anonymous
+  user that browser had moves its projects to the account, as at sign-in.
+- **The page that asked never leaves:** the links open in another tab or device, so no redirect
+  can lose work not saved yet.
 - **Google** (when the project has it on): a redirect, PKCE flow. What is waiting is saved first
   (or the person decides, if it can't be). An anonymous user is **linked** to the Google identity
   (same user, same projects); a project that was open reopens on return. If that Google account
@@ -311,8 +321,7 @@ node tests/cloud/browser.mjs none <url>  # a build with no config.json: the no-b
 
 ## Not done yet
 
-- **A refactor before the MVP release** (see PROGRESS.md, M12): the account emails (codes or
-  links), a trimmed `supabase/config.toml`, versioning the web image.
+- **A refactor before the MVP release** (see PROGRESS.md, M12): a trimmed `supabase/config.toml`, versioning the web image.
 - **Sharing a project** with someone else, and real-time editing together: the reason projects
   stay in the cloud. Until then one tab edits a project at a time, and another browser's save is
   a conflict the person settles.

@@ -8,7 +8,8 @@ import type { useFiles } from "./useFiles";
 /**
  * Signing in with Google leaves the page. Back from Google: say what went wrong (the account
  * dialog opens with it), or finish what was left to do (move an anonymous user's projects into
- * the account reached, reopen the cloud project that was open).
+ * the account reached, reopen the cloud project that was open). A password reset link comes back
+ * here too: the account dialog opens to choose the new password.
  */
 export function useGoogleReturn(
   cloud: Cloud,
@@ -20,6 +21,7 @@ export function useGoogleReturn(
     code: string;
     message: string;
   } | null>(null);
+  const [recovering, setRecovering] = useState(false);
   const cloudBackend = cloud.backend;
   const cloudRefresh = cloud.refresh;
   const userId = cloud.user?.id;
@@ -30,6 +32,11 @@ export function useGoogleReturn(
   useEffect(() => {
     void cloudBackend().then(
       async (b) => {
+        if (b.recovery) {
+          setRecovering(true);
+          now.current.openAccount();
+          return;
+        }
         if (!b.returned) return;
         b.returned = false;
         if (b.returnError) {
@@ -69,7 +76,12 @@ export function useGoogleReturn(
   return {
     /** What Google said went wrong, for the account dialog. */
     error,
-    clearError: () => setError(null),
+    /** A password reset link opened this page: the dialog asks for the new password. */
+    recovering,
+    clearError: () => {
+      setError(null);
+      setRecovering(false);
+    },
     /** Leaves for Google (once the changes are saved or the person decided about them). */
     continueWithGoogle: (signIn: boolean) => {
       setError(null);

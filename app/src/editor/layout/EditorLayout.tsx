@@ -392,6 +392,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
           onMoved={files.projectsMoved}
           onGoogle={google.continueWithGoogle}
           returnError={google.error}
+          recovering={google.recovering}
         />
       )}
       <CloudProjectsDialog

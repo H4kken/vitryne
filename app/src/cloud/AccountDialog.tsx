@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The account dialog (docs/CLOUD.md). No sign-up wall: anyone can try the editor, and their
 // work is kept as one draft (an anonymous user); a free account keeps every project, opens them
-// anywhere, and exports. Codes come by email and are typed here, so no link or redirect can lose
-// work not saved yet.
+// anywhere, and exports. A new account is confirmed by a link in an email: this dialog waits and
+// notices, so the work here stays put while the link opens elsewhere. A forgotten password is
+// reset by a link too: the editor it opens asks for the new one.
 
 import { useEffect, useState } from "react";
-import { Cloud as CloudIcon } from "lucide-react";
+import { Cloud as CloudIcon, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Usage } from "./backend";
+import type { SupabaseBackend } from "./supabase";
 import { deleteAccount, exportAll, moveProjects } from "./projects";
 import type { Cloud } from "./useCloud";
 import { errorMessage } from "./errorMessage";
@@ -28,9 +30,10 @@ type Step =
   | { at: "home" }
   | { at: "sign-in"; email?: string; moving?: boolean }
   | { at: "create" }
-  | { at: "code"; email: string; password: string }
+  | { at: "confirm"; email: string }
   | { at: "reset"; email?: string }
-  | { at: "reset-code"; email: string }
+  | { at: "reset-sent"; email: string }
+  | { at: "new-password" }
   | { at: "delete" };
 
 const MIN_PASSWORD = 8;
@@ -62,13 +65,16 @@ export function AccountDialog(props: {
   onGoogle: (signIn: boolean) => void;
   /** What a Google sign-in came back with, when it failed. */
   returnError?: { code: string; message: string } | null;
+  /** A password reset link opened this page: the new password comes first. */
+  recovering?: boolean;
 }) {
   const { cloud } = props;
   const user = cloud.user;
-  const [step, setStep] = useState<Step>({ at: "home" });
+  const [step, setStep] = useState<Step>(
+    props.recovering ? { at: "new-password" } : { at: "home" },
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(
     props.returnError && props.returnError.code !== "identity_already_exists"
@@ -80,6 +86,21 @@ export function AccountDialog(props: {
   const googleTaken = props.returnError?.code === "identity_already_exists";
 
   const { backend } = cloud;
+  // The link was opened (here or anywhere): the user is an account now.
+  const confirmed = step.at === "confirm" && !!user && !user.anonymous;
+  const confirmedEmail = step.at === "confirm" ? step.email : "";
+  const { onInfo } = props;
+  const { refresh } = cloud;
+  useEffect(() => {
+    if (!confirmed) return;
+    refresh();
+    onInfo(
+      `Account created. Sign in with ${confirmedEmail} on any device to open your projects.`,
+    );
+    setError(null);
+    setPassword("");
+    setStep({ at: "home" });
+  }, [confirmed, confirmedEmail, refresh, onInfo]);
   useEffect(() => {
     if (user)
       void backend()
@@ -106,20 +127,24 @@ export function AccountDialog(props: {
 
   const go = (s: Step) => {
     setError(null);
-    setCode("");
     setPassword("");
     setStep(s);
   };
 
-  /** Runs a sign-in; an anonymous user's projects follow them into the account they reach. */
+  /**
+   * Runs a sign-in; an anonymous user's projects follow them into the account they reach.
+   * `left`: that user, when the page was already signed in by other means (a reset link).
+   */
   const signingIn = (
     what: string,
-    f: (b: Awaited<ReturnType<Cloud["backend"]>>) => Promise<void>,
+    f: (b: SupabaseBackend) => Promise<void>,
+    left?: (b: SupabaseBackend) => SupabaseBackend | null,
   ) =>
     run(what, async () => {
       const b = await cloud.backend();
-      const from = b.user()?.anonymous ? b.detached() : null;
+      const before = b.user()?.anonymous ? b.detached() : null;
       await f(b);
+      const from = left ? left(b) : before;
       const me = b.user();
       if (from && me && from.user()?.id !== me.id) {
         const r = await moveProjects(from, b);
@@ -207,26 +232,6 @@ export function AccountDialog(props: {
       />
     </>
   );
-  const codeField = (to: string) => (
-    <>
-      <Label htmlFor="cloud-code">The 6-digit code sent to {to}</Label>
-      <Input
-        id="cloud-code"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        pattern="[0-9]{6}"
-        maxLength={6}
-        required
-        value={code}
-        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-        autoFocus
-        className="font-mono text-lg tracking-[0.3em]"
-      />
-      <p className="text-muted-foreground m-0 text-[13px]">
-        Nothing arrived? Check your spam folder.
-      </p>
-    </>
-  );
   const footer = (back: Step, submit: string, disabled: boolean) => (
     <DialogFooter>
       <Button type="button" variant="ghost" onClick={() => go(back)}>
@@ -276,15 +281,16 @@ export function AccountDialog(props: {
   else if (step.at === "create")
     body = form(
       () =>
-        void run("Sending the code", async () => {
+        void run("Creating the account", async () => {
           const to = email.trim();
-          if ((await (await cloud.backend()).createAccount(to)) === "taken") {
-            setStep({ at: "sign-in", moving: true });
-            setPassword("");
-            return;
-          }
-          setCode("");
-          setStep({ at: "code", email: to, password });
+          const b = await cloud.backend();
+          const r = await b.createAccount(to, password);
+          setPassword("");
+          setStep(
+            r === "taken"
+              ? { at: "sign-in", moving: true }
+              : { at: "confirm", email: to },
+          );
         }),
       <>
         {emailField}
@@ -294,7 +300,7 @@ export function AccountDialog(props: {
           "new-password",
         )}
         <p className="text-muted-foreground m-0 text-[13px]">
-          We'll email you a code to confirm the address.
+          We'll email you a link to confirm the address.
         </p>
         {footer(
           { at: "home" },
@@ -303,60 +309,132 @@ export function AccountDialog(props: {
         )}
       </>,
     );
-  else if (step.at === "code")
-    body = form(
-      () =>
-        void run("Checking", async () => {
-          await (
-            await cloud.backend()
-          ).confirmAccount(step.email, code.trim(), step.password);
-          cloud.refresh();
-          props.onInfo(
-            `Account created. Sign in with ${step.email} on any device to open your projects.`,
-          );
-          go({ at: "home" });
-        }),
-      <>
-        {codeField(step.email)}
-        {footer({ at: "create" }, "Confirm", code.length !== 6)}
-      </>,
+  else if (step.at === "confirm")
+    body = (
+      <div className="flex flex-col gap-3 text-[15px]">
+        <p className="m-0 flex items-center gap-2 font-semibold">
+          <MailCheck className="size-5" /> Check your email
+        </p>
+        <p className="m-0">
+          We sent a link to <strong>{step.email}</strong>. Open it to confirm
+          the address and finish creating your account. You can keep working
+          here: this window notices once it's done.
+        </p>
+        <p className="text-muted-foreground m-0 text-[13px]">
+          Nothing arrived? Check your spam folder, or{" "}
+          <button
+            type="button"
+            className="underline underline-offset-4"
+            disabled={!!working}
+            onClick={() =>
+              void run("Sending", async () => {
+                await (await cloud.backend()).resendConfirmation(step.email);
+                props.onInfo(`We sent the link to ${step.email} again.`);
+              })
+            }
+          >
+            send it again
+          </button>
+          .
+        </p>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => go({ at: "create" })}
+          >
+            Use another email
+          </Button>
+        </DialogFooter>
+      </div>
     );
   else if (step.at === "reset")
     body = form(
       () =>
-        void run("Sending the code", async () => {
+        void run("Sending the link", async () => {
           const to = email.trim();
           await (await cloud.backend()).sendPasswordReset(to);
-          setCode("");
-          setPassword("");
-          setStep({ at: "reset-code", email: to });
+          setStep({ at: "reset-sent", email: to });
         }),
       <>
         {emailField}
         <p className="text-muted-foreground m-0 text-[13px]">
-          We'll email you a code to choose a new password.
+          We'll email you a link to choose a new password.
         </p>
-        {footer({ at: "sign-in" }, "Send the code", !email.trim())}
+        {footer({ at: "sign-in" }, "Send the link", !email.trim())}
       </>,
     );
-  else if (step.at === "reset-code")
+  else if (step.at === "reset-sent")
+    body = (
+      <div className="flex flex-col gap-3 text-[15px]">
+        <p className="m-0 flex items-center gap-2 font-semibold">
+          <MailCheck className="size-5" /> Check your email
+        </p>
+        <p className="m-0">
+          If <strong>{step.email}</strong> has an account, we sent it a link.
+          Open it to choose a new password: it opens Vitryne, signed in. Work
+          not saved yet stays in this window.
+        </p>
+        <p className="text-muted-foreground m-0 text-[13px]">
+          Nothing arrived? Check your spam folder, or{" "}
+          <button
+            type="button"
+            className="underline underline-offset-4"
+            disabled={!!working}
+            onClick={() =>
+              void run("Sending", async () => {
+                await (await cloud.backend()).sendPasswordReset(step.email);
+                props.onInfo(`We sent the link to ${step.email} again.`);
+              })
+            }
+          >
+            send it again
+          </button>
+          .
+        </p>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => go({ at: "sign-in", email: step.email })}
+          >
+            Back to sign in
+          </Button>
+        </DialogFooter>
+      </div>
+    );
+  else if (step.at === "new-password")
     body = form(
       () =>
-        void signingIn("Saving", (b) =>
-          b.resetPassword(step.email, code.trim(), password),
+        void signingIn(
+          "Saving",
+          async (b) => {
+            await b.setPassword(password);
+            props.onInfo("Your new password is saved.");
+          },
+          (b) => {
+            const from = b.recovery?.from ?? null;
+            b.recovery = null;
+            return from;
+          },
         ),
       <>
-        {codeField(step.email)}
+        <p className="m-0 text-[15px]">
+          Choose a new password for <strong>{user?.email}</strong>.
+        </p>
         {passwordField(
           "cloud-new-password",
           `New password (${MIN_PASSWORD} characters or more)`,
           "new-password",
         )}
-        {footer(
-          { at: "reset", email: step.email },
-          "Save and sign in",
-          code.length !== 6 || password.length < MIN_PASSWORD,
-        )}
+        <DialogFooter>
+          <Button
+            type="submit"
+            disabled={!!working || password.length < MIN_PASSWORD}
+          >
+            {working ?? "Save the password"}
+          </Button>
+        </DialogFooter>
       </>,
     );
   else if (step.at === "delete")

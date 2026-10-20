@@ -4,11 +4,14 @@
 //   cloud  <url>   browser A opens the T-shirt example and makes a denim with no account:
 //                  it is autosaved as A's draft (this tab holds its lock); an edit while offline
 //                  is kept and saved once back online; after a reload the draft is listed; A
-//                  creates an account (email, password, the code from Mailpit: instance.mjs).
+//                  creates an account (email, password, the link from Mailpit: instance.mjs).
 //                  Export and Duplicate ask for an account first, and a second example asks
 //                  before replacing the draft; with the account, Duplicate makes "(copy)".
 //                  Browser B (a fresh profile) signs in and opens the project, its navy denim
 //                  (recoloured offline) the garment's fabric.
+//   reset  <url>   a forgotten password: an account (made over the API), "Forgot your password?",
+//                  the link from Mailpit opened in the same browser, the new password chosen
+//                  there; it signs in, the old one doesn't.
 //   none   <url>   the same build with no config.json: the editor says it has no backend.
 //   draw   <url>   M14's done-when: a project from scratch, two rectangles from "Add a shape"
 //                  (front and back, lowered to the hips by their Height), the two side seams
@@ -17,13 +20,14 @@
 //                  opens with its three pieces and two seams.
 //
 //   node tests/cloud/browser.mjs cloud http://localhost:8000 [shots-dir]   (the local stack)
+//   node tests/cloud/browser.mjs reset http://localhost:5173 [shots-dir]   (`pnpm run dev --local`)
 //   node tests/cloud/browser.mjs none http://localhost:5174 [shots-dir]    (`pnpm run dev:app`)
 //   node tests/cloud/browser.mjs draw http://localhost:5173 [shots-dir]    (`pnpm run dev --local`)
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MAILPIT } from './instance.mjs';
+import { KEY, MAILPIT, URL_ } from './instance.mjs';
 
 const [mode, url, shots = join(tmpdir(), 'vitryne-browser-check')] = process.argv.slice(2);
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -131,8 +135,10 @@ async function connect(target, label) {
             const t = (e.innerText || e.getAttribute('aria-label') || '').trim();
             return ${exact} ? t === want : t.includes(want);
           });
-          // The one on top: the editor's bar is still there under the start screen.
+          // The one on top: the editor's bar is still there under the start screen. Scrolled
+          // to first (a side panel's last button can be below its fold).
           const e = els.find((x) => {
+            if (x.getClientRects().length) x.scrollIntoView({ block: 'nearest' });
             const r = x.getBoundingClientRect();
             return r.width > 0 && r.height > 0 && !x.disabled && x.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
           });
@@ -211,11 +217,15 @@ async function connect(target, label) {
   return b;
 }
 
-async function codeFor(to, after) {
+/** The confirmation link in the newest email to `to` sent after `after`. */
+async function linkFor(to, after) {
   for (let i = 0; i < 100; i++) {
     const s = await (await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`)).json();
     const m = s.messages?.find((x) => Date.parse(x.Created) >= after);
-    if (m) return /\b(\d{6})\b/.exec((await (await fetch(`${MAILPIT}/api/v1/message/${m.ID}`)).json()).Text)[1];
+    if (m) {
+      const full = await (await fetch(`${MAILPIT}/api/v1/message/${m.ID}`)).json();
+      return /https?:\/\/[^\s"<>()]+\/auth\/v1\/verify\?[^\s"<>()]+/.exec(full.HTML ?? full.Text)[0].replace(/&amp;/g, '&');
+    }
     await sleep(250);
   }
   throw new Error(`no email to ${to}`);
@@ -289,9 +299,12 @@ async function cloud() {
   await a.type('#cloud-password', password);
   const t = Date.now() - 1000;
   await a.click('Create the account');
-  await a.type('#cloud-code', await codeFor(email, t));
-  await a.click('Confirm', { exact: true });
-  await a.until('the account created', `document.body.innerText.includes('Account created')`);
+  await a.until('the email asked for', `document.body.innerText.includes('Check your email')`);
+  await a.shot('check-email');
+  // The link, opened elsewhere (like a phone): this page notices.
+  const v = await fetch(await linkFor(email, t), { redirect: 'manual' });
+  if (v.status !== 303) throw new Error(`A: the link answered ${v.status}`);
+  await a.until('the account created', `document.body.innerText.includes('Account created')`, 30000);
   await a.until('the email shown', `document.body.innerText.includes(${JSON.stringify(email)})`);
   await a.shot('upgraded');
   await a.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
@@ -334,6 +347,56 @@ async function cloud() {
   const bErrors = b.logs;
   b.close();
   return { email, aErrors, bErrors, title };
+}
+
+async function reset() {
+  const auth = async (path, body, token) => {
+    const r = await fetch(`${URL_}/auth/v1/${path}`, {
+      method: token && !body.email ? 'PUT' : 'POST',
+      headers: { apikey: KEY, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(body),
+    });
+    return { status: r.status, json: await r.json().catch(() => null) };
+  };
+  // An account, made over the API like the editor does it.
+  const email = `reset-${Date.now().toString(36)}@example.test`;
+  const old = `pw-${Date.now().toString(36)}-old`;
+  const anon = (await auth('signup', {})).json;
+  let t = Date.now() - 1000;
+  const put = await fetch(`${URL_}/auth/v1/user`, {
+    method: 'PUT',
+    headers: { apikey: KEY, 'Content-Type': 'application/json', Authorization: `Bearer ${anon.access_token}` },
+    body: JSON.stringify({ email, password: old }),
+  });
+  if (!put.ok) throw new Error(`the account: ${put.status}`);
+  await fetch(await linkFor(email, t), { redirect: 'manual' });
+
+  const a = await browser('A');
+  await a.goto(url);
+  await a.until('start screen', `document.body.innerText.includes('What do you want to make?')`);
+  await a.click('Sign in', { exact: true });
+  await a.click('Sign in', { exact: true });
+  await a.click('Forgot your password?');
+  await a.type('#cloud-email', email);
+  t = Date.now() - 1000;
+  await a.click('Send the link');
+  await a.until('the email asked for', `document.body.innerText.includes('Check your email')`);
+  await a.shot('reset-sent');
+  // The link, opened in this browser: the editor asks for the new password.
+  await a.goto(await linkFor(email, t));
+  await a.until('the new password asked for', `document.body.innerText.includes('Choose a new password for')`);
+  if (/access_token/.test(await a.evaluate('location.href'))) throw new Error('the session stayed in the URL');
+  await a.shot('new-password');
+  const fresh = `pw-${Date.now().toString(36)}-new`;
+  await a.type('#cloud-new-password', fresh);
+  await a.click('Save the password');
+  await a.until('the password saved', `document.body.innerText.includes('Your new password is saved')`);
+  await a.until('signed in', `document.body.innerText.includes(${JSON.stringify(email)})`);
+  await a.shot('saved');
+  a.close();
+  if ((await auth('token?grant_type=password', { email, password: fresh })).status !== 200) throw new Error('the new password does not sign in');
+  if ((await auth('token?grant_type=password', { email, password: old })).status !== 400) throw new Error('the old password still signs in');
+  return { errors: a.logs };
 }
 
 async function none() {
@@ -419,5 +482,5 @@ async function draw() {
   return { suggested, reopened, errors: a.logs };
 }
 
-const result = mode === 'none' ? await none() : mode === 'draw' ? await draw() : await cloud();
+const result = mode === 'none' ? await none() : mode === 'draw' ? await draw() : mode === 'reset' ? await reset() : await cloud();
 console.log(JSON.stringify({ mode, ok: true, ...result, shots }, null, 2));

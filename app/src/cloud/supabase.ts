@@ -51,6 +51,23 @@ function readReturn(): {
   return { error, clean: u.pathname + u.search };
 }
 
+/**
+ * A password reset link's session in the URL (implicit flow, so the link works on any device),
+ * taken out of it before Auth's client sees it.
+ */
+function readRecovery(): {
+  access_token: string;
+  refresh_token: string;
+} | null {
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const access_token = hash.get("access_token");
+  const refresh_token = hash.get("refresh_token");
+  if (hash.get("type") !== "recovery" || !access_token || !refresh_token)
+    return null;
+  history.replaceState(history.state, "", location.pathname + location.search);
+  return { access_token, refresh_token };
+}
+
 interface Row {
   id: string;
   owner: string;
@@ -119,12 +136,18 @@ export class SupabaseBackend implements CloudBackend {
   returned = false;
   /** Set when a Google redirect came back with an error (e.g. that account already exists). */
   returnError: { code: string; message: string } | null = null;
+  /**
+   * This page load is a password reset link: signed in to the account, a new password to choose
+   * (`setPassword`). `from`: the anonymous user this browser had, whose projects move to it.
+   */
+  recovery: { from: SupabaseBackend | null } | null = null;
 
   /**
    * The person's backend, with the session from an earlier visit if there is one, or the one a
    * Google redirect just brought back (PKCE: the code in the URL is exchanged, then removed).
    */
   static async connect(config: CloudConfig): Promise<SupabaseBackend> {
+    const recovery = readRecovery();
     const back = readReturn();
     const sb = createClient(config.url, config.publishableKey, {
       auth: {
@@ -139,6 +162,20 @@ export class SupabaseBackend implements CloudBackend {
     const { data } = await sb.auth.getSession();
     b.setSession(data.session);
     sb.auth.onAuthStateChange((_event, session) => b.setSession(session));
+    if (recovery) {
+      const from = b.current?.anonymous ? b.detached() : null;
+      const r = await sb.auth.setSession(recovery);
+      if (r.error) {
+        b.returned = true;
+        b.returnError = {
+          code: r.error.code ?? "recovery",
+          message: "That link did not work: ask for a new one",
+        };
+      } else {
+        b.setSession(r.data.session);
+        b.recovery = { from };
+      }
+    }
     if (back) {
       b.returned = true;
       b.returnError = back.error;
@@ -209,8 +246,10 @@ export class SupabaseBackend implements CloudBackend {
     return toUser(data.user);
   }
 
-  // Accounts: email and password, or Google. The emails carry a 6-digit code typed in the editor
-  // (no links, so nothing opens another tab while work is unsaved).
+  // Accounts: email and password, or Google. Creating an account emails a link that confirms the
+  // address; the page that asked notices on its own (`watchConfirmation`), so it keeps any work
+  // not saved yet while the link opens in another tab or device. A forgotten password is reset
+  // by a link too, which opens the editor where the new password is chosen (`recovery`).
 
   /** Whether this backend offers Google sign-in (its Auth settings say so). */
   async googleEnabled(): Promise<boolean> {
@@ -226,13 +265,23 @@ export class SupabaseBackend implements CloudBackend {
   }
 
   /**
-   * Starts an account for `email`: the current user (an anonymous one is made if there is none)
-   * gets the email, which is confirmed by a code sent to it. 'taken': the email has an account.
+   * Starts an account for `email` and `password`: the current user (an anonymous one is made if
+   * there is none) gets both, and becomes an account, with the same projects, once the link
+   * emailed to the address is opened (`onUser` then reports it). 'taken': the email has an account.
    */
-  async createAccount(email: string): Promise<"sent" | "taken"> {
+  async createAccount(
+    email: string,
+    password: string,
+  ): Promise<"sent" | "taken"> {
     await this.ensureUser();
-    const { error } = await this.sb.auth.updateUser({ email });
-    if (!error) return "sent";
+    const { error } = await this.sb.auth.updateUser(
+      { email, password },
+      { emailRedirectTo: location.origin + import.meta.env.BASE_URL },
+    );
+    if (!error) {
+      this.watchConfirmation();
+      return "sent";
+    }
     if (
       error.code === "email_exists" ||
       /already been registered/.test(error.message)
@@ -241,22 +290,56 @@ export class SupabaseBackend implements CloudBackend {
     fail("Could not create the account", error);
   }
 
-  /** The code from the email, then the password: the account exists, with the same projects. */
-  async confirmAccount(
-    email: string,
-    code: string,
-    password: string,
-  ): Promise<void> {
-    const { data, error } = await this.sb.auth.verifyOtp({
-      email,
-      token: code,
+  /** Sends the confirmation link again. */
+  async resendConfirmation(email: string): Promise<void> {
+    const { error } = await this.sb.auth.resend({
       type: "email_change",
+      email,
+      options: { emailRedirectTo: location.origin + import.meta.env.BASE_URL },
     });
-    if (error) fail("That code did not work", error);
-    this.setSession(data.session);
-    const p = await this.sb.auth.updateUser({ password });
-    if (p.error)
-      fail("The account is created, but the password was refused", p.error);
+    if (error) fail("Could not send the email again", error);
+    this.watchConfirmation();
+  }
+
+  private stopWatching: (() => void) | null = null;
+
+  /**
+   * Until the link is opened (it works for an hour): asks Auth every few seconds, and whenever
+   * this page comes back to the front, whether the user is an account now; then refreshes the
+   * session, whose token says so to the database too.
+   */
+  private watchConfirmation() {
+    this.stopWatching?.();
+    const until = Date.now() + 3600_000;
+    let checking = false;
+    const check = async () => {
+      if (checking || document.visibilityState === "hidden") return;
+      if (Date.now() > until || !this.current?.anonymous) return stop();
+      checking = true;
+      try {
+        const { data } = await this.sb.auth.getUser();
+        if (data.user && !data.user.is_anonymous) {
+          stop();
+          const { data: r } = await this.sb.auth.refreshSession();
+          if (r.session) this.setSession(r.session);
+        }
+      } catch {
+        // Offline for a moment: the next check.
+      } finally {
+        checking = false;
+      }
+    };
+    const timer = setInterval(() => void check(), 4000);
+    const onFront = () => void check();
+    document.addEventListener("visibilitychange", onFront);
+    window.addEventListener("focus", onFront);
+    const stop = () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onFront);
+      window.removeEventListener("focus", onFront);
+      this.stopWatching = null;
+    };
+    this.stopWatching = stop;
   }
 
   async signIn(email: string, password: string): Promise<void> {
@@ -269,7 +352,7 @@ export class SupabaseBackend implements CloudBackend {
         throw new CloudError("wrong email or password", "auth");
       if (error.code === "email_not_confirmed")
         throw new CloudError(
-          "this account was never confirmed; create it again to get a new code",
+          "this account is not confirmed yet: open the link we emailed you, or create the account again to get a new one",
           "auth",
         );
       fail("Could not sign in", error);
@@ -277,27 +360,48 @@ export class SupabaseBackend implements CloudBackend {
     this.setSession(data.session);
   }
 
-  /** Sends a code to choose a new password. */
+  /**
+   * Emails a link to choose a new password. Without PKCE (Auth's client would add it), so the
+   * link works on another device too: it brings the session back in the URL (`readRecovery`).
+   */
   async sendPasswordReset(email: string): Promise<void> {
-    const { error } = await this.sb.auth.resetPasswordForEmail(email);
-    if (error) fail("Could not send the code", error);
+    const redirect = encodeURIComponent(
+      location.origin + import.meta.env.BASE_URL,
+    );
+    let r: Response;
+    try {
+      r = await fetch(
+        `${this.config.url}/auth/v1/recover?redirect_to=${redirect}`,
+        {
+          method: "POST",
+          headers: {
+            apikey: this.config.publishableKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        },
+      );
+    } catch (e) {
+      fail("Could not send the email", { message: String(e) });
+    }
+    if (r.ok) return;
+    const j = (await r.json().catch(() => ({}))) as {
+      msg?: string;
+      message?: string;
+    };
+    if (r.status === 429)
+      throw new CloudError(
+        "too many emails just now; wait a minute and try again",
+      );
+    fail("Could not send the email", {
+      message: j.msg ?? j.message ?? `error ${r.status}`,
+    });
   }
 
-  /** The code from the email and the new password: signed in. */
-  async resetPassword(
-    email: string,
-    code: string,
-    password: string,
-  ): Promise<void> {
-    const { data, error } = await this.sb.auth.verifyOtp({
-      email,
-      token: code,
-      type: "recovery",
-    });
-    if (error) fail("That code did not work", error);
-    this.setSession(data.session);
-    const p = await this.sb.auth.updateUser({ password });
-    if (p.error) fail("That password was refused", p.error);
+  /** The new password, once a reset link signed this page in (`recovery`). */
+  async setPassword(password: string): Promise<void> {
+    const { error } = await this.sb.auth.updateUser({ password });
+    if (error) fail("That password was refused", error);
   }
 
   /**

@@ -249,19 +249,19 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Vitryne signs in with email and password (or Google); the emails it sends carry a 6-digit code
-# typed in the editor, never a link (docs/CLOUD.md). On a hosted project, paste the same templates
-# in the dashboard (Authentication, Emails).
+# Vitryne signs in with email and password (or Google). Its emails carry links, like Supabase's
+# default templates: confirming a new account (the editor notices) and choosing a new password
+# (docs/CLOUD.md). These say it in Vitryne's words; on a hosted project the defaults work too.
 [auth.email.template.confirmation]
-subject = "Your Vitryne code"
+subject = "Confirm your Vitryne email"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Your Vitryne code"
+subject = "Choose a new Vitryne password"
 content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.email_change]
-subject = "Your Vitryne code"
+subject = "Confirm your Vitryne email"
 content_path = "./supabase/templates/email_change.html"
 
 # Uncomment to customize notification email template
