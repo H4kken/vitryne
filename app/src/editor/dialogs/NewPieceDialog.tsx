@@ -39,7 +39,7 @@ export function NewPieceDialog(props: {
   const ids = useId();
 
   const add = async () => {
-    if (!outline) return;
+    if (!outline || busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -61,75 +61,89 @@ export function NewPieceDialog(props: {
       onOpenChange={(open) => !open && !busy && props.onClose()}
     >
       <DialogContent className="flex max-h-[calc(100vh-32px)] flex-col gap-5 rounded-[20px] p-6 sm:max-w-[560px]">
-        <DialogHeader>
-          <DialogTitle className="font-display text-2xl font-bold">
-            Add the piece
-          </DialogTitle>
-          <DialogDescription className="text-body-text text-[15px]">
-            Name it and choose where it goes on the body; you can move it
-            afterwards.
-          </DialogDescription>
-        </DialogHeader>
+        {/* A form so Enter in the name adds the piece; `contents` keeps the dialog's layout. */}
+        <form
+          className="contents"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void add();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl font-bold">
+              Add the piece
+            </DialogTitle>
+            <DialogDescription className="text-body-text text-[15px]">
+              Name it and choose where it goes on the body; you can move it
+              afterwards.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="-mx-6 flex min-h-0 grow flex-col gap-5 overflow-y-auto px-6">
-          <div className="flex items-start gap-4">
-            <PieceThumb outline={outline} />
-            <div className="flex grow flex-col gap-3">
-              <div className="flex flex-col gap-1">
-                <label
-                  htmlFor={`${ids}-name`}
-                  className="text-[13px] font-semibold"
-                >
-                  Name
-                </label>
-                <input
-                  id={`${ids}-name`}
-                  className="h-10 rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white px-2.5 text-[15px]"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
+          <div className="-mx-6 flex min-h-0 grow flex-col gap-5 overflow-y-auto px-6">
+            <div className="flex items-start gap-4">
+              <PieceThumb outline={outline} />
+              <div className="flex grow flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <label
+                    htmlFor={`${ids}-name`}
+                    className="text-[13px] font-semibold"
+                  >
+                    Name
+                  </label>
+                  <input
+                    id={`${ids}-name`}
+                    className="h-10 rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white px-2.5 text-[15px]"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
+
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor={`${ids}-place`}
+                className="text-[13px] font-semibold"
+              >
+                Where it goes
+              </label>
+              <PlaceSelect
+                id={`${ids}-place`}
+                value={place}
+                options={{ one: true, pairs: true, on: [], leave: false }}
+                onChange={setPlace}
+              />
+              <span className="text-muted-foreground text-[13px]">
+                {place.startsWith("pair:")
+                  ? "Cut 2 (a pair): the second copy is the mirror image."
+                  : "Cut once."}
+              </span>
+            </div>
+
+            {error && (
+              <p
+                role="alert"
+                className="m-0 rounded-2xl border border-[#F0C9BE] bg-white px-4 py-3 text-[14px] text-[#8A2410]"
+              >
+                {error}
+              </p>
+            )}
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor={`${ids}-place`}
-              className="text-[13px] font-semibold"
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={props.onClose}
+              disabled={busy}
             >
-              Where it goes
-            </label>
-            <PlaceSelect
-              id={`${ids}-place`}
-              value={place}
-              options={{ one: true, pairs: true, on: [], leave: false }}
-              onChange={setPlace}
-            />
-            <span className="text-muted-foreground text-[13px]">
-              {place.startsWith("pair:")
-                ? "Cut 2 (a pair): the second copy is the mirror image."
-                : "Cut once."}
-            </span>
-          </div>
-
-          {error && (
-            <p
-              role="alert"
-              className="m-0 rounded-2xl border border-[#F0C9BE] bg-white px-4 py-3 text-[14px] text-[#8A2410]"
-            >
-              {error}
-            </p>
-          )}
-        </div>
-
-        <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={props.onClose} disabled={busy}>
-            Discard
-          </Button>
-          <Button onClick={() => void add()} disabled={!outline || busy}>
-            {busy ? "Adding…" : "Add piece"}
-          </Button>
-        </DialogFooter>
+              Discard
+            </Button>
+            <Button type="submit" disabled={!outline || busy}>
+              {busy ? "Adding…" : "Add piece"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
