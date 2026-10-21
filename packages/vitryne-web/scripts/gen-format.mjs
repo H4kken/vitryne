@@ -2,7 +2,7 @@
 // Generates the app's view of the file format from docs/format/schema/ (the source of truth):
 //   src/format/schema.gen.ts      TypeScript types of each entity (json-schema-to-typescript)
 //   src/format/validators.gen.js  precompiled validators (Ajv standalone, no eval at run time)
-// usage: node scripts/gen-format.mjs [--check]   --check: fail if the files are stale (./check)
+// usage: node scripts/gen-format.mjs [--check]   --check: fail if the files are stale (make check)
 //
 // Unknown members: the schemas close every object (unevaluatedProperties: false), but readers
 // keep what they don't know (FORMAT.md) and Rust validates the whole document after every edit.

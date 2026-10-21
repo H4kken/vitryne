@@ -67,7 +67,9 @@ function add(file: File, e: Entities, p: { piece: Piece; bounds?: Bounds }) {
 
 describe("drawing pieces", () => {
   it("meshes two rectangles drawn on a blank project, with side seams suggested", () => {
-    const glb = readFileSync(resolve(repo, "packages/vitryne-web/public/avatar/body.glb"));
+    const glb = readFileSync(
+      resolve(repo, "packages/vitryne-web/public/avatar/body.glb"),
+    );
     const file = wasm.VtryFile.new_empty(glb, Date.now(), seed);
     let e = deepFreeze(parseEntities(file.entities()));
     const skirt = (x: number) =>

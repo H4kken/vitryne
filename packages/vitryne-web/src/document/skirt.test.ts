@@ -48,7 +48,9 @@ function build(): { file: File; e: Entities } {
   let n = 0;
   const newId = () =>
     `01a13cdb-dd07-7000-8000-${String(++n).padStart(12, "0")}`;
-  const glb = readFileSync(resolve(repo, "packages/vitryne-web/public/avatar/body.glb"));
+  const glb = readFileSync(
+    resolve(repo, "packages/vitryne-web/public/avatar/body.glb"),
+  );
   const file = wasm.VtryFile.new_empty(
     glb,
     1_792_000_000_000,

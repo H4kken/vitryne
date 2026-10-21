@@ -37,8 +37,8 @@ without checking them against that file, and say so when a request or the plan c
 
 ## Commands
 
-- `./check.sh` is the gate (fmt, clippy native + wasm32, tests, web build, golden drapes, ~1.5 min,
-  needs a GPU); `./check.sh --quick` is Rust only. Run `./check.sh` before every milestone commit.
+- `make check` is the gate (fmt, clippy native + wasm32, tests, web build, golden drapes, ~1.5 min,
+  needs a GPU); `make check-quick` is Rust only. Run `make check` before every milestone commit.
 - `cargo` isn't on the shell `PATH` here: `export PATH="$HOME/.cargo/bin:$PATH"`, also for
   `pnpm run dev` (it rebuilds the wasm).
 - After an intended change to solver behaviour: `packages/vitryne-engine/target/release/vitryne regress --update`, and
@@ -54,7 +54,7 @@ without checking them against that file, and say so when a request or the plan c
   (synthetic DOM events can't capture pointers). Projects save to the backend: test against the
   local stack only (`pnpm run dev --local`), never the hosted project `packages/vitryne-web/.env.local` names.
 - After changing the converter, the importer or a sidecar: `tools/format/build-examples.sh` and
-  commit `assets/examples/` (`./check.sh` diffs them against `vitryne convert`).
+  commit `assets/examples/` (`make check` diffs them against `vitryne convert`).
 
 ## Rules (from the MVP plan, VITRYNE_MVP_PLAN.md, which is not committed; where it conflicts with docs/PATENTS.md, PATENTS.md wins)
 

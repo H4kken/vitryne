@@ -103,7 +103,7 @@ between dragging it and orbiting.
 The UI holds the project as **the file's own JSON**: the entities exactly as Rust's
 `vitryne_format::Entities` gives them, typed by `packages/vitryne-web/src/format/schema.gen.ts`. Those types and
 the validators beside them are generated from `docs/format/schema/` by
-`packages/vitryne-web/scripts/gen-format.mjs`, and `./check` fails if they are stale. Members the editor doesn't
+`packages/vitryne-web/scripts/gen-format.mjs`, and `make check` fails if they are stale. Members the editor doesn't
 know (a newer file's) stay in the JSON, so they survive by construction; Rust keeps their exact
 number spelling across a round trip through JavaScript (`1.0` stays `1.0`).
 
@@ -374,7 +374,7 @@ the real Rust validation.
 
 ## Checking the editor in a browser
 
-`./check` covers the Rust, the TypeScript and the guardrails, but not a real browser with a GPU.
+`make check` covers the Rust, the TypeScript and the guardrails, but not a real browser with a GPU.
 Before a milestone, open the app (`cd packages/vitryne-web && pnpm run dev`) in Chrome and Safari: open each
 example, drag the cloth, edit a fabric value and undo it, see it saved, go offline and edit (the
 title says the changes are kept in this browser), close the tab, and reopen it online: the

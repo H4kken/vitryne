@@ -1,4 +1,4 @@
-# Large binary assets go through Git LFS (CONTRIBUTING.md, "Large files"). ./check rejects any
+# Large binary assets go through Git LFS (CONTRIBUTING.md, "Large files"). `make check` rejects any
 # other tracked file over 1 MiB. Generated data (SDF bakes, bench output) is not committed at all.
 *.glb   filter=lfs diff=lfs merge=lfs -text
 *.blend filter=lfs diff=lfs merge=lfs -text

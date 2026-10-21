@@ -57,7 +57,9 @@ describe("import", () => {
     for (const x of p.pieces)
       expect(decodeChoice(encodeChoice(x.suggestion!))).toEqual(x.suggestion);
     // The body mesh, as the app fetches it (avatar/body.glb), is the examples' avatar part.
-    const glb = readFileSync(resolve(repo, "packages/vitryne-web/public/avatar/body.glb"));
+    const glb = readFileSync(
+      resolve(repo, "packages/vitryne-web/public/avatar/body.glb"),
+    );
     const f = wasm.VtryFile.import_new(
       "tshirt.dxf",
       tshirtDxf,
@@ -108,7 +110,9 @@ describe("import", () => {
     const p = JSON.parse(
       wasm.VtryFile.inspect_dxf("tshirt.dxf", tshirtDxf, ""),
     ) as Preview;
-    const glb = readFileSync(resolve(repo, "packages/vitryne-web/public/avatar/body.glb"));
+    const glb = readFileSync(
+      resolve(repo, "packages/vitryne-web/public/avatar/body.glb"),
+    );
     const f = wasm.VtryFile.import_new(
       "tshirt.dxf",
       tshirtDxf,

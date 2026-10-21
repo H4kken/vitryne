@@ -701,7 +701,7 @@ Converters, not the format:
 
 `vitryne convert <garment.toml> <out.vtry>` (`vitryne-pattern` `convert`) turns a sidecar plus its
 DXF into a project with the test avatar. The three samples in [assets/examples/](../assets/examples/) are its
-output (`tools/format/build-examples.sh`), and `./check.sh` fails if they drift from it. Ids are
+output (`tools/format/build-examples.sh`), and `make check` fails if they drift from it. Ids are
 version 7 from a fixed time and the garment's name, so converting again gives the same file.
 Only the DXF pieces the sidecar uses become pieces (the hoodie's waistband, cuffs, binding and
 pocket facing are left out); `--include-dxf` keeps the DXF as a `source` part.
