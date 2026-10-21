@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Dialog to export the draped garment as glTF 2.0 (.glb) or Wavefront OBJ (.obj + .mtl), its
-// pattern pieces as DXF-AAMA (.dxf, M13; no drape needed), or the whole project as a .vtry file
-// (a backup, or to open in another Vitryne).
+// Dialog to export the draped garment as glTF 2.0 (.glb) or Wavefront OBJ (.obj + .mtl), or the
+// whole project as a .vtry file (a backup, or to open in another Vitryne). No pattern (.dxf)
+// export until seam allowance exists: a DXF of sewing lines isn't ready to cut (the exporter
+// and `vitryne export` stay, docs/RELEASE_REVIEW.md).
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ export interface ExportDialogProps {
   projectFile: () => Promise<ArrayBuffer>;
 }
 
-type ExportFormat = "glb" | "obj" | "dxf" | "vtry";
+type ExportFormat = "glb" | "obj" | "vtry";
 
 function downloadBlob(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
@@ -90,11 +91,6 @@ export function ExportDialog({
   const [includeAvatar, setIncludeAvatar] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** After a DXF export: the file's name and what the export says about it. */
-  const [dxfDone, setDxfDone] = useState<{
-    name: string;
-    notes: string[];
-  } | null>(null);
 
   const cleanName =
     garmentName.trim().replace(/[\\/:*?"<>|]/g, "_") || "garment";
@@ -103,18 +99,7 @@ export function ExportDialog({
     setBusy(true);
     setError(null);
     try {
-      if (format === "dxf") {
-        const { text, notes } = await session.exportDxf();
-        const name = `${cleanName}.dxf`;
-        if (
-          !(await saveAs(name, new Blob([text], { type: "application/dxf" }), {
-            description: "DXF-AAMA pattern",
-            accept: { "application/dxf": [".dxf"] },
-          }))
-        )
-          return;
-        setDxfDone({ name, notes });
-      } else if (format === "vtry") {
+      if (format === "vtry") {
         const type = "application/vnd.vitryne.project+zip";
         if (
           await saveAs(
@@ -157,24 +142,16 @@ export function ExportDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) setDxfDone(null);
-        onOpenChange(o);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[480px] rounded-2xl bg-white p-6 shadow-xl">
         <DialogHeader className="gap-1.5 text-left">
           <DialogTitle className="font-display text-xl font-semibold">
             Export
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-[14px]">
-            {format === "dxf"
-              ? "Export the pattern pieces for cutting and CAD tools."
-              : format === "vtry"
-                ? "Save the whole project as one file, to keep a copy or open it in another Vitryne."
-                : "Export the draped garment at current positions with 2D pattern UVs and fabric materials."}
+            {format === "vtry"
+              ? "Save the whole project as one file, to keep a copy or open it in another Vitryne."
+              : "Export the draped garment at current positions with 2D pattern UVs and fabric materials."}
           </DialogDescription>
         </DialogHeader>
 
@@ -182,7 +159,7 @@ export function ExportDialog({
           {/* Format selection */}
           <div className="flex flex-col gap-2">
             <span className="text-[13px] font-semibold">Format</span>
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#F4F5F2] p-1">
+            <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#F4F5F2] p-1">
               <button
                 type="button"
                 aria-pressed={format === "glb"}
@@ -213,28 +190,8 @@ export function ExportDialog({
               </button>
               <button
                 type="button"
-                aria-pressed={format === "dxf"}
-                onClick={() => {
-                  setFormat("dxf");
-                  setDxfDone(null);
-                }}
-                className={cn(
-                  "flex flex-col items-center justify-center rounded-[9px] py-2.5 px-3 text-center transition-all",
-                  format === "dxf"
-                    ? "bg-white font-semibold shadow-xs text-foreground"
-                    : "text-muted-foreground hover:text-foreground font-medium",
-                )}
-              >
-                <span className="text-[14px]">Pattern (.dxf)</span>
-                <span className="text-[11px] opacity-75">DXF-AAMA</span>
-              </button>
-              <button
-                type="button"
                 aria-pressed={format === "vtry"}
-                onClick={() => {
-                  setFormat("vtry");
-                  setDxfDone(null);
-                }}
+                onClick={() => setFormat("vtry")}
                 className={cn(
                   "flex flex-col items-center justify-center rounded-[9px] py-2.5 px-3 text-center transition-all",
                   format === "vtry"
@@ -270,46 +227,21 @@ export function ExportDialog({
             </div>
           )}
 
-          {/* Details callout (after a DXF export, its notes say the same) */}
-          {!dxfDone && (
-            <div className="rounded-xl border border-[#E5E8E2] bg-[#FAFAF8] p-3.5 text-[13px] leading-relaxed text-[#5A6054]">
-              {format === "vtry" ? (
-                <p className="m-0">
-                  Everything in the project: pieces, seams, fabrics, the avatar
-                  and the view. Open it from the start screen with{" "}
-                  <strong>Import a file</strong>; it becomes a new project.
-                </p>
-              ) : format === "dxf" ? (
-                <p className="m-0">
-                  One block per piece, in <strong>millimetres</strong>. The
-                  outlines are the <strong>sewing lines</strong>: there is no
-                  seam allowance yet, so add it in your CAD tool before cutting.
-                  Pieces cut on the fold are written as a half with a mirror
-                  line.
-                </p>
-              ) : (
-                <p className="m-0">
-                  Coordinates and UVs are in <strong>metres</strong> (+Y up, +Z
-                  facing). Textures map 1:1 to pattern pieces like printed
-                  fabric.
-                </p>
-              )}
-            </div>
-          )}
-
-          {dxfDone && (
-            <div
-              role="status"
-              className="rounded-xl border border-[#E5E8E2] bg-white p-3.5 text-[13px] leading-relaxed"
-            >
-              <p className="m-0 font-semibold">Saved {dxfDone.name}</p>
-              <ul className="m-0 mt-1.5 list-disc pl-5 text-[#5A6054]">
-                {dxfDone.notes.map((n) => (
-                  <li key={n}>{n}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* Details callout */}
+          <div className="rounded-xl border border-[#E5E8E2] bg-[#FAFAF8] p-3.5 text-[13px] leading-relaxed text-[#5A6054]">
+            {format === "vtry" ? (
+              <p className="m-0">
+                Everything in the project: pieces, seams, fabrics, the avatar
+                and the view. Open it from the start screen with{" "}
+                <strong>Import a file</strong>; it becomes a new project.
+              </p>
+            ) : (
+              <p className="m-0">
+                Coordinates and UVs are in <strong>metres</strong> (+Y up, +Z
+                facing). Textures map 1:1 to pattern pieces like printed fabric.
+              </p>
+            )}
+          </div>
 
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] text-red-700">
@@ -319,34 +251,20 @@ export function ExportDialog({
         </div>
 
         <DialogFooter className="mt-2 flex flex-row justify-end gap-2 sm:gap-2">
-          {dxfDone ? (
-            <Button
-              onClick={() => {
-                setDxfDone(null);
-                onOpenChange(false);
-              }}
-              className="min-w-24"
-            >
-              Done
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-                disabled={busy}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => void onExport()}
-                disabled={busy}
-                className="min-w-24"
-              >
-                {busy ? "Exporting…" : "Export"}
-              </Button>
-            </>
-          )}
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={busy}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => void onExport()}
+            disabled={busy}
+            className="min-w-24"
+          >
+            {busy ? "Exporting…" : "Export"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

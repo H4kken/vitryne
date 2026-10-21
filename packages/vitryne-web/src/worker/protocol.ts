@@ -198,11 +198,6 @@ export interface Requests {
     args: { includeAvatar: boolean };
     reply: { obj: string; mtl: string };
   };
-  /** The garment's pieces as DXF-AAMA, from the document (no drape needed), and the export's notes. */
-  exportDxf: {
-    args: Record<string, never>;
-    reply: { text: string; notes: string[] };
-  };
 }
 
 export type Op = keyof Requests;
