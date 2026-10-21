@@ -27,13 +27,14 @@ This page covers the design, running the editor, and developing against a backen
 { "backend": { "url": "https://abcd.supabase.co", "publishableKey": "sb_publishable_…" }, "privacyPolicy": "/privacy.html" }
 ```
 
-Absent, not JSON (a static host answering with `index.html`), or incomplete: the editor shows a
-page saying the instance has no backend, and stops there. The web image writes the file from
+Absent, not JSON (a static host answering with `index.html`), or incomplete: the editor shows a page
+saying the instance has no backend, and stops there. The web image writes the file from
 `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`; any other static host can serve it itself. The
 publishable key (Supabase's replacement for the anon key) only ever goes in the `apikey` header; a
-signed-in person's token goes in `Authorization`. The Supabase client (`packages/vitryne-web/src/cloud/supabase.ts`,
-57 KB gzipped) is a separate chunk, loaded at the first save or open, or at start when the
-browser has a session from an earlier visit: trying an example doesn't download it.
+signed-in person's token goes in `Authorization`. The Supabase client
+(`packages/vitryne-web/src/cloud/supabase.ts`, 57 KB gzipped) is a separate chunk, loaded at the
+first save or open, or at start when the browser has a session from an earlier visit: trying an
+example doesn't download it.
 
 The browser talks to Supabase directly (another origin): Supabase answers with CORS headers, and
 a CORS fetch is allowed under the editor's cross-origin isolation (COEP).
@@ -43,17 +44,18 @@ a CORS fetch is allowed under the editor's cross-origin isolation (COEP).
 Plug and go, like Twenty's self-hosting: one container.
 
 ```sh
-docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d --build    # then open http://localhost:8000
+docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d --build
+# then open http://localhost:8000
 ```
 
-`packages/vitryne-cloud/deploy/docker-compose.yml` runs one service, `web`: Caddy serving the editor with its isolation
-headers (`packages/vitryne-cloud/deploy/web/`). It builds the editor from this checkout (target `from-source`: wasm, the
-examples and their SDFs on the CPU, the Vite build): ~10 GB of Docker disk, ~4 GB of memory and
-10-20 minutes the first time; later builds reuse what didn't change. **To update:** `git pull`,
-then the same command.
+`packages/vitryne-cloud/deploy/docker-compose.yml` runs one service, `web`: Caddy serving the editor
+with its isolation headers (`packages/vitryne-cloud/deploy/web/`). It builds the editor from this
+checkout (target `from-source`: wasm, the examples and their SDFs on the CPU, the Vite build): ~10
+GB of Docker disk, ~4 GB of memory and 10-20 minutes the first time; later builds reuse what didn't
+change. **To update:** `git pull`, then the same command.
 
-Settings go in `packages/vitryne-cloud/deploy/.env` (copy `.env.example`). The backend's two are required: without them
-the container logs why and stops.
+Settings go in `packages/vitryne-cloud/deploy/.env` (copy `.env.example`). The backend's two are
+required: without them the container logs why and stops.
 
 | Setting | What |
 |---|---|
@@ -69,14 +71,17 @@ twice.
 **A server too small to build:** build on your machine and copy the image over, no registry:
 
 ```sh
-(cd packages/vitryne-web && pnpm run build) && docker build --platform linux/amd64 -f packages/vitryne-cloud/deploy/web/Dockerfile --target from-dist -t vitryne-web .
+make build
+docker build --platform linux/amd64 -f packages/vitryne-cloud/deploy/web/Dockerfile \
+  --target from-dist -t vitryne-web .
 docker save vitryne-web | ssh you@server docker load
-ssh you@server 'cd vitryne && docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d --no-build'
+ssh you@server 'cd vitryne &&
+  docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d --no-build'
 ```
 
 **On Coolify:** create a *Docker Compose* resource from this repository's
-`packages/vitryne-cloud/deploy/docker-compose.yml`, give the `web` service your domain (port 80), keep
-`SITE_ADDRESS=:80` (Coolify's proxy does HTTPS), and set the variables above.
+`packages/vitryne-cloud/deploy/docker-compose.yml`, give the `web` service your domain (port 80),
+keep `SITE_ADDRESS=:80` (Coolify's proxy does HTTPS), and set the variables above.
 
 ## Setting up the backend
 
@@ -92,9 +97,10 @@ has no backups, so use Pro for a public instance):
    secret here. The editor shows *Continue with Google* only when it is on.
 3. **Authentication, Emails:** connect an SMTP provider (Supabase's own sender only reaches the
    project's team, a few emails an hour; Resend or Brevo have free tiers). Every email carries a
-   link: the default templates work. `packages/vitryne-cloud/supabase/templates/*.html` say the same in Vitryne's words,
-   to paste into *Change email address* (what confirms a new account), *Confirm signup* and
-   *Reset password* if you like (subjects in `packages/vitryne-cloud/supabase/config.toml`).
+   link: the default templates work. `packages/vitryne-cloud/supabase/templates/*.html` say the same
+   in Vitryne's words, to paste into *Change email address* (what confirms a new account), *Confirm
+   signup* and *Reset password* if you like (subjects in
+   `packages/vitryne-cloud/supabase/config.toml`).
 4. **Authentication, URL configuration:** the site URL and the redirect URLs are the editor's
    address (Google and the email links come back there).
 5. **Limits** (optional): `update vitryne_private.limits set quota_bytes = …, max_projects = …,
@@ -126,31 +132,34 @@ same steps (the settings are environment variables there, `GOTRUE_*`).
 Like Twenty's local setup: the app runs natively, its backend in Docker.
 
 ```sh
-cd packages/vitryne-web
-pnpm run dev              # starts the local Supabase stack if needed, then the editor against it
-pnpm run dev --local      # the same, even when packages/vitryne-web/.env.local names another backend (tests)
-pnpm run dev:app          # the dev server alone: the bench page, no backend
+make dev                  # starts the local Supabase stack if needed, then the editor against it
+make dev ARGS=--local     # the same, even when packages/vitryne-web/.env.local names another
+                          # backend (tests)
+make dev-app              # the dev server alone: the bench page, no backend
 ```
 
-The local stack (`packages/vitryne-cloud/supabase/config.toml`, started by the Supabase CLI pinned in `packages/vitryne-web/`) is
-Postgres, Auth, the REST API, Storage and Edge Functions (`packages/vitryne-cloud/supabase/functions/`, served as they are
-edited; the cleanup secret is `local-cleanup-secret`), plus:
+The local stack (`packages/vitryne-cloud/supabase/config.toml`, started by the Supabase CLI pinned
+in `packages/vitryne-web/`; run `pnpm run supabase …` there) is Postgres, Auth, the REST API,
+Storage and Edge Functions (`packages/vitryne-cloud/supabase/functions/`, served as they are edited;
+the cleanup secret is `local-cleanup-secret`), plus:
 
 - **Studio**, the Supabase dashboard: http://127.0.0.1:54323
 - **Mailpit**, every email Auth sends (the codes): http://127.0.0.1:54324
 - Postgres on `127.0.0.1:54322` (user and password `postgres`) for your own SQL tools.
 
-It applies `packages/vitryne-cloud/supabase/migrations/` on start; `pnpm run supabase db reset` starts the database over.
-Realtime and analytics are off (the editor uses neither). The first start
+It applies `packages/vitryne-cloud/supabase/migrations/` on start; `pnpm run supabase db reset`
+starts the database over. Realtime and analytics are off (the editor uses neither). The first start
 downloads ~4 GB of images. `pnpm run supabase stop` stops it.
 
 Against any other project (your hosted one, say): put `SUPABASE_URL=…` and
-`SUPABASE_PUBLISHABLE_KEY=…` in `packages/vitryne-web/.env.local` (git-ignored), then `pnpm run dev`; it uses that
-one instead of starting the local stack. **Tests never run against it**: use `--local`. The dev
-server says which backend it serves when it starts. `packages/vitryne-cloud/deploy/.env` is only for the container.
-For Google sign-in in development, add `http://localhost:5173` to the project's redirect URLs.
+`SUPABASE_PUBLISHABLE_KEY=…` in `packages/vitryne-web/.env.local` (git-ignored), then `make dev`; it
+uses that one instead of starting the local stack. **Tests never run against it**: use
+`ARGS=--local`. The dev server says which backend it serves when it starts.
+`packages/vitryne-cloud/deploy/.env` is only for the container. For Google sign-in in development,
+add `http://localhost:5173` to the project's redirect URLs.
 
-**A schema change** is a new file in `packages/vitryne-cloud/supabase/migrations/` (`pnpm run supabase migration new
+**A schema change** is a new file in `packages/vitryne-cloud/supabase/migrations/` (`pnpm run
+supabase migration new
 <name>`), tested locally with `db reset` and `packages/vitryne-cloud/tests/`, then pushed (or applied by the web
 container at its next start).
 
@@ -192,12 +201,12 @@ with their draft.
   already has a Vitryne account, the editor says so on return and offers to sign in to it
   instead.
 
-**Reaching an existing account from an anonymous session** (signing in, an email already taken,
-or a Google account that has one): the editor keeps the anonymous session's token (across the
-Google redirect, in `sessionStorage`), signs in, copies the draft to the account
-(`moveProjects` in `packages/vitryne-web/src/cloud/projects.ts`; an open draft follows its new id and keeps
-saving), then deletes the anonymous user. A draft that fails to copy stays with the anonymous
-user, which is then kept.
+**Reaching an existing account from an anonymous session** (signing in, an email already taken, or a
+Google account that has one): the editor keeps the anonymous session's token (across the Google
+redirect, in `sessionStorage`), signs in, copies the draft to the account (`moveProjects` in
+`packages/vitryne-web/src/cloud/projects.ts`; an open draft follows its new id and keeps saving),
+then deletes the anonymous user. A draft that fails to copy stays with the anonymous user, which is
+then kept.
 
 ## Storage
 
@@ -220,17 +229,18 @@ As [FORMAT.md](FORMAT.md#cloud-storage) planned: **the same format on disk and i
 - **A save names the revision it started from.** If the project was saved from another browser
   since, nothing changes and the editor asks: open the other version, or keep this one (an
   account keeps it as a copy).
-- **Autosave** (`packages/vitryne-web/src/cloud/autosave.ts`): about 2 s after the last edit Rust accepted, and when
-  the tab is hidden. A new project is made at the first edit (an import counts), not when an
-  example is merely opened; an anonymous user's new project goes over their draft. A failed save
-  is retried (5 s, doubling, up to a minute) while the recovery copy keeps the changes in the
-  browser; at the next start a copy nobody saved over since is put back and saved.
-- **One tab per project** in a browser (Web Locks, `packages/vitryne-web/src/cloud/lock.ts`): a second tab asks
-  before taking the project over, and the first is told.
+- **Autosave** (`packages/vitryne-web/src/cloud/autosave.ts`): about 2 s after the last edit Rust
+  accepted, and when the tab is hidden. A new project is made at the first edit (an import counts),
+  not when an example is merely opened; an anonymous user's new project goes over their draft. A
+  failed save is retried (5 s, doubling, up to a minute) while the recovery copy keeps the changes
+  in the browser; at the next start a copy nobody saved over since is put back and saved.
+- **One tab per project** in a browser (Web Locks, `packages/vitryne-web/src/cloud/lock.ts`): a
+  second tab asks before taking the project over, and the first is told.
 - **An open** downloads the manifest's parts and checks every hash before the worker sees them.
 - **Downloading:** *Export… → Project (.vtry)*, or a card's menu, saves one project as a file (an
   account); *Download all my data* (Privacy) zips every project as a `.vtry`
-  (`packages/vitryne-web/src/cloud/zip.ts`, stored entries, `mimetype` first). Rust opens either like any file.
+  (`packages/vitryne-web/src/cloud/zip.ts`, stored entries, `mimetype` first). Rust opens either
+  like any file.
 - **Unused parts** (no project of the person's lists them or names them as its thumbnail, and
   older than a day, since another tab may be mid-save) are deleted after each save.
 
@@ -267,14 +277,15 @@ it. A user whose parts fail to go is kept for the next run.
 **Keys:** the editor only ever gets the anon (publishable) key, which grants nothing without a
 user. The service-role key and the database password stay with the operator.
 
-**Tests** (`packages/vitryne-cloud/tests/rls.test.mjs`): with two anonymous users A and B, B can't read, list,
-change, delete or forge A's projects, and can't read, list, upload into, overwrite or delete A's
-parts; the anon key alone reaches nothing; parts are immutable and must be named by their hash;
-the server keeps owner, dates and revision, and a stale revision changes nothing; the quota and
-the project limit refuse; an anonymous user keeps one draft and an account several; account deletion is refused while parts remain, then removes the user
-and their projects and leaves B alone. `packages/vitryne-cloud/tests/cleanup.test.mjs`: the cleanup function
-refuses a call without its secret, deletes an anonymous user idle for 31 days with their draft
-and parts, and keeps one idle for 29 days and an idle account.
+**Tests** (`packages/vitryne-cloud/tests/rls.test.mjs`): with two anonymous users A and B, B can't
+read, list, change, delete or forge A's projects, and can't read, list, upload into, overwrite or
+delete A's parts; the anon key alone reaches nothing; parts are immutable and must be named by their
+hash; the server keeps owner, dates and revision, and a stale revision changes nothing; the quota
+and the project limit refuse; an anonymous user keeps one draft and an account several; account
+deletion is refused while parts remain, then removes the user and their projects and leaves B alone.
+`packages/vitryne-cloud/tests/cleanup.test.mjs`: the cleanup function refuses a call without its
+secret, deletes an anonymous user idle for 31 days with their draft and parts, and keeps one idle
+for 29 days and an idle account.
 
 ## Privacy
 
@@ -295,33 +306,39 @@ and parts, and keeps one idle for 29 days and an idle account.
   `account.json`: art. 15 and 20), *Delete my account* (parts through the storage API so the files
   go too, then the user and their projects: art. 17). Correction or objection: by email to the
   operator.
-- **Privacy policy:** `packages/vitryne-cloud/deploy/web/privacy.html`, at `/privacy.html` with the operator's details,
-  linked from the account dialog. A draft to review for each instance. On hosted Supabase,
-  Supabase processes the data for the operator: sign its DPA, and say so in the policy.
+- **Privacy policy:** `packages/vitryne-cloud/deploy/web/privacy.html`, at `/privacy.html` with the
+  operator's details, linked from the account dialog. A draft to review for each instance. On hosted
+  Supabase, Supabase processes the data for the operator: sign its DPA, and say so in the policy.
 
 ## Checking
 
 No CI, so documented checks instead:
 
 ```sh
-node --test 'packages/vitryne-cloud/tests/*.test.mjs'     # the backend: RLS, accounts and the cleanup function, on
-                                         # the local stack (or SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
-                                         # MAILPIT_URL, CLEANUP_SECRET)
-packages/vitryne-cloud/deploy/smoke.sh                          # the web image (built from this machine's packages/vitryne-web/dist):
-                                         # refuses to start without a backend, then on the local
-                                         # stack with migrations at start, then the tests above
-node packages/vitryne-cloud/tests/browser.mjs cloud <url> # real Chrome (`pnpm run dev --local`): A's edit is
-                                         # autosaved as a draft (offline, then back), a second tab
-                                         # takes it over and back, Export asks for an account, a
-                                         # second example asks before replacing the draft, A
-                                         # creates an account and duplicates; B (a fresh profile)
-                                         # signs in and opens the original
-node packages/vitryne-cloud/tests/browser.mjs none <url>  # a build with no config.json: the no-backend page
+make cloud-test       # the web image (built from this machine's packages/vitryne-web/dist):
+                      # refuses to start without a backend, then on the local stack with
+                      # migrations at start; then the backend tests: RLS, accounts, the cleanup
+                      # function and thumbnails (packages/vitryne-cloud/tests/*.test.mjs; on the
+                      # local stack, or SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, MAILPIT_URL,
+                      # CLEANUP_SECRET)
+```
+
+Real Chrome:
+
+```sh
+node packages/vitryne-cloud/tests/browser.mjs cloud <url>
+    # (`make dev ARGS=--local`): A's edit is autosaved as a draft (offline, then back), a second
+    # tab takes it over and back, Export asks for an account, a second example asks before
+    # replacing the draft, A creates an account and duplicates; B (a fresh profile) signs in
+    # and opens the original
+node packages/vitryne-cloud/tests/browser.mjs none <url>
+    # a build with no config.json: the no-backend page
 ```
 
 ## Not done yet
 
-- **A refactor before the MVP release** (see docs/PROGRESS.md, M12): a trimmed `packages/vitryne-cloud/supabase/config.toml`, versioning the web image.
+- **A refactor before the MVP release** (see [PROGRESS.md](PROGRESS.md), M12): a trimmed
+  `packages/vitryne-cloud/supabase/config.toml`, versioning the web image.
 - **Sharing a project** with someone else, and real-time editing together: the reason projects
   stay in the cloud. Until then one tab edits a project at a time, and another browser's save is
   a conflict the person settles.

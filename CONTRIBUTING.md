@@ -46,31 +46,41 @@ there when you add an asset.
   `tools/`)
 - A GPU with Metal, Vulkan or DX12 for the native build, and a browser with WebGPU for the web
   build
+- `make` (on Windows, WSL or Git Bash)
+
+Everything runs from the repository root through the [Makefile](Makefile); `make` lists the
+targets. The code is in three packages, each with a README:
+[packages/vitryne-engine](packages/vitryne-engine/) (the Rust workspace: solver, renderer, file
+format, patterns, wasm build, CLI), [packages/vitryne-web](packages/vitryne-web/) (the editor)
+and [packages/vitryne-cloud](packages/vitryne-cloud/) (the backend and the web image).
 
 **Native:**
 
 ```sh
-cargo run -p vitryne-cli --release -- bench --garment assets/examples/tshirt.vtry --verts 10000
-cargo run -p vitryne-cli --release -- view --garment assets/examples/tshirt.vtry
+make cli
+packages/vitryne-engine/target/release/vitryne bench --garment assets/examples/tshirt.vtry --verts 10000
+packages/vitryne-engine/target/release/vitryne view --garment assets/examples/tshirt.vtry
 ```
 
-The first run bakes the body SDF (about 1–2 s) and caches it in `packages/vitryne-engine/target/sdf-cache/`.
+Run the binary from the repository root: its default paths are relative to it. The first run
+bakes the body SDF (about 1–2 s) and caches it in `packages/vitryne-engine/target/sdf-cache/`.
+`cargo` itself runs in `packages/vitryne-engine/`.
 
 **Browser:**
 
 ```sh
-cd packages/vitryne-web
-pnpm install --frozen-lockfile
-pnpm run dev        # starts a local Supabase (Docker), builds the wasm, exports the examples and SDFs,
-                    # serves http://localhost:5173 (`--local`: that Supabase even if packages/vitryne-web/.env.local names another)
-pnpm run dev:app    # the same without a backend: enough for the bench page
-pnpm run build      # production build in packages/vitryne-web/dist
-pnpm run check      # format types up to date, tsc, eslint, vitest (needs `pnpm run wasm` and `pnpm run assets` once)
+make setup          # first run: pnpm install, the wasm, the examples and their SDFs
+make dev            # starts a local Supabase (Docker) and serves http://localhost:5173
+                    # (ARGS=--local: that Supabase even if packages/vitryne-web/.env.local names another)
+make dev-app        # the same without a backend: enough for the bench page
+make build          # production build in packages/vitryne-web/dist
+make test           # cargo test, then format types up to date, tsc, eslint, vitest
 ```
 
-The editor (`packages/vitryne-web/`) is TypeScript, React, Tailwind and shadcn/ui; how it is built, and the
-rules it follows, are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). After changing
-`docs/format/schema/`, run `pnpm run gen:format` to regenerate the types and validators.
+The editor (`packages/vitryne-web/`) is TypeScript, React, Tailwind and shadcn/ui; how it is
+built, and the rules it follows, are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). After
+changing `docs/format/schema/`, run `pnpm run gen:format` in `packages/vitryne-web/` to
+regenerate the types and validators.
 
 The app needs cross-origin isolation, so whatever serves it must send two headers (the dev
 server and `vite preview` already do); [docs/HOSTING.md](docs/HOSTING.md) has them for nginx,
@@ -88,22 +98,24 @@ make check            # everything: about 1–2 minutes once the caches are warm
 make check-quick      # Rust only: fmt, clippy (native and wasm32), tests
 ```
 
-It checks:
+It checks, one step after another (each is also a target of its own: `make hygiene`,
+`make lint`, `make regress`, ...):
 - SPDX headers, and that no file over 1 MiB is committed outside Git LFS;
-- `cargo fmt --check`;
+- `cargo fmt --check`, and prettier on the editor;
 - `cargo clippy -D warnings`, natively and for wasm32;
 - `cargo test` (including the worker's open, edit, undo, save path on the three examples);
 - the app: the wasm build, the production bundle, the format types and validators up to date with
   `docs/format/schema/`, `tsc`, eslint, and vitest (commands and guardrails, and random edit
   sessions, pattern tools included, checked against the worker's Rust after every step);
-- that `assets/examples/` is what `vitryne convert` writes;
-- the golden regression suite on your GPU (`vitryne regress`): the three sample garments and a
-  skirt drawn in the editor (`packages/vitryne-engine/tests/skirt.vtry`) at 10k vertices, 600 frames, compared with `packages/vitryne-engine/tests/` on rest frame, final shape (0.5 mm;
+- that `assets/examples/` is what `vitryne convert` writes (`make examples` rewrites them);
+- the golden regression suite on your GPU (`make regress`): the three sample garments and a
+  skirt drawn in the editor (`packages/vitryne-engine/tests/skirt.vtry`) at 10k vertices, 600
+  frames, compared with `packages/vitryne-engine/tests/` on rest frame, final shape (0.5 mm;
   20 mm for the hoodie, whose neck junction is chaotic), penetration, self-intersections, edge
-  strain and seam gap. After an intended change, re-record with
-  `packages/vitryne-engine/target/release/vitryne regress --update` and explain the difference in the commit message. The
-  skirt's file is made by the editor's own commands (`packages/vitryne-web/src/document/skirt.test.ts`, which
-  fails if the file differs); after an intended change to them, re-record it with
+  strain and seam gap. After an intended change, re-record with `make regress-update` and
+  explain the difference in the commit message. The skirt's file is made by the editor's own
+  commands (`packages/vitryne-web/src/document/skirt.test.ts`, which fails if the file
+  differs); after an intended change to them, re-record it with
   `SKIRT_UPDATE=1 pnpm exec vitest run src/document/skirt.test.ts` in `packages/vitryne-web/`.
 
 ## Rules for engine changes

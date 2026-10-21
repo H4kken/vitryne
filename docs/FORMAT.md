@@ -1,10 +1,10 @@
 # The Vitryne file format, version 3
 
 **Status: approved design (MVP milestone M4, 2026-10-13), implemented in M5 by
-[packages/vitryne-engine/format](../packages/vitryne-engine/format/) (reading, writing, validation, migrations) and
-`vitryne-pattern` (`project`: a file to the engine; `convert`: `garment.toml` + DXF to a file).
-Version 2 (2026-10-16) adds [appearances](#appearance) (fabric colour); a version 1 file is a
-valid version 2 file. Version 3 (2026-10-18) lets a [fabric](#fabric) name its default
+[packages/vitryne-engine/format](../packages/vitryne-engine/format/) (reading, writing, validation,
+migrations) and `vitryne-pattern` (`project`: a file to the engine; `convert`: `garment.toml` + DXF
+to a file). Version 2 (2026-10-16) adds [appearances](#appearance) (fabric colour); a version 1 file
+is a valid version 2 file. Version 3 (2026-10-18) lets a [fabric](#fabric) name its default
 appearance, and a fabric file carry the appearances its fabrics use; a version 2 file is a valid
 version 3 file.**
 
@@ -700,11 +700,12 @@ Converters, not the format:
 ## From garment.toml
 
 `vitryne convert <garment.toml> <out.vtry>` (`vitryne-pattern` `convert`) turns a sidecar plus its
-DXF into a project with the test avatar. The three samples in [assets/examples/](../assets/examples/) are its
-output (`tools/format/build-examples.sh`), and `make check` fails if they drift from it. Ids are
-version 7 from a fixed time and the garment's name, so converting again gives the same file.
-Only the DXF pieces the sidecar uses become pieces (the hoodie's waistband, cuffs, binding and
-pocket facing are left out); `--include-dxf` keeps the DXF as a `source` part.
+DXF into a project with the test avatar. The three samples in
+[assets/examples/](../assets/examples/) are its output (`tools/format/build-examples.sh`), and `make
+check` fails if they drift from it. Ids are version 7 from a fixed time and the garment's name, so
+converting again gives the same file. Only the DXF pieces the sidecar uses become pieces (the
+hoodie's waistband, cuffs, binding and pocket facing are left out); `--include-dxf` keeps the DXF as
+a `source` part.
 
 | `garment.toml` | Vitryne file |
 |---|---|
@@ -744,13 +745,13 @@ Y = 11,547 N/m; the trousers' k = 10⁶ N/m becomes 1.155 × 10⁶ N/m. These ar
 placeholders under a physical name, not calibrated values (M9 does that).
 
 **The T-shirt, worked through:** 3 pieces (front and back cut on the fold, unfolded with 12 nodes
-each; sleeve with 6 nodes plus the cap-top `point`), 4 cuts (the left sleeve mirrored),
-10 seams. The sidecar's `side_r` (`a = "front:10-11"`, `b = "back:1-2"`, `reverse = true`)
-becomes side a "front, underarm right → hem right side, ccw", side b "back, underarm right → hem
-right side, cw". See [the example](../assets/examples/tshirt.vtry/). (The M4 example was written by a
-script by hand and had one seam wrong: its "left armhole, back" ran counter-clockwise from the
-underarm to the shoulder tip, the long way round the back. The converter writes what the sidecar
-says, shoulder tip to underarm.)
+each; sleeve with 6 nodes plus the cap-top `point`), 4 cuts (the left sleeve mirrored), 10 seams.
+The sidecar's `side_r` (`a = "front:10-11"`, `b = "back:1-2"`, `reverse = true`) becomes side a
+"front, underarm right → hem right side, ccw", side b "back, underarm right → hem right side, cw".
+See [the example](../assets/examples/tshirt.vtry/). (The M4 example was written by a script by hand
+and had one seam wrong: its "left armhole, back" ran counter-clockwise from the underarm to the
+shoulder tip, the long way round the back. The converter writes what the sidecar says, shoulder tip
+to underarm.)
 
 ## Cloud storage
 

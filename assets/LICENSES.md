@@ -15,9 +15,9 @@ under the AGPL like the code.
 placement sidecars, `body/measurements.json` (measured on the CC0 mesh by
 `tools/patterns/measure.py`), `body/convert.py`, and the READMEs.
 
-**Generated, not in the repository:** the body SDFs (`packages/vitryne-engine/target/sdf-cache/`, `packages/vitryne-web/public/sdf/`,
-`packages/vitryne-web/public/bench-assets/`) are baked from the CC0 mesh at build time by `vitryne
-export-app-assets` and `vitryne export-bench-assets`.
+**Generated, not in the repository:** the body SDFs (`packages/vitryne-engine/target/sdf-cache/`,
+`packages/vitryne-web/public/sdf/`, `packages/vitryne-web/public/bench-assets/`) are baked from the
+CC0 mesh at build time by `vitryne export-app-assets` and `vitryne export-bench-assets`.
 
 **Build-time dependencies, not in the repository:** `tools/patterns` drafts the DXFs with the
 FreeSewing npm packages (MIT). Rust crates and npm packages are fetched by `cargo` and `pnpm`

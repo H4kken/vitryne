@@ -49,11 +49,11 @@ Vitryne gives indie creators, small and established clothing brands the tool the
 
 # Installation
 
-### <img src="./app/public/images/cloud.svg" width="14" height="14"/> Cloud
+### <img src="./packages/vitryne-web/public/images/cloud.svg" width="14" height="14"/> Cloud
 
 The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryne.app) and start creating in under a minute, with no infrastructure to manage and always up to date.
 
-### <img src="./app/public/images/server.svg" width="14" height="14"/> Self-hosting
+### <img src="./packages/vitryne-web/public/images/server.svg" width="14" height="14"/> Self-hosting
 
 Guide coming soon...
 
@@ -76,17 +76,17 @@ your browser or device has no WebGPU, Vitryne shows a page explaining what's mis
 
 # Development & Contributing
 
-### <img src="./app/public/images/stack.svg" width="14" height="14"/> Tech Stack
+### <img src="./packages/vitryne-web/public/images/stack.svg" width="14" height="14"/> Tech Stack
 
 - 🦀 <a href="https://rust-lang.org/">Rust</a>
-- <img src="./app/public/images/typescript.svg" width="14" height="14"/> <a href="https://www.typescriptlang.org/">TypeScript</a> with <img src="./app/public/images/vite.svg" width="14" height="14"/> <a href="https://vite.dev/">Vite</a> & <img src="./app/public/images/react.svg" width="14" height="14"/> <a href="https://react.dev/">React</a>
-- <img src="./app/public/images/supabase.svg" width="14" height="14"/> <a href="https://supabase.com/">Supabase</a>
+- <img src="./packages/vitryne-web/public/images/typescript.svg" width="14" height="14"/> <a href="https://www.typescriptlang.org/">TypeScript</a> with <img src="./packages/vitryne-web/public/images/vite.svg" width="14" height="14"/> <a href="https://vite.dev/">Vite</a> & <img src="./packages/vitryne-web/public/images/react.svg" width="14" height="14"/> <a href="https://react.dev/">React</a>
+- <img src="./packages/vitryne-web/public/images/supabase.svg" width="14" height="14"/> <a href="https://supabase.com/">Supabase</a>
 
-### <img src="./app/public/images/handshake.svg" width="14" height="14"/> Contributing
+### <img src="./packages/vitryne-web/public/images/handshake.svg" width="14" height="14"/> Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, code formatting, and sign-off rules.
 
-### <img src="./app/public/images/scroll-text.svg" width="14" height="14"/> Prerequisites
+### <img src="./packages/vitryne-web/public/images/scroll-text.svg" width="14" height="14"/> Prerequisites
 
 - Rust 1.85+ with `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
 - `wasm-bindgen-cli` 0.2.129: `cargo install wasm-bindgen-cli --version 0.2.129`

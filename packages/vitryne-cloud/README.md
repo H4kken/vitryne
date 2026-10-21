@@ -1,0 +1,32 @@
+# vitryne-cloud
+
+Where Vitryne projects live and how it is served: the Supabase backend and the web image.
+
+| Folder | What |
+|---|---|
+| [supabase/](supabase/) | The schema (`migrations/`: projects, parts bucket, row-level security, limits, anonymous drafts), the `clean-anonymous` Edge Function, the email templates, and `config.toml` for the local stack. |
+| [deploy/](deploy/) | The `web` image (Caddy serving the editor, migrations at start) and the plug-and-go `docker-compose.yml`; `smoke.sh` checks the image. |
+| [tests/](tests/) | Backend tests (RLS, accounts, cleanup, thumbnails) and `browser.mjs`, which drives real Chrome. |
+
+How it fits together, privacy and self-hosting: [docs/CLOUD.md](../../docs/CLOUD.md).
+
+## Run and check
+
+From the repository root:
+
+```sh
+make dev                     # the editor against the local Supabase stack (Docker), started if needed
+make cloud-test              # the web image's smoke test, then the backend tests (Docker)
+docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d --build   # self-host
+```
+
+The Supabase CLI is pinned in [vitryne-web](../vitryne-web/): `pnpm run supabase …` there uses
+this folder as its workdir (Studio on :54323, emails on :54324). A schema change is a new file
+in `supabase/migrations/` (`pnpm run supabase migration new <name>`), tested with
+`pnpm run supabase db reset` and `make cloud-test`.
+
+Never send telemetry or an identifier that counts people (docs/CLOUD.md, Privacy).
+
+## Who to ask
+
+Mathis Grimberg, the maintainer; open an issue on [GitHub](https://github.com/H4kken/vitryne/issues).

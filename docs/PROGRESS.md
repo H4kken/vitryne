@@ -1261,3 +1261,29 @@ folds and grain, and this wrap-up.
   browser run).
 - Later (plan): symmetric editing, seam allowance (`VTRY_seam_allowance`), arcs, fitting a
   smooth curve to imported polylines.
+
+## Repository layout (2026-10-21, waiting for review)
+
+Four commits, `make check` after each (apart from the hygiene step, below):
+
+| Step | What |
+|---|---|
+| Rename | `drape-core` → `vitryne-solver`, `drape-render` → `vitryne-render`, `drape-assets` → `vitryne-pattern`, `drape-web` → `vitryne-wasm`, `drape-native` → `vitryne-cli`; the binary `drape` → `vitryne`. The examples' manifests change only in `generator`. |
+| Move | The Rust workspace into `packages/vitryne-engine/` (`solver/`, `render/`, `format/`, `pattern/`, `wasm/`, `cli/`, `tests/` with the goldens, its own `target/`), the editor into `packages/vitryne-web/`, `supabase/`, `deploy/` and `tests/cloud/` into `packages/vitryne-cloud/`, `examples/` into `assets/examples/`, this file into `docs/`. One pnpm workspace at the root (the lockfile moved as is). The `vitryne` binary runs from the repository root, where its default paths point. |
+| Makefile | Replaces `check.sh`: `make check` and `make check-quick` run the same steps in the same order (compared once with the old script: same output apart from timings), plus a prettier check of the editor; the hygiene and examples steps are in `tools/check/`. `make` lists the targets. |
+| Docs | A README per package (what it is, how to build it, who to ask); CLAUDE.md, CONTRIBUTING.md and docs/ use `make` and the new paths. |
+
+### Numbers
+
+- Same tests before and after: 85 Rust (4 ignored), 121 vitest; the four goldens at 0.00 mm.
+
+### Open items
+
+- **Your review.**
+- `make check` stops at the hygiene step: four GIFs in `docs/media/` (2.7–7.0 MB, from
+  `7aef563`) are over 1 MiB outside Git LFS. That predates this work and is left for you to
+  decide (LFS, smaller GIFs, or a rule change).
+- Not run: the web image's Docker build (`make cloud-test`) and the backend tests, which need
+  Docker and the local Supabase stack; the Supabase CLI finds its project at the new workdir.
+- rust-analyzer finds the workspace in `packages/vitryne-engine/` only if the editor opens that
+  folder or is told where it is (`rust-analyzer.linkedProjects`).

@@ -38,7 +38,8 @@ worker, or from ticks the UI sends where workers lack it.
 
 ### Routes
 
-Each URL has its own screen (`packages/vitryne-web/src/router.tsx`, `packages/vitryne-web/src/routes/`):
+Each URL has its own screen (`packages/vitryne-web/src/router.tsx`,
+`packages/vitryne-web/src/routes/`):
 
 | URL | Screen |
 |---|---|
@@ -70,19 +71,18 @@ handlers, the drawing components).
 ### Look
 
 The editor follows the "Vitryne editor concept" design canvas (claude.ai artifact
-`Ci1MyouGsSDARsvNGrZ7WM`): a start screen like a design tool's home (a Create row: import a file and the
-examples; then the person's projects as cards with a thumbnail of the drape), then a top bar, an icon rail
-that opens one panel at a time, and one canvas showing either the 3D drape or the flat pieces,
-with a status pill, a hint, zoom and a floating tool bar. Its colours, radii and type are the
-tokens in `packages/vitryne-web/src/index.css` (light only); the fonts, Bricolage Grotesque and DM Sans (OFL),
-are bundled from `@fontsource`, never fetched from another site. The 3D scene's colours go to
-the renderer as a `vitryne_render::Style`; a garment or piece with a colour (an appearance,
-FORMAT.md) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour edits
-don't re-drape: after every document update the worker calls `Viewport::set_looks`, which
-recolours the drape shown and its export materials. The 3D tool bar has the concept's Select,
-Turn view and Pinch fabric; the flat one its Select and Move, then the pattern tools (M14,
-below) and Sew. Parts of the concept that belong to later milestones (print, fit, share) are not
-built yet.
+`Ci1MyouGsSDARsvNGrZ7WM`): a start screen like a design tool's home (a Create row: import a file and
+the examples; then the person's projects as cards with a thumbnail of the drape), then a top bar, an
+icon rail that opens one panel at a time, and one canvas showing either the 3D drape or the flat
+pieces, with a status pill, a hint, zoom and a floating tool bar. Its colours, radii and type are
+the tokens in `packages/vitryne-web/src/index.css` (light only); the fonts, Bricolage Grotesque and
+DM Sans (OFL), are bundled from `@fontsource`, never fetched from another site. The 3D scene's
+colours go to the renderer as a `vitryne_render::Style`; a garment or piece with a colour (an
+appearance, FORMAT.md) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour
+edits don't re-drape: after every document update the worker calls `Viewport::set_looks`, which
+recolours the drape shown and its export materials. The 3D tool bar has the concept's Select, Turn
+view and Pinch fabric; the flat one its Select and Move, then the pattern tools (M14, below) and
+Sew. Parts of the concept that belong to later milestones (print, fit, share) are not built yet.
 
 ### Worker protocol
 
@@ -101,11 +101,11 @@ between dragging it and orbiting.
 ### Document model
 
 The UI holds the project as **the file's own JSON**: the entities exactly as Rust's
-`vitryne_format::Entities` gives them, typed by `packages/vitryne-web/src/format/schema.gen.ts`. Those types and
-the validators beside them are generated from `docs/format/schema/` by
-`packages/vitryne-web/scripts/gen-format.mjs`, and `make check` fails if they are stale. Members the editor doesn't
-know (a newer file's) stay in the JSON, so they survive by construction; Rust keeps their exact
-number spelling across a round trip through JavaScript (`1.0` stays `1.0`).
+`vitryne_format::Entities` gives them, typed by `packages/vitryne-web/src/format/schema.gen.ts`.
+Those types and the validators beside them are generated from `docs/format/schema/` by
+`packages/vitryne-web/scripts/gen-format.mjs`, and `make check` fails if they are stale. Members the
+editor doesn't know (a newer file's) stay in the JSON, so they survive by construction; Rust keeps
+their exact number spelling across a round trip through JavaScript (`1.0` stays `1.0`).
 
 The worker holds everything that isn't an entity: the binary parts (the avatar mesh), the
 manifest, the versions.
@@ -117,8 +117,8 @@ there.
 
 ### Commands and the guardrails
 
-Every change is a command (`packages/vitryne-web/src/document/commands.ts`), and commands are the only way the
-document changes. What keeps the document from silently going wrong:
+Every change is a command (`packages/vitryne-web/src/document/commands.ts`), and commands are the
+only way the document changes. What keeps the document from silently going wrong:
 
 1. **Frozen.** In development and tests the document is deep-frozen; an accidental mutation
    throws.
@@ -145,11 +145,12 @@ document changes. What keeps the document from silently going wrong:
 8. **Unsaved work.** A dialog before opening another file, the browser's leave-page prompt, and
    a recovery copy in IndexedDB (never sent anywhere) offered on the next start.
 
-Tests (`packages/vitryne-web/src/**/*.test.ts`, `pnpm run check`): every command applies, is accepted by Rust (the
-worker's wasm built for Node) and reverts to the identical document; the store's undo,
-coalescing, rollback, restart and debounce; and fast-check sessions of random edits, undos and
-redos on the three examples (one run with the settings commands, one adding the pattern tools'),
-with Rust holding the UI's document after every step and undo-all saving the original bytes.
+Tests (`packages/vitryne-web/src/**/*.test.ts`, `pnpm run check`): every command applies, is
+accepted by Rust (the worker's wasm built for Node) and reverts to the identical document; the
+store's undo, coalescing, rollback, restart and debounce; and fast-check sessions of random edits,
+undos and redos on the three examples (one run with the settings commands, one adding the pattern
+tools'), with Rust holding the UI's document after every step and undo-all saving the original
+bytes.
 
 ### Speed
 
@@ -310,11 +311,11 @@ view.
   An edited edge keeps its whole-edge seams. Drawn pieces have no named corners, so the seam
   list describes their edges by where they sit in their own piece ("Front: the right side").
 - **Tests.** Each command applies, is accepted by Rust and reverts to the identical JSON
-  (`document/outline.test.ts`, `draw.test.ts`, `marks.test.ts`); the fast-check sessions mix
-  them with the settings edits. `document/skirt.test.ts` builds a skirt from a blank project
-  with the same commands (two rectangles, lowered to the hips, the side seams from the
-  suggestions) and checks it is `packages/vitryne-engine/tests/skirt.vtry`, which `vitryne regress` drapes as
-  a golden case.
+  (`document/outline.test.ts`, `draw.test.ts`, `marks.test.ts`); the fast-check sessions mix them
+  with the settings edits. `document/skirt.test.ts` builds a skirt from a blank project with the
+  same commands (two rectangles, lowered to the hips, the side seams from the suggestions) and
+  checks it is `packages/vitryne-engine/tests/skirt.vtry`, which `vitryne regress` drapes as a
+  golden case.
 
 ### Pattern export (M13)
 
@@ -350,13 +351,13 @@ The native CLI uses the same key for its cache in `packages/vitryne-engine/targe
 
 ### Storage
 
-Projects live in the backend ([CLOUD.md](CLOUD.md), `packages/vitryne-web/src/cloud/`) and save by themselves;
-nothing is written to disk. A project is a `FileRef` with a `cloud` field (id, revision, the part
-hashes the backend holds). `useFiles` saves it by asking the worker for the folder form, and
-`cloud/projects.ts` turns that into content-addressed parts and a row. Only a document Rust
+Projects live in the backend ([CLOUD.md](CLOUD.md), `packages/vitryne-web/src/cloud/`) and save by
+themselves; nothing is written to disk. A project is a `FileRef` with a `cloud` field (id, revision,
+the part hashes the backend holds). `useFiles` saves it by asking the worker for the folder form,
+and `cloud/projects.ts` turns that into content-addressed parts and a row. Only a document Rust
 validated is saved, and a save counts once the backend has every part and the row. `projects.ts`
-talks to a `CloudBackend` interface (`backend.ts`), so its tests run on an in-memory backend and
-the real Rust validation.
+talks to a `CloudBackend` interface (`backend.ts`), so its tests run on an in-memory backend and the
+real Rust validation.
 
 - **Autosave** (`cloud/autosave.ts`): about 2 s after the last confirmed edit, and when the tab
   is hidden; one save at a time; network failures retried with a growing delay; a conflict, a
@@ -375,7 +376,7 @@ the real Rust validation.
 ## Checking the editor in a browser
 
 `make check` covers the Rust, the TypeScript and the guardrails, but not a real browser with a GPU.
-Before a milestone, open the app (`cd packages/vitryne-web && pnpm run dev`) in Chrome and Safari: open each
+Before a milestone, open the app (`make dev`) in Chrome and Safari: open each
 example, drag the cloth, edit a fabric value and undo it, see it saved, go offline and edit (the
 title says the changes are kept in this browser), close the tab, and reopen it online: the
 changes are put back and saved.

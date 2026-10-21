@@ -52,7 +52,7 @@ build: deps ## Production web bundle (wasm, assets, tsc, vite build) in packages
 deps:
 	pnpm install --frozen-lockfile
 
-cli:
+cli: ## Native CLI and viewer in packages/vitryne-engine/target/release/vitryne (run it from here)
 	cd $(ENGINE) && cargo build --release -p vitryne-cli --locked
 
 # Checks, one target per step; `check-quick` and `check` run them in order.
