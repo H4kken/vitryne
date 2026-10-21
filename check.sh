@@ -30,7 +30,7 @@ step "clippy (native)"
 cargo clippy --workspace --all-targets --locked -- -D warnings
 
 step "clippy (wasm32)"
-cargo clippy -p drape-web --target wasm32-unknown-unknown --locked -- -D warnings
+cargo clippy -p vitryne-wasm --target wasm32-unknown-unknown --locked -- -D warnings
 
 step "tests"
 cargo test --workspace --locked
@@ -63,23 +63,23 @@ for f in $(git ls-files 'deploy/*.sh'); do bash -n "$f"; done
 echo ok
 
 step "example projects are up to date"
-# examples/*.vtry are `drape convert` output; after a change to the converter or a sidecar,
+# examples/*.vtry are `vitryne convert` output; after a change to the converter or a sidecar,
 # run tools/format/build-examples.sh and commit the result.
-cargo build --release -p drape-native --locked
+cargo build --release -p vitryne-cli --locked
 rm -rf bench-out/examples-check && mkdir -p bench-out/examples-check
 for toml in assets/garments/*/garment.toml; do
   g=$(basename "$(dirname "$toml")")
-  target/release/drape convert "$toml" "bench-out/examples-check/$g.vtry/" > /dev/null 2>&1
+  target/release/vitryne convert "$toml" "bench-out/examples-check/$g.vtry/" > /dev/null 2>&1
   diff -r "examples/$g.vtry" "bench-out/examples-check/$g.vtry" > /dev/null \
-    || fail "examples/$g.vtry differs from drape convert's output (run tools/format/build-examples.sh)"
+    || fail "examples/$g.vtry differs from vitryne convert's output (run tools/format/build-examples.sh)"
 done
 echo ok
 
 step "regression drapes (golden suite)"
 # The three example projects and the drawn skirt at 10k vertices, 600 frames each, against tests/regression/*.json and *.pos:
 # rest frame, final shape, penetration, self-intersections, strain, seam gap. After an
-# intended change: `target/release/drape regress --update`, and say why in the commit.
-cargo build --release -p drape-native --locked
-target/release/drape regress 2> /dev/null || fail "regression drapes differ from the golden results"
+# intended change: `target/release/vitryne regress --update`, and say why in the commit.
+cargo build --release -p vitryne-cli --locked
+target/release/vitryne regress 2> /dev/null || fail "regression drapes differ from the golden results"
 
 printf '\ncheck: all passed\n'

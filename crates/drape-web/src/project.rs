@@ -7,21 +7,21 @@
 
 use std::collections::BTreeMap;
 
-use drape_assets::{
+use glam::Vec3;
+use serde::Serialize;
+use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Piece, Placement, Wrap};
+use vitryne_pattern::{
     import::{Addition, Choice, DxfImport, import_bounds, rewrap},
     placement::{BodyFacts, BodyPlace},
     project::{Placer, ProjectGarment, avatar_mesh},
     seams::{self, CutEdge, EdgePick, SeamProposal},
 };
-use drape_core::{
+use vitryne_solver::{
     body::{BodyMesh, SdfParams},
     engine::{Fabric, GarmentDesc},
     scene::SheetScene,
     sim::SimSettings,
 };
-use glam::Vec3;
-use serde::Serialize;
-use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Piece, Placement, Wrap};
 
 pub struct ProjectFile {
     doc: Document,
@@ -52,7 +52,7 @@ pub struct PreparedCloth {
     pub panel_fabrics: Vec<Fabric>,
     pub settings: SimSettings,
     /// Fabrics for 3D export (M10), coloured by their appearances.
-    pub export_fabrics: Vec<drape_assets::export::ExportFabric>,
+    pub export_fabrics: Vec<vitryne_pattern::export::ExportFabric>,
     /// Each panel's colour (sRGB 0..1), or none for the scene's cloth colour.
     pub panel_colors: Vec<Option<[f32; 3]>>,
     /// Places the meshed garment again for the editor's placement preview.
@@ -64,7 +64,7 @@ pub struct PreparedCloth {
 pub struct Look {
     /// sRGB 0..1; none: the scene's cloth colour.
     pub color: Option<[f32; 3]>,
-    pub export: drape_assets::export::ExportFabric,
+    pub export: vitryne_pattern::export::ExportFabric,
 }
 
 /// What the UI is told about a prepared drape.
@@ -253,7 +253,7 @@ impl ProjectFile {
     /// A project started from scratch: the test avatar (`body_glb`: its mesh), the cotton
     /// jersey preset and a garment with no pieces yet. `now_ms` and `seed` make the ids.
     pub fn new_empty(body_glb: &[u8], now_ms: u64, seed: &[u8]) -> Result<Self, String> {
-        let doc = drape_assets::import::empty_project(body_glb, &mut IdGen::new(now_ms, seed))?;
+        let doc = vitryne_pattern::import::empty_project(body_glb, &mut IdGen::new(now_ms, seed))?;
         Ok(Self { doc })
     }
 
@@ -309,8 +309,8 @@ impl ProjectFile {
     }
 
     /// The garment's pieces as DXF-AAMA, with the export's report (M13). Needs no drape.
-    pub fn export_dxf(&self) -> Result<drape_assets::aama_export::DxfExport, String> {
-        drape_assets::aama_export::export_document(&self.doc)
+    pub fn export_dxf(&self) -> Result<vitryne_pattern::aama_export::DxfExport, String> {
+        vitryne_pattern::aama_export::export_document(&self.doc)
     }
 
     /// Cut `cut` started again at `place`: a fresh wrap from its size and the body

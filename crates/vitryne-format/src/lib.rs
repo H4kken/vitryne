@@ -14,7 +14,7 @@
 //! raw JSON, parses the parts into the types of `model`, checks the rules a schema can't express
 //! (references, unique ids), and keeps everything it doesn't understand (unknown members, parts,
 //! extensions) so a newer file survives a round trip. Nothing here knows about the engine:
-//! `drape-assets` turns a document into something to simulate.
+//! `vitryne-pattern` turns a document into something to simulate.
 //!
 //! [docs/FORMAT.md]: ../../../docs/FORMAT.md
 

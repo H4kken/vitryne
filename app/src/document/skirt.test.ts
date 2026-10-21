@@ -3,10 +3,10 @@
 // to the waist (the placement's Height), the side seams sewn from Rust's suggestions, each step
 // a command as the editor makes it.
 // The result is the regression suite's `skirt` case (tests/regression/skirt.vtry, which
-// `drape regress` drapes against tests/regression/skirt.json). The file must stay what these
+// `vitryne regress` drapes against tests/regression/skirt.json). The file must stay what these
 // steps make; after an intended change, re-record it with
 // `SKIRT_UPDATE=1 pnpm exec vitest run src/document/skirt.test.ts` and then
-// `target/release/drape regress --update --only skirt`.
+// `target/release/vitryne regress --update --only skirt`.
 import {
   mkdirSync,
   readdirSync,

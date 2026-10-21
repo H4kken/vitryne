@@ -1,5 +1,5 @@
 [package]
-name = "drape-web"
+name = "vitryne-wasm"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -9,9 +9,9 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-drape-core.workspace = true
-drape-render.workspace = true
-drape-assets.workspace = true
+vitryne-solver.workspace = true
+vitryne-render.workspace = true
+vitryne-pattern.workspace = true
 vitryne-format.workspace = true
 wgpu.workspace = true
 glam.workspace = true

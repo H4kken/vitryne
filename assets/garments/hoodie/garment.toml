@@ -19,7 +19,7 @@ name = "Cotton jersey (placeholder)"
 category = "knit"
 notes = "The engine's spike-1 placeholder (Material::cotton), not calibrated. Stretch from the per-edge stiffness 1e4 N/m: Y = 2k/sqrt(3), shear = 3Y/8 (triangle lattice, Poisson 1/3)."
 
-# Landmark names for the project file (`drape convert`), in landmark order.
+# Landmark names for the project file (`vitryne convert`), in landmark order.
 [names]
 front = [
   "centre front hem",
@@ -156,7 +156,7 @@ label = "hood centre"
 dxf = "hoodCenter"
 place = { frame = "head_over", angle = 0, radius = 0.15, top = 0.028 }
 
-# Landmarks (drape garment-svg):
+# Landmarks (vitryne garment-svg):
 #   front 0 centre hem, 1 pocket line end, 2 hem corner, 3 underarm, 4 raglan notch, 5 neck
 #     point, 6 centre neck, 7..10 the same on -x, 11 pocket line end on -x; internal line L0 is
 #     the pocket outline: 0 hem +x, 1 corner, (curved hand opening), 2 top +x, 3 top -x, 4, 5.

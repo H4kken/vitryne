@@ -16,9 +16,9 @@ license = "AGPL-3.0-or-later"
 publish = false
 
 [workspace.dependencies]
-drape-core = { path = "crates/drape-core" }
-drape-assets = { path = "crates/drape-assets" }
-drape-render = { path = "crates/drape-render" }
+vitryne-solver = { path = "crates/drape-core" }
+vitryne-pattern = { path = "crates/drape-assets" }
+vitryne-render = { path = "crates/drape-render" }
 vitryne-format = { path = "crates/vitryne-format" }
 wgpu = { version = "30.0.1", default-features = false }
 glam = { version = "0.34.1", features = ["bytemuck"] }

@@ -13,17 +13,17 @@ use std::{
     },
 };
 
-use drape_assets::{export::ExportFabric, project::Placer};
-use drape_core::{
+use glam::{Vec3, Vec4Swizzles};
+use serde::Serialize;
+use vitryne_format::Placement;
+use vitryne_pattern::{export::ExportFabric, project::Placer};
+use vitryne_render::{self as render, OrbitCamera, Renderer, Style};
+use vitryne_solver::{
     body::Sdf,
     engine::{Body, BodyOptions, Engine, Garment, SdfSource, Simulation},
     gpu,
     sim::DragPatch,
 };
-use drape_render::{self as render, OrbitCamera, Renderer, Style};
-use glam::{Vec3, Vec4Swizzles};
-use serde::Serialize;
-use vitryne_format::Placement;
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
 
@@ -106,7 +106,7 @@ impl Core {
         let mut renderer = live.renderer.borrow_mut();
         renderer.set_seams(
             &self.engine.gpu().device,
-            &drape_render::seam_segments_of(&live.seams, only),
+            &vitryne_render::seam_segments_of(&live.seams, only),
         );
         renderer.show_seams(only.is_some() || self.show_seams.get());
     }
@@ -830,7 +830,7 @@ impl Viewport {
                 .iter()
                 .map(|p| glam::Vec2::new(p.x, p.y))
                 .collect();
-            let export_data = drape_assets::export::GarmentExportData::new(
+            let export_data = vitryne_pattern::export::GarmentExportData::new(
                 &live.sim.garment().desc,
                 &positions,
                 &normals,
@@ -839,14 +839,14 @@ impl Viewport {
             );
             let mut av_tris_storage = Vec::new();
             let av_export = if include_avatar {
-                Some(drape_assets::export::AvatarExportData::from_body(
+                Some(vitryne_pattern::export::AvatarExportData::from_body(
                     live.sim.body(),
                     &mut av_tris_storage,
                 ))
             } else {
                 None
             };
-            let glb_bytes = drape_assets::export::export_glb(&export_data, av_export.as_ref())
+            let glb_bytes = vitryne_pattern::export::export_glb(&export_data, av_export.as_ref())
                 .map_err(|e| JsValue::from_str(&e))?;
             let array = js_sys::Uint8Array::from(&glb_bytes[..]);
             Ok(JsValue::from(array))
@@ -872,7 +872,7 @@ impl Viewport {
                 .iter()
                 .map(|p| glam::Vec2::new(p.x, p.y))
                 .collect();
-            let export_data = drape_assets::export::GarmentExportData::new(
+            let export_data = vitryne_pattern::export::GarmentExportData::new(
                 &live.sim.garment().desc,
                 &positions,
                 &normals,
@@ -881,14 +881,14 @@ impl Viewport {
             );
             let mut av_tris_storage = Vec::new();
             let av_export = if include_avatar {
-                Some(drape_assets::export::AvatarExportData::from_body(
+                Some(vitryne_pattern::export::AvatarExportData::from_body(
                     live.sim.body(),
                     &mut av_tris_storage,
                 ))
             } else {
                 None
             };
-            let obj_export = drape_assets::export::export_obj(
+            let obj_export = vitryne_pattern::export::export_obj(
                 &export_data,
                 av_export.as_ref(),
                 Some("garment.mtl"),

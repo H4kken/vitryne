@@ -55,7 +55,7 @@ export interface Simulation {
    */
   targetVertices?: number;
   /**
-   * Engine tuning, sparse: only values that differ from the engine's defaults. Keys and units are the engine's own (drape-core SimSettings field names, SI, metres): this object is the one exception to the format's mm rule. Unknown keys are preserved and ignored.
+   * Engine tuning, sparse: only values that differ from the engine's defaults. Keys and units are the engine's own (vitryne-solver SimSettings field names, SI, metres): this object is the one exception to the format's mm rule. Unknown keys are preserved and ignored.
    */
   engine?: { [k: string]: unknown };
   extensions?: Extensions;

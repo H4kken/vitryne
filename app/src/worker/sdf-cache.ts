@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Where a body's SDF comes from, by key (Rust `SdfParams::cache_key`): the SDFs bundled with
-// the app for the examples (`drape export-app-assets`), then this browser's own cache (the
+// the app for the examples (`vitryne export-app-assets`), then this browser's own cache (the
 // origin private file system, never sent anywhere), else nothing and the worker bakes it.
 
 const MAGIC = "DSDF0001";

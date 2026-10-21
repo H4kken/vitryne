@@ -13,7 +13,6 @@ use std::collections::BTreeMap;
 use glam::Vec2;
 use serde_json::Map;
 
-use drape_core::{body::SdfParams, constraints::Material};
 use vitryne_format::{
     Attribution, Bending, Bounds, Camera, Category, Cut, Direction, Document, Edge, Fabric, File,
     Fold, Follow, Garment, GarmentSimulation, Grain, Id, IdGen, Kind, Line, Node, NodeType,
@@ -22,6 +21,7 @@ use vitryne_format::{
     manifest::{MEDIA_GLB, ROLE_SOURCE},
     round_mm,
 };
+use vitryne_solver::{body::SdfParams, constraints::Material};
 
 use crate::{
     aama::{self, LandmarkKind},
@@ -670,7 +670,7 @@ pub(crate) fn fabric_entity(
             bias: None,
             other: Map::new(),
         },
-        friction: exact(drape_core::sim::SimSettings::default().friction),
+        friction: exact(vitryne_solver::sim::SimSettings::default().friction),
         appearance: None,
         notes,
         attribution: None,

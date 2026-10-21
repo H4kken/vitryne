@@ -2,7 +2,7 @@
 
 **Status: approved design (MVP milestone M4, 2026-10-13), implemented in M5 by
 [crates/vitryne-format](../crates/vitryne-format/) (reading, writing, validation, migrations) and
-`drape-assets` (`project`: a file to the engine; `convert`: `garment.toml` + DXF to a file).
+`vitryne-pattern` (`project`: a file to the engine; `convert`: `garment.toml` + DXF to a file).
 Version 2 (2026-10-16) adds [appearances](#appearance) (fabric colour); a version 1 file is a
 valid version 2 file. Version 3 (2026-10-18) lets a [fabric](#fabric) name its default
 appearance, and a fabric file carry the appearances its fabrics use; a version 2 file is a valid
@@ -355,7 +355,7 @@ The maths: transform the piece's points (mirror, then rotate) and take its **anc
 centre of its bounding box in x and the top in y. A point p goes to
 `region.at(along = top + (p − anchor).y)` + `r · (cos θ · e0 + sin θ · e1)`, with
 θ = `angle + (p − anchor).x / r`, where `e0` is the region's zero direction and `e1 = axis × e0`
-at that point of the axis. The reference implementation is `drape-assets` `garment.rs`
+at that point of the axis. The reference implementation is `vitryne-pattern` `garment.rs`
 (`Frame::place` and `tube_profile`); v1 is defined to match it.
 
 **`follow`**: on top of another cut, like a pocket on a front: the same region, anchor, top and
@@ -570,11 +570,11 @@ In `project.json` `simulation`, overridable per garment:
 
 - **`targetVertices`**: the mesh resolution, about this many cloth vertices per garment.
 - **`engine`**: **sparse** engine tuning, only the values that differ from the engine's defaults,
-  keyed by the engine's own setting names (`drape-core` `SimSettings`, e.g.
+  keyed by the engine's own setting names (`vitryne-solver` `SimSettings`, e.g.
   `{"substeps": 30, "self_collision": false}`). **This object uses the engine's units (SI,
   metres) and naming, the one exception to the format's conventions.** Unknown keys are kept
   and ignored (with a warning). Three keys aren't `SimSettings` fields: `schedule` (the
-  garment's sewing and gravity ramp, `drape-core` `Schedule`), and `sdf_cell`, `sdf_band` (the
+  garment's sewing and gravity ramp, `vitryne-solver` `Schedule`), and `sdf_cell`, `sdf_band` (the
   collision field's cell size and band, m). The garment's values win over the project's.
 
 **Why sparse:** a file that doesn't override a value gets the engine's improvements to that
@@ -603,7 +603,7 @@ always safe to delete.** Readers that can't use it ignore it.
   ```json
   {
     "keyVersion": 1,
-    "engine": { "name": "drape-core", "version": "0.1.0" },
+    "engine": { "name": "vitryne-solver", "version": "0.1.0" },
     "garments": [ <each garment part, in layering order> ],
     "fabrics": [ <each fabric used, by id order> ],
     "avatar": { "mesh": "<sha256 of body.glb>", "regions": { … } },
@@ -699,7 +699,7 @@ Converters, not the format:
 
 ## From garment.toml
 
-`drape convert <garment.toml> <out.vtry>` (`drape-assets` `convert`) turns a sidecar plus its
+`vitryne convert <garment.toml> <out.vtry>` (`vitryne-pattern` `convert`) turns a sidecar plus its
 DXF into a project with the test avatar. The three samples in [examples/](../examples/) are its
 output (`tools/format/build-examples.sh`), and `./check.sh` fails if they drift from it. Ids are
 version 7 from a fixed time and the garment's name, so converting again gives the same file.
@@ -771,7 +771,7 @@ hash never gives access to someone else's part.
 
 ## In the engine
 
-What reading a file into the engine takes (`drape-assets` `project`, done in M5):
+What reading a file into the engine takes (`vitryne-pattern` `project`, done in M5):
 
 1. **Fabric from physical values.** `Material` is built from the fabric: k = (√3/2) · mean(warp,
    weft), `bend_kb` = mean(warp, weft), and the friction setting from `friction`. The engine
@@ -785,8 +785,8 @@ What reading a file into the engine takes (`drape-assets` `project`, done in M5)
    bounding box plus 150 mm on every side (not below the floor). The samples carry theirs.
 5. **Identical drapes.** Each cut is a panel (pieces in order, then their cuts), its outline
    split into edges at every node, so a `.vtry` and the `garment.toml` it came from give the
-   same engine garment, bit for bit (`drape-assets` test `project_matches_sidecar`), and drape
-   the same (`drape regress` and `drape regress --toml` share one set of goldens). Two things
+   same engine garment, bit for bit (`vitryne-pattern` test `project_matches_sidecar`), and drape
+   the same (`vitryne regress` and `vitryne regress --toml` share one set of goldens). Two things
    made that exact: the importer's 0.001 mm grid (above), and the mesher listing triangles in a
    canonical order (it used to follow the triangulation library's internal order, which
    sub-micrometre input changes can reorder, and triangle order is constraint order).

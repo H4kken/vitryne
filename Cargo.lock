@@ -600,84 +600,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
-name = "drape-assets"
-version = "0.1.0"
-dependencies = [
- "drape-core",
- "glam",
- "log",
- "serde",
- "serde_json",
- "spade",
- "toml",
- "vitryne-format",
-]
-
-[[package]]
-name = "drape-core"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "glam",
- "log",
- "rayon",
- "serde",
- "serde_json",
- "web-time",
- "wgpu",
-]
-
-[[package]]
-name = "drape-native"
-version = "0.1.0"
-dependencies = [
- "drape-assets",
- "drape-core",
- "drape-render",
- "env_logger",
- "glam",
- "log",
- "png",
- "pollster",
- "serde_json",
- "vitryne-format",
- "wgpu",
- "winit",
-]
-
-[[package]]
-name = "drape-render"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "drape-core",
- "glam",
- "wgpu",
-]
-
-[[package]]
-name = "drape-web"
-version = "0.1.0"
-dependencies = [
- "console_error_panic_hook",
- "console_log",
- "drape-assets",
- "drape-core",
- "drape-render",
- "glam",
- "js-sys",
- "log",
- "serde",
- "serde_json",
- "vitryne-format",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "web-time",
- "wgpu",
-]
-
-[[package]]
 name = "either"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2600,6 +2522,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "vitryne-cli"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "glam",
+ "log",
+ "png",
+ "pollster",
+ "serde_json",
+ "vitryne-format",
+ "vitryne-pattern",
+ "vitryne-render",
+ "vitryne-solver",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "vitryne-format"
 version = "0.1.0"
 dependencies = [
@@ -2608,6 +2548,66 @@ dependencies = [
  "serde_json",
  "sha2",
  "zip",
+]
+
+[[package]]
+name = "vitryne-pattern"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "log",
+ "serde",
+ "serde_json",
+ "spade",
+ "toml",
+ "vitryne-format",
+ "vitryne-solver",
+]
+
+[[package]]
+name = "vitryne-render"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "vitryne-solver",
+ "wgpu",
+]
+
+[[package]]
+name = "vitryne-solver"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "log",
+ "rayon",
+ "serde",
+ "serde_json",
+ "web-time",
+ "wgpu",
+]
+
+[[package]]
+name = "vitryne-wasm"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "console_log",
+ "glam",
+ "js-sys",
+ "log",
+ "serde",
+ "serde_json",
+ "vitryne-format",
+ "vitryne-pattern",
+ "vitryne-render",
+ "vitryne-solver",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
+ "wgpu",
 ]
 
 [[package]]

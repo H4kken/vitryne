@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The sheet test scene (a pinned cloth over a sphere), as a garment description, and the mesh
-//! a collider is drawn with. Garments from patterns come from `drape-assets`.
+//! a collider is drawn with. Garments from patterns come from `vitryne-pattern`.
 
 use glam::Vec3;
 use serde::Serialize;

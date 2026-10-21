@@ -17,7 +17,7 @@ placement sidecars, `body/measurements.json` (measured on the CC0 mesh by
 
 **Generated, not in the repository:** the body SDFs (`target/sdf-cache/`, `app/public/sdf/`,
 `app/public/bench-assets/`) are baked from the CC0 mesh at build time by `drape
-export-app-assets` and `drape export-bench-assets`.
+export-app-assets` and `vitryne export-bench-assets`.
 
 **Build-time dependencies, not in the repository:** `tools/patterns` drafts the DXFs with the
 FreeSewing npm packages (MIT). Rust crates and npm packages are fetched by `cargo` and `pnpm`

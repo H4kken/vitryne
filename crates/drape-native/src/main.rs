@@ -3,36 +3,36 @@
 //!   drape [view]            winit viewer: drag on cloth = pull it, drag elsewhere = orbit,
 //!                           wheel = zoom, space = pause, R = reset,
 //!                           F = fast drape (8 sim frames per display frame)
-//!   drape bench [--frames F] [--record-positions] [--out file.json]
+//!   vitryne bench [--frames F] [--record-positions] [--out file.json]
 //!                           headless benchmark, prints JSON
-//!   drape bench-drag [--drag-seconds S] [--seed N] [--max-offset M] [--min-pull S] [--out file.json]
+//!   vitryne bench-drag [--drag-seconds S] [--seed N] [--max-offset M] [--min-pull S] [--out file.json]
 //!                           drape to rest, then scripted random drags (stability criterion)
-//!   drape regress [--update] [--only NAME] [--dir tests/regression] [--toml]
+//!   vitryne regress [--update] [--only NAME] [--dir tests/regression] [--toml]
 //!                           the golden regression suite (examples/*.vtry and the drawn skirt,
 //!                           10k, 600 frames);
 //!                           exit 1 on any difference beyond tolerance, --update re-records,
 //!                           --toml drapes the garment.toml sidecars instead (same goldens)
-//!   drape export-bench-assets <dir>
+//!   vitryne export-bench-assets <dir>
 //!                           body OBJ, baked SDFs and the garments for the bench page
-//!   drape export-app-assets <dir>
+//!   vitryne export-app-assets <dir>
 //!                           for the editor: examples/*.vtry as zips (+ examples/index.json)
 //!                           and each one's body SDF, sdf/<key>.bin (see SdfParams::cache_key);
 //!                           the test avatar's mesh (avatar/body.glb) and the SDF imports use
-//!   drape export <garment> [--out <file.glb|file.obj>] [--avatar] [--frames N]
+//!   vitryne export <garment> [--out <file.glb|file.obj>] [--avatar] [--frames N]
 //!                           drape and export garment as glTF 2.0 (.glb) or Wavefront OBJ (.obj)
-//!   drape export <file.vtry> --out <file.dxf>
+//!   vitryne export <file.vtry> --out <file.dxf>
 //!                           the garment's pieces as DXF-AAMA (no drape; cut-on-fold pieces
 //!                           folded again), with the export's notes on stderr
-//!   drape frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
+//!   vitryne frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
 //!                           headless: render the sim at those frames to PNGs
 //!   drape info              print adapter report as JSON and exit
 //!   drape snapshot <out>    M0 triangle smoke test, offscreen, PPM
 //!
-//!   drape pattern-svg <out.svg> [--edge E]
+//!   vitryne pattern-svg <out.svg> [--edge E]
 //!                           meshed T-shirt pattern with seams, for inspection
-//!   drape garment-svg <out.svg> --garment G [--edge E | --verts N]
+//!   vitryne garment-svg <out.svg> --garment G [--edge E | --verts N]
 //!                           meshed garment with landmark numbers (node names for a .vtry)
-//!   drape convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]
+//!   vitryne convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]
 //!                           sidecar + DXF-AAMA -> project file (zip, or folder if the path
 //!                           ends in / or is a folder); --include-dxf keeps the DXF in it
 //!
@@ -49,14 +49,16 @@
 
 use std::sync::Arc;
 
-use drape_assets::{
+use vitryne_format::{Document, IdGen, Kind, glb};
+use vitryne_pattern::{
     convert::ConvertOptions,
     garment::Garment as DxfGarment,
     import::DxfImport,
     project::{DEFAULT_TARGET_VERTICES, ProjectGarment, avatar_mesh},
     tshirt::{self, SdfParams, TshirtParams},
 };
-use drape_core::{
+use vitryne_render::{self as render, OrbitCamera, Renderer, triangle::TriangleRenderer};
+use vitryne_solver::{
     body::{BodyMesh, BodyQuery, Sdf},
     engine::{Body, BodyOptions, Engine, Garment, SdfSource, Simulation},
     gpu,
@@ -64,8 +66,6 @@ use drape_core::{
     sim::{DragPatch, SimSettings},
     timer::GpuTimer,
 };
-use drape_render::{self as render, OrbitCamera, Renderer, triangle::TriangleRenderer};
-use vitryne_format::{Document, IdGen, Kind, glb};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
@@ -96,7 +96,7 @@ fn main() {
         ),
         "bench" => {
             let engine = Engine::new(headless_gpu());
-            let mut cfg = drape_core::bench::BenchConfig::default();
+            let mut cfg = vitryne_solver::bench::BenchConfig::default();
             if let Some(v) = take_value(&mut args, "--frames") {
                 cfg.frames = v.parse().expect("--frames");
             }
@@ -104,7 +104,7 @@ fn main() {
             let out = take_value(&mut args, "--out");
             let scene = scene_args.build();
             let sim = engine.simulate(&scene.garment, &scene.body, &scene_args.sim);
-            let r = pollster::block_on(drape_core::bench::run(&sim, cfg));
+            let r = pollster::block_on(vitryne_solver::bench::run(&sim, cfg));
             let json = serde_json::to_string_pretty(&r).unwrap();
             if let Some(path) = out {
                 std::fs::write(&path, &json).expect("write --out");
@@ -113,7 +113,7 @@ fn main() {
         }
         "bench-drag" => {
             let engine = Engine::new(headless_gpu());
-            let mut cfg = drape_core::dragbench::DragBenchConfig::default();
+            let mut cfg = vitryne_solver::dragbench::DragBenchConfig::default();
             if let Some(v) = take_value(&mut args, "--drag-seconds") {
                 cfg.drag_s = v.parse().expect("--drag-seconds");
             }
@@ -129,7 +129,7 @@ fn main() {
             let out = take_value(&mut args, "--out");
             let scene = scene_args.build();
             let sim = engine.simulate(&scene.garment, &scene.body, &scene_args.sim);
-            let r = pollster::block_on(drape_core::dragbench::run(&sim, cfg));
+            let r = pollster::block_on(vitryne_solver::dragbench::run(&sim, cfg));
             let json = serde_json::to_string_pretty(&r).unwrap();
             if let Some(path) = out {
                 std::fs::write(&path, &json).expect("write --out");
@@ -158,11 +158,11 @@ fn main() {
                     .garment
                     .clone()
                     .or_else(|| args.get(1).filter(|a| !a.starts_with("--")).cloned())
-                    .unwrap_or_else(|| panic!("drape export <file.vtry> --out {out}"));
+                    .unwrap_or_else(|| panic!("vitryne export <file.vtry> --out {out}"));
                 if !is_project_file(&g) {
                     panic!("{g}: DXF export takes a project file (.vtry or .vtryg)");
                 }
-                let dxf = drape_assets::aama_export::export_document(&open_project(&g))
+                let dxf = vitryne_pattern::aama_export::export_document(&open_project(&g))
                     .unwrap_or_else(|e| panic!("{g}: {e}"));
                 std::fs::write(out, &dxf.text).unwrap_or_else(|e| panic!("write {out}: {e}"));
                 for n in &dxf.report.notes {
@@ -209,18 +209,18 @@ fn main() {
                 .map(|p| glam::Vec2::new(p.x, p.y))
                 .collect();
 
-            let fabrics: Vec<drape_assets::export::ExportFabric> =
+            let fabrics: Vec<vitryne_pattern::export::ExportFabric> =
                 if let Some(doc) = &scene_args.project {
                     let pg = ProjectGarment::new(doc).unwrap_or_else(|e| panic!("{e}"));
                     pg.export_fabrics()
                 } else {
                     vec![
-                        drape_assets::export::ExportFabric::default_cloth(scene.garment.name());
+                        vitryne_pattern::export::ExportFabric::default_cloth(scene.garment.name());
                         scene.garment.desc.groups.len().max(1)
                     ]
                 };
 
-            let export_data = drape_assets::export::GarmentExportData::new(
+            let export_data = vitryne_pattern::export::GarmentExportData::new(
                 &scene.garment.desc,
                 &positions,
                 &normals,
@@ -230,7 +230,7 @@ fn main() {
 
             let mut av_tris_storage = Vec::new();
             let av_export = if include_avatar {
-                Some(drape_assets::export::AvatarExportData::from_body(
+                Some(vitryne_pattern::export::AvatarExportData::from_body(
                     &scene.body,
                     &mut av_tris_storage,
                 ))
@@ -252,7 +252,7 @@ fn main() {
                     .file_name()
                     .and_then(|f| f.to_str())
                     .unwrap_or("garment.mtl");
-                let obj_export = drape_assets::export::export_obj(
+                let obj_export = vitryne_pattern::export::export_obj(
                     &export_data,
                     av_export.as_ref(),
                     Some(mtl_filename),
@@ -263,8 +263,9 @@ fn main() {
                     .unwrap_or_else(|e| panic!("write {mtl_path}: {e}"));
                 println!("Exported OBJ to {out_path} and {mtl_path}");
             } else {
-                let glb_bytes = drape_assets::export::export_glb(&export_data, av_export.as_ref())
-                    .unwrap_or_else(|e| panic!("glb export: {e}"));
+                let glb_bytes =
+                    vitryne_pattern::export::export_glb(&export_data, av_export.as_ref())
+                        .unwrap_or_else(|e| panic!("glb export: {e}"));
                 std::fs::write(out_path, &glb_bytes)
                     .unwrap_or_else(|e| panic!("write {out_path}: {e}"));
                 println!("Exported glTF to {out_path} ({} bytes)", glb_bytes.len());
@@ -357,11 +358,11 @@ fn main() {
                     (gp, edge, g.spec.name.clone(), report)
                 }
             };
-            let mp = drape_assets::meshing::mesh_pattern(&gp.pattern, edge);
+            let mp = vitryne_pattern::meshing::mesh_pattern(&gp.pattern, edge);
             let title = format!("{name} (edge {:.1} mm)", edge * 1000.0);
             std::fs::write(
                 &out,
-                drape_assets::preview::pattern_svg(&gp.pattern, &mp, &gp.labels, &title),
+                vitryne_pattern::preview::pattern_svg(&gp.pattern, &mp, &gp.labels, &title),
             )
             .expect("write svg");
             println!(
@@ -373,7 +374,7 @@ fn main() {
             let include_dxf = take_flag(&mut args, "--include-dxf");
             let (Some(src), Some(out)) = (args.get(1), args.get(2)) else {
                 eprintln!(
-                    "usage: drape convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]"
+                    "usage: vitryne convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]"
                 );
                 std::process::exit(2);
             };
@@ -401,7 +402,7 @@ struct SceneArgs {
     sheet: SheetScene,
     tshirt: TshirtParams,
     sdf: SdfParams,
-    sim: drape_core::sim::SimSettings,
+    sim: vitryne_solver::sim::SimSettings,
     garment: Option<String>,
     /// The project file `--garment` names, opened.
     project: Option<Arc<Document>>,
@@ -678,7 +679,7 @@ fn open_project(path: &str) -> Document {
     opened.doc
 }
 
-/// `drape convert`: a garment.toml and its DXF to a project file, with the test avatar.
+/// `vitryne convert`: a garment.toml and its DXF to a project file, with the test avatar.
 fn convert(src: &str, out: &str, include_dxf: bool) {
     let g = DxfGarment::load_file(src).unwrap_or_else(|e| panic!("{e}"));
     let dxf_path = std::path::Path::new(src)
@@ -697,8 +698,8 @@ fn convert(src: &str, out: &str, include_dxf: bool) {
         include_dxf: include_dxf.then(|| std::fs::read(&dxf_path).expect("read dxf")),
     };
     let mut doc =
-        drape_assets::convert::convert(&g, &opts).unwrap_or_else(|e| panic!("{src}: {e}"));
-    doc.generator = Some(format!("drape convert ({})", vitryne_format::GENERATOR));
+        vitryne_pattern::convert::convert(&g, &opts).unwrap_or_else(|e| panic!("{src}: {e}"));
+    doc.generator = Some(format!("vitryne convert ({})", vitryne_format::GENERATOR));
     let folder = out.ends_with('/') || std::path::Path::new(out).is_dir();
     let r = if folder {
         doc.save_folder(std::path::Path::new(out))
@@ -888,7 +889,7 @@ impl Scene {
     }
 }
 
-/// A golden case of `drape regress`.
+/// A golden case of `vitryne regress`.
 struct RegressionCase {
     name: &'static str,
     project: &'static str,
@@ -948,7 +949,7 @@ const REGRESSION_CASES: [RegressionCase; 4] = [
 
 /// Runs (or, with `update`, records) the cases. Returns true if everything passed.
 fn regress(engine: &Engine, dir: &str, only: Option<&str>, update: bool, toml: bool) -> bool {
-    use drape_core::regress::{
+    use vitryne_solver::regress::{
         Golden, observe, positions_from_bytes, positions_to_bytes, shape_diff_mm,
     };
     std::fs::create_dir_all(dir).expect("regression dir");
@@ -1012,7 +1013,7 @@ fn regress(engine: &Engine, dir: &str, only: Option<&str>, update: bool, toml: b
             Ok(t) => serde_json::from_str(&t).unwrap_or_else(|e| panic!("{json_path}: {e}")),
             Err(e) => {
                 println!(
-                    "{name}: FAIL: no golden ({json_path}: {e}); run `drape regress --update`"
+                    "{name}: FAIL: no golden ({json_path}: {e}); run `vitryne regress --update`"
                 );
                 all_ok = false;
                 continue;
@@ -1050,10 +1051,10 @@ fn regress(engine: &Engine, dir: &str, only: Option<&str>, update: bool, toml: b
 
 fn pattern_svg(out: &str, edge: f32) {
     let pat = tshirt::pattern();
-    let mp = drape_assets::meshing::mesh_pattern(&pat, edge);
+    let mp = vitryne_pattern::meshing::mesh_pattern(&pat, edge);
     std::fs::write(
         out,
-        drape_assets::preview::pattern_svg(
+        vitryne_pattern::preview::pattern_svg(
             &pat,
             &mp,
             &[],
@@ -1144,7 +1145,7 @@ impl Offscreen {
     }
 
     fn read(&self, device: &wgpu::Device) -> Vec<u8> {
-        pollster::block_on(drape_core::gpu_async::read_buffer::<u8>(
+        pollster::block_on(vitryne_solver::gpu_async::read_buffer::<u8>(
             device,
             &self.readback,
         ))
@@ -1184,7 +1185,7 @@ fn render_frames(
     if seams {
         renderer.set_seams(
             &g.device,
-            &drape_render::seam_segments(&scene.garment.desc.seams),
+            &vitryne_render::seam_segments(&scene.garment.desc.seams),
         );
         renderer.show_seams(true);
     }

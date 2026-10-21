@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The worker's Rust (drape-web's VtryFile, built for Node by `pnpm run wasm`) and the example
+// The worker's Rust (vitryne-wasm's VtryFile, built for Node by `pnpm run wasm`) and the example
 // projects (`pnpm run assets`), for tests: the same validation and writer as the app.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import type * as Wasm from "../../pkg-node/drape_web";
+import type * as Wasm from "../../pkg-node/vitryne_wasm";
 import { type Entities, parseEntities } from "@/document/entities";
 
 const require = createRequire(import.meta.url);
@@ -12,7 +12,7 @@ const root = resolve(import.meta.dirname, "../..");
 
 function load(): typeof Wasm {
   try {
-    return require(resolve(root, "pkg-node/drape_web.js")) as typeof Wasm;
+    return require(resolve(root, "pkg-node/vitryne_wasm.js")) as typeof Wasm;
   } catch (e) {
     throw new Error(
       `pkg-node missing: run \`pnpm run wasm\` (${(e as Error).message})`,

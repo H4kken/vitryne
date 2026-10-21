@@ -47,7 +47,7 @@
           "minimum": 100
         },
         "engine": {
-          "description": "Engine tuning, sparse: only values that differ from the engine's defaults. Keys and units are the engine's own (drape-core SimSettings field names, SI, metres): this object is the one exception to the format's mm rule. Unknown keys are preserved and ignored.",
+          "description": "Engine tuning, sparse: only values that differ from the engine's defaults. Keys and units are the engine's own (vitryne-solver SimSettings field names, SI, metres): this object is the one exception to the format's mm rule. Unknown keys are preserved and ignored.",
           "type": "object"
         },
         "extensions": { "$ref": "common.schema.json#/$defs/extensions" },

@@ -1,5 +1,5 @@
 [package]
-name = "drape-core"
+name = "vitryne-solver"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

@@ -10,15 +10,15 @@
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use drape_core::{
-    body::BodyMesh,
-    engine::{Body, GarmentDesc},
-};
 use glam::{Vec2, Vec3};
 use serde_json::json;
 use vitryne_format::{
     Appearance, Fabric,
     glb::{self, GltfMaterial, GltfMesh, GltfPrimitive, GltfScene},
+};
+use vitryne_solver::{
+    body::BodyMesh,
+    engine::{Body, GarmentDesc},
 };
 
 /// Plausible PBR material properties for a fabric.

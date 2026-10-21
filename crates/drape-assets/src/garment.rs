@@ -12,14 +12,14 @@
 //!   ["a:1-2", "b:3-4"] several runs sewn as one chain (they may span pieces)
 //!   "sleeve:2-3+0.5" a boundary landmark may be fractional: `3+0.5` is the point halfway (by
 //!                   length) from landmark 3 to landmark 4, e.g. a sleeve-cap top with no notch
-//! `drape garment-svg <garment.toml>` draws every piece with its landmark numbers.
+//! `vitryne garment-svg <garment.toml>` draws every piece with its landmark numbers.
 //!
 //! Placement: each piece is wrapped on a cylinder around a body frame (torso, arm_l, arm_r,
 //! bentarm_l, bentarm_r, longarm_l, longarm_r, leg_l, leg_r, head, head_over; `_l` = the
 //! wearer's left = world +X), which are the test avatar's regions under their sidecar names
 //! (`placement::SIDECAR_REGIONS`).
 //!
-//! `drape convert` turns a sidecar and its DXF into a project file (`convert`); the optional
+//! `vitryne convert` turns a sidecar and its DXF into a project file (`convert`); the optional
 //! `title`, `[attribution]`, `[fabric]`, `[names]` and `label`s are only used there.
 
 use std::collections::BTreeMap;
@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 use glam::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
-use drape_core::{constraints::Material, engine::GarmentDesc, sim::Schedule};
+use vitryne_solver::{constraints::Material, engine::GarmentDesc, sim::Schedule};
 
 use crate::{
     aama::{self, ImportReport, Piece},
@@ -51,8 +51,8 @@ pub struct GarmentSpec {
     pub sdf: Option<SdfParams>,
     #[serde(default)]
     pub schedule: Option<Schedule>,
-    /// Engine overrides for the project file (`simulation.engine`, drape-core `SimSettings`
-    /// names), e.g. `self_collision = true`. Only `drape convert` uses them.
+    /// Engine overrides for the project file (`simulation.engine`, vitryne-solver `SimSettings`
+    /// names), e.g. `self_collision = true`. Only `vitryne convert` uses them.
     #[serde(default)]
     pub engine: Option<serde_json::Map<String, serde_json::Value>>,
     /// Fabric; default `Material::cotton()` (the spike-1 jersey placeholder).
@@ -328,7 +328,7 @@ impl Garment {
                 let l = p.boundary[w[0]].distance(p.boundary[w[1]]);
                 if acc + l >= target {
                     let u = ((target - acc) / l.max(1e-12)).clamp(0.0, 1.0);
-                    // On the format's grid, as `drape convert` stores it.
+                    // On the format's grid, as `vitryne convert` stores it.
                     let q = aama::on_grid(p.boundary[w[0]].lerp(p.boundary[w[1]], u).as_dvec2());
                     marks.push((t(q), format!("{k}+{f}")));
                     break;

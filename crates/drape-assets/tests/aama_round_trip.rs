@@ -5,9 +5,9 @@
 //! within 0.01 mm. The sidecar refers to landmarks by number, so this also checks that the
 //! export keeps their order.
 
-use drape_assets::{aama_export, convert, garment::Garment as DxfGarment};
 use serde_json::Value;
 use vitryne_format::Document;
+use vitryne_pattern::{aama_export, convert, garment::Garment as DxfGarment};
 
 const TOL_MM: f64 = 0.01;
 

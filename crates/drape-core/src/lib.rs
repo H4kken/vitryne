@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Drape core: GPU device setup, solver, metrics. Rendering lives in drape-render.
+//! Vitryne solver: GPU device setup, solver, metrics. Rendering lives in vitryne-render.
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod attrib;

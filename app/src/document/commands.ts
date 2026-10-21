@@ -783,7 +783,7 @@ function simulations(e: Entities): {
   };
 }
 
-/** Engine defaults (drape-core `SimSettings::default()`, `DEFAULT_TARGET_VERTICES`). */
+/** Engine defaults (vitryne-solver `SimSettings::default()`, `DEFAULT_TARGET_VERTICES`). */
 export const DEFAULT_TARGET_VERTICES = 10_000;
 const DEFAULT_SELF_COLLISION = false;
 

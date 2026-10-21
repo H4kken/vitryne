@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The engine worker: the wasm build of drape-web, its WebGPU device on the transferred
+// The engine worker: the wasm build of vitryne-wasm, its WebGPU device on the transferred
 // canvas, the drape, and the file (see protocol.ts). Requests run one at a time, in order;
 // inputs and frames run between them.
 
@@ -7,7 +7,7 @@ import init, {
   type PreparedScene,
   Viewport,
   VtryFile,
-} from "../../pkg/drape_web.js";
+} from "../../pkg/vitryne_wasm.js";
 import {
   type DrapeInfo,
   type FromWorker,

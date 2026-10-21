@@ -2,8 +2,8 @@
 //! The editor's placement preview (`Placer`) places the meshed garment exactly as a full build
 //! does, so what the user sees while dragging is what the drape starts from.
 
-use drape_assets::project::ProjectGarment;
 use vitryne_format::{Document, Placement};
+use vitryne_pattern::project::ProjectGarment;
 
 fn example(name: &str) -> Document {
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");

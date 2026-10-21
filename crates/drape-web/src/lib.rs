@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! wasm entry points. The same drape-core and drape-assets as native; WebGPU backend only (no
+//! wasm entry points. The same vitryne-solver and vitryne-pattern as native; WebGPU backend only (no
 //! WebGL fallback). Builds natively too (only the viewport is wasm-only), so
 //! `cargo test --workspace` and rust-analyzer check it.
 //!
@@ -9,14 +9,14 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use drape_assets::{
+use vitryne_pattern::{
     garment::Garment as DxfGarment,
     import::{Choice, DxfImport},
     placement::BodyPlace,
     seams::EdgePick,
     tshirt::{self, SdfParams, TshirtParams},
 };
-use drape_core::{
+use vitryne_solver::{
     body::{BodyMesh, BodyQuery},
     engine::{Avatar, Body, BodyOptions, Engine, Garment, SdfSource},
     gpu,
@@ -158,7 +158,7 @@ async fn headless_gpu(gpu_timestamps: bool) -> Result<gpu::Gpu, JsValue> {
     Ok(gpu::Gpu::new(&instance, None, gpu::GpuOptions { gpu_timestamps }).await?)
 }
 
-/// The same headless benchmark as `drape bench` (drape_core::bench::run), as JSON. A fresh
+/// The same headless benchmark as `vitryne bench` (vitryne_solver::bench::run), as JSON. A fresh
 /// device per run, since `gpu_timestamps` changes the requested features.
 #[wasm_bindgen]
 #[allow(clippy::too_many_arguments)]
@@ -176,19 +176,19 @@ pub async fn run_bench(
     let engine = Engine::new(headless_gpu(gpu_timestamps).await?);
     let sc = build_scene(&scene, res, substeps, &opts, &obj, &sdf)?;
     let sim = engine.simulate(&sc.garment, &sc.body, &sc.settings);
-    let cfg = drape_core::bench::BenchConfig {
+    let cfg = vitryne_solver::bench::BenchConfig {
         frames,
         record_positions,
         ..Default::default()
     };
-    let r = drape_core::bench::run(&sim, cfg).await;
+    let r = vitryne_solver::bench::run(&sim, cfg).await;
     engine.gpu().device.destroy();
     let mut v = serde_json::to_value(&r).map_err(|e| e.to_string())?;
     v["asset_load"] = sc.load;
     Ok(v.to_string())
 }
 
-/// The same random-drag stability test as `drape bench-drag`, as JSON (scene: tshirt | garment).
+/// The same random-drag stability test as `vitryne bench-drag`, as JSON (scene: tshirt | garment).
 #[wasm_bindgen]
 #[allow(clippy::too_many_arguments)]
 pub async fn run_drag_bench(
@@ -205,14 +205,14 @@ pub async fn run_drag_bench(
     let engine = Engine::new(headless_gpu(false).await?);
     let sc = build_scene(&scene, res, 0, &opts, &obj, &sdf)?;
     let sim = engine.simulate(&sc.garment, &sc.body, &sc.settings);
-    let cfg = drape_core::dragbench::DragBenchConfig {
+    let cfg = vitryne_solver::dragbench::DragBenchConfig {
         seed: seed as u64,
         drag_s,
         max_offset,
         min_pull_s,
         ..Default::default()
     };
-    let r = drape_core::dragbench::run(&sim, cfg).await;
+    let r = vitryne_solver::dragbench::run(&sim, cfg).await;
     engine.gpu().device.destroy();
     serde_json::to_string(&r).map_err(|e| e.to_string().into())
 }

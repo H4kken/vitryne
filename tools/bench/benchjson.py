@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Loading and describing `drape bench` / `drape bench-drag` JSON, native or from bench.html.
+"""Loading and describing `vitryne bench` / `vitryne bench-drag` JSON, native or from bench.html.
 Shared by summary.py and compare.py."""
 import base64
 import glob

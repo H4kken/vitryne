@@ -4,8 +4,8 @@
 //! sewing pairs, fabric, ramp, SDF box and camera, bit for bit. (The DXF importer works on the
 //! format's 0.001 mm grid, so there is no rounding between the two.)
 
-use drape_assets::{garment::Garment as DxfGarment, project::ProjectGarment};
 use vitryne_format::Document;
+use vitryne_pattern::{garment::Garment as DxfGarment, project::ProjectGarment};
 
 fn compare(name: &str) {
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
@@ -53,9 +53,12 @@ fn compare(name: &str) {
         "{name}: SDF box"
     );
     assert_eq!(a.camera, b.camera, "{name}: camera");
-    let mut s = drape_core::sim::SimSettings::default();
+    let mut s = vitryne_solver::sim::SimSettings::default();
     assert!(pg.apply_settings(&mut s).is_empty());
-    assert_eq!(s.friction, drape_core::sim::SimSettings::default().friction);
+    assert_eq!(
+        s.friction,
+        vitryne_solver::sim::SimSettings::default().friction
+    );
 }
 
 #[test]
@@ -105,7 +108,8 @@ fn per_cut_fabrics() {
 
     let edge = pg.edge_for_vertices(10_000).unwrap();
     let desc = pg.build(edge).unwrap();
-    let g = drape_core::engine::Garment::load_with_materials(&desc, &pg.material(), &panel_mats)
-        .unwrap();
+    let g =
+        vitryne_solver::engine::Garment::load_with_materials(&desc, &pg.material(), &panel_mats)
+            .unwrap();
     assert_eq!(g.panel_fabrics.len(), 4);
 }

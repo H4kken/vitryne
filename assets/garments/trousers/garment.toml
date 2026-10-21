@@ -19,7 +19,7 @@ name = "Twill (placeholder)"
 category = "woven"
 notes = "Placeholder, not calibrated: a jersey is too soft to hold trousers up on the hips (docs/history/PROGRESS.md S2). Stretch from the per-edge stiffness 1e6 N/m: Y = 2k/sqrt(3), shear = 3Y/8 (triangle lattice, Poisson 1/3)."
 
-# Landmark names for the project file (`drape convert`), in landmark order.
+# Landmark names for the project file (`vitryne convert`), in landmark order.
 [names]
 front = [
   "side waist",
@@ -82,7 +82,7 @@ dxf = "back"
 mirror = true
 place = { frame = "leg_l", angle = 180, radius = 0.12, top = 1.12 }
 
-# Landmarks (drape garment-svg): front 0 side waist, 1 outer hem, 2 inner hem, 3 crotch fork,
+# Landmarks (vitryne garment-svg): front 0 side waist, 1 outer hem, 2 inner hem, 3 crotch fork,
 # 4 centre-front waist; back 0 crotch fork, 1 inner hem, 2 outer hem, 3 side waist, 4 centre-
 # back waist. Mirrored instances keep the numbers, so the left leg's seams read the same.
 

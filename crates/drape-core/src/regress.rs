@@ -3,7 +3,7 @@
 //! fixed number of frames on a fresh simulation; `observe` measures it, `Golden` is what was
 //! recorded, `Golden::check` lists every way the observation differs beyond its tolerance.
 //!
-//! The runner and the golden files live outside this crate (`drape regress`, tests/regression/):
+//! The runner and the golden files live outside this crate (`vitryne regress`, tests/regression/):
 //! this module is the measurement and the comparison, on any target.
 
 use glam::Vec3;

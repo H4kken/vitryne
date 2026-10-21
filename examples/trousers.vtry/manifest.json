@@ -3,7 +3,7 @@
   "kind": "project",
   "formatVersion": 3,
   "minReaderVersion": 1,
-  "generator": "drape convert (vitryne-format 0.1.0)",
+  "generator": "vitryne convert (vitryne-format 0.1.0)",
   "parts": [
     {
       "path": "project.json",

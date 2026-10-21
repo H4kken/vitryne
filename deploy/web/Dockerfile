@@ -23,7 +23,7 @@ WORKDIR /src/app
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/src/target \
     pnpm install --frozen-lockfile \
  && pnpm run wasm \
- && cd .. && cargo build --release -p drape-native && target/release/drape export-app-assets app/public \
+ && cd .. && cargo build --release -p vitryne-cli && target/release/vitryne export-app-assets app/public \
  && cd app && pnpm exec tsc -b && pnpm exec vite build \
  && rm -rf dist/bench-assets
 

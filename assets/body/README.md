@@ -11,7 +11,7 @@ Y up, facing +Z, A-pose. 13,380 vertices, 26,756 triangles, 1.67 m tall.
 
 `avatar.json`: this avatar as a project file's avatar entity (docs/FORMAT.md, Avatar): name,
 attribution, and the **regions** garments are wrapped around (torso, arms, legs, head; mm),
-measured on this mesh. `drape convert` copies it into every project with the mesh as `body.glb`,
+measured on this mesh. `vitryne convert` copies it into every project with the mesh as `body.glb`,
 and the `garment.toml` path places pieces with the same regions.
 
 Measured on this mesh (used to size and place the T-shirt):

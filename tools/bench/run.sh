@@ -10,7 +10,7 @@
 #   SC=1          self-collision on, rebuilt every 4th substep (SC=0: off)
 #   TARGET=native, or TARGET=chrome: needs the page served with COOP/COEP on PORT (default 5173),
 #                 e.g. `cd app && pnpm run dev:app`; QUERY="&ut=0" adds bench.html URL parameters
-#   DRAPE_BIN=target/release/drape (native; built first if it's the default)
+#   VITRYNE_BIN=target/release/vitryne (native; built first if it's the default)
 #
 # Output: <out-dir>/<target>_<garment>_<N>k[_s<seed>].json, plus a .log per native run.
 # Then: python3 tools/bench/compare.py <native-dir> <chrome-dir> puts two targets side by side.
@@ -26,11 +26,11 @@ garments=${GARMENTS:-tshirt trousers hoodie}
 verts=${VERTS:-10000 20000}
 seeds=${SEEDS:-1 2 3 4 5 6}
 [ "$mode" = drape ] && seeds=-
-bin=${DRAPE_BIN:-target/release/drape}
+bin=${VITRYNE_BIN:-target/release/vitryne}
 mkdir -p "$out"
 
-if [ "$target" = native ] && [ -z "${DRAPE_BIN:-}" ]; then
-  cargo build --release -p drape-native --locked -q || exit 1
+if [ "$target" = native ] && [ -z "${VITRYNE_BIN:-}" ]; then
+  cargo build --release -p vitryne-cli --locked -q || exit 1
 fi
 
 for g in $garments; do

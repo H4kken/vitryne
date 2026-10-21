@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The sample projects bundled with the app (`drape export-app-assets`).
+// The sample projects bundled with the app (`vitryne export-app-assets`).
 
 export interface Example {
   file: string;

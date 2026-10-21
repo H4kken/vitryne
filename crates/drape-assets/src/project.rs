@@ -13,14 +13,14 @@ use std::collections::BTreeMap;
 use glam::{Vec2, Vec3};
 use serde_json::{Map, Value};
 
-use drape_core::{
+use vitryne_format::{
+    Appearance, Direction, Document, Fabric, Garment, Id, Kind, Pairing, Placement, Region, glb,
+};
+use vitryne_solver::{
     body::{BodyMesh, SdfParams},
     constraints::Material,
     engine::GarmentDesc,
     sim::{Schedule, SimSettings},
-};
-use vitryne_format::{
-    Appearance, Direction, Document, Fabric, Garment, Id, Kind, Pairing, Placement, Region, glb,
 };
 
 use crate::{

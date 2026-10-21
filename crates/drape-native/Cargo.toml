@@ -1,18 +1,18 @@
 [package]
-name = "drape-native"
+name = "vitryne-cli"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "drape"
+name = "vitryne"
 path = "src/main.rs"
 
 [dependencies]
-drape-core.workspace = true
-drape-render.workspace = true
-drape-assets.workspace = true
+vitryne-solver.workspace = true
+vitryne-render.workspace = true
+vitryne-pattern.workspace = true
 vitryne-format.workspace = true
 wgpu.workspace = true
 winit = "0.30"

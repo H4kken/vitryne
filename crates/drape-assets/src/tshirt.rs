@@ -9,7 +9,7 @@
 use glam::{Vec2, Vec3};
 use serde::Serialize;
 
-use drape_core::{constraints::Material, engine::GarmentDesc, sim::Schedule};
+use vitryne_solver::{constraints::Material, engine::GarmentDesc, sim::Schedule};
 
 use crate::{
     meshing::{MeshedPattern, mesh_pattern},
@@ -240,7 +240,7 @@ pub fn place(mp: &mut MeshedPattern, p: &TshirtParams) {
     }
 }
 
-pub use drape_core::body::SdfParams;
+pub use vitryne_solver::body::SdfParams;
 
 pub fn tshirt_schedule() -> Schedule {
     Schedule {

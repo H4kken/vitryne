@@ -10,7 +10,7 @@ use glam::{Vec2, Vec3};
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
 
 use crate::pattern::{EdgeRef, Pattern, dist_to_polygon, dist_to_polyline, point_in_polygon};
-use drape_core::mesh::ClothMesh;
+use vitryne_solver::mesh::ClothMesh;
 
 pub struct MeshedPattern {
     /// Rest shape = flat pattern coordinates (x, y, 0). Panels overlap in rest space; that's fine,

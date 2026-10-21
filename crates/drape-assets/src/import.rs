@@ -6,7 +6,7 @@
 //! new project or as an addition to the open one.
 //!
 //! A `garment.toml` sidecar may come with the DXF: then its pieces, cuts, names and seams are
-//! used (as `drape convert` does), and only its placements are replaced by the user's choices.
+//! used (as `vitryne convert` does), and only its placements are replaced by the user's choices.
 //! Without one the garment has no seams yet.
 //!
 //! Suggestions come from the piece names only ("sleeve", "front", ...), never from anything
@@ -18,11 +18,11 @@ use glam::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 use serde_json::Map;
 
-use drape_core::constraints::Material;
 use vitryne_format::{
     Bounds, Cut, Document, Follow, Garment, GarmentSimulation, Id, IdGen, Piece, Placement, Region,
     Seam, Source, Wrap,
 };
+use vitryne_solver::constraints::Material;
 
 use crate::{
     aama::{self, ImportReport},
@@ -709,8 +709,9 @@ mod tests {
     }
 
     fn body_glb() -> Vec<u8> {
-        let body = drape_core::body::BodyMesh::from_obj(&asset("assets/body/makehuman_body_m.obj"))
-            .unwrap();
+        let body =
+            vitryne_solver::body::BodyMesh::from_obj(&asset("assets/body/makehuman_body_m.obj"))
+                .unwrap();
         let mesh = vitryne_format::glb::Mesh {
             positions: body.pos.iter().map(|p| p.to_array()).collect(),
             indices: body.tris.iter().flatten().copied().collect(),
@@ -853,8 +854,9 @@ mod tests {
 
     #[test]
     fn bounds_cover_the_test_avatar() {
-        let body = drape_core::body::BodyMesh::from_obj(&asset("assets/body/makehuman_body_m.obj"))
-            .unwrap();
+        let body =
+            vitryne_solver::body::BodyMesh::from_obj(&asset("assets/body/makehuman_body_m.obj"))
+                .unwrap();
         let b = import_bounds(&body.pos);
         assert_eq!(
             (b.min, b.max),

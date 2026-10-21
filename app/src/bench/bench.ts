@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The engine benchmark page (bench.html): the same headless runs as `drape bench` and
-// `drape bench-drag`, in the browser. It runs on the main thread, as it always has, so its
+// The engine benchmark page (bench.html): the same headless runs as `vitryne bench` and
+// `vitryne bench-drag`, in the browser. It runs on the main thread, as it always has, so its
 // numbers stay comparable with the earlier milestones'. tools/bench/run.sh drives it.
 import init, {
   bake_sdf_ms,
   run_bench,
   run_drag_bench,
-} from "../../pkg/drape_web.js";
+} from "../../pkg/vitryne_wasm.js";
 import {
   type BenchAssets,
   loadGarmentAssets,
@@ -46,7 +46,7 @@ window.addEventListener("unhandledrejection", (e) =>
   report("error", String((e.reason as Error | undefined)?.message ?? e.reason)),
 );
 const status = $("status");
-// Bench JSON as the engine writes it (drape_core::bench / dragbench): read, not typed.
+// Bench JSON as the engine writes it (vitryne_solver::bench / dragbench): read, not typed.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Run = any;
 const results: Run[] = [];
