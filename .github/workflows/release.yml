@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# A release, on pushing a tag vX.Y.Z (docs/MAINTAINING.md, Releasing). Checks the tag against
+# the workspace version and CHANGELOG.md, runs `make check-ci` (which builds the editor), then
+# publishes the web image to GHCR for amd64 and arm64 (the editor is static files, so only the
+# Caddy layer differs per platform) and creates the GitHub release: its notes from CHANGELOG.md,
+# the static build, and a docker-compose.yml pinned to this version. A version with a hyphen
+# (0.2.0-rc.1) is a pre-release and doesn't move `latest`.
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Version
+        id: version
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          workspace=$(sed -n 's/^version = "\(.*\)"$/\1/p' packages/vitryne-engine/Cargo.toml | head -n 1)
+          if [ "$version" != "$workspace" ]; then
+            echo "::error::tag $GITHUB_REF_NAME, but packages/vitryne-engine/Cargo.toml says $workspace"
+            exit 1
+          fi
+          tools/release/notes.sh "$version" > "$RUNNER_TEMP/notes.md"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vitryne-web" >> "$GITHUB_OUTPUT"
+          case $version in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/setup
+      - run: make check-ci
+
+      - name: Release files
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/out" && cd "$RUNNER_TEMP/out"
+          rm -rf "$GITHUB_WORKSPACE/packages/vitryne-web/dist/bench-assets"
+          tar -C "$GITHUB_WORKSPACE/packages/vitryne-web/dist" -czf "vitryne-web-$VERSION.tar.gz" .
+          sed "s/VITRYNE_VERSION:-latest/VITRYNE_VERSION:-$VERSION/" \
+            "$GITHUB_WORKSPACE/packages/vitryne-cloud/deploy/docker-compose.yml" > docker-compose.yml
+          grep -q "VITRYNE_VERSION:-$VERSION}" docker-compose.yml
+          cp "$GITHUB_WORKSPACE/packages/vitryne-cloud/deploy/.env.example" env.example
+          sha256sum -- * > SHA256SUMS
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ steps.version.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.title=Vitryne
+            org.opencontainers.image.description=The Vitryne editor, served by Caddy
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/vitryne-cloud/deploy/web/Dockerfile
+          target: from-dist
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          IMAGE: ${{ steps.version.outputs.image }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          cat >> "$RUNNER_TEMP/notes.md" <<EOF
+
+          ## Run it
+
+          The web image is \`$IMAGE:$VERSION\` (linux/amd64 and linux/arm64). With a Supabase
+          project ([docs/CLOUD.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/CLOUD.md)):
+
+          \`\`\`sh
+          curl -fsSLO https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/docker-compose.yml
+          curl -fsSL https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/env.example -o .env
+          # set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env, then
+          docker compose up -d
+          \`\`\`
+
+          \`vitryne-web-$VERSION.tar.gz\` is the editor's static build, for any host that sends the
+          isolation headers ([docs/HOSTING.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/HOSTING.md)).
+          EOF
+          flags=()
+          [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Vitryne $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}" "$RUNNER_TEMP"/out/*

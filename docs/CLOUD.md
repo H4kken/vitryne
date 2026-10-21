@@ -41,24 +41,33 @@ a CORS fetch is allowed under the editor's cross-origin isolation (COEP).
 
 ## Running the editor
 
-Plug and go, like Twenty's self-hosting: one container.
+Plug and go, like Twenty's self-hosting: one container, from a
+[GitHub release](https://github.com/H4kken/vitryne/releases), nothing to build.
 
 ```sh
-docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d --build
+mkdir vitryne && cd vitryne
+curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/docker-compose.yml
+curl -fsSL https://github.com/H4kken/vitryne/releases/latest/download/env.example -o .env
+# set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env (Setting up the backend, below)
+docker compose up -d
 # then open http://localhost:8000
 ```
 
-`packages/vitryne-cloud/deploy/docker-compose.yml` runs one service, `web`: Caddy serving the editor
-with its isolation headers (`packages/vitryne-cloud/deploy/web/`). It builds the editor from this
-checkout (target `from-source`: wasm, the examples and their SDFs on the CPU, the Vite build): ~10
-GB of Docker disk, ~4 GB of memory and 10-20 minutes the first time; later builds reuse what didn't
-change. **To update:** `git pull`, then the same command.
+The compose file runs one service, `web`: the image `ghcr.io/h4kken/vitryne-web` (linux/amd64 and
+linux/arm64), Caddy serving the editor with its isolation headers
+(`packages/vitryne-cloud/deploy/web/`). A release's `docker-compose.yml` runs that release; the one
+in the repository follows `latest`. **To update:** set `VITRYNE_VERSION` in `.env` to the new
+release (or leave it empty with the repository's file), then
+`docker compose pull && docker compose up -d`. Read the release notes first: a release that
+changes the schema says so, and its migrations run at start when `SUPABASE_DB_URL` is set.
 
-Settings go in `packages/vitryne-cloud/deploy/.env` (copy `.env.example`). The backend's two are
-required: without them the container logs why and stops.
+Settings go in `.env` next to the compose file (`packages/vitryne-cloud/deploy/.env` in a
+checkout; copy `.env.example`). The backend's two are required: without them the container logs
+why and stops.
 
 | Setting | What |
 |---|---|
+| `VITRYNE_VERSION` | The release to run (`0.1.0`); empty: the compose file's default. `VITRYNE_IMAGE` replaces `ghcr.io/h4kken/vitryne-web` (a mirror, or your own build). |
 | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Required: the project's URL and publishable key (`sb_publishable_…`, Project Settings, API Keys). **Never a secret key**: the browser gets these. |
 | `SUPABASE_DB_URL` | Optional: the container applies `packages/vitryne-cloud/supabase/migrations/` at start, like Twenty's server does. Use the project's *Session pooler* connection string (on the free plan the direct one is IPv6 only). Without it, run `pnpm run supabase db push` after a schema change. |
 | `SITE_ADDRESS`, `HTTP_PORT`, `HTTPS_PORT` | `:80` behind a proxy (Coolify, Traefik, nginx) or locally; a domain name (`vitryne.example.org`, with ports 80 and 443) and Caddy gets the HTTPS certificate itself. |
@@ -68,20 +77,33 @@ The migrations at start record what they applied where the Supabase CLI does
 (`supabase_migrations.schema_migrations`), so they and `supabase db push` never apply anything
 twice.
 
-**A server too small to build:** build on your machine and copy the image over, no registry:
+**From a checkout**, to run code that isn't released: the override file builds the image in Docker
+(target `from-source`: wasm, the examples and their SDFs on the CPU, the Vite build; ~10 GB of
+Docker disk, ~4 GB of memory and 10-20 minutes the first time, later builds reuse what didn't
+change):
+
+```sh
+docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml \
+  -f packages/vitryne-cloud/deploy/docker-compose.build.yml up -d --build
+```
+
+On a server too small to build, build on your machine and copy the image over, no registry:
 
 ```sh
 make build
 docker build --platform linux/amd64 -f packages/vitryne-cloud/deploy/web/Dockerfile \
   --target from-dist -t vitryne-web .
 docker save vitryne-web | ssh you@server docker load
-ssh you@server 'cd vitryne &&
-  docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d --no-build'
+ssh you@server 'cd vitryne && VITRYNE_IMAGE=vitryne-web VITRYNE_VERSION=latest \
+  docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d'
 ```
+
+The static build of each release (`vitryne-web-<version>.tar.gz`) also runs on any static host
+that sends the isolation headers ([HOSTING.md](HOSTING.md)) and serves `config.json` itself.
 
 **On Coolify:** create a *Docker Compose* resource from this repository's
 `packages/vitryne-cloud/deploy/docker-compose.yml`, give the `web` service your domain (port 80),
-keep `SITE_ADDRESS=:80` (Coolify's proxy does HTTPS), and set the variables above.
+keep `SITE_ADDRESS=:80` (Coolify's proxy does HTTPS), and set the variables above (pin `VITRYNE_VERSION`).
 
 ## Setting up the backend
 
@@ -312,7 +334,8 @@ for 29 days and an idle account.
 
 ## Checking
 
-No CI, so documented checks instead:
+CI (`make check-ci`) doesn't run these: they need Docker and the local Supabase stack, or a real
+browser with a GPU.
 
 ```sh
 make cloud-test       # the web image (built from this machine's packages/vitryne-web/dist):
@@ -338,7 +361,8 @@ node packages/vitryne-cloud/tests/browser.mjs none <url>
 ## Not done yet
 
 - **A refactor before the MVP release** (see [PROGRESS.md](PROGRESS.md), M12): a trimmed
-  `packages/vitryne-cloud/supabase/config.toml`, versioning the web image.
+  `packages/vitryne-cloud/supabase/config.toml`. (The web image is versioned now: one image per
+  release, [MAINTAINING.md](MAINTAINING.md#releasing).)
 - **Sharing a project** with someone else, and real-time editing together: the reason projects
   stay in the cloud. Until then one tab edits a project at a time, and another browser's save is
   a conflict the person settles.

@@ -1,7 +1,9 @@
 # Contributing to Vitryne
 
-Thanks for helping. This page covers the sign-off we need on every commit, how to build and run
-Vitryne, and the local check every change has to pass.
+Thanks for helping. This page covers the sign-off we need on every commit, how to open a pull
+request, how to build and run Vitryne, and the check every change has to pass. Found a bug or
+have an idea? [Open an issue](https://github.com/H4kken/vitryne/issues/new/choose). A security
+problem goes through [SECURITY.md](SECURITY.md) instead.
 
 ## Sign your commits (DCO)
 
@@ -21,6 +23,30 @@ Use your real name. Every commit in a pull request needs it. If you forgot, run
 `git commit --amend -s` for the last commit, or `git rebase --signoff <base>` for several.
 
 The commits imported from the spike (before the first signed-off commit) predate this rule.
+
+## Pull requests
+
+1. **Say what you plan first** for anything bigger than a fix: an issue, or a comment on one.
+   Some features have to be designed around a competitor's patents (joining pieces, placement,
+   measuring, resizing: [docs/PATENTS.md](docs/PATENTS.md)), and it's better to know before
+   you write the code.
+2. **Fork, then branch from `main`**, named after the change: `fix/seam-flip`,
+   `feat/fabric-presets`, `docs/hosting-nginx`. One topic per pull request; a refactor and a
+   feature are two.
+3. **Keep up with `main` by rebasing** (`git rebase origin/main`), not merging.
+4. **Open the pull request into `main`.** Its title becomes the commit on `main`, in the
+   history's form: `type(scope): what changes`, with a type among `feat`, `fix`, `perf`,
+   `refactor`, `docs`, `test`, `build`, `ci`, `chore`, and a scope when it helps (`solver`,
+   `web`, `cloud`, `format`, `pattern`, `cli`). The template asks for the rest.
+5. **CI** runs on every push: `check` (`make check-ci`, everything in [the local
+   check](#the-local-check) but the golden drapes) and `dco` (each commit signed off). A
+   first-time contributor's run waits for a maintainer to start it.
+6. **A maintainer reviews and squash-merges it.** It needs CI green, one approval and every
+   conversation resolved. If your change touches the solver, the mesher, the importer or the
+   shaders, run `make regress` on a GPU and say so: CI can't.
+7. **A line under Unreleased** in [CHANGELOG.md](CHANGELOG.md) if people will notice the change.
+
+How pull requests are merged and releases made: [docs/MAINTAINING.md](docs/MAINTAINING.md).
 
 ## Licence of contributions
 
@@ -91,11 +117,13 @@ their output goes to `bench-out/`, which git ignores.
 
 ## The local check
 
-There's no CI. Run this before you push; it has to pass:
+Run this before you push; it has to pass:
 
 ```sh
 make check            # everything: about 1–2 minutes once the caches are warm
+make check-ci         # the same without the golden drapes (no GPU needed): what CI runs
 make check-quick      # Rust only: fmt, clippy (native and wasm32), tests
+tools/check/dco.sh origin/main HEAD   # every commit signed off
 ```
 
 It checks, one step after another (each is also a target of its own: `make hygiene`,

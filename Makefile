@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # The entry point for building and checking Vitryne (docs/REPO_PLAN.md). `make` lists the
-# targets. `make check` must pass before every milestone commit (there is no CI); it needs cargo
+# targets. `make check` must pass before every milestone commit; CI runs `make check-ci`, the same
+# without the drapes (GitHub's runners have no GPU; .github/workflows/ci.yml). It needs cargo
 # with clippy + rustfmt, the wasm32-unknown-unknown target, wasm-bindgen-cli 0.2.129, Node 22+
 # with pnpm 10, python3, and a GPU for the drapes (CONTRIBUTING.md).
 #
@@ -22,7 +23,7 @@ STEP := printf '\n== %s\n'
 .NOTPARALLEL:
 .DEFAULT_GOAL := help
 .PHONY: help setup dev dev-app wasm assets build hygiene fmt fmt-check lint test syntax examples \
-	examples-check regress regress-update check-quick check cloud-test clean \
+	examples-check regress regress-update check-quick check-ci check cloud-test clean \
 	deps cli fmt-check-rust fmt-check-web lint-rust lint-web test-rust test-web
 
 help: ## Lists the targets
@@ -132,9 +133,12 @@ regress-update: cli ## Rewrite the goldens after an intended change (say why in 
 check-quick: hygiene fmt-check-rust lint-rust test-rust ## Rust only: hygiene, rustfmt, clippy, cargo test
 	printf '\ncheck: quick checks passed (web build and drapes skipped)\n'
 
-CHECK := hygiene fmt-check-rust lint-rust test-rust build fmt-check-web test-web syntax examples-check \
-	regress
-check: $(CHECK) ## Everything; must pass before a milestone commit (~1.5 min, GPU)
+CHECK_NO_GPU := hygiene fmt-check-rust lint-rust test-rust build fmt-check-web test-web syntax \
+	examples-check
+check-ci: $(CHECK_NO_GPU) ## Everything but the drapes (no GPU): what CI runs on every pull request
+	printf '\ncheck: all passed but the drapes (make regress needs a GPU)\n'
+
+check: $(CHECK_NO_GPU) regress ## Everything; must pass before a milestone commit (~1.5 min, GPU)
 	printf '\ncheck: all passed\n'
 
 cloud-test: ## The web image's smoke test, then the backend tests: RLS, accounts, cleanup (Docker)

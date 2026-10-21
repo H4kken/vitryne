@@ -55,7 +55,17 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
 
 ### <img src="./packages/vitryne-web/public/images/server.svg" width="14" height="14"/> Self-hosting
 
-Guide coming soon...
+One container from a [release](https://github.com/H4kken/vitryne/releases) and a free
+[Supabase](https://supabase.com) project to keep the projects:
+
+```sh
+curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/docker-compose.yml
+curl -fsSL https://github.com/H4kken/vitryne/releases/latest/download/env.example -o .env
+# set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env
+docker compose up -d
+```
+
+Setting up the backend, updates and the other ways to run it: [docs/CLOUD.md](docs/CLOUD.md).
 
 <br />
 

@@ -1,23 +1,21 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Vitryne, plug and go (docs/CLOUD.md):
+# Vitryne, plug and go (docs/CLOUD.md). Runs the web image of a GitHub release
+# (ghcr.io/h4kken/vitryne-web), so nothing is built here:
 #
-#   docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d --build
+#   docker compose up -d        # next to .env (copy .env.example), then open http://localhost:8000
 #
-# then open http://localhost:8000
+# The copy attached to a release pins that release; this one follows `latest` unless .env sets
+# VITRYNE_VERSION. Projects are saved to a Supabase project: set SUPABASE_URL and
+# SUPABASE_PUBLISHABLE_KEY in .env; the container doesn't start without them. To update: change
+# VITRYNE_VERSION (or keep `latest`), then `docker compose pull && docker compose up -d`.
 #
-# Builds the editor from this checkout and serves it. Projects are saved to a Supabase project:
-# set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (in .env next to this file, see .env.example);
-# the container doesn't start without them. To update: `git pull`, then the same command.
+# From a checkout, building the editor instead: add `-f docker-compose.build.yml` and `--build`.
 
 name: vitryne
 
 services:
   web:
-    image: vitryne-web
-    build:
-      context: ../../..
-      dockerfile: packages/vitryne-cloud/deploy/web/Dockerfile
-      target: from-source
+    image: ${VITRYNE_IMAGE:-ghcr.io/h4kken/vitryne-web}:${VITRYNE_VERSION:-latest}
     restart: unless-stopped
     ports:
       - "${HTTP_PORT:-8000}:80"

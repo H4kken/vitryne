@@ -2,11 +2,12 @@
 # The Vitryne web image: Caddy serving the editor's static build, plus psql for the optional
 # migrations at start (entrypoint.sh). Build context: the repository root.
 #
-# Target `from-source` (what ../docker-compose.yml builds) builds the editor inside Docker: wasm,
+# Target `from-source` (what ../docker-compose.build.yml builds) builds the editor inside Docker: wasm,
 # the examples and their SDFs on the CPU, the Vite build. It needs ~10 GB of Docker disk, ~4 GB
 # of memory and 10-20 minutes the first time; later builds reuse the layers. Target `from-dist`
 # packages a packages/vitryne-web/dist built on the host (`cd packages/vitryne-web && pnpm run
-# build`) in seconds: for ../smoke.sh, or a server too small to build (docs/CLOUD.md).
+# build`) in seconds: for ../smoke.sh, releases (.github/workflows/release.yml builds the image
+# on GHCR this way), or a server too small to build (docs/CLOUD.md).
 
 FROM rust:1.99-bookworm AS build
 RUN rustup target add wasm32-unknown-unknown \

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# The smoke test of the web image (there is no CI; docs/CLOUD.md, "Checking"): builds the image
+# The smoke test of the web image (not in CI: it needs Docker and the local Supabase stack;
+# docs/CLOUD.md, "Checking"): builds the image
 # from the editor built here (`pnpm run build`, then target from-dist, quick), checks that it
 # refuses to start without a backend, then starts it from docker-compose.yml against the
 # local Supabase stack (started if needed) and checks the isolation headers, the privacy page,
@@ -9,7 +10,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 
-compose() { docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml -p vitryne-smoke "$@"; }
+# The image built here (vitryne-web:latest), not the release the compose file names.
+compose() { VITRYNE_IMAGE=vitryne-web VITRYNE_VERSION=latest docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml -p vitryne-smoke "$@"; }
 url=http://localhost:${HTTP_PORT:-8000}
 fail() {
   echo "smoke: FAIL: $*" >&2

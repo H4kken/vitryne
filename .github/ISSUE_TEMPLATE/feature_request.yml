@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: An idea
+description: Something Vitryne should do, or do differently
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you're trying to do
+      description: The garment or the step you're stuck on, and what you do today instead.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you imagine it. Other tools you know it from are welcome, but describe
+        the result you need rather than their exact interaction.
+  - type: markdown
+    attributes:
+      value: >
+        Some features (free sewing between any two points, automatic grading between sizes,
+        measuring on the 2D pattern) are covered by a competitor's patents, so Vitryne designs
+        them differently or not yet: see [docs/PATENTS.md](https://github.com/H4kken/vitryne/blob/main/docs/PATENTS.md).

@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The toolchains the Makefile needs (CONTRIBUTING.md, Prerequisites), with caches shared by CI
+# and releases. Only builds on main save the Rust cache; pull requests and tags restore it.
+name: setup
+description: Rust with clippy, rustfmt and wasm32, wasm-bindgen-cli, Node and pnpm
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: "1.99"
+        targets: wasm32-unknown-unknown
+        components: clippy, rustfmt
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: packages/vitryne-engine
+        shared-key: vitryne
+        save-if: ${{ github.ref == 'refs/heads/main' }}
+    # The exact version the crate pins (packages/vitryne-engine/wasm/Cargo.toml).
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: wasm-bindgen@0.2.129
+    - uses: pnpm/action-setup@v4
+      with:
+        package_json_file: packages/vitryne-web/package.json
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24
+        cache: pnpm

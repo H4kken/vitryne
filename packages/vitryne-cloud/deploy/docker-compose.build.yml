@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Builds the web image from this checkout instead of pulling a release (docs/CLOUD.md), from the
+# repository root:
+#
+#   docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml \
+#     -f packages/vitryne-cloud/deploy/docker-compose.build.yml up -d --build
+#
+# Target `from-source` builds everything inside Docker (~10 GB of disk, ~4 GB of memory, 10-20
+# minutes the first time; web/Dockerfile).
+
+services:
+  web:
+    image: vitryne-web:dev
+    build:
+      context: ../../..
+      dockerfile: packages/vitryne-cloud/deploy/web/Dockerfile
+      target: from-source

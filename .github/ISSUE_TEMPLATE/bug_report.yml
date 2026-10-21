@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: Something doesn't work
+description: A bug in the editor, the cloth, an import or an export, or self-hosting
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead. A screenshot or a
+        short recording helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      description: Step by step, from opening the editor. Name the example you started from, or
+        attach the pattern or the `.vtry` file (zipped) if you can share it.
+      placeholder: |
+        1. Open the T-shirt example
+        2. ...
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: vitryne.app, a self-hosted instance (which release), or a local build (which
+        commit).
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+      placeholder: Chrome 141 on Windows 11
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: Graphics card
+      description: The cloth runs on it. In Chrome or Edge, chrome://gpu lists it.
+      placeholder: Apple M2, NVIDIA RTX 3060, Intel Iris Xe, ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console errors
+      description: Anything red in the browser's developer console (F12), or the container's
+        logs for self-hosting.
+      render: text
