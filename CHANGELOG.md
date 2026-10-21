@@ -6,7 +6,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions f
 Add a line under **Unreleased** with your pull request when it changes what people see; a
 release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasing)).
 
-## [Unreleased]
+## [0.1.0] - 2026-10-21
 
 The first public beta.
 
@@ -26,4 +26,4 @@ The first public beta.
   ([docs/CLOUD.md](docs/CLOUD.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
-[Unreleased]: https://github.com/H4kken/vitryne/commits/main
+[0.1.0]: https://github.com/H4kken/vitryne/releases/tag/v0.1.0
