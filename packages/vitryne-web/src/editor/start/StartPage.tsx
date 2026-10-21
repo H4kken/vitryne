@@ -4,6 +4,7 @@ import { ProjectGrid } from "@/cloud/ProjectGrid";
 import type { Cloud } from "@/cloud/useCloud";
 import type { Example } from "../examples";
 import { CloudButton } from "../layout/CloudButton";
+import { HelpMenu } from "../layout/HelpMenu";
 import { NoticeCard } from "../layout/NoticeCard";
 import { StartScreen } from "./StartScreen";
 
@@ -38,7 +39,12 @@ export function StartPage(props: {
       onImport={props.onImport}
       dropProps={props.dropProps}
       onOpenFolder={props.onOpenFolder}
-      account={<CloudButton user={cloud.user} onClick={onAccount} />}
+      account={
+        <>
+          <HelpMenu privacyPolicy={cloud.config.privacyPolicy} />
+          <CloudButton user={cloud.user} onClick={onAccount} />
+        </>
+      }
       projects={
         // Nobody signed in yet: nothing saved, so no list to wait for.
         !cloud.user || cloud.projects ? (

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The top bar: back to the start, the project's name and save state, undo and redo, which
-// views show, the account and Export.
+// views show, help, the account and Export.
 
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { RedoIcon } from "../icons/RedoIcon";
 import { FlatIcon } from "../icons/FlatIcon";
 import { CubeIcon } from "../icons/CubeIcon";
 import { CloudButton } from "./CloudButton";
+import { HelpMenu } from "./HelpMenu";
 import { ProjectName } from "./ProjectName";
 import { IconButton } from "./IconButton";
 import type { SplitView } from "../hooks/useSplitView";
@@ -174,6 +175,7 @@ export function TopBar(props: {
           </TooltipContent>
         </Tooltip>
       </div>
+      <HelpMenu privacyPolicy={cloud.config.privacyPolicy} />
       <CloudButton user={cloud.user} onClick={onAccount} />
       <Button
         className="gap-2 px-3.5 font-semibold shadow-xs"
