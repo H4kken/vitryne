@@ -1,4 +1,5 @@
-/target
+/packages/vitryne-engine/target
+/node_modules
 *.ppm
 .DS_Store
 /.gstack

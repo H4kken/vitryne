@@ -17,7 +17,7 @@
   and which landmark runs are sewn (DXF carries no sewing information). Draw the landmark
   numbers with `vitryne garment-svg out.svg --garment <dir>/garment.toml`. Its `title`,
   `[attribution]`, `[fabric]`, `[names]` and `label`s only name things in the project file.
-- **Project files:** `vitryne convert` turns each sidecar into `examples/<garment>.vtry`
+- **Project files:** `vitryne convert` turns each sidecar into `assets/examples/<garment>.vtry`
   (`tools/format/build-examples.sh` does all three); the drapes, benchmarks and goldens use those.
 - **Regenerate:** `cd tools/patterns && pnpm install && ./export-all.sh`.
 - **Not used:** Hugo's rib waistband, cuffs and neck binding (folded rib knit), and the pocket facing.

@@ -7,13 +7,13 @@ be checked against the literature before the public announcement.
 
 All of it runs on the GPU as WebGPU core compute (no optional features, no float atomics), one
 set of WGSL shaders for native and browser. Settings are the fields of `SimSettings`
-(`crates/drape-core/src/sim.rs`); the numbers behind the defaults are in
-[PROGRESS.md](../PROGRESS.md).
+(`packages/vitryne-engine/solver/src/sim.rs`); the numbers behind the defaults are in
+[PROGRESS.md](PROGRESS.md).
 
 ## The step
 
 One frame is `substeps` (20) small steps of `h = frame_dt / substeps` (1/1200 s). Each step, in
-order (`Solver`, `crates/drape-core/src/sim.rs`):
+order (`Solver`, `packages/vitryne-engine/solver/src/sim.rs`):
 
 ```
 predict -> [long range] -> stretch (x stretch_iterations) -> [long range, slot 1/2]
@@ -28,7 +28,7 @@ predict -> [long range] -> stretch (x stretch_iterations) -> [long range, slot 1
 | Position-based dynamics with compliance | `sim.wgsl` | **XPBD**, Macklin, Müller & Chentanez, "XPBD: Position-Based Simulation of Compliant Constrained Dynamics", MIG 2016. Compliance is physical (1/stiffness), so results don't depend on the step count. |
 | Small steps | `sim.wgsl`, `SimSettings::substeps` | Macklin, Storey, Lu, Terdiman, Chentanez, Jeschke & Müller, "Small Steps in Physics Simulation", SCA 2019: many substeps with one solve each instead of few steps with many iterations. The Lagrange multiplier starts at 0 every substep and is never stored. |
 | Stretch | `solve_stretch`, `constraints.rs` | One XPBD distance constraint per mesh edge, compliance `1 / stretch_k`. `stretch_iterations` (3) Gauss-Seidel sweeps per substep (M2). |
-| Stretch damping | `solve_stretch` | Rayleigh stiffness-proportional damping of the constraint, Macklin et al. 2016 eq. 26: `gamma = beta / h` with `beta = stretch_damping`. (Before M2 the shader had `gamma = alpha * beta / h`, which made soft fabrics viscous; see PROGRESS.md M2.) |
+| Stretch damping | `solve_stretch` | Rayleigh stiffness-proportional damping of the constraint, Macklin et al. 2016 eq. 26: `gamma = beta / h` with `beta = stretch_damping`. (Before M2 the shader had `gamma = alpha * beta / h`, which made soft fabrics viscous; see docs/PROGRESS.md M2.) |
 | Bending | `solve_bend`, `constraints.rs` | **Isometric bending**: Bergou, Wardetzky, Harmon, Zorin & Grinspun, "A Quadratic Bending Model for Inextensible Surfaces", SGP 2006, with the cotangent weights of Wardetzky, Bergou, Harmon, Zorin & Grinspun, "Discrete Quadratic Curvature Energies", CAGD 2007. The curvature vector `C = sum k_i x_i` over an edge stencil is linear in the positions, zero when flat, so the XPBD update is closed-form with no singularity at flat (dihedral angles have one). Energy `3 kb / (A0 + A1) \|C\|^2`; compliance `(A0 + A1) / (6 kb)`. |
 | Parallel Gauss-Seidel | `constraints.rs` (`color`) | Greedy graph colouring of the constraints; one dispatch per colour, so no two threads in a dispatch touch the same vertex and nothing needs atomics. Fratarcangeli & Pellacini, "Scalable Partitioning for Parallel Position Based Dynamics", Eurographics 2015; Fratarcangeli, Tibaldo & Pellacini, "Vivace", SIGGRAPH Asia 2016. 9 stretch and 18 bend colours on the garment meshes. |
 | Sewing | `solve_sew` | **Own.** Zero-rest-length XPBD distance constraints between the two sides of a seam, with compliance ramped log-linearly from soft to stiff and a per-substep correction cap while the seams close (`Schedule`), so the pieces are drawn together instead of snapping. Gravity is off and ramps in afterwards. Nothing in the literature we know prescribes the ramp. |

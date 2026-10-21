@@ -50,25 +50,25 @@ there when you add an asset.
 **Native:**
 
 ```sh
-cargo run -p vitryne-cli --release -- bench --garment examples/tshirt.vtry --verts 10000
-cargo run -p vitryne-cli --release -- view --garment examples/tshirt.vtry
+cargo run -p vitryne-cli --release -- bench --garment assets/examples/tshirt.vtry --verts 10000
+cargo run -p vitryne-cli --release -- view --garment assets/examples/tshirt.vtry
 ```
 
-The first run bakes the body SDF (about 1–2 s) and caches it in `target/sdf-cache/`.
+The first run bakes the body SDF (about 1–2 s) and caches it in `packages/vitryne-engine/target/sdf-cache/`.
 
 **Browser:**
 
 ```sh
-cd app
+cd packages/vitryne-web
 pnpm install --frozen-lockfile
 pnpm run dev        # starts a local Supabase (Docker), builds the wasm, exports the examples and SDFs,
-                    # serves http://localhost:5173 (`--local`: that Supabase even if app/.env.local names another)
+                    # serves http://localhost:5173 (`--local`: that Supabase even if packages/vitryne-web/.env.local names another)
 pnpm run dev:app    # the same without a backend: enough for the bench page
-pnpm run build      # production build in app/dist
+pnpm run build      # production build in packages/vitryne-web/dist
 pnpm run check      # format types up to date, tsc, eslint, vitest (needs `pnpm run wasm` and `pnpm run assets` once)
 ```
 
-The editor (`app/`) is TypeScript, React, Tailwind and shadcn/ui; how it is built, and the
+The editor (`packages/vitryne-web/`) is TypeScript, React, Tailwind and shadcn/ui; how it is built, and the
 rules it follows, are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). After changing
 `docs/format/schema/`, run `pnpm run gen:format` to regenerate the types and validators.
 
@@ -96,15 +96,15 @@ It checks:
 - the app: the wasm build, the production bundle, the format types and validators up to date with
   `docs/format/schema/`, `tsc`, eslint, and vitest (commands and guardrails, and random edit
   sessions, pattern tools included, checked against the worker's Rust after every step);
-- that `examples/` is what `vitryne convert` writes;
+- that `assets/examples/` is what `vitryne convert` writes;
 - the golden regression suite on your GPU (`vitryne regress`): the three sample garments and a
-  skirt drawn in the editor (`tests/regression/skirt.vtry`) at 10k vertices, 600 frames, compared with `tests/regression/` on rest frame, final shape (0.5 mm;
+  skirt drawn in the editor (`packages/vitryne-engine/tests/skirt.vtry`) at 10k vertices, 600 frames, compared with `packages/vitryne-engine/tests/` on rest frame, final shape (0.5 mm;
   20 mm for the hoodie, whose neck junction is chaotic), penetration, self-intersections, edge
   strain and seam gap. After an intended change, re-record with
-  `target/release/vitryne regress --update` and explain the difference in the commit message. The
-  skirt's file is made by the editor's own commands (`app/src/document/skirt.test.ts`, which
+  `packages/vitryne-engine/target/release/vitryne regress --update` and explain the difference in the commit message. The
+  skirt's file is made by the editor's own commands (`packages/vitryne-web/src/document/skirt.test.ts`, which
   fails if the file differs); after an intended change to them, re-record it with
-  `SKIRT_UPDATE=1 pnpm exec vitest run src/document/skirt.test.ts` in `app/`.
+  `SKIRT_UPDATE=1 pnpm exec vitest run src/document/skirt.test.ts` in `packages/vitryne-web/`.
 
 ## Rules for engine changes
 
@@ -115,7 +115,7 @@ It checks:
 - **Published methods only** in the solver. Cite the paper in a comment where it's implemented,
   and in `docs/ALGORITHMS.md`.
 - **Don't loosen a quality criterion to make it pass.** If a target is wrong, change it in its
-  own commit, with the reasoning in `PROGRESS.md`, before the run it affects.
+  own commit, with the reasoning in `docs/PROGRESS.md`, before the run it affects.
 
 ## Large files
 

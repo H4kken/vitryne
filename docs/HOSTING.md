@@ -1,10 +1,10 @@
 # Hosting the editor
 
 This page is about serving the editor's files yourself. The simplest way is the published image
-(`docker compose -f deploy/docker-compose.yml up -d`), which also turns on accounts and cloud
+(`docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d`), which also turns on accounts and cloud
 storage when given a Supabase project: see [CLOUD.md](CLOUD.md).
 
-`cd app && pnpm run build` writes a static site to `app/dist/`: no server code, nothing to run.
+`cd packages/vitryne-web && pnpm run build` writes a static site to `packages/vitryne-web/dist/`: no server code, nothing to run.
 Any static host can serve it, as long as it sends two headers on every response.
 
 ## The two headers
@@ -66,7 +66,7 @@ vitryne.example {
 
 ## Static hosts
 
-- **Netlify, Cloudflare Pages:** a `_headers` file in `app/public/` (copied into `dist/`):
+- **Netlify, Cloudflare Pages:** a `_headers` file in `packages/vitryne-web/public/` (copied into `dist/`):
 
   ```
   /*

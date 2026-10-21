@@ -24,9 +24,8 @@ pnpm-lock.yaml
 **/*.gen.d.ts
 
 # Rust & Crate directories
-crates/
-examples/
-tests/regression/
+packages/vitryne-engine/
+assets/examples/
 
 # Vtry files
 *.vtry/

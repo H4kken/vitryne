@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The JavaScript packages (docs/REPO_PLAN.md): one lockfile at the root, `pnpm install` here.
+packages:
+  - packages/*
+onlyBuiltDependencies:
+  - supabase

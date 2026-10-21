@@ -9,8 +9,8 @@
 #   GARMENTS="tshirt trousers hoodie"  VERTS="10000 20000"  SEEDS="1 2 3 4 5 6" (drag only)
 #   SC=1          self-collision on, rebuilt every 4th substep (SC=0: off)
 #   TARGET=native, or TARGET=chrome: needs the page served with COOP/COEP on PORT (default 5173),
-#                 e.g. `cd app && pnpm run dev:app`; QUERY="&ut=0" adds bench.html URL parameters
-#   VITRYNE_BIN=target/release/vitryne (native; built first if it's the default)
+#                 e.g. `cd packages/vitryne-web && pnpm run dev:app`; QUERY="&ut=0" adds bench.html URL parameters
+#   VITRYNE_BIN=packages/vitryne-engine/target/release/vitryne (native; built first if it's the default)
 #
 # Output: <out-dir>/<target>_<garment>_<N>k[_s<seed>].json, plus a .log per native run.
 # Then: python3 tools/bench/compare.py <native-dir> <chrome-dir> puts two targets side by side.
@@ -26,11 +26,11 @@ garments=${GARMENTS:-tshirt trousers hoodie}
 verts=${VERTS:-10000 20000}
 seeds=${SEEDS:-1 2 3 4 5 6}
 [ "$mode" = drape ] && seeds=-
-bin=${VITRYNE_BIN:-target/release/vitryne}
+bin=${VITRYNE_BIN:-packages/vitryne-engine/target/release/vitryne}
 mkdir -p "$out"
 
 if [ "$target" = native ] && [ -z "${VITRYNE_BIN:-}" ]; then
-  cargo build --release -p vitryne-cli --locked -q || exit 1
+  (cd packages/vitryne-engine && cargo build --release -p vitryne-cli --locked -q) || exit 1
 fi
 
 for g in $garments; do
@@ -44,11 +44,11 @@ for g in $garments; do
         [ "${SC:-1}" = 1 ] && sc="--self-collision --self-rebuild 4"
         if [ "$mode" = drape ]; then
           # shellcheck disable=SC2086
-          "$bin" bench --scene garment --garment "examples/$g.vtry" --verts "$v" $sc \
+          "$bin" bench --scene garment --garment "assets/examples/$g.vtry" --verts "$v" $sc \
             --record-positions "$@" --out "$f" > /dev/null 2> "$out/$name.log"
         else
           # shellcheck disable=SC2086
-          "$bin" bench-drag --scene garment --garment "examples/$g.vtry" --verts "$v" $sc \
+          "$bin" bench-drag --scene garment --garment "assets/examples/$g.vtry" --verts "$v" $sc \
             --seed "$s" "$@" --out "$f" > /dev/null 2> "$out/$name.log"
         fi
       elif [ "$target" = chrome ]; then

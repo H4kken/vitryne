@@ -1,0 +1,36 @@
+[workspace]
+resolver = "3"
+members = [
+    "solver",
+    "pattern",
+    "render",
+    "cli",
+    "wasm",
+    "format",
+]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[workspace.dependencies]
+vitryne-solver = { path = "solver" }
+vitryne-pattern = { path = "pattern" }
+vitryne-render = { path = "render" }
+vitryne-format = { path = "format" }
+wgpu = { version = "30.0.1", default-features = false }
+glam = { version = "0.34.1", features = ["bytemuck"] }
+bytemuck = { version = "1.25", features = ["derive"] }
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+debug = 1
+
+[profile.release-wasm]
+inherits = "release"
+debug = 0
+opt-level = 3

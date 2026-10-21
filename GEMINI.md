@@ -1,8 +1,8 @@
 # Vitryne
 
 Open-source (AGPL-3.0-or-later) garment design in the browser: a GPU cloth solver (Rust, WGSL,
-WebGPU, native and wasm) and a beginner-friendly editor (`app/`, early). See
-[README.md](README.md) for what works today, [PROGRESS.md](PROGRESS.md) for milestones with their
+WebGPU, native and wasm) and a beginner-friendly editor (`packages/vitryne-web/`, early). See
+[README.md](README.md) for what works today, [docs/PROGRESS.md](docs/PROGRESS.md) for milestones with their
 numbers, [CONTRIBUTING.md](CONTRIBUTING.md) for build and check commands,
 [docs/ALGORITHMS.md](docs/ALGORITHMS.md) for every solver component and its paper, and
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the editor is built and its guardrails.
@@ -22,17 +22,17 @@ without checking them against that file, and say so when a request or the plan c
 
 | Path | What |
 |---|---|
-| `crates/drape-core` | The solver and the public API. `engine.rs` is the entry point (`Engine`, `Body`, `Garment`, `GarmentDesc`, `Simulation`); `sim.rs` has `SimSettings` (every tunable) and `Solver`; `shaders/*.wgsl` are the solver's shaders (native and browser share them). Also: `bench.rs`, `dragbench.rs`, `regress.rs`, `strain.rs`, `longrange.rs`, `selfcol.rs`, `untangle.rs`, `body.rs` (BVH, SDF). |
-| `crates/drape-render` | Viewport rendering, out of the solver: `Renderer` (GPU normals, lit cloth and collider), `OrbitCamera`, `pick`/`drag_target` for cloth drags, the M0 triangle; its own `shaders/`. |
-| `crates/vitryne-format` | The project file format (`.vtry` family): types, read/write (zip or folder), validation, migrations, unknown data kept. No engine dependency. |
-| `crates/drape-assets` | DXF-AAMA import, `garment.toml` sidecar, meshing, placement (`placement.rs`, regions from `assets/body/avatar.json`); `project.rs` turns a `.vtry` into a `GarmentDesc`, `convert.rs` a sidecar into a `.vtry`; `suggest.rs` + `seams.rs` are sewing in the editor (whole edges only, docs/PATENTS.md). Its `garment::Garment` is the DXF garment, not the engine's (`vitryne_solver::engine::Garment`); alias one of them on import. |
-| `crates/drape-native` | The `vitryne` CLI and the winit viewer (`view`, `bench`, `bench-drag`, `regress`, `frames`, `convert`, `export-app-assets`, `export-bench-assets`, ...). |
-| `crates/drape-web` | The wasm build: the editor worker's API (`project.rs`: `VtryFile` open/validate/save, `PreparedScene`; `viewport.rs`: `Viewport` on an OffscreenCanvas) and the bench page's (`run_bench`, ...). |
-| `app/` | The editor (TypeScript, React, Tailwind + shadcn/ui, Vite) and `bench.html`. `src/worker/` (protocol, worker, session with restarts), `src/document/` (the file's JSON, commands, store; tests), `src/format/*.gen.*` (generated from the schemas: `pnpm run gen:format`), `src/pattern/` (2D SVG), `src/properties/`, `src/storage/` (storage interface, recovery copy), `src/bench/`. |
+| `packages/vitryne-engine/solver` | The solver and the public API. `engine.rs` is the entry point (`Engine`, `Body`, `Garment`, `GarmentDesc`, `Simulation`); `sim.rs` has `SimSettings` (every tunable) and `Solver`; `shaders/*.wgsl` are the solver's shaders (native and browser share them). Also: `bench.rs`, `dragbench.rs`, `regress.rs`, `strain.rs`, `longrange.rs`, `selfcol.rs`, `untangle.rs`, `body.rs` (BVH, SDF). |
+| `packages/vitryne-engine/render` | Viewport rendering, out of the solver: `Renderer` (GPU normals, lit cloth and collider), `OrbitCamera`, `pick`/`drag_target` for cloth drags, the M0 triangle; its own `shaders/`. |
+| `packages/vitryne-engine/format` | The project file format (`.vtry` family): types, read/write (zip or folder), validation, migrations, unknown data kept. No engine dependency. |
+| `packages/vitryne-engine/pattern` | DXF-AAMA import, `garment.toml` sidecar, meshing, placement (`placement.rs`, regions from `assets/body/avatar.json`); `project.rs` turns a `.vtry` into a `GarmentDesc`, `convert.rs` a sidecar into a `.vtry`; `suggest.rs` + `seams.rs` are sewing in the editor (whole edges only, docs/PATENTS.md). Its `garment::Garment` is the DXF garment, not the engine's (`vitryne_solver::engine::Garment`); alias one of them on import. |
+| `packages/vitryne-engine/cli` | The `vitryne` CLI and the winit viewer (`view`, `bench`, `bench-drag`, `regress`, `frames`, `convert`, `export-app-assets`, `export-bench-assets`, ...). |
+| `packages/vitryne-engine/wasm` | The wasm build: the editor worker's API (`project.rs`: `VtryFile` open/validate/save, `PreparedScene`; `viewport.rs`: `Viewport` on an OffscreenCanvas) and the bench page's (`run_bench`, ...). |
+| `packages/vitryne-web/` | The editor (TypeScript, React, Tailwind + shadcn/ui, Vite) and `bench.html`. `src/worker/` (protocol, worker, session with restarts), `src/document/` (the file's JSON, commands, store; tests), `src/format/*.gen.*` (generated from the schemas: `pnpm run gen:format`), `src/pattern/` (2D SVG), `src/properties/`, `src/storage/` (storage interface, recovery copy), `src/bench/`. |
 | `assets/` | Avatar (CC0 MakeHuman), three FreeSewing garments with their licences. `tools/patterns` re-drafts them (`./export-all.sh`; the T-shirt is at chest ease 18%, on purpose). |
 | `docs/FORMAT.md`, `docs/format/schema/` | The project file format (`.vtry` family): spec with rationale, and a JSON Schema per part. Approved in M4; `vitryne-format` implements it in M5. |
-| `examples/` | The three sample projects in folder form (`tshirt.vtry/`, `trousers.vtry/`, `hoodie.vtry/`): `vitryne convert` output, regenerated by `tools/format/build-examples.sh`. Don't edit them by hand; edit the sidecar or the converter. |
-| `tests/regression/` | Golden results for `vitryne regress`. |
+| `assets/examples/` | The three sample projects in folder form (`tshirt.vtry/`, `trousers.vtry/`, `hoodie.vtry/`): `vitryne convert` output, regenerated by `tools/format/build-examples.sh`. Don't edit them by hand; edit the sidecar or the converter. |
+| `packages/vitryne-engine/tests/` | Golden results for `vitryne regress`. |
 | `tools/bench/` | `run.sh` (drape/drag matrices, native or Chrome), `summary.py`, `compare.py`, `strain.py`, `chrome-check.mjs`. Output goes to `bench-out/` (git-ignored). |
 
 ## Commands
@@ -41,20 +41,20 @@ without checking them against that file, and say so when a request or the plan c
   needs a GPU); `./check.sh --quick` is Rust only. Run `./check.sh` before every milestone commit.
 - `cargo` isn't on the shell `PATH` here: `export PATH="$HOME/.cargo/bin:$PATH"`, also for
   `pnpm run dev` (it rebuilds the wasm).
-- After an intended change to solver behaviour: `target/release/vitryne regress --update`, and
+- After an intended change to solver behaviour: `packages/vitryne-engine/target/release/vitryne regress --update`, and
   say why in the commit message. Compare builds with `tools/bench/compare.py <dir> <dir>`.
-- Viewer: `cargo run --release -p vitryne-cli -- view --garment examples/trousers.vtry` (the
+- Viewer: `cargo run --release -p vitryne-cli -- view --garment assets/examples/trousers.vtry` (the
   examples carry self-collision; a `garment.toml` needs `--self-collision --self-rebuild 4`), or
-  the editor: `cd app && pnpm run dev` (it starts the local Supabase stack, or uses the backend in
-  `app/.env.local`) and open http://localhost:5173; `pnpm run dev:app` is the dev server alone,
-  enough for `/bench.html`. `pnpm run check` in `app/` is the TypeScript gate (needs `pnpm run wasm` and `pnpm run
+  the editor: `cd packages/vitryne-web && pnpm run dev` (it starts the local Supabase stack, or uses the backend in
+  `packages/vitryne-web/.env.local`) and open http://localhost:5173; `pnpm run dev:app` is the dev server alone,
+  enough for `/bench.html`. `pnpm run check` in `packages/vitryne-web/` is the TypeScript gate (needs `pnpm run wasm` and `pnpm run
   assets` once).
 - Editor in a real browser: a headless browser without a GPU only shows the no-WebGPU page. Drive
   real Chrome over CDP like `tools/bench/chrome-check.mjs` does; use `Input.dispatch*` events
   (synthetic DOM events can't capture pointers). Projects save to the backend: test against the
-  local stack only (`pnpm run dev --local`), never the hosted project `app/.env.local` names.
+  local stack only (`pnpm run dev --local`), never the hosted project `packages/vitryne-web/.env.local` names.
 - After changing the converter, the importer or a sidecar: `tools/format/build-examples.sh` and
-  commit `examples/` (`./check.sh` diffs them against `vitryne convert`).
+  commit `assets/examples/` (`./check.sh` diffs them against `vitryne convert`).
 
 ## Rules (from the MVP plan, VITRYNE_MVP_PLAN.md, which is not committed; where it conflicts with docs/PATENTS.md, PATENTS.md wins)
 
@@ -62,13 +62,13 @@ without checking them against that file, and say so when a request or the plan c
    mode may request `timestamp-query`.
 2. Engine and UI stay separate; the UI uses the public API and the worker protocol only.
 3. Never loosen a quality criterion to make it pass; a target change is its own commit with the
-   reasoning in PROGRESS.md.
+   reasoning in docs/PROGRESS.md.
 4. Published methods only for the solver; cite them in `docs/ALGORITHMS.md` and where implemented.
 5. Design our own editor interactions (see the patents note).
 6. Every commit is signed off (`git commit -s`, identity `Mathis Grimberg
-   <mathis.grimberg@protonmail.com>`); end a milestone with a commit, PROGRESS.md numbers, and a
+   <mathis.grimberg@protonmail.com>`); end a milestone with a commit, docs/PROGRESS.md numbers, and a
    stop for review. The only branch is `main` (remote `origin`); the user pushes.
-7. Projects live in the backend, like Figma or Canva (changed in the MVP fixes, PROGRESS.md): a
+7. Projects live in the backend, like Figma or Canva (changed in the MVP fixes, docs/PROGRESS.md): a
    backend is required, projects autosave there, nothing is saved to disk. Anyone can try the
    editor without an account (one draft); keeping more projects and exporting need a free
    account. Network calls only for the app, its assets and what the person does (save, open,
@@ -84,7 +84,7 @@ without checking them against that file, and say so when a request or the plan c
   (DXF import dialog, placement by body place + automatic wrap + 3D gizmo, flat layout;
   waiting for review), M8 sewing in the UI (whole-edge seams: suggestions from geometry, two-click picking,
   seam list, seams in 2D and 3D; waiting for review), M9 fabric presets (5 physical presets in docs/FABRICS.md,
-  multi-fabric solver support, per-piece and garment fabric picker with re-drape; waiting for review), M10 export (glTF 2.0 and OBJ export with 2D pattern UVs, multi-fabric PBR materials, avatar node, native CLI and editor UI; waiting for review), M11 demo readiness and report (start from example screen, first-load & SDF analysis, README with animated GIF & quickstart, benchmark & browser matrix in PROGRESS.md; waiting for review). **Next:** M12 cloud backend and self-hosting.
+  multi-fabric solver support, per-piece and garment fabric picker with re-drape; waiting for review), M10 export (glTF 2.0 and OBJ export with 2D pattern UVs, multi-fabric PBR materials, avatar node, native CLI and editor UI; waiting for review), M11 demo readiness and report (start from example screen, first-load & SDF analysis, README with animated GIF & quickstart, benchmark & browser matrix in docs/PROGRESS.md; waiting for review). **Next:** M12 cloud backend and self-hosting.
 - **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
   `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **The `.vtry` and `garment.toml` paths give bit-identical garments** (test
@@ -92,7 +92,7 @@ without checking them against that file, and say so when a request or the plan c
   DXF importer snapping to the format's 0.001 mm grid and the mesher's canonical triangle order;
   keep both.
 - **The T-shirt's rest frame jumps under sub-micrometre input changes** (249/332/358/361 seen,
-  shapes within 3 mm, PROGRESS.md M5). A rest-frame change after touching the mesher or importer
+  shapes within 3 mm, docs/PROGRESS.md M5). A rest-frame change after touching the mesher or importer
   isn't necessarily a solver regression.
 - **The editor's document is the file's JSON; Rust validates every state** (`VtryFile.set_entities`
   in the worker). Range checks live in both the schemas (TS, before a command exists) and
@@ -100,7 +100,7 @@ without checking them against that file, and say so when a request or the plan c
   mutate the entities (frozen in dev/tests).
 - **Sidecars take `[engine]` overrides** (written to `garment.simulation.engine`); the examples
   set `self_collision` and `self_rebuild_every = 4`, the regression setting.
-- **Known and accepted for now** (PROGRESS.md M2/M3): trousers p99 edge strain 5.4% against a 3%
+- **Known and accepted for now** (docs/PROGRESS.md M2/M3): trousers p99 edge strain 5.4% against a 3%
   woven target; the hoodie is a basic placeholder (never rests, ~145 persistent
   self-intersections, 20 mm shape tolerance in the golden suite); the 20k T-shirt drape takes
   3.5 s against 3 s. Don't spend time on the hoodie's accuracy.
@@ -111,8 +111,8 @@ without checking them against that file, and say so when a request or the plan c
 - `Simulation` methods take `&self`; `encode_step` writes a frame into the caller's encoder,
   `step(n)` submits per frame (per-frame parameters are queue writes, which apply at submit).
 - Garment SDF boxes are per garment (`garment.toml [sdf]`); the SDF bake takes seconds, so it is
-  cached by `SdfParams::cache_key`: natively under `target/sdf-cache/`, in the editor bundled
-  for the examples (`app/public/sdf/`) or in the browser's OPFS; the bench page fetches
+  cached by `SdfParams::cache_key`: natively under `packages/vitryne-engine/target/sdf-cache/`, in the editor bundled
+  for the examples (`packages/vitryne-web/public/sdf/`) or in the browser's OPFS; the bench page fetches
   `bench-assets/`.
 - One solver iteration per substep is why strain grows with vertex count; long-range limits and
   extra sweeps are what carry load across a panel.

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/public/images/vitryne-logo.png" alt="Vitryne logo" width="100" />
+  <img src="packages/vitryne-web/public/images/vitryne-logo.png" alt="Vitryne logo" width="100" />
 </p>
 <h2 align="center">The #1 Open-Source Clothes Modelling Software</h2>
 

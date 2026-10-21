@@ -1,6 +1,6 @@
 # Progress
 
-> **Archive.** This is the `drape-spike` progress log as it stood at the end of the spikes (2026-10-12), kept for its history and numbers. Paths in it are the spike's: the spike's bench scripts were replaced by the general ones in `tools/bench/` (`run.sh`, `summary.py`, `compare.py`), and the raw benchmark output (`bench/…`) was left out of this repository's history to keep it small. Current progress is in [../../PROGRESS.md](../../PROGRESS.md).
+> **Archive.** This is the `drape-spike` progress log as it stood at the end of the spikes (2026-10-12), kept for its history and numbers. Paths in it are the spike's: the spike's bench scripts were replaced by the general ones in `tools/bench/` (`run.sh`, `summary.py`, `compare.py`), and the raw benchmark output (`bench/…`) was left out of this repository's history to keep it small. Current progress is in [../../PROGRESS.md](../PROGRESS.md).
 
 Machine used so far: MacBook Air, Apple M2 (integrated GPU), macOS (Darwin 27). Rust 1.99.0, wgpu 30.0.1, wasm-bindgen 0.2.129, Vite 8.3.1, Chrome 150.
 
@@ -105,13 +105,13 @@ bench/s3/one.sh tshirt 10000 6 out.json [--untangle-every N --untangle-check-eve
 
 ### What works
 - **Scene:** a 1 m square sheet, 1 m up, pinned at the two corners of one edge, falls onto a 30 cm sphere. The pins are 0.9 m apart (`pin_spacing`; see the taut-pins problem below).
-- **Solver:** XPBD with small steps, 20 substeps per frame and 1 iteration per substep, entirely on the GPU in [sim.wgsl](../../crates/drape-core/shaders/sim.wgsl). Each substep runs: predict → stretch (one dispatch per colour) → bend (one dispatch per colour) → sphere collision with friction → velocity update. There is no CPU readback in the step.
+- **Solver:** XPBD with small steps, 20 substeps per frame and 1 iteration per substep, entirely on the GPU in [sim.wgsl](../../packages/vitryne-engine/solver/shaders/sim.wgsl). Each substep runs: predict → stretch (one dispatch per colour) → bend (one dispatch per colour) → sphere collision with friction → velocity update. There is no CPU readback in the step.
   - **Stretch:** one distance constraint per mesh edge.
   - **Bending:** isometric bending (Bergou 2006). The curvature `C = Σ kᵢxᵢ`, with cotangent weights computed from the rest shape, is linear in positions. So the XPBD update is closed-form and doesn't blow up when the cloth is flat, unlike dihedral-angle bending. The weights come from the *rest* mesh, ready for M2's flat 2D pattern pieces.
   - **No float atomics:** constraints are greedy graph-coloured on the CPU. The grid needs 8 colours for stretch and 18 for bending, at every size. Unit tests check that no vertex appears twice in one colour, and that bending is zero when flat and nonzero when folded.
   - **Colour ranges:** each colour's range is picked with a **dynamic uniform offset**, so no push constants are needed (rule 1).
 - **Material:** placeholder cotton (`Material::cotton()`): 0.15 kg/m², stretch stiffness 1e4 N/m, bending stiffness 5e-6 N·m. Damping is 1.0/s, collision thickness 2 mm, friction 0.3.
-- **Metrics:** a GPU reduction ([metrics.wgsl](../../crates/drape-core/shaders/metrics.wgsl)) turns the mesh into 16 bytes: kinetic energy, max speed, min distance to the sphere, and a count of NaN/inf values (detected with a bit test, which compiler optimisations can't remove). The bench reads those 16 bytes once per frame, outside the timed region.
+- **Metrics:** a GPU reduction ([metrics.wgsl](../../packages/vitryne-engine/solver/shaders/metrics.wgsl)) turns the mesh into 16 bytes: kinetic energy, max speed, min distance to the sphere, and a count of NaN/inf values (detected with a bit test, which compiler optimisations can't remove). The bench reads those 16 bytes once per frame, outside the timed region.
 - **Rest rule:** the free vertices' RMS speed stays below 5 mm/s for 30 frames in a row. The rest frame is the first frame of that streak.
 - **`drape bench`:** two timings. Serial = submit → GPU done, one frame at a time, which is pessimistic. Pipelined = 300 frames queued back to back, which is what an interactive loop gets. It also records the rest frame, max speeds, NaN frames, buffer sizes, a speed trace, the 10 fastest vertices at the end (to find jitter spots), and per-phase GPU ms in profiling mode. The bench code is async and also builds for wasm, ready for M3.
 - **Viewer:** normals recomputed on the GPU by gathering each vertex's triangles (no atomics), two-sided lighting, orbit camera. It holds a steady **60 fps (vsync) at 10k vertices**.
@@ -236,15 +236,15 @@ Bending is the biggest phase on every target. Both browsers support `timestamp-q
 
 ### What works
 - **Avatar:** the MakeHuman base mesh (CC0), body group only, in metres. 13,380 vertices and 26,756 triangles, A-pose, 1.67 m tall. The source, license and measurements are in [assets/body/README.md](../../assets/body/README.md).
-- **Body on the CPU** ([body.rs](../../crates/drape-core/src/body.rs)):
+- **Body on the CPU** ([body.rs](../../packages/vitryne-engine/solver/src/body.rs)):
   - a triangle BVH (built in 18 ms)
   - exact signed distance, with the sign from angle-weighted pseudo-normals (unit-tested on a cube for face, edge and vertex regions)
   - a narrow-band **SDF bake**: exact within ±4 cm, and only the sign beyond that, from one BVH ray per grid row
 - **SDF size:** a box around the torso and upper arms at 4 mm is 226×216×126 = **24.6 MB, baked in 0.43 s** on native (multi-threaded with rayon). It's cached under `target/sdf-cache/`, and the bake also builds for wasm.
-- **SDF on the GPU:** stored in a storage buffer and sampled by hand with trilinear interpolation and an analytic gradient in [sdf.wgsl](../../crates/drape-core/shaders/sdf.wgsl). Core WebGPU can't filter float 3D textures, so the shader does it. The same snippet is prepended to the sim and metrics shaders.
+- **SDF on the GPU:** stored in a storage buffer and sampled by hand with trilinear interpolation and an analytic gradient in [sdf.wgsl](../../packages/vitryne-engine/solver/shaders/sdf.wgsl). Core WebGPU can't filter float 3D textures, so the shader does it. The same snippet is prepended to the sim and metrics shaders.
 - **Collision:** each vertex is projected out to `sdf ≥ 2 mm` along the gradient, with the same Coulomb friction as M1.
-- **Procedural T-shirt** ([tshirt.rs](../../crates/drape-assets/src/tshirt.rs)): front, back and 2 sleeves as 2D polygons in metres, with 10 seams. The pieces are sized from the avatar's measurements: chest 0.96 m around with ease, sleeve opening 0.34 m. The meshed pattern with colour-coded seams is in [docs/m2/pattern-10k.png](m2/pattern-10k.png).
-- **Meshing** ([meshing.rs](../../crates/drape-assets/src/meshing.rs)): the boundary is resampled at the target edge length, and both sides of each seam get **the same segment count**. The interior is an equilateral lattice, and spade's constrained Delaunay triangulation joins the two. The mean edge comes out within 1% of the target.
+- **Procedural T-shirt** ([tshirt.rs](../../packages/vitryne-engine/pattern/src/tshirt.rs)): front, back and 2 sleeves as 2D polygons in metres, with 10 seams. The pieces are sized from the avatar's measurements: chest 0.96 m around with ease, sleeve opening 0.34 m. The meshed pattern with colour-coded seams is in [docs/m2/pattern-10k.png](m2/pattern-10k.png).
+- **Meshing** ([meshing.rs](../../packages/vitryne-engine/pattern/src/meshing.rs)): the boundary is resampled at the target edge length, and both sides of each seam get **the same segment count**. The interior is an equilateral lattice, and spade's constrained Delaunay triangulation joins the two. The mean edge comes out within 1% of the target.
 - **Sewing:** zero-length constraints, graph-coloured (3 colours), stored after the stretch constraints in the same buffer so no extra binding is needed.
   - **Ramp-in:** compliance goes from 1e-2 to 1e-8 over 0.5 s, on a log scale.
   - **Correction clamp:** at most 0.5 mm per vertex per substep while the seams close. Seams close within about 20 frames from initial gaps of up to 372 mm (mean 158 mm).
@@ -300,10 +300,10 @@ Bending is still the biggest phase. SDF collision, which does 8 scattered reads 
 ![Safari 27, T-shirt 10k after the automated drag](m3/safari-viewer-10k.jpg)
 
 ### What works
-- **Web viewer** ([web/index.html](../../web/index.html), [viewer.rs](../../crates/drape-web/src/viewer.rs)): the same `Solver` and `Renderer` as native, in a canvas, driven by `requestAnimationFrame`.
+- **Web viewer** ([web/index.html](../../web/index.html), [viewer.rs](../../packages/vitryne-engine/wasm/src/viewer.rs)): the same `Solver` and `Renderer` as native, in a canvas, driven by `requestAnimationFrame`.
   - Choice of T-shirt 5k/10k/20k/40k or the M1 sheet; fast drape (F), pause, reset; orbit and zoom.
   - **Mouse drag:** pointer-down does a one-off position readback, a CPU ray pick (nearest vertex within 1.5 cm of the ray, front-most), then grabs a patch. A drag elsewhere orbits. The native viewer has the same drag.
-- **Drag model** ([sim.rs](../../crates/drape-core/src/sim.rs)), settled through the stability test below:
+- **Drag model** ([sim.rs](../../packages/vitryne-engine/solver/src/sim.rs)), settled through the stability test below:
   - **Patch:** the picked vertex plus graph-connected neighbours within 1.5 cm (≤ 32), so the other layer of the shirt isn't grabbed.
   - **Spring:** XPBD attachments with a **fixed total stiffness of 100 N/m**, so 1 cm of lag pulls with 1 N, independent of mesh resolution.
   - **Release:** a 6-frame soft release.
@@ -311,7 +311,7 @@ Bending is still the biggest phase. SDF collision, which does 8 scattered reads 
   - **Cost:** applied in the collide pass, so there's no extra dispatch.
 - **Assets on the web:** `npm run assets` exports the body OBJ (0.87 MB) and the baked SDF (50.2 MB, **14.9 MB gzipped**) to `web/public/assets` (git-ignored). On the M2 Mac with a local server: the fetch takes 50–200 ms, decode 8–13 ms, and the BVH 24–26 ms. **Baking the SDF in wasm takes 9.2–9.4 s** (single thread; native with rayon takes 1.7 s), so **download it, don't bake it**.
 - **Bench page:** T-shirt drape, the 60 s random-drag test, the sheet, and SDF-bake timing, all running the same `drape_core` code as the CLI. It's automatable through URL parameters, and with `post=1` it sends its results and progress logs back to the dev server, which is how the Safari runs work.
-- **`bench-drag`** ([dragbench.rs](../../crates/drape-core/src/dragbench.rs)): the plan's stability test. Drape for 4 s, then 60 s of random drags: ~43 episodes, each picking a random vertex, pulling it 5–25 cm in a random direction over ≥ 0.3 s, holding, releasing and pausing. Then a 3 s settle and the exact penetration check. **The script comes from a fixed-seed RNG, so native and every browser replay identical drags.**
+- **`bench-drag`** ([dragbench.rs](../../packages/vitryne-engine/solver/src/dragbench.rs)): the plan's stability test. Drape for 4 s, then 60 s of random drags: ~43 episodes, each picking a random vertex, pulling it 5–25 cm in a random direction over ≥ 0.3 s, holding, releasing and pausing. Then a 3 s settle and the exact penetration check. **The script comes from a fixed-seed RNG, so native and every browser replay identical drags.**
 
 ### Native vs browser: T-shirt drape (Apple M2, 20 substeps, 900 frames)
 
@@ -399,7 +399,7 @@ Bending is still the biggest phase. SDF collision, which does 8 scattered reads 
 Raw JSON: `bench/m4/native/` and `bench/m4/browser/`. Comparison script: `bench/m4/compare_m4.py`.
 
 ### What works
-- **Self-collision on the GPU** ([selfcol.wgsl](../../crates/drape-core/shaders/selfcol.wgsl), [selfcol.rs](../../crates/drape-core/src/selfcol.rs)): the same WGSL native and in the browser.
+- **Self-collision on the GPU** ([selfcol.wgsl](../../packages/vitryne-engine/solver/shaders/selfcol.wgsl), [selfcol.rs](../../packages/vitryne-engine/solver/src/selfcol.rs)): the same WGSL native and in the browser.
 - **Hash rebuild** (count, scan_local, scan_blocks, scatter, query), **every `--self-rebuild K` substeps; default K = 1, as in the plan:**
   - **Counting sort:** `atomicAdd` counts per hash cell, then a two-level exclusive scan (256-cell blocks, then one workgroup over the block totals). The scatter uses `atomicSub`, which returns the counts to zero, so no clear pass is needed. The only atomics are u32 counters (hard rule 4).
   - **Hash:** linear in x, so each 3×3×3 query reads 9 contiguous rows instead of 27 cells.
@@ -411,7 +411,7 @@ Raw JSON: `bench/m4/native/` and `bench/m4/browser/`. Comparison script: `bench/
 - **Excluded pairs:** vertices within 2r of each other along the rest mesh, where seams count as length 0, never repel. They're close because the cloth is connected there, not because two layers met. The lists are computed on the CPU at load (Dijkstra, 7 ms at 10k), about 6 per vertex.
 - **Limits:** a separate pipeline layout with 7 storage buffers (the default limit is 8), so the solver's own bind groups are untouched. `Features::empty()` and `Limits::default()` still hold.
 - **Benchmark-only checks:**
-  - **[selfcheck.rs](../../crates/drape-core/src/selfcheck.rs):** an exact triangle–triangle intersection count on a position readback. It uses a uniform grid with edge-against-triangle tests, and skips pairs that share a vertex directly or through a seam.
+  - **[selfcheck.rs](../../packages/vitryne-engine/solver/src/selfcheck.rs):** an exact triangle–triangle intersection count on a position readback. It uses a uniform grid with edge-against-triangle tests, and skips pairs that share a vertex directly or through a seam.
   - **`verify`:** reads back the last sort and checks that it's a permutation in cell order, plus neighbour-list usage. It passed in every run, native, Chrome and Safari, and no list ever overflowed.
 - **Switches:**
   - Native: `--self-collision`, `--self-rebuild K`, `--self-radius`, `--self-exclude`, `--self-friction`, `--self-push-speed`, and `--no-pins` (the unpinned sheet drop scene).
@@ -553,14 +553,14 @@ Raw JSON: `bench/s2/native/`. Native Metal, Apple M2, canonical mode (`Features:
 ### What works
 - **Patterns:** you didn't have patterns ready, so I drafted three open designs with FreeSewing 4.10.2 (all MIT; licence and notice in [assets/garments/](../../assets/garments/README.md)). They're drafted at the avatar's own measurements: [tools/patterns/measure.py](../../tools/patterns/measure.py) slices the mesh and reports FreeSewing's measurement set → [assets/body/measurements.json](../../assets/body/measurements.json).
 - **DXF-AAMA export** ([tools/patterns/export-aama.mjs](../../tools/patterns/export-aama.mjs)): FreeSewing core → R12 DXF, one BLOCK per piece; layers 1 boundary, 2 turn points, 4 notches (slits), 6 mirror line, 7 grain, 8 internal lines, plus "Piece Name:" and "Quantity:" text. It writes what a CAD system would. **Caveat:** the importer has only been run on DXFs from this exporter and on hand-written unit-test files, never on a Seamly2D or Gerber export. One of your files would close that gap.
-- **DXF-AAMA import** ([dxf.rs](../../crates/drape-assets/src/dxf.rs), [aama.rs](../../crates/drape-assets/src/aama.rs)):
+- **DXF-AAMA import** ([dxf.rs](../../packages/vitryne-engine/pattern/src/dxf.rs), [aama.rs](../../packages/vitryne-engine/pattern/src/aama.rs)):
   - **Reads:** POLYLINE/VERTEX, LWPOLYLINE, LINE, POINT, TEXT, BLOCK/INSERT and `$INSUNITS`.
   - **Skips without failing:** other entities (ARC, MTEXT, SPLINE …) and other layers, counted in an import report. Arc bulges become chords.
   - **Boundary:** the sew line (layer 14) is used if present, otherwise the cut line (layer 1).
   - **Corners:** if layer 2 is missing, they're detected by angle.
   - **Cut-on-fold pieces:** unfolded about the mirror line, together with their notches and internal lines. A mirror line that doesn't run along the outline is a warning, and that piece stays folded.
   - **Tests:** 6 unit tests.
-- **`garment.toml` sidecar** ([garment.rs](../../crates/drape-assets/src/garment.rs)): piece instances (mirrored for left/right), initial placement and seams. Seams are referenced by **landmarks**, i.e. turn points, notches, fold ends and internal-line ends, numbered in boundary order:
+- **`garment.toml` sidecar** ([garment.rs](../../packages/vitryne-engine/pattern/src/garment.rs)): piece instances (mirrored for left/right), initial placement and seams. Seams are referenced by **landmarks**, i.e. turn points, notches, fold ends and internal-line ends, numbered in boundary order:
   - `"front:3-5"` is a boundary run; `!` reverses a run;
   - a list of runs is one chain, which may span pieces (the hood neckline runs across the front, the raglan sleeve top and the back);
   - `"front:L0:2-3"` is an internal line (the pocket placement);
@@ -666,8 +666,8 @@ Raw JSON: `bench/s3/`
 Scripts: `one.sh`, `run.sh`, `sweep.sh`, `chrome.sh`, `final_table.py`. Native Metal on the Apple M2, Chrome 150, canonical mode (`Features::empty()`, `Limits::default()`), 20 substeps, self-collision on with K = 4.
 
 ### What works
-- **Spike attribution** ([attrib.rs](../../crates/drape-core/src/attrib.rs); native debug only, `DRAPE_DEBUG_ATTRIB=1`): each drag frame is snapshotted (pos/prev/vel). On a frame with a vertex ≥ 5 m/s, the snapshot is restored and the frame replayed one phase at a time. The replay relies on the solver being bit-reproducible (M4). It prints each phase's share of the spiking vertices' velocity, along their velocity and along the body normal. It's what separated the two spike causes below.
-- **Candidate 1, contact velocity filter** ([sim.wgsl](../../crates/drape-core/shaders/sim.wgsl), `contact_max_accel`, **on by default at 30 m/s²**):
+- **Spike attribution** ([attrib.rs](../../packages/vitryne-engine/solver/src/attrib.rs); native debug only, `DRAPE_DEBUG_ATTRIB=1`): each drag frame is snapshotted (pos/prev/vel). On a frame with a vertex ≥ 5 m/s, the snapshot is restored and the frame replayed one phase at a time. The replay relies on the solver being bit-reproducible (M4). It prints each phase's share of the spiking vertices' velocity, along their velocity and along the body normal. It's what separated the two spike causes below.
+- **Candidate 1, contact velocity filter** ([sim.wgsl](../../packages/vitryne-engine/solver/shaders/sim.wgsl), `contact_max_accel`, **on by default at 30 m/s²**):
   - **How:** the contact pass records how far it moved each vertex along the normal (`vel.w`). `update_velocity` then caps that vertex's **speed gain** to 30 m/s² × h per substep (0.025 m/s at 20 substeps).
   - **Effect:** contact can still stop a vertex at once, but can't launch it.
   - **Off switch:** `--contact-max-accel 0` (web `&cap=0`) is the S2 behaviour, bit for bit.
@@ -676,7 +676,7 @@ Scripts: `one.sh`, `run.sh`, `sweep.sh`, `chrome.sh`, `final_table.py`. Native M
   - `npm run assets` exports each garment's toml, DXF and its own SDF box (32–50 MB);
   - `bench.html` has a garment select, a drape mode and a drag mode;
   - wasm has a `garment` scene, and `run_drag_bench` takes a scene.
-- **Hoodie sleeve placement** ([garment.rs](../../crates/drape-assets/src/garment.rs)), the S2 failure:
+- **Hoodie sleeve placement** ([garment.rs](../../packages/vitryne-engine/pattern/src/garment.rs)), the S2 failure:
   - **`bentarm_l/r` frame:** follows the arm's centreline through the elbow, as a Catmull-Rom curve through points traced on the mesh;
   - **`tube = ease`:** sizes the sleeve radius from the pattern width, so the open edges meet under the arm;
   - **result:** the sleeves now go round the arms, the underarm seams close (1.8 mm), and drape intersections drop from 35 to 8.
@@ -755,8 +755,8 @@ The baseline penetration after drags was worse for the trousers too: 2.04 mm at 
 Raw JSON: `bench/s4/smoke/` (first version), `bench/s4/fix/` (cost fix 1) and `bench/s4/fix2/` (cost fix 2, current defaults). Native Metal, Apple M2, canonical mode, 20 substeps, self-collision on with K = 4. All runs alone on the GPU.
 
 ### What works
-- **Untangling** ([untangle.wgsl](../../crates/drape-core/shaders/untangle.wgsl), [untangle.rs](../../crates/drape-core/src/untangle.rs)): intersection contour minimization, after Volino & Magnenat-Thalmann 2006. Same goal as Baraff, Witkin & Kass 2003, but local: no flood fill of the region inside a contour, so it's plain per-pair GPU work.
-  - **Detect:** the triangles are hashed by centroid with the M4 counting sort. The two scan kernels moved into a shared [hashgrid.wgsl](../../crates/drape-core/shaders/hashgrid.wgsl), unchanged. Then exact edge–triangle tests, skipping pairs that share a vertex directly or through a seam (as [selfcheck.rs](../../crates/drape-core/src/selfcheck.rs) does).
+- **Untangling** ([untangle.wgsl](../../packages/vitryne-engine/solver/shaders/untangle.wgsl), [untangle.rs](../../packages/vitryne-engine/solver/src/untangle.rs)): intersection contour minimization, after Volino & Magnenat-Thalmann 2006. Same goal as Baraff, Witkin & Kass 2003, but local: no flood fill of the region inside a contour, so it's plain per-pair GPU work.
+  - **Detect:** the triangles are hashed by centroid with the M4 counting sort. The two scan kernels moved into a shared [hashgrid.wgsl](../../packages/vitryne-engine/solver/shaders/hashgrid.wgsl), unchanged. Then exact edge–triangle tests, skipping pairs that share a vertex directly or through a seam (as [selfcheck.rs](../../packages/vitryne-engine/solver/src/selfcheck.rs) does).
   - **Hash cell:** 2 × 1.2 × the 99th-percentile rest reach (centroid to vertex), i.e. triangles stretched up to 20% past p99 are always found: 15.5 mm on the T-shirt, 19.4 mm on the hoodie (2 of its triangles exceed that reach already at rest). History: the largest triangle (31 mm on the hoodie, one outlier), then 1.5 × p99.
   - **Threads:** 9 per triangle, one per (y, z) row of its 3×3×3 cells.
   - **Correct:** each edge crossing a triangle is a point of the contour. Within each triangle bordering the edge, the contour runs along the line where the two planes meet; seams are welded, so a seam edge has both sides. That gives the gradient of the contour length for moving the edge along the other triangle's normal. Edge and triangle move apart along it, half each.

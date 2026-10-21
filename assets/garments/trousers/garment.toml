@@ -51,7 +51,7 @@ min = [-0.40, 0.0, -0.22]
 max = [0.40, 1.25, 0.28]
 
 # Engine overrides for the project file: drape with self-collision, the hash rebuilt every
-# 4th substep (how every garment was measured, PROGRESS.md M2, and the regression setting).
+# 4th substep (how every garment was measured, docs/PROGRESS.md M2, and the regression setting).
 [engine]
 self_collision = true
 self_rebuild_every = 4

@@ -7,13 +7,13 @@ How Vitryne is put together, and the rules that keep it that way. For the solver
 
 | Part | What it is |
 |---|---|
-| `crates/drape-core` | The cloth solver and its public API (`Engine`, `Body`, `Garment`, `Simulation`). No rendering, no UI. |
-| `crates/drape-render` | Viewport rendering: cloth and body shading, the orbit camera, picking for cloth drags. |
-| `crates/vitryne-format` | The `.vtry` file family: types, reading and writing (zip or folder), validation, migrations. No engine dependency. |
-| `crates/drape-assets` | DXF-AAMA import, meshing, placement; turns a `.vtry` into what the engine drapes. |
-| `crates/drape-native` | The `vitryne` CLI and the native viewer. |
-| `crates/drape-web` | The wasm build for the browser: the editor worker's API (`VtryFile`, `PreparedScene`, `Viewport`) and the bench page's (`run_bench`, ...). |
-| `app/` | The editor: TypeScript, React, Tailwind and shadcn/ui, built with Vite. `bench.html` is the engine benchmark page. |
+| `packages/vitryne-engine/solver` | The cloth solver and its public API (`Engine`, `Body`, `Garment`, `Simulation`). No rendering, no UI. |
+| `packages/vitryne-engine/render` | Viewport rendering: cloth and body shading, the orbit camera, picking for cloth drags. |
+| `packages/vitryne-engine/format` | The `.vtry` file family: types, reading and writing (zip or folder), validation, migrations. No engine dependency. |
+| `packages/vitryne-engine/pattern` | DXF-AAMA import, meshing, placement; turns a `.vtry` into what the engine drapes. |
+| `packages/vitryne-engine/cli` | The `vitryne` CLI and the native viewer. |
+| `packages/vitryne-engine/wasm` | The wasm build for the browser: the editor worker's API (`VtryFile`, `PreparedScene`, `Viewport`) and the bench page's (`run_bench`, ...). |
+| `packages/vitryne-web/` | The editor: TypeScript, React, Tailwind and shadcn/ui, built with Vite. `bench.html` is the engine benchmark page. |
 
 ## The editor
 
@@ -38,7 +38,7 @@ worker, or from ticks the UI sends where workers lack it.
 
 ### Routes
 
-Each URL has its own screen (`app/src/router.tsx`, `app/src/routes/`):
+Each URL has its own screen (`packages/vitryne-web/src/router.tsx`, `packages/vitryne-web/src/routes/`):
 
 | URL | Screen |
 |---|---|
@@ -74,7 +74,7 @@ The editor follows the "Vitryne editor concept" design canvas (claude.ai artifac
 examples; then the person's projects as cards with a thumbnail of the drape), then a top bar, an icon rail
 that opens one panel at a time, and one canvas showing either the 3D drape or the flat pieces,
 with a status pill, a hint, zoom and a floating tool bar. Its colours, radii and type are the
-tokens in `app/src/index.css` (light only); the fonts, Bricolage Grotesque and DM Sans (OFL),
+tokens in `packages/vitryne-web/src/index.css` (light only); the fonts, Bricolage Grotesque and DM Sans (OFL),
 are bundled from `@fontsource`, never fetched from another site. The 3D scene's colours go to
 the renderer as a `vitryne_render::Style`; a garment or piece with a colour (an appearance,
 FORMAT.md) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour edits
@@ -86,7 +86,7 @@ built yet.
 
 ### Worker protocol
 
-`app/src/worker/protocol.ts` defines every message:
+`packages/vitryne-web/src/worker/protocol.ts` defines every message:
 
 - **inputs** (UI → worker, no reply): the canvas, its size, pointer and wheel, play/pause/fast/
   reset, frame ticks;
@@ -101,9 +101,9 @@ between dragging it and orbiting.
 ### Document model
 
 The UI holds the project as **the file's own JSON**: the entities exactly as Rust's
-`vitryne_format::Entities` gives them, typed by `app/src/format/schema.gen.ts`. Those types and
+`vitryne_format::Entities` gives them, typed by `packages/vitryne-web/src/format/schema.gen.ts`. Those types and
 the validators beside them are generated from `docs/format/schema/` by
-`app/scripts/gen-format.mjs`, and `./check` fails if they are stale. Members the editor doesn't
+`packages/vitryne-web/scripts/gen-format.mjs`, and `./check` fails if they are stale. Members the editor doesn't
 know (a newer file's) stay in the JSON, so they survive by construction; Rust keeps their exact
 number spelling across a round trip through JavaScript (`1.0` stays `1.0`).
 
@@ -117,7 +117,7 @@ there.
 
 ### Commands and the guardrails
 
-Every change is a command (`app/src/document/commands.ts`), and commands are the only way the
+Every change is a command (`packages/vitryne-web/src/document/commands.ts`), and commands are the only way the
 document changes. What keeps the document from silently going wrong:
 
 1. **Frozen.** In development and tests the document is deep-frozen; an accidental mutation
@@ -145,7 +145,7 @@ document changes. What keeps the document from silently going wrong:
 8. **Unsaved work.** A dialog before opening another file, the browser's leave-page prompt, and
    a recovery copy in IndexedDB (never sent anywhere) offered on the next start.
 
-Tests (`app/src/**/*.test.ts`, `pnpm run check`): every command applies, is accepted by Rust (the
+Tests (`packages/vitryne-web/src/**/*.test.ts`, `pnpm run check`): every command applies, is accepted by Rust (the
 worker's wasm built for Node) and reverts to the identical document; the store's undo,
 coalescing, rollback, restart and debounce; and fast-check sessions of random edits, undos and
 redos on the three examples (one run with the settings commands, one adding the pattern tools'),
@@ -189,7 +189,7 @@ the piece and the body, never stored rules per garment:
   3 cm above the head for hoods, the shoulder joint for sleeves, centred for a strip over the
   head.
 
-For the three samples these land within a few cm of the hand-tuned sidecars (PROGRESS.md, M7).
+For the three samples these land within a few cm of the hand-tuned sidecars (docs/PROGRESS.md, M7).
 Then the user adjusts: in the Pieces panel (the place, around, height, distance from the body,
 turn, mirror image, "fit to the body again"), or **with the 3D gizmo**. The gizmo is ours: the
 placement is cylinder coordinates, so its four handles each change one of them: an arrow up and
@@ -248,7 +248,7 @@ differ). The design, and why:
 - **A length difference is shown only for a seam that exists**, as a sentence in the seam list
   ("Side two is 8% longer than side one"), never while picking and never in a colour that
   changes with the difference. This is the "passive" case PATENTS.md marks for counsel's review.
-- **Where the logic lives.** `crates/drape-assets/src/suggest.rs` (edges, scoring) and
+- **Where the logic lives.** `packages/vitryne-engine/pattern/src/suggest.rs` (edges, scoring) and
   `seams.rs` (the project's cuts and node ids, proposals, `join_chains`, per-seam length
   differences); the worker calls `sewing_edges`, `suggest_seams`, `join_edges` and
   `seam_differences`; `document/commands.ts` has `addSeam`, `removeSeam`, `reverseSeam` (so
@@ -313,7 +313,7 @@ view.
   (`document/outline.test.ts`, `draw.test.ts`, `marks.test.ts`); the fast-check sessions mix
   them with the settings edits. `document/skirt.test.ts` builds a skirt from a blank project
   with the same commands (two rectangles, lowered to the hips, the side seams from the
-  suggestions) and checks it is `tests/regression/skirt.vtry`, which `vitryne regress` drapes as
+  suggestions) and checks it is `packages/vitryne-engine/tests/skirt.vtry`, which `vitryne regress` drapes as
   a golden case.
 
 ### Pattern export (M13)
@@ -346,11 +346,11 @@ resolution). The worker looks for that SDF:
 3. else it bakes it (single-threaded wasm, seconds, with progress) and caches it. A damaged
    cached SDF is dropped and baked again.
 
-The native CLI uses the same key for its cache in `target/sdf-cache/`.
+The native CLI uses the same key for its cache in `packages/vitryne-engine/target/sdf-cache/`.
 
 ### Storage
 
-Projects live in the backend ([CLOUD.md](CLOUD.md), `app/src/cloud/`) and save by themselves;
+Projects live in the backend ([CLOUD.md](CLOUD.md), `packages/vitryne-web/src/cloud/`) and save by themselves;
 nothing is written to disk. A project is a `FileRef` with a `cloud` field (id, revision, the part
 hashes the backend holds). `useFiles` saves it by asking the worker for the folder form, and
 `cloud/projects.ts` turns that into content-addressed parts and a row. Only a document Rust
@@ -375,8 +375,8 @@ the real Rust validation.
 ## Checking the editor in a browser
 
 `./check` covers the Rust, the TypeScript and the guardrails, but not a real browser with a GPU.
-Before a milestone, open the app (`cd app && pnpm run dev`) in Chrome and Safari: open each
+Before a milestone, open the app (`cd packages/vitryne-web && pnpm run dev`) in Chrome and Safari: open each
 example, drag the cloth, edit a fabric value and undo it, see it saved, go offline and edit (the
 title says the changes are kept in this browser), close the tab, and reopen it online: the
 changes are put back and saved.
-`tests/cloud/browser.mjs` drives most of this in Chrome.
+`packages/vitryne-cloud/tests/browser.mjs` drives most of this in Chrome.

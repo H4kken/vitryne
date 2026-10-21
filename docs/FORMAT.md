@@ -1,7 +1,7 @@
 # The Vitryne file format, version 3
 
 **Status: approved design (MVP milestone M4, 2026-10-13), implemented in M5 by
-[crates/vitryne-format](../crates/vitryne-format/) (reading, writing, validation, migrations) and
+[packages/vitryne-engine/format](../packages/vitryne-engine/format/) (reading, writing, validation, migrations) and
 `vitryne-pattern` (`project`: a file to the engine; `convert`: `garment.toml` + DXF to a file).
 Version 2 (2026-10-16) adds [appearances](#appearance) (fabric colour); a version 1 file is a
 valid version 2 file. Version 3 (2026-10-18) lets a [fabric](#fabric) name its default
@@ -12,7 +12,7 @@ A Vitryne file holds a garment project: pattern pieces, how they're sewn, where 
 the body, the fabrics and their colours, the avatar and the simulation settings, plus optionally a cached drape so
 the file opens without simulating. This document is the specification; the JSON Schemas in
 [format/schema/](format/schema/) are its machine-readable part, and
-[examples/](../examples/) holds three complete projects (T-shirt, trousers, hoodie).
+[assets/examples/](../assets/examples/) holds three complete projects (T-shirt, trousers, hoodie).
 
 Each section gives the rules, then **Why** for the choices that weren't obvious.
 
@@ -700,7 +700,7 @@ Converters, not the format:
 ## From garment.toml
 
 `vitryne convert <garment.toml> <out.vtry>` (`vitryne-pattern` `convert`) turns a sidecar plus its
-DXF into a project with the test avatar. The three samples in [examples/](../examples/) are its
+DXF into a project with the test avatar. The three samples in [assets/examples/](../assets/examples/) are its
 output (`tools/format/build-examples.sh`), and `./check.sh` fails if they drift from it. Ids are
 version 7 from a fixed time and the garment's name, so converting again gives the same file.
 Only the DXF pieces the sidecar uses become pieces (the hoodie's waistband, cuffs, binding and
@@ -747,7 +747,7 @@ placeholders under a physical name, not calibrated values (M9 does that).
 each; sleeve with 6 nodes plus the cap-top `point`), 4 cuts (the left sleeve mirrored),
 10 seams. The sidecar's `side_r` (`a = "front:10-11"`, `b = "back:1-2"`, `reverse = true`)
 becomes side a "front, underarm right → hem right side, ccw", side b "back, underarm right → hem
-right side, cw". See [the example](../examples/tshirt.vtry/). (The M4 example was written by a
+right side, cw". See [the example](../assets/examples/tshirt.vtry/). (The M4 example was written by a
 script by hand and had one seam wrong: its "left armhole, back" ran counter-clockwise from the
 underarm to the shoulder tip, the long way round the back. The converter writes what the sidecar
 says, shoulder tip to underarm.)
