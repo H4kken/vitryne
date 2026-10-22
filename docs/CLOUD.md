@@ -62,8 +62,8 @@ release (or leave it empty with the repository's file), then
 changes the schema says so, and its migrations run at start when `SUPABASE_DB_URL` is set.
 
 Settings go in `.env` next to the compose file (`packages/vitryne-cloud/deploy/.env` in a
-checkout; copy `.env.example`). The backend's two are required: without them the container logs
-why and stops.
+checkout; copy `.env.example`). The backend's two are required: without them `docker compose`
+says so and doesn't start.
 
 | Setting | What |
 |---|---|
@@ -101,9 +101,15 @@ ssh you@server 'cd vitryne && VITRYNE_IMAGE=vitryne-web VITRYNE_VERSION=latest \
 The static build of each release (`vitryne-web-<version>.tar.gz`) also runs on any static host
 that sends the isolation headers ([HOSTING.md](HOSTING.md)) and serves `config.json` itself.
 
-**On Coolify:** create a *Docker Compose* resource from this repository's
-`packages/vitryne-cloud/deploy/docker-compose.yml`, give the `web` service your domain (port 80),
-keep `SITE_ADDRESS=:80` (Coolify's proxy does HTTPS), and set the variables above (pin `VITRYNE_VERSION`).
+**Over HTTPS:** browsers ignore the isolation headers and refuse WebGPU on a plain `http://` page
+other than localhost, so a server needs a domain with HTTPS (Chrome's console then says the
+`Cross-Origin-Opener-Policy` header was ignored).
+
+**On Coolify:** create a *Docker Compose Empty* resource and paste the release's
+`docker-compose.yml`. Its `SERVICE_URL_WEB_80` gives the `web` service a domain: set it to
+`https://your.domain` (not the generated `http://` one), keep `SITE_ADDRESS=:80` (Coolify's proxy
+does HTTPS), set the variables above (pin `VITRYNE_VERSION`), and set `HTTP_PORT` to a free port
+(Coolify's dashboard is on 8000).
 
 ## Setting up the backend
 

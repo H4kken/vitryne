@@ -6,6 +6,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions f
 Add a line under **Unreleased** with your pull request when it changes what people see; a
 release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasing)).
 
+## [Unreleased]
+
+### Changed
+
+- Self-hosting: `docker-compose.yml` gives the editor a domain on Coolify (`SERVICE_URL_WEB_80`),
+  and refuses to start without `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`.
+
 ## [0.1.0] - 2026-10-21
 
 The first public beta.
