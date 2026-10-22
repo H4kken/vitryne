@@ -7,16 +7,7 @@ services:
     restart: unless-stopped
     ports:
       - "${HTTP_PORT:-8000}:80"
-      - "${HTTPS_PORT:-8443}:443"
     environment:
-      SERVICE_URL_WEB_80: ${SERVICE_URL_WEB_80:-}
-      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
       SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL required}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?SUPABASE_PUBLISHABLE_KEY required}
       SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
-      OPERATOR_NAME: ${OPERATOR_NAME:-}
-      OPERATOR_CONTACT: ${OPERATOR_CONTACT:-}
-      OPERATOR_HOSTING: ${OPERATOR_HOSTING:-}
-    # So SUPABASE_DB_URL can name a database on this host (host.docker.internal), on Linux too.
-    extra_hosts:
-      - host.docker.internal:host-gateway

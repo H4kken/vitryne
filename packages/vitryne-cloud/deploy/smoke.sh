@@ -11,7 +11,10 @@ set -euo pipefail
 cd "$(dirname "$0")/../../.."
 
 # The image built here (vitryne-web:latest), not the release the compose file names.
-compose() { VITRYNE_IMAGE=vitryne-web VITRYNE_VERSION=latest docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml -p vitryne-smoke "$@"; }
+# The override lets the container reach the host's database (host.docker.internal), on Linux too.
+override=$(mktemp)
+printf 'services:\n  web:\n    extra_hosts:\n      - host.docker.internal:host-gateway\n' >"$override"
+compose() { VITRYNE_IMAGE=vitryne-web VITRYNE_VERSION=latest docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml -f "$override" -p vitryne-smoke "$@"; }
 url=http://localhost:${HTTP_PORT:-8000}
 fail() {
   echo "smoke: FAIL: $*" >&2
@@ -22,7 +25,7 @@ wait_up() {
   for _ in $(seq 1 60); do curl -fs "$url/" >/dev/null 2>&1 && return 0; sleep 1; done
   fail "the web container didn't answer"
 }
-trap 'compose down >/dev/null 2>&1 || true' EXIT
+trap 'compose down >/dev/null 2>&1 || true; rm -f "$override"' EXIT
 
 echo "smoke: building the image"
 (cd packages/vitryne-web && pnpm run build >/dev/null)

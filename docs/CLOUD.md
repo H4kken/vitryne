@@ -70,8 +70,7 @@ says so and doesn't start.
 | `VITRYNE_VERSION` | The release to run (`0.1.0`); empty: the compose file's default. `VITRYNE_IMAGE` replaces `ghcr.io/h4kken/vitryne-web` (a mirror, or your own build). |
 | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Required: the project's URL and publishable key (`sb_publishable_…`, Project Settings, API Keys). **Never a secret key**: the browser gets these. |
 | `SUPABASE_DB_URL` | Optional: the container applies `packages/vitryne-cloud/supabase/migrations/` at start, like Twenty's server does. Use the project's *Session pooler* connection string (on the free plan the direct one is IPv6 only). Without it, run `pnpm run supabase db push` after a schema change. |
-| `SITE_ADDRESS`, `HTTP_PORT`, `HTTPS_PORT` | `:80` behind a proxy (Coolify, Traefik, nginx) or locally; a domain name (`vitryne.example.org`, with ports 80 and 443) and Caddy gets the HTTPS certificate itself. |
-| `OPERATOR_NAME`, `OPERATOR_CONTACT`, `OPERATOR_HOSTING` | Shown in the privacy policy at `/privacy.html` (GDPR: who runs the service, how to reach them, where the data is). |
+| `HTTP_PORT` | The port on the host, `8000` by default. Plain HTTP: on a server, an HTTPS proxy goes in front (below). |
 
 The migrations at start record what they applied where the Supabase CLI does
 (`supabase_migrations.schema_migrations`), so they and `supabase db push` never apply anything
@@ -103,13 +102,10 @@ that sends the isolation headers ([HOSTING.md](HOSTING.md)) and serves `config.j
 
 **Over HTTPS:** browsers ignore the isolation headers and refuse WebGPU on a plain `http://` page
 other than localhost, so a server needs a domain with HTTPS (Chrome's console then says the
-`Cross-Origin-Opener-Policy` header was ignored).
-
-**On Coolify:** create a *Docker Compose Empty* resource and paste the release's
-`docker-compose.yml`. Its `SERVICE_URL_WEB_80` gives the `web` service a domain: set it to
-`https://your.domain` (not the generated `http://` one), keep `SITE_ADDRESS=:80` (Coolify's proxy
-does HTTPS), set the variables above (pin `VITRYNE_VERSION`), and set `HTTP_PORT` to a free port
-(Coolify's dashboard is on 8000).
+`Cross-Origin-Opener-Policy` header was ignored). Put a proxy that does HTTPS in front of
+`HTTP_PORT` (Caddy, Traefik, nginx, Cloudflare), or on Coolify give the `web` service a domain
+(`https://your.domain`, port 80) and set `HTTP_PORT` to a free port (Coolify's dashboard is on
+8000). Add that domain to the Supabase project's redirect URLs (below).
 
 ## Setting up the backend
 

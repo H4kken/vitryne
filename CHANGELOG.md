@@ -10,8 +10,10 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Changed
 
-- Self-hosting: `docker-compose.yml` gives the editor a domain on Coolify (`SERVICE_URL_WEB_80`),
-  and refuses to start without `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`.
+- Self-hosting: `docker-compose.yml` is one port (`HTTP_PORT`) and the Supabase settings, and
+  refuses to start without `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. HTTPS comes from a proxy
+  in front (`SITE_ADDRESS`, `HTTPS_PORT` and the `caddy-data` volume are gone). The privacy page's
+  operator details (`OPERATOR_*`) are no longer set from the compose file.
 
 ## [0.1.0] - 2026-10-21
 

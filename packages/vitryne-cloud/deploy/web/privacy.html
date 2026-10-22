@@ -1,7 +1,8 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later
      The privacy policy of a Vitryne instance with cloud storage (docs/CLOUD.md). Caddy fills in
-     OPERATOR_NAME, OPERATOR_CONTACT and OPERATOR_HOSTING from packages/vitryne-cloud/deploy/.env.
+     OPERATOR_NAME, OPERATOR_CONTACT and OPERATOR_HOSTING from the container's environment when
+     they are set (the compose file doesn't pass them yet); otherwise it says "the operator".
      Operators: read it against what your instance actually does (your mail provider, your logs,
      your host) and have it reviewed before you open the instance to the public. -->
 <html lang="en">
