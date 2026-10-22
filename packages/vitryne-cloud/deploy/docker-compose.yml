@@ -1,16 +1,4 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Vitryne, plug and go (docs/CLOUD.md). Runs the web image of a GitHub release
-# (ghcr.io/h4kken/vitryne-web), so nothing is built here:
-#
-#   docker compose up -d        # next to .env (copy .env.example), then open http://localhost:8000
-#
-# The copy attached to a release pins that release; this one follows `latest` unless .env sets
-# VITRYNE_VERSION. Projects are saved to a Supabase project: set SUPABASE_URL and
-# SUPABASE_PUBLISHABLE_KEY in .env; the container doesn't start without them. To update: change
-# VITRYNE_VERSION (or keep `latest`), then `docker compose pull && docker compose up -d`.
-#
-# From a checkout, building the editor instead: add `-f docker-compose.build.yml` and `--build`.
-
 name: vitryne
 
 services:
@@ -19,20 +7,7 @@ services:
     restart: unless-stopped
     ports:
       - "${HTTP_PORT:-8000}:80"
-      - "${HTTPS_PORT:-8443}:443"
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
-      SUPABASE_URL: ${SUPABASE_URL:-}
-      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL required}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?SUPABASE_PUBLISHABLE_KEY required}
       SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
-      OPERATOR_NAME: ${OPERATOR_NAME:-}
-      OPERATOR_CONTACT: ${OPERATOR_CONTACT:-}
-      OPERATOR_HOSTING: ${OPERATOR_HOSTING:-}
-    # So SUPABASE_DB_URL can name a database on this host (host.docker.internal), on Linux too.
-    extra_hosts:
-      - host.docker.internal:host-gateway
-    volumes:
-      - caddy-data:/data
-
-volumes:
-  caddy-data:

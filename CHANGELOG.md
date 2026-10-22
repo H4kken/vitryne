@@ -6,6 +6,15 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions f
 Add a line under **Unreleased** with your pull request when it changes what people see; a
 release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasing)).
 
+## [Unreleased]
+
+### Changed
+
+- Self-hosting: `docker-compose.yml` is one port (`HTTP_PORT`) and the Supabase settings, and
+  refuses to start without `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. HTTPS comes from a proxy
+  in front (`SITE_ADDRESS`, `HTTPS_PORT` and the `caddy-data` volume are gone). The privacy page's
+  operator details (`OPERATOR_*`) are no longer set from the compose file.
+
 ## [0.1.0] - 2026-10-21
 
 The first public beta.
