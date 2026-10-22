@@ -53,6 +53,9 @@ it is published, but `latest` doesn't move.
    - set `version` in `[workspace.package]` of
      [packages/vitryne-engine/Cargo.toml](../packages/vitryne-engine/Cargo.toml), then
      `cd packages/vitryne-engine && cargo check --workspace` to update `Cargo.lock`;
+   - re-record what carries the version (files name their generator, `vitryne-format 0.1.0`):
+     `make examples assets`, then
+     `cd packages/vitryne-web && SKIRT_UPDATE=1 pnpm exec vitest run src/document/skirt.test.ts`;
    - in [CHANGELOG.md](../CHANGELOG.md), rename `## [Unreleased]` to `## [0.1.0] - YYYY-MM-DD`,
      add an empty `## [Unreleased]` above it, and update the links at the bottom
      (`[0.1.0]: https://github.com/H4kken/vitryne/releases/tag/v0.1.0`). Check the notes with

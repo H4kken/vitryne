@@ -3,7 +3,7 @@
   "kind": "project",
   "formatVersion": 3,
   "minReaderVersion": 1,
-  "generator": "vitryne convert (vitryne-format 0.1.0)",
+  "generator": "vitryne convert (vitryne-format 0.1.1)",
   "parts": [
     {
       "path": "project.json",
@@ -33,7 +33,7 @@
     {
       "path": "avatars/01a13cdb-cc04-728e-9afd-3f992133737d/body.glb",
       "mediaType": "model/gltf-binary",
-      "sha256": "f28df65b49ec9f11e73c77a1f210e5a2f350541edd33268e3383870a6c3e5ee4"
+      "sha256": "17ed991858d38ed6609915e396c285645f42fb0cc8e75e5aa746f3f50bba3458"
     }
   ]
 }

@@ -8,6 +8,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-22
+
 ### Changed
 
 - Self-hosting: `docker-compose.yml` is one port (`HTTP_PORT`) and the Supabase settings, and
@@ -35,4 +37,5 @@ The first public beta.
   ([docs/CLOUD.md](docs/CLOUD.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
+[0.1.1]: https://github.com/H4kken/vitryne/releases/tag/v0.1.1
 [0.1.0]: https://github.com/H4kken/vitryne/releases/tag/v0.1.0
