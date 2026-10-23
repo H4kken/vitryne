@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The "drawn skirt" (M14): a blank project, two rectangles wrapped front and back and lowered
+// The "drawn skirt": a blank project, two rectangles wrapped front and back and lowered
 // to the waist (the placement's Height), the side seams sewn from Rust's suggestions, each step
 // a command as the editor makes it.
 // The result is the regression suite's `skirt` case (packages/vitryne-engine/tests/skirt.vtry, which

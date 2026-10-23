@@ -634,7 +634,7 @@ impl DxfImport {
 
 /// A garment's settings in a project the editor makes (an import, or from scratch): drape as
 /// the sample garments do, with self-collision and its hash rebuilt every 4th substep
-/// (docs/PROGRESS.md, M2), in the import collision box (whose SDF the app bundles).
+/// (docs/PROGRESS.md, Fabric stretch), in the import collision box (whose SDF the app bundles).
 fn new_garment_simulation(body: &[Vec3]) -> GarmentSimulation {
     let mut engine = Map::new();
     engine.insert("self_collision".into(), true.into());
@@ -731,7 +731,7 @@ mod tests {
             .collect()
     }
 
-    /// The done-when of M7: the FreeSewing T-shirt's bare DXF becomes a placed project with
+    /// The FreeSewing T-shirt's bare DXF becomes a placed project with
     /// the suggestions alone, and its wraps land near the hand-tuned sidecar's.
     #[test]
     fn tshirt_dxf_imports_and_places() {

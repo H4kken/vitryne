@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// M12's done-when in real Chrome (with its GPU), over CDP like tools/bench/chrome-check.mjs:
+// The editor with its backend in real Chrome (with its GPU), over CDP like tools/bench/chrome-check.mjs:
 //
 //   cloud  <url>   browser A opens the T-shirt example and makes a denim with no account:
 //                  it is autosaved as A's draft (this tab holds its lock); an edit while offline
@@ -13,7 +13,7 @@
 //                  the link from Mailpit opened in the same browser, the new password chosen
 //                  there; it signs in, the old one doesn't.
 //   none   <url>   the same build with no config.json: the editor says it has no backend.
-//   draw   <url>   M14's done-when: a project from scratch, two rectangles from "Add a shape"
+//   draw   <url>   drawing a garment: a project from scratch, two rectangles from "Add a shape"
 //                  (front and back, lowered to the hips by their Height), the two side seams
 //                  sewn from the suggestions (told apart by their wording), the drape in 3D; an
 //                  ellipse (curves) added, and after the autosave and a reload the project

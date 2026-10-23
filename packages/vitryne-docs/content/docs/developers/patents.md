@@ -57,7 +57,7 @@ CLO's account only.
 ## Design rules
 
 These are the constraints adopted for the editor so far, **binding on every editor feature**. They
-override `VITRYNE_MVP_PLAN.md` where the two differ (the plan's M8 "notch-to-notch segments" was
+override `VITRYNE_MVP_PLAN.md` where the two differ (the plan's sewing by "notch-to-notch segments" was
 superseded by rule 1: the unit is a whole edge). Rule 3 is the one that most needs an attorney's
 review.
 
@@ -87,7 +87,7 @@ edges by two clicks; a seam highlighted in 2D and 3D.
 A passive warning on a finished whole-edge pair ("these edges differ by 8%") is probably outside
 the claims above, but confirm it with counsel before shipping it.
 
-## How the editor follows these rules (M8, M14)
+## How the editor follows these rules
 
 Where each rule is implemented, so a reviewer can check it. See ARCHITECTURE.md, "Sewing" and
 "Pattern tools".
@@ -99,9 +99,9 @@ Where each rule is implemented, so a reviewer can check it. See ARCHITECTURE.md,
 | 3 geometry-derived suggestions | `suggest.rs`: lengths, notches, curvature, side of the piece, middle line. No placement, body place, name or outline graph.                                                                       |
 | 4 no ML                        | Hand-set scores; nothing learned.                                                                                                                                                                 |
 | 5 no cross-piece measure tool  | There is none. The seam list shows a length difference of an existing seam only, as text.                                                                                                         |
-| 6 parametric fit               | Not touched in M8.                                                                                                                                                                                |
+| 6 parametric fit               | Not touched.                                                                                                                                                                                      |
 
-Drawing and editing pieces (M14) is not covered by any listed claim. Where it meets the rules:
+Drawing and editing pieces is not covered by any listed claim. Where it meets the rules:
 
 | Rule                           | In the code                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -121,6 +121,6 @@ Drawing and editing pieces (M14) is not covered by any listed claim. Where it me
 - [ ] Attorney review of rules 1 to 6 against the full claim text.
 - [ ] Read the claims of US20240411956A1 and US20230290100A1.
 - [ ] Wider search beyond CLO (other assignees, EP/KR/CN family members).
-- [ ] Ask counsel whether the seam list's static length-difference sentence (M8) is outside the '773/'355 claims, and whether Shift-click chains of whole edges are.
+- [ ] Ask counsel whether the seam list's static length-difference sentence is outside the '773/'355 claims, and whether Shift-click chains of whole edges are.
 - [ ] Ask counsel whether suggestions that emit chains or mid-edge points (decision above) stay outside the claims.
 - [ ] Decide whether to ask counsel about a prior-art search on the '773 family.

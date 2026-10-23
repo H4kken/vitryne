@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Cloth self-intersection count (CPU, on a position readback). Benchmark-only: the M4
-//! "done when" metric. Triangle pairs are found with a uniform grid over their bounding boxes
+//! Cloth self-intersection count (CPU, on a position readback). Benchmark-only: the
+//! self-collision metric. Triangle pairs are found with a uniform grid over their bounding boxes
 //! and tested exactly (an edge of one crossing the other's interior). Pairs that share a vertex,
 //! directly or through a seam, are skipped: they touch by construction.
 

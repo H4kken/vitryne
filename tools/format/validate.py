@@ -5,7 +5,7 @@ docs/format/schema/ and the reference rules of docs/FORMAT.md that a schema can'
 
 usage: tools/format/validate.py <file.vtry | folder> ...      (needs: pip install jsonschema)
 
-Until vitryne-format exists (M5) this is the reference check for hand-written files.
+A check of hand-written files against the JSON Schemas, independent of vitryne-format.
 """
 import hashlib
 import json

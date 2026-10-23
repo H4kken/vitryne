@@ -51,7 +51,7 @@ pub struct PreparedCloth {
     pub fabric: Fabric,
     pub panel_fabrics: Vec<Fabric>,
     pub settings: SimSettings,
-    /// Fabrics for 3D export (M10), coloured by their appearances.
+    /// Fabrics for 3D export, coloured by their appearances.
     pub export_fabrics: Vec<vitryne_pattern::export::ExportFabric>,
     /// Each panel's colour (sRGB 0..1), or none for the scene's cloth colour.
     pub panel_colors: Vec<Option<[f32; 3]>>,
@@ -611,7 +611,7 @@ mod tests {
         doc.files[&avatar.mesh].bytes.clone()
     }
 
-    /// M7's done-when, in Rust: the FreeSewing T-shirt's bare DXF becomes a project that the
+    /// The FreeSewing T-shirt's bare DXF becomes a project that the
     /// worker drapes, saves and opens again, without a file edited by hand.
     #[test]
     fn a_bare_dxf_becomes_a_project() {
@@ -804,7 +804,7 @@ mod tests {
         assert!(file.seam_differences().unwrap().is_empty());
     }
 
-    /// M8's done-when for the T-shirt: a bare import, sewn by accepting every suggestion, is the
+    /// The T-shirt sewn in the editor: a bare import, sewn by accepting every suggestion, is the
     /// garment the sample project is: about the same sewing and mesh. (Written to
     /// `SEWN_OUT` when set, to drape and look at.)
     #[test]

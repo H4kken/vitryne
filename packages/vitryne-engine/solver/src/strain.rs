@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Edge strain diagnostics (M2): how far each stretch constraint is from its rest length,
+//! Edge strain diagnostics: how far each stretch constraint is from its rest length,
 //! (length - rest) / rest, as a distribution, by region and by panel. Benchmark-only, on the
 //! CPU from a position readback.
 

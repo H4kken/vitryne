@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The public engine API (M3). Everything that runs a drape goes through here: the native
+//! The public engine API. Everything that runs a drape goes through here: the native
 //! viewer and CLI, the benchmarks, the regression suite and the web bindings.
 //!
 //! ```ignore
@@ -37,7 +37,7 @@ use crate::{
     timer::GpuTimer,
 };
 
-/// Fabric physical parameters (per garment; per piece later, M9).
+/// Fabric physical parameters (per garment, or per panel: `Garment::panel_fabrics`).
 pub type Fabric = Material;
 
 /// Where the SDF comes from. The SDF only has to cover what the cloth can reach, so its box
@@ -146,7 +146,7 @@ impl Body {
 }
 
 /// A garment as data: the pattern pieces already meshed and placed around the body, the sewing
-/// pairs, and where its parts are. (M5 produces this from the project format.)
+/// pairs, and where its parts are. (`vitryne-pattern` builds this from a project file.)
 #[derive(Debug, Clone)]
 pub struct GarmentDesc {
     pub name: String,
@@ -182,7 +182,7 @@ impl Garment {
         Self::load_with_materials(desc, fabric, &vec![*fabric; n_panels])
     }
 
-    /// Builds solver constraints with per-panel fabrics (M9).
+    /// Builds solver constraints with per-panel fabrics.
     pub fn load_with_materials(
         desc: &GarmentDesc,
         default_fabric: &Fabric,

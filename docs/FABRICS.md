@@ -1,6 +1,6 @@
 # Fabric presets and textile parameters
 
-This document defines the 5 physical fabric presets in Vitryne (M9), their calibrated values,
+This document defines the 5 physical fabric presets in Vitryne, their calibrated values,
 how they map to the XPBD solver, and the literature and measurement standards they come from.
 
 ## The 5 presets at a glance
@@ -46,7 +46,7 @@ All quantities use the Vitryne project format definitions ([docs/FORMAT.md](FORM
 - Compressed and uncompressed fabric thickness in mm.
 - Informational in v1; collision surface margins in the v1 engine are controlled by simulation settings
   (`SimSettings.thickness`), while fabric thickness provides the physical ground truth for rendering
-  and export in later milestones.
+  and export later.
 
 ### 5. Surface friction (`friction`, dimensionless)
 - Static/Coulomb friction coefficient against the avatar body.

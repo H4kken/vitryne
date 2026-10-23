@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Long-range stretch limits (M2), see longrange.rs: unilateral distance constraints
+// Long-range stretch limits, see longrange.rs: unilateral distance constraints
 // |x_i - x_j| <= (1 + slack) d_ij between vertices several edges apart in the same panel
 // (Müller 2008, Hierarchical Position Based Dynamics; Kim, Chentanez & Müller 2012, Long Range
 // Attachments). Shared by native and web (hard rule 2).

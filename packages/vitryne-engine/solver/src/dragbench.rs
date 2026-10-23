@@ -57,7 +57,7 @@ pub struct DragEpisode {
     /// Self-intersecting triangle pairs when the episode starts (after the previous one's
     /// pause), CPU check on the readback used for picking.
     pub self_intersections_at_start: usize,
-    /// M2: edge strain over the whole garment at the end of the hold (the hand still pulling).
+    /// Edge strain over the whole garment at the end of the hold (the hand still pulling).
     pub strain_at_hold_end: Option<crate::strain::StrainStats>,
 }
 
@@ -101,10 +101,10 @@ pub struct DragResult {
     /// pairs present at both.
     pub self_intersections_after_2s: SelfIntersections,
     pub self_intersections_after: SelfIntersections,
-    /// M2: edge strain at rest before the first drag, and 3 s after the last one.
+    /// Edge strain at rest before the first drag, and 3 s after the last one.
     pub strain_before: crate::strain::StrainStats,
     pub strain_after: crate::strain::StrainStats,
-    /// M2: over the episodes, at the end of each hold: median and max of the p99 strain, and
+    /// Over the episodes, at the end of each hold: median and max of the p99 strain, and
     /// the max strain of any edge.
     pub strain_hold_p99_median: f32,
     pub strain_hold_p99_max: f32,

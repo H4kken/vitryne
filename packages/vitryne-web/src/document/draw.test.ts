@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Drawing new pieces (M14 phase 4) through the worker's Rust, built for Node: a piece drawn or
+// Drawing new pieces through the worker's Rust, built for Node: a piece drawn or
 // picked from the ready shapes is placed by Rust (`place_piece`), added as one command Rust
 // accepts, and reverted to the identical document.
 import { readFileSync } from "node:fs";

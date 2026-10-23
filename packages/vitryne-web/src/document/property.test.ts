@@ -2,7 +2,7 @@
 // Random edit sessions on the three examples, against the worker's real Rust (Node build):
 // after every step the document Rust holds matches the UI's, every state the UI accepts Rust
 // accepts too, and undoing everything saves the original file byte for byte. The steps include
-// M14's pattern tools: moving, adding and removing points, curves, lines, folds, the grain line
+// the pattern tools: moving, adding and removing points, curves, lines, folds, the grain line
 // and new pieces.
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -61,7 +61,7 @@ type Step =
   | { op: "follow"; index: number; on: number }
   | { op: "flip"; index: number }
   | { op: "layout"; index: number; x: number; y: number; rot: number }
-  // M14: `piece` and `node` pick by index (modulo); offsets in mm.
+  // `piece` and `node` pick by index (modulo); offsets in mm.
   | { op: "move"; piece: number; node: number; dx: number; dy: number }
   | { op: "insert"; piece: number; node: number; share: number; notch: boolean }
   | { op: "remove"; piece: number; node: number }
@@ -277,7 +277,7 @@ function newRectangle(
   );
 }
 
-/** The M14 pattern edits, as the flat view's tools build them. */
+/** The pattern edits, as the flat view's tools build them. */
 function buildPattern(s: Step, e: Entities, file: RustFile): Command {
   const g = mainGarment(e)!;
   if (s.op === "addPiece") return newRectangle(s, e, file);

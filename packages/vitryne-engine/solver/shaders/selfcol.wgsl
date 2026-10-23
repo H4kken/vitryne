@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Cloth self-collision (M4): vertex-vertex repulsion. Neighbours come from a spatial hash built
+// Cloth self-collision: vertex-vertex repulsion. Neighbours come from a spatial hash built
 // with a counting sort. Shared by native and web (hard rule 2), no float atomics (hard rule 4):
 // the only atomics are u32 cell counters.
 //

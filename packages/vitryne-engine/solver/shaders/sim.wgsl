@@ -25,7 +25,7 @@ struct Params {
     air_drag: f32,          // quadratic air drag k = 0.5 rho Cd / areal density (1/m)
     contact_dv_max: f32,    // S3 velocity filter: max speed gain per substep in body contact (m/s), 0 = off
     contact_vfriction: f32, // S3: velocity-level Coulomb coefficient in body contact, 0 = off
-    strain_limit: f32,      // M2: max edge strain after the contact pass (Provot 1995), 0 = off
+    strain_limit: f32,      // max edge strain after the contact pass (Provot 1995), 0 = off
     _p4: u32,
     _p5: u32,
 };
@@ -107,7 +107,7 @@ fn solve_stretch(@builtin(global_invocation_id) gid: vec3<u32>) {
     pos[c.j] = vec4<f32>(pj.xyz - (pj.w * dl) * n, pj.w);
 }
 
-// M2 strain limiting (Provot 1995, "Deformation constraints in a mass-spring model to describe
+// Strain limiting (Provot 1995, "Deformation constraints in a mass-spring model to describe
 // rigid cloth behavior", Graphics Interface): after the body contact, every edge longer than
 // (1 + strain_limit) x rest is shortened to that length. One Gauss-Seidel sweep, per colour.
 @compute @workgroup_size(64)

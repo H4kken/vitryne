@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Importing a DXF (M7) through the worker's Rust, built for Node: the FreeSewing T-shirt's
+// Importing a DXF through the worker's Rust, built for Node: the FreeSewing T-shirt's
 // bare DXF becomes a project with no file edited by hand, and pieces added to an open project
 // are an edit Rust accepts.
 import { readFileSync } from "node:fs";
@@ -106,7 +106,7 @@ describe("import", () => {
     expect(avatar().avatars).toHaveLength(1);
   });
 
-  it("suggests seams for a bare import and refuses anything but whole edges (M8)", () => {
+  it("suggests seams for a bare import and refuses anything but whole edges", () => {
     const p = JSON.parse(
       wasm.VtryFile.inspect_dxf("tshirt.dxf", tshirtDxf, ""),
     ) as Preview;

@@ -58,7 +58,7 @@ sleeve = [
 "sleeve:3+0.5" = "cap top (shoulder point)"
 
 # Engine overrides for the project file: drape with self-collision, the hash rebuilt every
-# 4th substep (how every garment was measured, docs/PROGRESS.md M2, and the regression setting).
+# 4th substep (how every garment was measured, docs/PROGRESS.md, Fabric stretch, and the regression setting).
 [engine]
 self_collision = true
 self_rebuild_every = 4

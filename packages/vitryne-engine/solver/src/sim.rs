@@ -21,9 +21,9 @@ pub const SHADER: &str = concat!(
 /// What the cloth collides with.
 #[derive(Clone)]
 pub enum Collider {
-    /// Analytic sphere (M1).
+    /// Analytic sphere.
     Sphere(Vec4),
-    /// Baked signed distance field of the avatar (M2+).
+    /// Baked signed distance field of the avatar.
     Sdf(Arc<Sdf>),
 }
 
@@ -45,7 +45,7 @@ pub struct Schedule {
 }
 
 impl Schedule {
-    /// No sewing, full gravity from t = 0 (M1 sheet).
+    /// No sewing, full gravity from t = 0 (the test sheet).
     pub const NONE: Self = Self {
         sew_compliance_start: 0.0,
         sew_compliance_end: 0.0,
@@ -116,7 +116,7 @@ pub struct SimSettings {
     /// XPBD constraint damping on stretch (beta, s): stiffness-proportional (Rayleigh) damping,
     /// damping coefficient = beta x stiffness, so gamma = beta / h in Macklin et al. 2016 eq. 26.
     /// Internal friction of the fabric: damps stretching motion (snaps, whips) without slowing
-    /// rigid motion like global damping does. (Before M2 the shader used gamma = beta / (k h^3),
+    /// rigid motion like global damping does. (An earlier shader used gamma = beta / (k h^3),
     /// which made soft fabrics viscous and stretchy, more so with more substeps.)
     pub stretch_damping: f32,
     /// Quadratic air drag k = 0.5 rho_air C_d / areal density (1/m): 0.5 * 1.2 * 1.0 / 0.15 = 4
@@ -124,7 +124,7 @@ pub struct SimSettings {
     /// motion within the cloth plane.
     pub air_drag: f32,
     /// Max collision push-out per vertex per substep, m. Default: uncapped (capping it let
-    /// cloth sink into the body under load, see docs/history/PROGRESS.md M3).
+    /// cloth sink into the body under load, see docs/history/PROGRESS.md, Browser port and parity).
     pub contact_max_step: f32,
     /// S3 contact velocity filter: max speed gain of a vertex in body contact, m/s² (0 = off,
     /// the spike-1 / S2 behaviour). Default 30 m/s² = 0.025 m/s per substep at 20 substeps:
@@ -133,7 +133,7 @@ pub struct SimSettings {
     /// S3: velocity-level Coulomb friction in body contact, with the contact's normal impulse
     /// (0 = off; the position-level friction above always applies).
     pub contact_vfriction: f32,
-    /// Cloth-cloth vertex repulsion (M4), every substep.
+    /// Cloth-cloth vertex repulsion, every substep.
     pub self_collision: bool,
     /// Repulsion distance as a multiple of the mean rest edge length. Point-point contact only
     /// stops a layer if no gap between its vertices is wider than ~2x the radius, so the
@@ -168,7 +168,7 @@ pub struct SimSettings {
     pub untangle_skip_repulsion: bool,
     /// Stretch sweeps per substep (Gauss-Seidel iterations of the edge constraints).
     pub stretch_iterations: u32,
-    /// M2 long-range stretch limits (longrange.rs): spans in mean rest edge lengths, 0 = unused.
+    /// Long-range stretch limits (longrange.rs): spans in mean rest edge lengths, 0 = unused.
     /// All zero = off.
     pub long_range_spans: [f32; 4],
     /// The same across seams (total span, half on each side), 0 = unused.
@@ -180,7 +180,7 @@ pub struct SimSettings {
     pub long_range_iterations: u32,
     /// Run them every this many substeps (1 = every substep).
     pub long_range_every: u32,
-    /// M2 strain limiting after the body contact (Provot 1995): max edge strain, 0 = off.
+    /// Strain limiting after the body contact (Provot 1995): max edge strain, 0 = off.
     pub strain_limit: f32,
     /// Jacobi relaxation factor for the averaged corrections.
     pub long_range_omega: f32,
@@ -357,7 +357,7 @@ enum Pipe {
     /// Index into the untangling kernels (own pipeline layout), and whether it's the gated
     /// variant (only around known crossings) or the full detection.
     Untangle(usize, bool),
-    /// Index into the long-range kernels (own pipeline layout, M2).
+    /// Index into the long-range kernels (own pipeline layout).
     LongRange(usize),
 }
 
@@ -874,7 +874,7 @@ impl Solver {
             // Hash rebuild before the body contact, repulsion after it. With the repulsion
             // first, the body pushed layers back into each other and the two fought every
             // substep (drag test: 44 frames over 5 m/s across 6 seeds vs 27 this way, and no
-            // body penetration either way; docs/history/PROGRESS.md M4).
+            // body penetration either way; docs/history/PROGRESS.md, Self-collision).
             self_kernel(0),
             self_kernel(1),
             self_kernel(2),
@@ -1229,7 +1229,7 @@ impl Solver {
     }
 }
 
-/// Analytic sphere collider (M1 scene).
+/// Analytic sphere collider (the sheet scene).
 pub fn sphere(center: Vec3, radius: f32) -> Collider {
     Collider::Sphere(center.extend(radius))
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The .vtry path builds the same engine garment as the garment.toml it was converted from
-//! (FORMAT.md, What M5 has to change in the engine, item 5): the same mesh, triangle order,
+//! (FORMAT.md, In the engine, item 5): the same mesh, triangle order,
 //! sewing pairs, fabric, ramp, SDF box and camera, bit for bit. (The DXF importer works on the
 //! format's 0.001 mm grid, so there is no rounding between the two.)
 

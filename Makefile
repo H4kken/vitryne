@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # The entry point for building and checking Vitryne (docs/REPO_PLAN.md). `make` lists the
-# targets. `make check` must pass before every milestone commit; CI runs `make check-ci`, the same
+# targets. `make check` must pass before every pull request; CI runs `make check-ci`, the same
 # without the drapes (GitHub's runners have no GPU; .github/workflows/ci.yml). It needs cargo
 # with clippy + rustfmt, the wasm32-unknown-unknown target, wasm-bindgen-cli 0.2.129, Node 22+
 # with pnpm 10, python3, and a GPU for the drapes (CONTRIBUTING.md).
@@ -157,7 +157,7 @@ CHECK_NO_GPU := hygiene fmt-check-rust lint-rust test-rust build fmt-check-web t
 check-ci: $(CHECK_NO_GPU) ## Everything but the drapes (no GPU): what CI runs on every pull request
 	printf '\ncheck: all passed but the drapes (make regress needs a GPU)\n'
 
-check: $(CHECK_NO_GPU) regress ## Everything; must pass before a milestone commit (~1.5 min, GPU)
+check: $(CHECK_NO_GPU) regress ## Everything; must pass before a pull request (~1.5 min, GPU)
 	printf '\ncheck: all passed\n'
 
 cloud-test: ## The web image's smoke test, then the backend tests: RLS, accounts, cleanup (Docker)

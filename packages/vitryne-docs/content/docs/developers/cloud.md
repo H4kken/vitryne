@@ -374,9 +374,9 @@ node packages/vitryne-cloud/tests/browser.mjs none <url>
 
 ## Not done yet
 
-- **A refactor before the MVP release** (see [PROGRESS.md](https://github.com/H4kken/vitryne/blob/main/docs/PROGRESS.md), M12): a trimmed
-  `packages/vitryne-cloud/supabase/config.toml`. (The web image is versioned now: one image per
-  release, [MAINTAINING.md](https://github.com/H4kken/vitryne/blob/main/docs/MAINTAINING.md#releasing).)
+- **A refactor before the MVP release**: a trimmed `packages/vitryne-cloud/supabase/config.toml`
+  (listed in [PROGRESS.md](https://github.com/H4kken/vitryne/blob/main/docs/PROGRESS.md), under the cloud backend). (The web image is versioned now:
+  one image per release, [MAINTAINING.md](https://github.com/H4kken/vitryne/blob/main/docs/MAINTAINING.md#releasing).)
 - **Sharing a project** with someone else, and real-time editing together: the reason projects
   stay in the cloud. Until then one tab edits a project at a time, and another browser's save is
   a conflict the person settles.
