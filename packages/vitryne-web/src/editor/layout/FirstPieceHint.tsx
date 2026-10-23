@@ -41,7 +41,7 @@ export function FirstPieceHint(props: {
           </Button>
         </div>
         <a
-          href={`${DOCS_URL}/guide/first-pattern`}
+          href={`${DOCS_URL}/guide/editor-overview`}
           target="_blank"
           rel="noreferrer"
           className="text-muted-foreground hover:text-foreground text-sm underline underline-offset-4"
