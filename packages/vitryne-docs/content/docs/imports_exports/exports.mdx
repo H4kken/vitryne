@@ -1,4 +1,49 @@
 ---
 title: Exports
-description: Exporting your designs from Vitryne.
+icon: Download
+description: Take your draped garment to 3D software, or keep a copy of the whole project.
 ---
+
+Exporting needs a **free account**: without one, Vitryne asks you to create it first. Your
+projects stay saved in your account either way; an export is a copy you keep.
+
+## Export a garment
+
+1. Let the garment drape until it looks right, then pause it (space bar): the export takes the
+   fabric **where it is now**.
+2. Choose **Export** in the bar at the top.
+3. Pick a format and choose **Export**.
+
+| Format               | What you get                                     | Open it in                             |
+| -------------------- | ------------------------------------------------ | -------------------------------------- |
+| **glTF 2.0 (.glb)**  | One file: the garment, its fabrics and colours   | Blender, most 3D viewers and web tools |
+| **Wavefront (.obj)** | Two files: `.obj` (the shape) and `.mtl` (looks) | Almost any 3D software                 |
+| **Project (.vtry)**  | The whole project                                | Vitryne                                |
+
+glTF is the one to choose unless your software asks for OBJ.
+
+## What's in a 3D export
+
+- **The garment as it hangs**: one object, each piece a separate part with its fabric as the
+  material.
+- **Your pattern as the texture layout:** an image or print maps onto each piece the way it would
+  be printed on the flat fabric before cutting.
+- **The body**, if you turn on **Include avatar**: a separate object, handy to show the garment
+  on something.
+
+Sizes are in **metres**, with up being up (+Y) and the body facing you (+Z), so the garment comes
+in at real size.
+
+## Keep a copy of the project
+
+**Project (.vtry)** saves everything: pieces, seams, fabrics, the body and the view. Use it to
+keep a backup, or to send a design to someone who uses Vitryne: they open it with **Import a
+file** on the start screen, and it becomes a new project of theirs.
+
+You can also export a project without opening it: on the start screen, open the **⋯** menu on
+its card and choose **Export (.vtry)**.
+
+<Callout title="Patterns for cutting">
+  Exporting the pattern itself (a DXF to print or cut from) will come once
+  Vitryne can add seam allowance: a pattern without it isn't ready to cut.
+</Callout>

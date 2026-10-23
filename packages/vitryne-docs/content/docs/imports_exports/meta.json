@@ -3,5 +3,5 @@
   "description": "Import and export designs in Vitryne",
   "icon": "ArrowRightLeft",
   "root": true,
-  "pages": ["exports", "imports"]
+  "pages": ["imports", "exports"]
 }
