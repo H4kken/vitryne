@@ -1,5 +1,6 @@
 ---
-title: "The Vitryne file format, version 3"
+title: "File format"
+icon: FileCode
 description: "The .vtry project file format: layout, parts, validation and migrations."
 ---
 
@@ -395,7 +396,7 @@ axis, turn): no other placement data was needed.
 **Why regions by name:** a garment file has to fit any avatar. Garments say "torso" and
 "upper-arm-left", and each avatar defines where those are. The region coordinates used to be
 hard-coded in Rust for one avatar; they move into the avatar. **Patents:** placement is data the
-user sets. Under [PATENTS.md](/development/patents) rule 3, auto-join must not use it as an input, and that
+user sets. Under [PATENTS.md](/developers/patents) rule 3, auto-join must not use it as an input, and that
 is an app rule, not a format rule.
 
 ### Seams
@@ -439,7 +440,7 @@ A seam sews **side `a`** to **side `b`**. Each side is a chain of **runs**, and 
   there. That's how the T-shirt sleeve's cap top (no notch in the pattern) works: a named point
   at half the length between the two cap notches.
 - **The format doesn't restrict which nodes a seam may use** (whole edges, notch to notch, or any
-  two points). The interaction rules in [PATENTS.md](/development/patents) (designs to avoid because other
+  two points). The interaction rules in [PATENTS.md](/developers/patents) (designs to avoid because other
   companies' patents claim them) constrain how the editor lets people create seams, not what a
   file may contain.
 
@@ -718,7 +719,7 @@ How the planned features fit, without breaking v1 files:
 
 | Feature                       | How it's added                                                                                                                                                                                                                                                              |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sizes and grading**         | Per-size offsets of outline **nodes** (by id), the way grade rules work in industry formats. The ids are why nodes exist. A `sizes` list on the garment plus per-node deltas. (Watch [PATENTS.md](/development/patents) rule 6 for automatic grading.)                      |
+| **Sizes and grading**         | Per-size offsets of outline **nodes** (by id), the way grade rules work in industry formats. The ids are why nodes exist. A `sizes` list on the garment plus per-node deltas. (Watch [PATENTS.md](/developers/patents) rule 6 for automatic grading.)                       |
 | **Colourways and textures**   | Appearances exist since version 2 (colour only), and fabrics name a default one since version 3. Next: texture parts and print scale on the appearance, and `colourways` on the garment mapping cuts to appearances. Physics stays in fabrics, so nothing existing changes. |
 | **Multi-garment outfits**     | Already there: `project.garments` is in layering order. Per-garment visibility or grouping are additions.                                                                                                                                                                   |
 | **Avatars from measurements** | `avatar.source = {generator, measurements}`, with `body.glb` as the generated (and regenerable) mesh.                                                                                                                                                                       |

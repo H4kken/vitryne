@@ -1,0 +1,7 @@
+{
+  "title": "Guide",
+  "description": "Design garments with Vitryne",
+  "icon": "Shirt",
+  "root": true,
+  "pages": ["index", "requirements"]
+}

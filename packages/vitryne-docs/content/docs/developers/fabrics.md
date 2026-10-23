@@ -1,5 +1,6 @@
 ---
-title: "Fabric presets and textile parameters"
+title: "Fabric & textile"
+icon: Shirt
 description: "The five physical fabric presets, their calibrated values and where they come from."
 ---
 
@@ -18,7 +19,7 @@ how they map to the XPBD solver, and the literature and measurement standards th
 | **Fleece**            | `knit`   | 280           | 2.20           | 28,000 / 18,000              | 7,500       | 75 / 55                       | 0.38     | < 8% ✅             |
 | **Wool suiting**      | `woven`  | 250           | 0.48           | 850,000 / 650,000            | 200,000     | 32 / 24                       | 0.32     | < 3% ✅             |
 
-All quantities use the Vitryne project format definitions ([docs/FORMAT.md](/reference/file-format)).
+All quantities use the Vitryne project format definitions ([docs/FORMAT.md](/developers/file-format)).
 
 ---
 
@@ -28,7 +29,9 @@ All quantities use the Vitryne project format definitions ([docs/FORMAT.md](/ref
 
 - Standard SI unit: kg/m² ($100\text{ g/m}^2 = 0.1\text{ kg/m}^2$).
 - In the engine: lumped vertex masses $m_i$ are accumulated from triangle rest areas $A_t$:
-  $$m_i = \sum_{t \in \text{triangles}(i)} \frac{1}{3} \rho A_t$$
+  $$
+  m_i = \sum_{t \in \text{triangles}(i)} \frac{1}{3} \rho A_t
+  $$
   where $\rho$ is the areal density of the piece/cut the triangle belongs to.
 
 ### 2. Tensile and shear stiffness (`stretch.warp`, `.weft`, `.shear`, N/m)
@@ -37,7 +40,9 @@ All quantities use the Vitryne project format definitions ([docs/FORMAT.md](/ref
 - For an equilateral triangle lattice with spring stiffness $k$, the equivalent continuum membrane
   has Young's modulus $Y = \frac{2}{\sqrt{3}} k$ and Poisson's ratio $\nu = 1/3$.
 - In the engine, per-edge spring stiffness $k$ is derived from the mean membrane stiffness:
-  $$k = \frac{\sqrt{3}}{2} \cdot \frac{Y_{\text{warp}} + Y_{\text{weft}}}{2}$$
+  $$
+  k = \frac{\sqrt{3}}{2} \cdot \frac{Y_{\text{warp}} + Y_{\text{weft}}}{2}
+  $$
 - In XPBD, edge compliance is $\alpha = 1 / k$ ($\text{m/N}$).
 
 ### 3. Bending rigidity (`bending.warp`, `.weft`, `.bias`, N·m)
@@ -45,10 +50,14 @@ All quantities use the Vitryne project format definitions ([docs/FORMAT.md](/ref
 - Moment per unit width per unit curvature ($M / \kappa$), in $\text{N}\cdot\text{m}$ (or $\mu\text{N}\cdot\text{m} = 10^{-6}\text{ N}\cdot\text{m}$).
 - In textile standards (KES-F), bending is typically reported in $\text{gf}\cdot\text{cm}^2/\text{cm}$.
   The conversion factor is:
-  $$1\text{ gf}\cdot\text{cm}^2/\text{cm} = 9.80665 \times 10^{-7}\text{ N}\cdot\text{m} \approx 0.981\ \mu\text{N}\cdot\text{m}$$
+  $$
+  1\text{ gf}\cdot\text{cm}^2/\text{cm} = 9.80665 \times 10^{-7}\text{ N}\cdot\text{m} \approx 0.981\ \mu\text{N}\cdot\text{m}
+  $$
 - In the engine, isometric bending constraints (Bergou et al. 2006, ALGORITHMS.md) use the mean
   bending rigidity $B = \frac{1}{2}(B_{\text{warp}} + B_{\text{weft}})$ with XPBD compliance:
-  $$\alpha_{\text{bend}} = \frac{A_{\text{tri1}} + A_{\text{tri2}}}{6 B}$$
+  $$
+  \alpha_{\text{bend}} = \frac{A_{\text{tri1}} + A_{\text{tri2}}}{6 B}
+  $$
 
 ### 4. Thickness (`thickness`, mm)
 

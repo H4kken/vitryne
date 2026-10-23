@@ -15,6 +15,8 @@ import {
   remarkStructure,
 } from "fumadocs-core/mdx-plugins";
 import convert from "npm-to-yarn";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 // An `npm` code block becomes one tab per package manager; pnpm first (the repo's own), and the
 // reader's pick is remembered across pages.
@@ -33,11 +35,13 @@ const remarkPlugins = [
   remarkCodeTab,
   [remarkNpm, { packageManagers, persist: { id: "package-manager" } }],
   [remarkStructure, { exportAs: "structuredData" }],
+  // `$...$` and `$$...$$` are formulas (the fabrics page), rendered by KaTeX at build time.
+  remarkMath,
 ];
 // Fumadocs highlights code itself (Shiki, at build time), so Astro's highlighter is off. A
 // language Shiki has no grammar for (`caddy`, in the static hosting page) shows as plain text.
 /** @type {import("@astrojs/markdown-remark").RehypePlugins} */
-const rehypePlugins = [[rehypeCode, { fallbackLanguage: "text" }]];
+const rehypePlugins = [rehypeKatex, [rehypeCode, { fallbackLanguage: "text" }]];
 
 export default defineConfig({
   markdown: {

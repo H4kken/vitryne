@@ -13,10 +13,23 @@ contents. It uses the editor's look (colours and fonts from `packages/vitryne-we
 
 Search runs in the browser over that static index; the site makes no other requests.
 
-The `.md` pages under `self-hosting/`, `reference/` and `development/` are copies of the
-repository's `docs/*.md` (each says which at the top): the H1 became the `title`, links between
-them became site URLs, and links into the repository point at GitHub. An edit to one side
-isn't carried to the other.
+## Three tabs, three readers
+
+| Tab          | For                                               | Folder                       | URLs                 |
+| ------------ | ------------------------------------------------- | ---------------------------- | -------------------- |
+| Guide        | People designing garments: no technical words     | `content/docs/(guide)/`      | `/`, `/requirements` |
+| Self-hosting | People running their own instance                 | `content/docs/self-hosting/` | `/self-hosting/…`    |
+| Developers   | Contributors: how it works, the format, the rules | `content/docs/developers/`   | `/developers/…`      |
+
+Each folder is a root (`"root": true` in its `meta.json`): its own sidebar, and a search tag so
+search starts within the current tab ([src/lib/tabs.ts](src/lib/tabs.ts)). The parentheses keep
+`(guide)` out of the URLs. A new tab needs a folder with `"root": true`, a line in
+`src/lib/tabs.ts`, and its name in `content/docs/meta.json`.
+
+The `.md` pages in Self-hosting and Developers are copies of the repository's `docs/*.md` and
+`CONTRIBUTING.md` (each says which at the top): the H1 became the `title`, links between them
+became site URLs, and links into the repository point at GitHub. An edit to one side isn't
+carried to the other. `docs/PROGRESS.md` and `docs/MAINTAINING.md` stay on GitHub only.
 
 ## Run and check
 
@@ -32,6 +45,15 @@ make fmt          # prettier (with the Astro plugin) here too
 
 ## Writing a page
 
-Add `content/docs/<name>.mdx` with a `title` and a `description`, and list `<name>` in that
-folder's `meta.json`. Fumadocs' components (`<Callout>`, `<Cards>`/`<Card>`, tabs on code
+Add `<name>.mdx` with a `title` and a `description` to the tab's folder, and list `<name>` in
+its `meta.json`. In a Guide page, write for someone who sews or designs, not for a developer:
+the outcome first, numbered steps, a picture, and no implementation words (WebGPU, XPBD,
+`.vtry`); link to the Developers tab when one is unavoidable.
+
+A tab's sidebar follows its `meta.json`: `"---Reference---"` is a section heading, `"...folder"`
+lists a subfolder's pages flat under the current heading, and a plain `"folder"` shows it as a
+collapsible entry instead (its own `meta.json` gives its title, icon and order). An `icon` (in the front matter, or `"icon"` in a folder's `meta.json`)
+shows in the sidebar, and `<Card icon="Rocket" …>` puts one on a card: a Lucide name listed in [src/lib/icons.ts](src/lib/icons.ts) (add it
+there first), or an image under `public/` such as `/icons/supabase.svg` for a logo. The build
+fails on any other value. Fumadocs' components (`<Callout>`, `<Cards>`/`<Card>`, tabs on code
 blocks) work without imports.

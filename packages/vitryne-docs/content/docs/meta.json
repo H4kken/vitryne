@@ -1,9 +1,3 @@
 {
-  "pages": [
-    "index",
-    "getting-started",
-    "self-hosting",
-    "reference",
-    "development"
-  ]
+  "pages": ["(guide)", "self-hosting", "developers"]
 }

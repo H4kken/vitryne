@@ -1,5 +1,6 @@
 ---
 title: "Algorithms"
+icon: Sigma
 description: "Every solver component, where it is implemented, and the published method it follows."
 ---
 
@@ -13,7 +14,7 @@ be checked against the literature before the public announcement.
 All of it runs on the GPU as WebGPU core compute (no optional features, no float atomics), one
 set of WGSL shaders for native and browser. Settings are the fields of `SimSettings`
 (`packages/vitryne-engine/solver/src/sim.rs`); the numbers behind the defaults are in
-[PROGRESS.md](/development/progress).
+[PROGRESS.md](https://github.com/H4kken/vitryne/blob/main/docs/PROGRESS.md).
 
 ## The step
 

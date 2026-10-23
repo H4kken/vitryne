@@ -3,6 +3,7 @@
 // Every docs page, one static HTML file per page and language (lib/i18n.ts).
 import { render } from "astro:content";
 import { Docs } from "@/components/docs";
+import { Card } from "@/components/card";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import "@/styles/global.css";
 import { source, getLocalizedPages, getPageImageUrl } from "@/lib/source";
@@ -48,7 +49,7 @@ const toc: TOCItemType[] = headings.map((heading) => ({
     <h1 class="font-display font-semibold text-3xl">{page.data.title}</h1>
     <p class="text-lg text-fd-muted-foreground mb-8">{page.data.description}</p>
     <div class="prose flex-1">
-      <Content components={{ ...defaultMdxComponents }} />
+      <Content components={{ ...defaultMdxComponents, Card }} />
     </div>
   </Docs>
 </Layout>

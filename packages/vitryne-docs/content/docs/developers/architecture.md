@@ -1,12 +1,13 @@
 ---
 title: "Architecture"
+icon: Blocks
 description: "How Vitryne is put together, and the rules that keep it that way."
 ---
 
 <!-- Copied from docs/ARCHITECTURE.md. -->
 
 How Vitryne is put together, and the rules that keep it that way. For the solver itself see
-[ALGORITHMS.md](/development/algorithms); for the file format, [FORMAT.md](/reference/file-format).
+[ALGORITHMS.md](/developers/algorithms); for the file format, [FORMAT.md](/developers/file-format).
 
 ## Layout
 
@@ -234,7 +235,7 @@ piece and the avatar's own regions.
 
 ### Sewing (M8)
 
-Sewing is the part of the editor most constrained by [PATENTS.md](/development/patents) (patents held by
+Sewing is the part of the editor most constrained by [PATENTS.md](/developers/patents) (patents held by
 other companies; we avoid the designs they claim, and its rules override the plan where the two
 differ). The design, and why:
 
@@ -310,7 +311,7 @@ view.
   (`NewPieceDialog`); Rust wraps it there (`VtryFile.place_piece`: `rewrap` per cut and the
   collision box it needs) and `addPiece` adds it as one undo step. Body places start at the
   neck; a bottom is lowered with the placement's Height.
-- **Patents** ([PATENTS.md](/development/patents)). Lengths and angles are shown and typed for one edge
+- **Patents** ([PATENTS.md](/developers/patents)). Lengths and angles are shown and typed for one edge
   of the piece being edited or drawn, never across pieces. The pen snaps to the grid, to 15°
   steps and to the drawn piece's own points only: nothing snaps to another piece's edge length.
   An edited edge keeps its whole-edge seams. Drawn pieces have no named corners, so the seam

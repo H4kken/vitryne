@@ -3,6 +3,7 @@
 import type { APIRoute } from "astro";
 import { createFromSource } from "fumadocs-core/search/server";
 import { getStructuredData, source } from "@/lib/source";
+import { tabOfPath } from "@/lib/tabs";
 
 const server = createFromSource(source, {
   buildIndex(page) {
@@ -14,6 +15,7 @@ const server = createFromSource(source, {
       description: page.data.description,
       structuredData: getStructuredData(page.data._raw),
       url: page.url,
+      tag: tabOfPath(page.path),
     };
   },
 });

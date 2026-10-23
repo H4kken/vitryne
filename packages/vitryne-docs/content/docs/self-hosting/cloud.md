@@ -245,7 +245,7 @@ then kept.
 
 ## Storage
 
-As [FORMAT.md](/reference/file-format#cloud-storage) planned: **the same format on disk and in the cloud.**
+As [FORMAT.md](/developers/file-format#cloud-storage) planned: **the same format on disk and in the cloud.**
 
 - **A project is a row** in `public.projects`: owner, name, the file's `manifest.json` (as
   `jsonb`), total size, a `revision`, timestamps, and its thumbnail's hash.
@@ -373,9 +373,9 @@ node packages/vitryne-cloud/tests/browser.mjs none <url>
 
 ## Not done yet
 
-- **A refactor before the MVP release** (see [PROGRESS.md](/development/progress), M12): a trimmed
+- **A refactor before the MVP release** (see [PROGRESS.md](https://github.com/H4kken/vitryne/blob/main/docs/PROGRESS.md), M12): a trimmed
   `packages/vitryne-cloud/supabase/config.toml`. (The web image is versioned now: one image per
-  release, [MAINTAINING.md](/development/maintaining#releasing).)
+  release, [MAINTAINING.md](https://github.com/H4kken/vitryne/blob/main/docs/MAINTAINING.md#releasing).)
 - **Sharing a project** with someone else, and real-time editing together: the reason projects
   stay in the cloud. Until then one tab edits a project at a time, and another browser's save is
   a conflict the person settles.

@@ -1,5 +1,6 @@
 ---
 title: "Patent warnings"
+icon: Scale
 description: "Patents held by other companies, and the designs Vitryne avoids because of them."
 ---
 
