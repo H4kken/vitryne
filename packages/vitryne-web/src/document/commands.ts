@@ -146,7 +146,7 @@ export function setValue(
   };
 }
 
-// ---- the edits of M6 -----------------------------------------------------------------------
+// ---- names and values ----------------------------------------------------------------------
 
 export function renameProject(e: Entities, name: string): Command {
   return setValue(e, { kind: "project" }, ["name"], name, {
@@ -837,7 +837,7 @@ export function setSelfCollision(e: Entities, on: boolean): Command {
   });
 }
 
-// ---- M7: where cuts start on the body, and where they sit in the flat view -----------------
+// ---- where cuts start on the body, and where they sit in the flat view ---------------------
 
 /** A collision box, mm (`garment.simulation.collisionBounds`). */
 export interface Bounds {
@@ -1037,7 +1037,7 @@ export function setLayouts(
   );
 }
 
-// ---- M8: sewing ----------------------------------------------------------------------------
+// ---- sewing --------------------------------------------------------------------------------
 
 type Run = Seam["a"][number];
 
@@ -1133,7 +1133,7 @@ export function reverseSeam(
   );
 }
 
-// ---- M14: editing points (an outline's nodes and edges) ------------------------------------
+// ---- editing points (an outline's nodes and edges) -----------------------------------------
 
 function pieceIndex(g: Garment, pieceId: string): [number, Piece] {
   const i = indexOf(g.pieces, pieceId, "piece");
@@ -1405,7 +1405,7 @@ export function setEdge(
   );
 }
 
-// ---- M14: internal lines, folds and the grain line ------------------------------------------
+// ---- internal lines, folds and the grain line -----------------------------------------------
 
 /** Every id used in a garment, to refuse a new entity that reuses one. */
 function garmentIds(g: Garment): Set<string> {

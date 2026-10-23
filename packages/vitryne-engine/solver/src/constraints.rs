@@ -121,7 +121,7 @@ impl Constraints {
         Self::build_with_panel_materials(mesh, &[*mat], &[(0..mesh.n_verts() as u32)])
     }
 
-    /// Builds stretch and bend constraints with per-panel materials (M9).
+    /// Builds stretch and bend constraints with per-panel materials.
     pub fn build_with_panel_materials(
         mesh: &ClothMesh,
         panel_mats: &[Material],

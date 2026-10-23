@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! DXF-AAMA (ASTM D6673) export of a garment's pieces (M13), so a pattern made or fixed in
+//! DXF-AAMA (ASTM D6673) export of a garment's pieces, so a pattern made or fixed in
 //! Vitryne goes back to cutting and CAD tools. The file has the shape `aama::read` reads and
 //! `tools/patterns/export-aama.mjs` writes: R12 entities only, one BLOCK per piece, INSERTed
 //! side by side in ENTITIES, units mm (`$INSUNITS` 4), on the standard's layers:

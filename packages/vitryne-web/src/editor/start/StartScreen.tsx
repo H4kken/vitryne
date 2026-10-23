@@ -3,6 +3,8 @@
 // file, picked or dropped anywhere here: a DXF pattern, or a .vtry project; start from
 // scratch; or start from one of the bundled examples), then the person's projects as cards.
 
+import { Button } from "@/components/ui/button";
+import { DOCS_URL } from "@/links";
 import { type Example, exampleId, fetchExample } from "../examples";
 import { ImportIcon } from "../icons/ImportIcon";
 import { Logo } from "../icons/Logo";
@@ -54,6 +56,11 @@ export function StartScreen(props: {
         <span className="font-display text-xl font-bold tracking-[-0.01em]">
           Vitryne
         </span>
+        <Button variant="ghost" asChild>
+          <a href={DOCS_URL} target="_blank" rel="noreferrer">
+            Docs
+          </a>
+        </Button>
         <span className="grow" />
         <span className="text-muted-foreground text-sm max-sm:hidden">
           Free · no account needed to try
@@ -73,7 +80,16 @@ export function StartScreen(props: {
             </h1>
             <p className="text-body-text m-0 text-[17px]">
               Start from scratch, from an example, or bring your own pattern.
-              Your work is saved as you go.
+              Your work is saved as you go. New here?{" "}
+              <a
+                href={`${DOCS_URL}/guide/editor-overview`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-foreground underline underline-offset-4"
+              >
+                Read the guide
+              </a>
+              .
             </p>
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">

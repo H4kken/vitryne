@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Edge-strain tables (M2) for drape and drag JSON (files or directories).
+"""Edge-strain tables for drape and drag JSON (files or directories).
 
 usage: python3 tools/bench/strain.py <json or dir>... [--regions] [--groups] [--seams] [--hotspots]
 

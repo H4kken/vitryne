@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! DXF-AAMA round trip (M13): exporting a sample's garment and converting the exported DXF
+//! DXF-AAMA round trip: exporting a sample's garment and converting the exported DXF
 //! with the sample's own garment.toml gives the sample's garment again: the same pieces, nodes
 //! (ids, types, names), notches, folds, grain, internal lines, cuts and seams, every length
 //! within 0.01 mm. The sidecar refers to landmarks by number, so this also checks that the

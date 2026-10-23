@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Sewing (M8): the whole edges and each seam's length difference, asked of Rust whenever the
+// Sewing: the whole edges and each seam's length difference, asked of Rust whenever the
 // pieces or seams change and something shows them; suggestions when the person asks; and the
 // edges picked in the flat view for a seam being made (whole edges only, docs/PATENTS.md).
 

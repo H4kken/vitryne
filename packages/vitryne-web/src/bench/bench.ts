@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The engine benchmark page (bench.html): the same headless runs as `vitryne bench` and
 // `vitryne bench-drag`, in the browser. It runs on the main thread, as it always has, so its
-// numbers stay comparable with the earlier milestones'. tools/bench/run.sh drives it.
+// numbers stay comparable with the earlier runs'. tools/bench/run.sh drives it.
 import init, {
   bake_sdf_ms,
   run_bench,
@@ -286,10 +286,10 @@ async function run() {
   }
 }
 
-// M1 low-end hardware check: one click runs everything, results go back after each step.
+// Low-end hardware check: one click runs everything, results go back after each step.
 // Dispatch overhead (empty sheet), the three garments draped at 10k and 20k vertices with
 // self-collision, and one 60 s drag test.
-const M1_SUITE: {
+const LOW_END_SUITE: {
   mode: string;
   res: string;
   frames?: string;
@@ -345,8 +345,8 @@ async function runSuite() {
   results.length = 0;
   try {
     if (!("gpu" in navigator)) throw new Error(NO_WEBGPU);
-    const info = { suite: "m1", adapter_info: await adapterInfo() };
-    for (const [i, c] of M1_SUITE.entries()) {
+    const info = { suite: "low-end", adapter_info: await adapterInfo() };
+    for (const [i, c] of LOW_END_SUITE.entries()) {
       $("mode").value = c.mode;
       modeChanged();
       for (const k of [
@@ -363,16 +363,16 @@ async function runSuite() {
       $("substeps").value = "20";
       report(
         "progress",
-        `suite step ${i + 1}/${M1_SUITE.length}: ${c.mode} ${c.garment || "sheet"}`,
+        `suite step ${i + 1}/${LOW_END_SUITE.length}: ${c.mode} ${c.garment || "sheet"}`,
       );
       await runConfig();
       await publish({
         ...info,
         suite_steps_done: i + 1,
-        suite_steps: M1_SUITE.length,
+        suite_steps: LOW_END_SUITE.length,
       });
     }
-    status.textContent = `ok: M1 suite done, ${results.length} runs. Results sent; you can close this tab.`;
+    status.textContent = `ok: low-end suite done, ${results.length} runs. Results sent; you can close this tab.`;
     status.className = "";
   } catch (e) {
     status.textContent =
@@ -413,7 +413,7 @@ status.textContent =
 // &cap=A (contact accel cap, m/s²) &ut=N (untangle every N substeps, 0 = off)
 // &post=1[&name=X][&dir=D] also sends the JSON to the dev server (bench-out/D/X.json; default
 // dir browser-check, default name e.g. chrome-windows).
-// ?suite=m1&post=1&dir=m1 runs the M1 suite (see M1_SUITE) and sends results after every step.
+// ?suite=low-end&post=1&dir=low-end runs the low-end suite (see LOW_END_SUITE) and sends results after every step.
 const mode = q.get("mode");
 if (mode) {
   $("mode").value = mode;
@@ -437,5 +437,5 @@ if (q.get("nopins") === "1") $("nopins").checked = true;
 if (q.get("ts") === "1") $("ts").checked = true;
 if (q.get("gentle") === "1") $("gentle").checked = true;
 if (q.get("record") === "0") $("record").checked = false;
-if (q.get("suite") === "m1") void runSuite();
+if (q.get("suite") === "low-end") void runSuite();
 else if (q.get("auto") === "1") void run();

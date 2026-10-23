@@ -1,0 +1,215 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Everything on one machine for contributors: the editor built from this checkout and a local
+# Supabase (database, Auth, REST, Storage, the cleanup function, Studio, a mail catcher), with
+# the same images and settings as the Supabase CLI's stack (`make dev`), from the repository root:
+#
+#   docker compose -f packages/vitryne-cloud/dev/docker-compose.yml up -d     (make stack)
+#
+# Editor http://localhost:8000, API http://127.0.0.1:54321, Studio http://127.0.0.1:54323, emails
+# http://127.0.0.1:54324. The keys and passwords are Supabase's public demo values: localhost only,
+# never a server. The first build of the editor takes 10-20 minutes (deploy/web/Dockerfile);
+# `--build` picks up changes. Uses the CLI stack's ports: run one or the other.
+
+name: vitryne-dev
+
+x-keys:
+  jwt-secret: &jwt-secret super-secret-jwt-token-with-at-least-32-characters-long
+  anon-key: &anon-key eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+  service-key: &service-key eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+
+services:
+  web:
+    image: vitryne-web:dev
+    build:
+      context: ../../..
+      dockerfile: packages/vitryne-cloud/deploy/web/Dockerfile
+      target: from-source
+    ports:
+      - "127.0.0.1:8000:80"
+    environment:
+      SUPABASE_URL: http://127.0.0.1:54321
+      SUPABASE_PUBLISHABLE_KEY: *anon-key
+      # The editor's migrations, applied at start (deploy/web/entrypoint.sh).
+      SUPABASE_DB_URL: postgresql://postgres:postgres@db:5432/postgres
+    depends_on:
+      # Their schemas come first: the migrations use auth.users and storage.buckets.
+      auth: { condition: service_healthy }
+      storage: { condition: service_healthy }
+
+  # The API at one address, like a hosted project: /auth/v1, /rest/v1, /storage/v1,
+  # /functions/v1.
+  gateway:
+    image: caddy:2.10.2-alpine
+    ports:
+      - "127.0.0.1:54321:8000"
+    volumes:
+      - ./gateway.Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../supabase/templates:/srv/email:ro
+
+  db:
+    image: public.ecr.aws/supabase/postgres:17.6.1.171
+    ports:
+      - "127.0.0.1:54322:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: /var/run/postgresql
+      JWT_SECRET: *jwt-secret
+      JWT_EXP: 3600
+    volumes:
+      # Run once, on an empty database (the image's migrate.sh).
+      - ./db.sql:/etc/postgresql.schema.sql:ro
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 2s
+      retries: 30
+
+  auth:
+    image: public.ecr.aws/supabase/gotrue:v2.197.0
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://127.0.0.1:54321/auth/v1
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgresql://supabase_auth_admin:postgres@db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:8000
+      GOTRUE_URI_ALLOW_LIST: http://localhost:8000,http://localhost:5173
+      GOTRUE_JWT_SECRET: *jwt-secret
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_ISSUER: http://127.0.0.1:54321/auth/v1
+      # As in supabase/config.toml: anonymous drafts that become accounts, email + password.
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "true"
+      GOTRUE_SECURITY_MANUAL_LINKING_ENABLED: "true"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
+      GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "true"
+      GOTRUE_PASSWORD_MIN_LENGTH: 8
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: 10
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
+      GOTRUE_RATE_LIMIT_ANONYMOUS_USERS: 30
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: 360000
+      GOTRUE_RATE_LIMIT_VERIFY: 30
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: 150
+      # Emails go to Mailpit, in Vitryne's words (served by the gateway).
+      GOTRUE_SMTP_HOST: mailpit
+      GOTRUE_SMTP_PORT: 1025
+      GOTRUE_SMTP_ADMIN_EMAIL: admin@email.com
+      GOTRUE_SMTP_SENDER_NAME: Vitryne
+      GOTRUE_SMTP_MAX_FREQUENCY: 1s
+      GOTRUE_MAILER_OTP_LENGTH: 6
+      GOTRUE_MAILER_OTP_EXP: 3600
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: http://127.0.0.1:54321/auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: http://127.0.0.1:54321/auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: http://127.0.0.1:54321/auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_INVITE: http://127.0.0.1:54321/auth/v1/verify
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://gateway:8000/email/confirmation.html
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: http://gateway:8000/email/recovery.html
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: http://gateway:8000/email/email_change.html
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: Confirm your Vitryne email
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: Choose a new Vitryne password
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: Confirm your Vitryne email
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9999/health"]
+      interval: 2s
+      retries: 30
+
+  rest:
+    image: public.ecr.aws/supabase/postgrest:v16.3
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGRST_DB_URI: postgresql://authenticator:postgres@db:5432/postgres
+      PGRST_DB_SCHEMAS: public,graphql_public
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_MAX_ROWS: 1000
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: *jwt-secret
+
+  storage:
+    image: public.ecr.aws/supabase/storage-api:v1.77.0
+    depends_on:
+      db: { condition: service_healthy }
+      rest: { condition: service_started }
+    environment:
+      ANON_KEY: *anon-key
+      SERVICE_KEY: *service-key
+      AUTH_JWT_SECRET: *jwt-secret
+      POSTGREST_URL: http://rest:3000
+      DATABASE_URL: postgresql://supabase_storage_admin:postgres@db:5432/postgres
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /mnt
+      FILE_SIZE_LIMIT: 52428800
+      TENANT_ID: stub
+      GLOBAL_S3_BUCKET: stub
+      STORAGE_S3_REGION: local
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+      TUS_URL_PATH: /storage/v1/upload/resumable
+    volumes:
+      - storage:/mnt
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5000/status"]
+      interval: 2s
+      retries: 30
+
+  # The daily cleanup of stale anonymous drafts (supabase/functions/clean-anonymous), called by
+  # pg_cron through the gateway (db.sql gives it the address and the secret).
+  functions:
+    image: public.ecr.aws/supabase/edge-runtime:v1.76.2
+    command: ["start", "--main-service=/functions/clean-anonymous", "--port=9000"]
+    environment:
+      SUPABASE_URL: http://gateway:8000
+      SUPABASE_SERVICE_ROLE_KEY: *service-key
+      CLEANUP_SECRET: local-cleanup-secret
+    volumes:
+      - ../supabase/functions:/functions:ro
+
+  mailpit:
+    image: public.ecr.aws/supabase/mailpit:v1.30.2
+    ports:
+      - "127.0.0.1:54324:8025"
+    environment:
+      MP_SMTP_DISABLE_RDNS: "true"
+
+  studio:
+    image: public.ecr.aws/supabase/studio:2026.09.14-sha-4dd8a95
+    ports:
+      - "127.0.0.1:54323:3000"
+    depends_on:
+      meta: { condition: service_started }
+    environment:
+      HOSTNAME: 0.0.0.0
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: postgres
+      SUPABASE_URL: http://gateway:8000
+      SUPABASE_PUBLIC_URL: http://127.0.0.1:54321
+      SUPABASE_ANON_KEY: *anon-key
+      SUPABASE_SERVICE_KEY: *service-key
+      AUTH_JWT_SECRET: *jwt-secret
+      PGRST_DB_SCHEMAS: public,graphql_public
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_MAX_ROWS: 1000
+      NEXT_PUBLIC_ENABLE_LOGS: "false"
+      NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
+
+  meta:
+    image: public.ecr.aws/supabase/postgres-meta:v0.99.0
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: postgres
+
+volumes:
+  db:
+  storage:

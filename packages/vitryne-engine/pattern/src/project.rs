@@ -4,7 +4,7 @@
 //!
 //! Each cut becomes a panel (pieces in order, their cuts in order), its outline split into
 //! edges at every node; seams become chains of those edges. Lengths go from mm to metres.
-//! What the v1 engine can't do yet (FORMAT.md, What M5 has to change in the engine): fabrics
+//! What the v1 engine can't do yet (FORMAT.md, In the engine): fabrics
 //! are isotropic (the mean of warp and weft is used, with a warning when they differ), and a
 //! garment has one fabric (cuts with their own fabric are refused).
 

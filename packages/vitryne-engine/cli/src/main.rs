@@ -27,7 +27,7 @@
 //!   vitryne frames --at 30,120,600 --out-dir DIR [--cam yaw,pitch,dist[,tx,ty,tz]]
 //!                           headless: render the sim at those frames to PNGs
 //!   vitryne info            print adapter report as JSON and exit
-//!   vitryne snapshot <out>  M0 triangle smoke test, offscreen, PPM
+//!   vitryne snapshot <out>  triangle smoke test, offscreen, PPM
 //!
 //!   vitryne pattern-svg <out.svg> [--edge E]
 //!                           meshed T-shirt pattern with seams, for inspection
@@ -912,7 +912,7 @@ struct RegressionCase {
 }
 
 /// The golden cases. The hoodie never rests and its neck junction is chaotic (native vs Chrome
-/// differ by up to 11 mm at the end, docs/PROGRESS.md M2), so its shape tolerance is wide and its
+/// differ by up to 11 mm at the end, docs/PROGRESS.md, Fabric stretch), so its shape tolerance is wide and its
 /// intersection count has headroom; it still catches a real change.
 const REGRESSION_CASES: [RegressionCase; 4] = [
     RegressionCase {
@@ -938,7 +938,7 @@ const REGRESSION_CASES: [RegressionCase; 4] = [
         shape_tol: 20.0,
         slack: 0.25,
         note: "FreeSewing Hugo, known weaknesses recorded on purpose: never rests, ~136 persistent \
-                 self-intersections at the hood junction, seam gap ~34 mm (docs/PROGRESS.md M2). A fix \
+                 self-intersections at the hood junction, seam gap ~34 mm (docs/PROGRESS.md, Fabric stretch). A fix \
                  will show up here as a difference to re-record.",
     },
     RegressionCase {
@@ -947,7 +947,7 @@ const REGRESSION_CASES: [RegressionCase; 4] = [
         sidecar: None,
         shape_tol: 0.5,
         slack: 0.0,
-        note: "Drawn in the editor (M14): two rectangles on a blank project, lowered to the hips, \
+        note: "Drawn in the editor: two rectangles on a blank project, lowered to the hips, \
                  the side seams from the suggestions (packages/vitryne-web/src/document/skirt.test.ts makes the \
                  file). Known weakness recorded on purpose: the tube is stretched over the hips \
                  and the solver puts that stretch in the row of edges along each side seam \

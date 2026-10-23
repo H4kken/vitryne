@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The sewing helpers (M8) against the T-shirt example and Rust's answers for it.
+// The sewing helpers against the T-shirt example and Rust's answers for it.
 import { describe, expect, it } from "vitest";
 import { mainGarment } from "@/document/entities";
 import type { Garment, Piece } from "@/format/schema.gen";

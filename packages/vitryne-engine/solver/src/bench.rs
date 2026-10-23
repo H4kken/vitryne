@@ -147,7 +147,7 @@ pub struct BenchResult {
     pub stretch_strain: (f32, f32, f32),
     /// The 5 most stretched edges: (strain, midpoint, group).
     pub most_stretched: Vec<(f32, [f32; 3], String)>,
-    /// M2: the full edge-strain distribution at the end of the serial run, by region and panel.
+    /// The full edge-strain distribution at the end of the serial run, by region and panel.
     pub strain: crate::strain::StrainReport,
     /// Per named seam: (name, max gap mm, mean gap mm, position of the max along the seam
     /// as 0..1 from its first edge's start) at the end.

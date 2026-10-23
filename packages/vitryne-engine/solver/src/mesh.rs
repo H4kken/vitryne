@@ -69,7 +69,7 @@ impl ClothMesh {
         self.masses_per_panel(&[density], &[(0..self.n_verts() as u32)])
     }
 
-    /// Lumped vertex masses from rest triangle areas with per-panel densities (M9).
+    /// Lumped vertex masses from rest triangle areas with per-panel densities.
     pub fn masses_per_panel(
         &self,
         panel_densities: &[f32],

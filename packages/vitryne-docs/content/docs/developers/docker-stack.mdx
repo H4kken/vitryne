@@ -1,0 +1,117 @@
+---
+title: Run it all in Docker
+icon: Container
+description: The editor from your checkout and a local Supabase, with one command and nothing to install but Docker.
+---
+
+One Docker Compose file runs the whole of Vitryne on your machine: the editor built from your
+checkout, and a local Supabase with accounts, saving, emails and the admin dashboard. Use it to
+try a change end to end, test sign-in and saving, or review a pull request, without installing
+Rust or Node.
+
+For day-to-day work on the editor, `make dev` is quicker: it reloads as you edit, but needs the
+toolchain from [Contributing](/developers/contributing#build-and-run).
+
+## What you need
+
+- **Docker** with Docker Compose (Docker Desktop on macOS and Windows), with about **10 GB of
+  free disk** and 4 GB of memory for Docker: the first build compiles the engine inside it.
+- A browser with WebGPU to use the editor ([Requirements](/requirements)).
+
+## Start it
+
+From the repository root:
+
+```sh
+make stack
+```
+
+Without `make`, that's:
+
+```sh
+docker compose -f packages/vitryne-cloud/dev/docker-compose.yml up -d --build
+```
+
+The first build takes 10 to 20 minutes; later ones reuse what hasn't changed. Then:
+
+| Open                   | What                                                        |
+| ---------------------- | ----------------------------------------------------------- |
+| http://localhost:8000  | The editor                                                  |
+| http://127.0.0.1:54324 | Emails: account confirmations and password resets land here |
+| http://127.0.0.1:54323 | Supabase Studio: the tables, users and stored files         |
+| http://127.0.0.1:54321 | The API the editor talks to                                 |
+| `127.0.0.1:54322`      | The database (user `postgres`, password `postgres`)         |
+
+To try accounts, create one in the editor, open the email in Mailpit and follow its link.
+
+## What runs
+
+| Service     | What it does                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| `web`       | The editor, built from your checkout. At start, it applies the database migrations.         |
+| `gateway`   | One address for the API, like a hosted Supabase project: Auth, REST, Storage and Functions. |
+| `db`        | Postgres, with Supabase's extensions.                                                       |
+| `auth`      | Accounts and sign-in, with Vitryne's email templates.                                       |
+| `rest`      | The database's API (PostgREST).                                                             |
+| `storage`   | The project files, kept in a Docker volume.                                                 |
+| `functions` | `clean-anonymous`, which deletes old drafts without an account.                             |
+| `mailpit`   | Catches the emails: nothing leaves your machine.                                            |
+| `studio`    | Supabase's dashboard, with `meta` behind it.                                                |
+
+The images and settings are the ones the Supabase CLI uses for `make dev`, from
+`packages/vitryne-cloud/supabase/config.toml`: anonymous drafts, email and password with
+confirmation, 8-character passwords. Google sign-in is off.
+
+## After a change
+
+- **Editor or engine code:** `make stack` again rebuilds the editor and restarts it.
+- **A new migration** in `packages/vitryne-cloud/supabase/migrations/`: the same. The editor's
+  container applies the migrations the database doesn't have yet when it starts.
+- **Start over** with an empty database and no files:
+
+  ```sh
+  make stack-down ARGS=-v
+  make stack
+  ```
+
+## Run the backend tests
+
+```sh
+make stack-test
+```
+
+It runs `packages/vitryne-cloud/tests/` against the stack: row-level security, accounts and
+their emails, the cleanup of old drafts, thumbnails.
+
+## Use the dev server with it
+
+To work on the editor with reloads but keep this backend, stop the stack's editor and point
+`make dev` at the API:
+
+```sh
+docker compose -f packages/vitryne-cloud/dev/docker-compose.yml stop web
+SUPABASE_URL=http://127.0.0.1:54321 \
+SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0 \
+make dev
+```
+
+The editor is then on http://localhost:5173.
+
+## Stop it
+
+```sh
+make stack-down
+```
+
+Accounts and projects stay in Docker volumes until `make stack-down ARGS=-v`.
+
+## Good to know
+
+- **It uses the same ports as `make dev`'s Supabase**, so run one or the other. Stop the CLI's
+  with `pnpm run supabase stop` in `packages/vitryne-web/`.
+- **For your machine only.** The keys and passwords are Supabase's public demo values, and the
+  ports only listen on `127.0.0.1`. Never run this file on a server.
+- **The cleanup of old drafts** runs every night at 03:17. To run it now:
+  `docker compose -f packages/vitryne-cloud/dev/docker-compose.yml exec db psql -U postgres -c "select vitryne_private.clean_anonymous()"`.
+- **Out of disk while building?** Docker's disk is separate from your computer's: raise it in
+  Docker Desktop's settings, or remove old build cache with `docker builder prune`.

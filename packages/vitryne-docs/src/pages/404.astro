@@ -1,0 +1,33 @@
+---
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// The page for a URL that isn't one (`dist/404.html`): the docs' layout, so the sidebar and
+// search are there to find the page. Static hosts serve it with a 404 status.
+import "@/styles/global.css";
+import Layout from "@/components/layout.astro";
+import Shell from "@/components/shell.astro";
+import { source } from "@/lib/source";
+import { i18n } from "@/lib/i18n";
+
+const language = i18n.defaultLanguage;
+const title = "Page not found · Vitryne docs";
+---
+
+<Layout lang={language}>
+  <Fragment slot="head">
+    <title>{title}</title>
+    <meta name="robots" content="noindex" />
+  </Fragment>
+  <Shell tree={source.getPageTree(language)} lang={language} toc={[]}>
+    <h1 class="font-display font-semibold text-3xl">Page not found</h1>
+    <p class="text-lg text-fd-muted-foreground mb-8">
+      There is no page at this address. It may have moved, or the link has a
+      typo.
+    </p>
+    <div class="prose flex-1">
+      <p>
+        Start from <a href="/">Getting started</a>, pick a page in the sidebar,
+        or search the docs.
+      </p>
+    </div>
+  </Shell>
+</Layout>

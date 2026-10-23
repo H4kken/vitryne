@@ -1,0 +1,19 @@
+{
+  "title": "Developers",
+  "description": "How Vitryne works, and contributing",
+  "icon": "Code",
+  "root": true,
+  "pages": [
+    "---How it works---",
+    "architecture",
+    "algorithms",
+    "cloud",
+    "---Reference---",
+    "file-format",
+    "fabrics",
+    "---Contributing---",
+    "contributing",
+    "docker-stack",
+    "patents"
+  ]
+}

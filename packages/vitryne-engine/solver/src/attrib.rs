@@ -2,7 +2,7 @@
 //! Debug only (S3): which solver phase made a spike? `DRAPE_DEBUG_ATTRIB=1 vitryne bench-drag ...`
 //! snapshots pos/prev/vel before every drag frame; on a frame with a vertex >= 5 m/s it restores
 //! the snapshot and replays that frame one phase at a time, reading back after each phase.
-//! The solver is bit-reproducible on one target (M4), so the replay is the same frame.
+//! The solver is bit-reproducible on one target, so the replay is the same frame.
 //!
 //! Velocity at the end of a substep is (pos - prev) / h, so each phase's contribution to it is
 //! the change it makes to (pos - prev) / h. Predict's share is gravity, damping and air drag;

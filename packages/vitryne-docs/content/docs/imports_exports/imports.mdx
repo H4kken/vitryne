@@ -1,0 +1,60 @@
+---
+title: Imports
+icon: Upload
+description: Bring in a pattern from your pattern software, or a Vitryne project file.
+---
+
+Vitryne opens two kinds of files:
+
+- **A DXF pattern** (`.dxf`) in the DXF-AAMA format, the pattern exchange format most pattern
+  software can save to. You get its pieces, ready to place on the body and sew.
+- **A Vitryne project** (`.vtry`), exported from Vitryne. It opens as a new project, exactly as
+  it was saved.
+
+## Where to import from
+
+- On the start screen, choose **Import a file**, or drop the file anywhere on the page.
+- In an empty garment, choose **Import** on the _Draw your first piece_ card.
+- Drop a file on the pattern or the 3D view of an open project.
+
+## Place the pieces
+
+A DXF pattern opens the **Import a pattern** dialog. It lists every piece with a small drawing and
+asks where each one goes on the body:
+
+- **One place**, such as _Body, front_ or _Right arm_.
+- **A pair**, such as _Arms, right and left_: two copies, the second the mirror image.
+- **On top of another piece**, for a pocket on a front, for example.
+- **Leave it out**, for pieces that don't go on the body (facings, interfacing).
+
+Vitryne suggests a place from each piece's name (a piece called "sleeve" goes on the arms). Check
+every suggestion: you decide, and you can move the pieces afterwards in the **Pieces** panel or by
+dragging the handles in the 3D view.
+
+If a project is open, **Import into** asks whether the pieces make **a new project** or join the
+open one.
+
+## What the dialog also tells you
+
+- **Left out of the file:** anything in the file Vitryne didn't use (text, extra layers, shapes
+  that aren't pieces). Open it to check nothing you need is missing.
+- **Units:** the file's units, millimetres for most patterns.
+
+## After the import
+
+The pieces are placed but **not sewn yet**. Sew them as in
+[Your first Pattern](/guide/first-pattern#sew-the-sides): **Suggest seams** in the **Pieces**
+panel finds the obvious ones, and **Sew two edges** joins the rest.
+
+<Callout title="Already have the sewing?">
+  A `garment.toml` file written for a pattern can come with it: drop both files
+  together, or choose **Add a garment.toml…** in the dialog. Its seams are sewn
+  on import. Vitryne's three example garments are made this way.
+</Callout>
+
+## If a file won't open
+
+- Check that it is saved as **DXF-AAMA** (sometimes called _AAMA_ or _ASTM/AAMA_ in the save
+  dialog), not a plain drawing DXF.
+- The dialog says why a file couldn't be read. Curves in the file come in as short straight
+  edges; you can [curve them again](/guide/first-pattern#change-a-pieces-shape).

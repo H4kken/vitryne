@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Golden regression results (M3): what a drape must keep doing. A case is a garment drape for a
+//! Golden regression results: what a drape must keep doing. A case is a garment drape for a
 //! fixed number of frames on a fresh simulation; `observe` measures it, `Golden` is what was
 //! recorded, `Golden::check` lists every way the observation differs beyond its tolerance.
 //!

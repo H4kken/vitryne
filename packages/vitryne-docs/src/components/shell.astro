@@ -1,0 +1,29 @@
+---
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// The Fumadocs island around a page's content. The island persists across client-side
+// navigations, so the sidebar keeps the folders the reader opened, its scroll and the search;
+// the new page reaches it as props. Its content is one of them, as HTML: Astro keeps a
+// persisted island's slot from the first page, but re-renders it with each page's props.
+import type { Root } from "fumadocs-core/page-tree";
+import type { TOCItemType } from "fumadocs-core/toc";
+import { Docs } from "@/components/docs";
+
+interface Props {
+  tree: Root;
+  lang: string;
+  toc: TOCItemType[];
+}
+const { tree, lang, toc } = Astro.props;
+const html = await Astro.slots.render("default");
+---
+
+<Docs
+  tree={tree}
+  lang={lang}
+  pathname={Astro.url.pathname}
+  params={Astro.params}
+  page={{ toc }}
+  html={html}
+  client:load
+  transition:persist="docs"
+/>

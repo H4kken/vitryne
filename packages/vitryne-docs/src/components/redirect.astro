@@ -1,0 +1,24 @@
+---
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// A static page that sends the reader on to `to` at once (Astro's own waits two seconds and
+// shows a link). A click from another docs page gets here too: the page has no client router,
+// so Astro's loads it in full and the refresh runs.
+interface Props {
+  to: string;
+}
+const { to } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vitryne docs</title>
+    <meta http-equiv="refresh" content={`0;url=${to}`} />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href={to} />
+  </head>
+  <body>
+    <a href={to}>Vitryne docs</a>
+  </body>
+</html>

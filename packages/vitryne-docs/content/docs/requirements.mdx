@@ -1,0 +1,22 @@
+---
+title: Requirements
+icon: ClipboardCheck
+description: Check that your browser and computer can run Vitryne.
+---
+
+## Technical requirements
+
+Vitryne runs in any browser with **WebGPU**. The cloth simulation runs on your graphics card,
+so the GPU matters most; the CPU only does real work once, when you import your own pattern.
+
+|             | Minimum                                                                         | Recommended                                |
+| ----------- | ------------------------------------------------------------------------------- | ------------------------------------------ |
+| **Browser** | Chrome or Edge 113+, Safari 18+, or Firefox with `dom.webgpu.enabled` turned on | Up-to-date Chrome, Edge or Safari          |
+| **GPU**     | Apple silicon (M1 or later), or a dedicated card from about 2018 on             | Apple M2 or later, or 4 GB of video memory |
+| **CPU**     | Any 64-bit CPU from the last ~6 years                                           | 4 cores or more                            |
+| **RAM**     | 8 GB                                                                            | 16 GB                                      |
+
+<Callout title="No WebGPU?">
+  If your browser or device has no WebGPU, Vitryne shows a page explaining
+  what's missing.
+</Callout>

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Standard fabric presets (M9, docs/FABRICS.md): 5 physical presets calibrated against
+// Standard fabric presets (docs/FABRICS.md): 5 physical presets calibrated against
 // textile mechanics literature (KES-F / FAST data).
 
 import type { Fabric } from "./schema.gen";

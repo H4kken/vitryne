@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Lines, notches, folds and the grain line (M14 phase 5) through the worker's Rust: each command
+// Lines, notches, folds and the grain line through the worker's Rust: each command
 // applies, Rust accepts the result, and reverting gives the identical document; what Rust would
 // refuse (a fold outside the piece, a line leaving it) never becomes a command.
 import { describe, expect, it } from "vitest";

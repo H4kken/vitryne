@@ -1,6 +1,6 @@
 # The Vitryne file format, version 3
 
-**Status: approved design (MVP milestone M4, 2026-10-13), implemented in M5 by
+**Status: approved design (2026-10-13), implemented by
 [packages/vitryne-engine/format](../packages/vitryne-engine/format/) (reading, writing, validation,
 migrations) and `vitryne-pattern` (`project`: a file to the engine; `convert`: `garment.toml` + DXF
 to a file). Version 2 (2026-10-16) adds [appearances](#appearance) (fabric colour); a version 1 file
@@ -460,7 +460,7 @@ which appearance it has by default:
 | `attribution`, `libraryRef` | for fabrics from a library | |
 
 **Why these quantities:** they're the ones fabric testing reports (tensile, shear and bending
-tests, like KES-F or FAST), and the ones published presets (M9, `docs/FABRICS.md`) will cite.
+tests, like KES-F or FAST), and the ones the published presets (`docs/FABRICS.md`) cite.
 They're independent of mesh resolution and of the solver. Anisotropy (warp ≠ weft) is in the
 format from the start, even though the v1 engine is isotropic (see [In the engine](#in-the-engine)).
 **Why appearance isn't here:** colour and texture change per colourway while the physics stays
@@ -623,7 +623,7 @@ always safe to delete.** Readers that can't use it ignore it.
   and uses the cached positions only if the mesh matches `_PATTERN` exactly. Otherwise it shows
   the cache and re-drapes.
 
-**Why glTF for the cache:** it is the export format (M10) and viewable in any glTF viewer. The
+**Why glTF for the cache:** it is the export format and viewable in any glTF viewer. The
 same code writes both. **Why the engine version is in the key:** GPU solvers aren't bit-exact and
 a solver change alters drapes. A stale cache shows a drape the current engine wouldn't
 produce.
@@ -683,7 +683,7 @@ How the planned features fit, without breaking v1 files:
 
 Converters, not the format:
 
-- **In: DXF-AAMA** (M5 converter; M7 in the editor, where each cut is placed as the user
+- **In: DXF-AAMA** (`vitryne convert`, and the editor's import, where each cut is placed as the user
   chooses and seams come from a `garment.toml` if one is given). Each DXF piece becomes a piece; boundary
   (or sew line, layer 14) → outline in mm, CCW; turn points → `corner` nodes; notches → `notch`
   nodes; mirror line → unfolded outline plus a `fold` between two `point` nodes; grain line →
@@ -692,7 +692,7 @@ Converters, not the format:
   ignored is reported at import and not stored. The original may be kept as a `source` part.
   The importer puts every point on the format's 0.001 mm grid, so an imported piece is exactly
   the piece a saved file holds.
-- **Out: glTF 2.0 and OBJ** (M10): the draped mesh in metres, UVs from pattern coordinates (the
+- **Out: glTF 2.0 and OBJ**: the draped mesh in metres, UVs from pattern coordinates (the
   `_PATTERN` data of the cache), one material per fabric.
 - **Out: DXF-AAMA** (later): re-folds pieces along their `folds` when the halves are still
   symmetric, writes notches and grain; seam allowance once that extension exists.
@@ -742,13 +742,13 @@ mesh of equilateral triangles, springs of stiffness k act like a membrane with t
 Y = 2k/√3 and Poisson's ratio 1/3, so shear stiffness Y / (2(1 + ν)) = 3Y/8, whatever the edge
 length. The engine converts back with k = (√3/2) · Y. The cotton placeholder's k = 10⁴ N/m becomes
 Y = 11,547 N/m; the trousers' k = 10⁶ N/m becomes 1.155 × 10⁶ N/m. These are the same
-placeholders under a physical name, not calibrated values (M9 does that).
+placeholders under a physical name, not calibrated values (those are the presets, `docs/FABRICS.md`).
 
 **The T-shirt, worked through:** 3 pieces (front and back cut on the fold, unfolded with 12 nodes
 each; sleeve with 6 nodes plus the cap-top `point`), 4 cuts (the left sleeve mirrored), 10 seams.
 The sidecar's `side_r` (`a = "front:10-11"`, `b = "back:1-2"`, `reverse = true`) becomes side a
 "front, underarm right → hem right side, ccw", side b "back, underarm right → hem right side, cw".
-See [the example](../assets/examples/tshirt.vtry/). (The M4 example was written by a script by hand
+See [the example](../assets/examples/tshirt.vtry/). (The first example was written by a script by hand
 and had one seam wrong: its "left armhole, back" ran counter-clockwise from the underarm to the
 shoulder tip, the long way round the back. The converter writes what the sidecar says, shoulder tip
 to underarm.)
@@ -766,17 +766,17 @@ by its SHA-256. That gives, for free:
 The editor saves projects to its backend, never to disk (since the MVP fixes): a `.vtry` file is
 what the CLI writes, what *Download all my data* gives, and what the editor opens as a new
 project. How accounts and storage work is an app concern, not a format one: see
-[CLOUD.md](CLOUD.md) (M12). There, parts are deduplicated per person rather than across people
+[CLOUD.md](CLOUD.md). There, parts are deduplicated per person rather than across people
 (an avatar is stored once per person, whatever the number of their projects), so that knowing a
 hash never gives access to someone else's part.
 
 ## In the engine
 
-What reading a file into the engine takes (`vitryne-pattern` `project`, done in M5):
+What reading a file into the engine takes (`vitryne-pattern` `project`):
 
 1. **Fabric from physical values.** `Material` is built from the fabric: k = (√3/2) · mean(warp,
    weft), `bend_kb` = mean(warp, weft), and the friction setting from `friction`. The engine
-   stays isotropic until M9; shear is ignored, and opening warns if warp ≠ weft.
+   is isotropic; shear is ignored, and opening warns if warp ≠ weft.
 2. **Region frames from the avatar.** Frames are built from `avatar.regions` (mm → m). The test
    avatar's regions are in `assets/body/avatar.json`, which the `garment.toml` path uses too
    (`Frame::named` is gone). A garment file (no avatar) is placed on the test avatar.
@@ -796,7 +796,7 @@ What reading a file into the engine takes (`vitryne-pattern` `project`, done in 
 
 ## Decisions
 
-Approved on 2026-10-13 (M4 review). This design commits to:
+Approved on 2026-10-13. This design commits to:
 
 1. **Zip of JSON parts plus glTF**, one entity per part, `mimetype` first; also valid as a folder.
 2. **Four kinds, one format:** `.vtry`, `.vtryg`, `.vtryf`, `.vtrya`, told apart by
@@ -828,4 +828,4 @@ Settled in the review, to revisit later:
   domain later means new `$id`s in a new schema version, not a format change.
 - **Node names on a fresh DXF import:** the converter writes the sidecars' names; a fresh import
   has none, so seams would show as "corner 3". Names generated from position ("hem, left side")
-  come later, in M7 or M8.
+  come later.

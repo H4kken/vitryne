@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Long-range stretch limits (M2): unilateral distance constraints between vertices of the same
+//! Long-range stretch limits: unilateral distance constraints between vertices of the same
 //! panel that are several edges apart in the rest shape, |x_i - x_j| <= d_ij, where d_ij is
 //! their rest distance.
 //!
 //! Why: with one Gauss-Seidel iteration per substep, a correction travels about one edge per
 //! substep, so the stretch error of a hanging panel grows with the square of its size in edges
-//! (docs/history/PROGRESS.md S2; M2 in docs/PROGRESS.md). A constraint spanning 4, 16 or 64 edges
+//! (docs/history/PROGRESS.md S2; Fabric stretch in docs/PROGRESS.md). A constraint spanning 4, 16 or 64 edges
 //! carries the load across the panel in one step.
 //!
 //! Method: the unilateral long-distance constraints of Hierarchical Position Based Dynamics

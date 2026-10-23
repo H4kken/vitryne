@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Spatial hash by counting sort (M4), shared by self-collision (vertices) and untangling
+// Spatial hash by counting sort, shared by self-collision (vertices) and untangling
 // (triangle centroids, S4). Appended to each module, which declares:
 //   S with table_size (power of two, multiple of 256), n_blocks (= table_size / 256) and
 //     inv_cell (1 / cell size);

@@ -1,0 +1,35 @@
+---
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// The HTML document around every page. Navigations between pages are client-side (Astro's
+// router); the Fumadocs island persists across them (shell.astro).
+import { ClientRouter } from "astro:transitions";
+
+interface Props {
+  lang: string;
+}
+const { lang } = Astro.props;
+---
+
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/png" href="/vitryne-logo-192.png" />
+    <ClientRouter />
+    <script is:inline>
+      // The theme lives on <html> (next-themes' class and color-scheme); a client-side
+      // navigation replaces <html>'s attributes with the new page's (its `lang` is the new
+      // page's, rightly), so carry them over.
+      document.addEventListener("astro:before-swap", (event) => {
+        const from = document.documentElement;
+        const to = event.newDocument.documentElement;
+        to.className = from.className;
+        to.style.colorScheme = from.style.colorScheme;
+      });
+    </script>
+    <slot name="head" />
+  </head>
+  <body class="flex flex-col min-h-screen" transition:animate="none">
+    <slot />
+  </body>
+</html>

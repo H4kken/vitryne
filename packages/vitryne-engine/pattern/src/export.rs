@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! glTF 2.0 (.glb) and Wavefront OBJ (.obj + .mtl) export for draped garments (M10).
+//! glTF 2.0 (.glb) and Wavefront OBJ (.obj + .mtl) export for draped garments.
 //!
 //! Includes:
 //! - Positions, normals, and 2D pattern coordinates as UVs (`TEXCOORD_0` and `_PATTERN`)
@@ -339,7 +339,7 @@ pub fn export_obj(
     let mut mtl = String::new();
 
     // MTL header
-    mtl.push_str("# Vitryne Material Library (M10)\n");
+    mtl.push_str("# Vitryne Material Library\n");
     mtl.push_str("# Units: metres\n\n");
 
     // Collect unique fabrics for MTL
@@ -369,7 +369,7 @@ pub fn export_obj(
     }
 
     // OBJ header
-    obj.push_str("# Vitryne 3D Export (M10)\n");
+    obj.push_str("# Vitryne 3D Export\n");
     obj.push_str("# Units: metres, Y up, facing +Z\n");
     obj.push_str(&format!("mtllib {mtl_name}\n\n"));
 

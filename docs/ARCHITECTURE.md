@@ -81,8 +81,8 @@ colours go to the renderer as a `vitryne_render::Style`; a garment or piece with
 appearance, FORMAT.md) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour
 edits don't re-drape: after every document update the worker calls `Viewport::set_looks`, which
 recolours the drape shown and its export materials. The 3D tool bar has the concept's Select, Turn
-view and Pinch fabric; the flat one its Select and Move, then the pattern tools (M14, below) and
-Sew. Parts of the concept that belong to later milestones (print, fit, share) are not built yet.
+view and Pinch fabric; the flat one its Select and Move, then the pattern tools (below) and
+Sew. Parts of the concept that come later (print, fit, share) are not built yet.
 
 ### Worker protocol
 
@@ -161,7 +161,7 @@ bytes.
 - The body (mesh and SDF) is kept while its SDF key is unchanged, so a fabric edit only rebuilds
   the garment.
 
-### Import and placement (M7)
+### Import and placement
 
 **Import.** A DXF-AAMA file (picked, or dropped on the start screen or the canvas) is read in
 the worker (`vitryne_pattern::import`, the same importer as `vitryne convert`). The import dialog
@@ -190,7 +190,7 @@ the piece and the body, never stored rules per garment:
   3 cm above the head for hoods, the shoulder joint for sleeves, centred for a strip over the
   head.
 
-For the three samples these land within a few cm of the hand-tuned sidecars (docs/PROGRESS.md, M7).
+For the three samples these land within a few cm of the hand-tuned sidecars (docs/PROGRESS.md, Import and placement).
 Then the user adjusts: in the Pieces panel (the place, around, height, distance from the body,
 turn, mirror image, "fit to the body again"), or **with the 3D gizmo**. The gizmo is ours: the
 placement is cylinder coordinates, so its four handles each change one of them: an arrow up and
@@ -227,7 +227,7 @@ plan). No sewing is derived from placement, and no learned placement (PATENTS.md
 and 4): suggestions come from names, every one shown to the user; the wrap is geometry from the
 piece and the avatar's own regions.
 
-### Sewing (M8)
+### Sewing
 
 Sewing is the part of the editor most constrained by [PATENTS.md](PATENTS.md) (patents held by
 other companies; we avoid the designs they claim, and its rules override the plan where the two
@@ -273,7 +273,7 @@ differ). The design, and why:
   (near-equal lengths): they, the pocket's internal line and the hood neck chain over three cuts
   are picked by hand. `vitryne frames --seams` renders the seams natively.
 
-### Pattern tools (M14)
+### Pattern tools
 
 The flat view's tool bar draws and edits pieces: **Edit points**, **Draw a piece** (the pen),
 **Add a shape** (rectangle, ellipse, tube with typed sizes) and **Lines, notches, folds and
@@ -317,7 +317,7 @@ view.
   checks it is `packages/vitryne-engine/tests/skirt.vtry`, which `vitryne regress` drapes as a
   golden case.
 
-### Pattern export (M13)
+### Pattern export
 
 `vitryne export x.vtry --out x.dxf` writes the garment's pieces as DXF-AAMA
 (`vitryne_pattern::aama_export`). The editor had it as *Export… → Pattern (.dxf)* and dropped it
@@ -377,7 +377,7 @@ real Rust validation.
 ## Checking the editor in a browser
 
 `make check` covers the Rust, the TypeScript and the guardrails, but not a real browser with a GPU.
-Before a milestone, open the app (`make dev`) in Chrome and Safari: open each
+Before a pull request that changes the editor, open the app (`make dev`) in Chrome and Safari: open each
 example, drag the cloth, edit a fabric value and undo it, see it saved, go offline and edit (the
 title says the changes are kept in this browser), close the tab, and reopen it online: the
 changes are put back and saved.

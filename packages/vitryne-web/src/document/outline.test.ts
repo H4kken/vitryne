@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The point tool's commands (M14 phase 3) on the examples: each applies, Rust accepts it, and
+// The point tool's commands on the examples: each applies, Rust accepts it, and
 // it reverts to the identical document; what they take with them and what they say.
 import { describe, expect, it } from "vitest";
 import { EXAMPLES, openExample, rustRefuses } from "@/test/rust";

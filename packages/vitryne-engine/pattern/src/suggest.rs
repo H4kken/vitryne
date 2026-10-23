@@ -561,7 +561,7 @@ mod tests {
     }
 
     /// How many of the sidecar's seams the suggestions reproduce, per sample garment. These are
-    /// floors measured in M8 (docs/PROGRESS.md): geometry alone sews the T-shirt, mostly the trousers
+    /// floors measured when sewing came to the editor (docs/PROGRESS.md, Sewing in the UI): geometry alone sews the T-shirt, mostly the trousers
     /// (the centre front needs the user), and a third of the hoodie, whose cuff, waistband and
     /// binding strips are interchangeable by length. Raising a floor is fine; lowering one is a
     /// quality change that needs its reasoning. The hoodie's went from 5 to 4 when a centre hem

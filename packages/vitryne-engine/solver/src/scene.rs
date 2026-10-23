@@ -34,7 +34,7 @@ pub struct SheetScene {
     /// string. Below 1.0 the sheet starts compressed in X (rest shape unchanged) and the edge
     /// hangs with slack.
     pub pin_spacing: f32,
-    /// false: no pins, the sheet falls flat onto the sphere and folds around it (M4 self-
+    /// false: no pins, the sheet falls flat onto the sphere and folds around it (the self-
     /// collision test: the hanging skirt folds onto itself).
     pub pins: bool,
 }
