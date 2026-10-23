@@ -4,26 +4,26 @@ The documentation website: [Astro](https://astro.build) builds static pages and
 [Fumadocs](https://fumadocs.dev) (React islands) draws the layout, sidebar, search and table of
 contents. It uses the editor's look (colours and fonts from `packages/vitryne-web/src/index.css`).
 
-| Path                                           | What                                                                                                                                          |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [content/docs/](content/docs/)                 | The pages (`.mdx`, with `title` and `description` front matter) and `meta.json`, the sidebar order per folder.                                |
-| [src/pages/](src/pages/)                       | `[...slug].astro` renders every page; `api/search.ts` writes the search index at build time; `og/docs/` makes each page's link-preview image. |
-| [src/components/](src/components/)             | The HTML document (`layout.astro`), the Fumadocs island (`docs.tsx`), the search dialog.                                                      |
-| [src/styles/global.css](src/styles/global.css) | Tailwind, Fumadocs' shadcn preset, the editor's colour tokens and fonts.                                                                      |
+| Path                                           | What                                                                                                                                                                                                                                                             |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [content/docs/](content/docs/)                 | The pages (`.mdx`, with `title` and `description` front matter) and `meta.json`, the sidebar order per folder.                                                                                                                                                   |
+| [src/pages/](src/pages/)                       | `[...slug].astro` renders every page (and sends a folder URL without a page, like `/guide`, to its first page), `404.astro` the page for an unknown URL; `api/search.ts` writes the search index at build time; `og/docs/` makes each page's link-preview image. |
+| [src/components/](src/components/)             | The HTML document (`layout.astro`), the Fumadocs island (`docs.tsx`) and `shell.astro`, which keeps it across navigations (the sidebar's open folders stay open), the search dialog.                                                                             |
+| [src/styles/global.css](src/styles/global.css) | Tailwind, Fumadocs' shadcn preset, the editor's colour tokens and fonts.                                                                                                                                                                                         |
 
 Search runs in the browser over that static index; the site makes no other requests.
 
-## Two tabs, two readers
+## One sidebar, three sections
 
-| Tab        | For                                               | Folder                     | URLs                 |
-| ---------- | ------------------------------------------------- | -------------------------- | -------------------- |
-| Guide      | People designing garments: no technical words     | `content/docs/(guide)/`    | `/`, `/requirements` |
-| Developers | Contributors: how it works, the format, the rules | `content/docs/developers/` | `/developers/…`      |
+| Section        | For                                               | Folder                                         | URLs                             |
+| -------------- | ------------------------------------------------- | ---------------------------------------------- | -------------------------------- |
+| Introduction   | Everyone: what Vitryne is, what it needs          | `content/docs/` (`index.mdx`, `requirements…`) | `/`, `/requirements`             |
+| Infos & Guides | People designing garments: no technical words     | `guide/`, `imports_exports/`                   | `/guide/…`, `/imports_exports/…` |
+| Developers     | Contributors: how it works, the format, the rules | `developers/`                                  | `/developers/…`                  |
 
-Each folder is a root (`"root": true` in its `meta.json`): its own sidebar, and a search tag so
-search starts within the current tab ([src/lib/tabs.ts](src/lib/tabs.ts)). The parentheses keep
-`(guide)` out of the URLs. A new tab needs a folder with `"root": true`, a line in
-`src/lib/tabs.ts`, and its name in `content/docs/meta.json`.
+`content/docs/meta.json` lays the sidebar out: its `"---Name---"` entries are the section
+headings, and each folder under them is a collapsible entry. A folder's URL without a page of its
+own (`/guide`) goes to its first page. Search covers every page.
 
 The `.mdx` pages in Developers are written for the site (`docker-stack.mdx`). The `.md` ones are copies of the repository's
 `docs/*.md` and `CONTRIBUTING.md` (each says which at the top): the H1 became the `title`,
@@ -45,12 +45,12 @@ make fmt          # prettier (with the Astro plugin) here too
 
 ## Writing a page
 
-Add `<name>.mdx` with a `title` and a `description` to the tab's folder, and list `<name>` in
+Add `<name>.mdx` with a `title` and a `description` to its folder, and list `<name>` in
 its `meta.json`. In a Guide page, write for someone who sews or designs, not for a developer:
 the outcome first, numbered steps, a picture, and no implementation words (WebGPU, XPBD,
 `.vtry`); link to the Developers tab when one is unavoidable.
 
-A tab's sidebar follows its `meta.json`: `"---Reference---"` is a section heading, `"...folder"`
+A folder's entries follow its `meta.json`: `"---Reference---"` is a section heading, `"...folder"`
 lists a subfolder's pages flat under the current heading, and a plain `"folder"` shows it as a
 collapsible entry instead (its own `meta.json` gives its title, icon and order). An `icon` (in the front matter, or `"icon"` in a folder's `meta.json`)
 shows in the sidebar, and `<Card icon="Rocket" …>` puts one on a card: a Lucide name listed in [src/lib/icons.ts](src/lib/icons.ts) (add it

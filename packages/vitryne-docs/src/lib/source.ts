@@ -2,6 +2,7 @@
 // The Fumadocs source (page tree, URLs, search data) built from the Astro collections.
 import type { StaticSource } from "fumadocs-core/source";
 import { loader } from "fumadocs-core/source";
+import { flattenTree } from "fumadocs-core/page-tree";
 import { type CollectionEntry, getCollection } from "astro:content";
 import * as path from "node:path";
 import { structure, type StructuredData } from "fumadocs-core/mdx-plugins";
@@ -23,6 +24,33 @@ export function getLocalizedPages() {
       slug: page.url.replace(/^\/|\/$/g, "") || undefined,
     })),
   );
+}
+
+/**
+ * The URLs of folders that have no page of their own (`/guide`, with `guide/` but no
+ * `guide/index.mdx`), each to the first page under it in sidebar order, with its route.
+ */
+export function getFolderRedirects() {
+  return source.getLanguages().flatMap(({ language, pages }) => {
+    const urls = new Set(pages.map((page) => page.url));
+    const inOrder = flattenTree(source.getPageTree(language).children).map(
+      (item) => item.url,
+    );
+    const redirects = new Map<string, string>();
+    for (const url of inOrder) {
+      const segments = url.split("/").filter(Boolean);
+      for (let n = 1; n < segments.length; n++) {
+        const folder = "/" + segments.slice(0, n).join("/");
+        if (!urls.has(folder) && !redirects.has(folder))
+          redirects.set(folder, url);
+      }
+    }
+    return [...redirects].map(([folder, to]) => ({
+      language,
+      slug: folder.slice(1),
+      to,
+    }));
+  });
 }
 
 export function getStructuredData(

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The React island that draws a page: Fumadocs' provider, docs layout (sidebar, nav) and page
-// (table of contents). Light, dark, or the system's setting (the default), remembered by
-// next-themes; layout.astro keeps the choice across client-side navigations.
+// (table of contents) around the page's HTML (shell.astro). Light, dark, or the system's setting
+// (the default), remembered by next-themes; layout.astro keeps the choice across client-side
+// navigations.
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { DocsPage, type DocsPageProps } from "fumadocs-ui/layouts/docs/page";
 import type { Node, Root } from "fumadocs-core/page-tree";
-import type { ReactNode } from "react";
 import { SquareArrowOutUpRight } from "lucide-react";
 import { navigate } from "astro:transitions/client";
 import { RootProvider } from "fumadocs-ui/provider/astro";
@@ -40,14 +40,15 @@ function withIcons<T extends Root | Node>(node: T): T {
 export function Docs({
   tree,
   lang,
-  children,
+  html,
   pathname,
   params,
   page,
 }: {
   tree: Root;
   lang: string;
-  children: ReactNode;
+  /** The page's content, rendered by Astro. */
+  html: string;
   pathname: string;
   params: AstroProviderProps["params"];
   page?: DocsPageProps;
@@ -86,7 +87,12 @@ export function Docs({
           },
         ]}
       >
-        <DocsPage {...page}>{children}</DocsPage>
+        <DocsPage {...page}>
+          <div
+            className="contents"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </DocsPage>
       </DocsLayout>
     </RootProvider>
   );

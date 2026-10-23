@@ -1,7 +1,7 @@
 ---
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The HTML document around every page; the body persists across client-side navigations so
-// the Fumadocs island keeps its state (sidebar scroll, search).
+// The HTML document around every page. Navigations between pages are client-side (Astro's
+// router); the Fumadocs island persists across them (shell.astro).
 import { ClientRouter } from "astro:transitions";
 
 interface Props {
@@ -29,12 +29,7 @@ const { lang } = Astro.props;
     </script>
     <slot name="head" />
   </head>
-  <body
-    class="flex flex-col min-h-screen"
-    transition:persist
-    transition:animate="none"
-    transition:name="page-layout"
-  >
+  <body class="flex flex-col min-h-screen" transition:animate="none">
     <slot />
   </body>
 </html>

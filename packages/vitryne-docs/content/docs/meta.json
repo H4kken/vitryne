@@ -1,3 +1,14 @@
 {
-  "pages": ["(guide)", "developers"]
+  "icon": "Code",
+  "root": true,
+  "pages": [
+    "---Introduction---",
+    "index",
+    "requirements",
+    "---Infos & Guides---",
+    "guide",
+    "imports_exports",
+    "---Developers---",
+    "developers"
+  ]
 }

@@ -1,32 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Search in the browser over the static index `pages/api/search.ts` writes at build time: no
-// search service, no requests but that one file. It searches the current language's pages, in
-// the current tab (lib/tabs.ts) to begin with; the footer switches tab, or all tabs when the
-// selected one is clicked again.
-import { useState } from "react";
+// search service, no requests but that one file. It searches all of the current language's pages.
 import {
   SearchDialog,
   SearchDialogClose,
   SearchDialogContent,
-  SearchDialogFooter,
   SearchDialogHeader,
   SearchDialogIcon,
   SearchDialogInput,
   SearchDialogList,
   SearchDialogOverlay,
-  TagsList,
-  TagsListItem,
   type SharedProps,
 } from "fumadocs-ui/components/dialog/search";
 import { useStaticSearch } from "fumadocs-core/search/client";
-import { usePathname } from "fumadocs-core/framework";
 import { useI18n } from "fumadocs-ui/contexts/i18n";
-import { tabOfUrl, tabs } from "@/lib/tabs";
 
 export default function DefaultSearchDialog(props: SharedProps) {
   const { locale } = useI18n();
-  const [tag, setTag] = useState<string | undefined>(tabOfUrl(usePathname()));
-  const search = useStaticSearch({ locale, tag });
+  const search = useStaticSearch({ locale });
 
   return (
     <SearchDialog {...search} {...props}>
@@ -38,15 +29,6 @@ export default function DefaultSearchDialog(props: SharedProps) {
           <SearchDialogClose />
         </SearchDialogHeader>
         <SearchDialogList />
-        <SearchDialogFooter>
-          <TagsList tag={tag} onTagChange={setTag} allowClear>
-            {tabs.map((tab) => (
-              <TagsListItem key={tab.tag} value={tab.tag}>
-                {tab.label}
-              </TagsListItem>
-            ))}
-          </TagsList>
-        </SearchDialogFooter>
       </SearchDialogContent>
     </SearchDialog>
   );

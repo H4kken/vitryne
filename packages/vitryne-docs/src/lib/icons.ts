@@ -4,6 +4,7 @@
 // (`/icons/x.svg`) for a logo. Only the icons listed here are bundled; add one here to use it.
 // The content schemas (content.config.ts) and the card reject anything else.
 import {
+  ArrowRightLeft,
   Blocks,
   BookOpen,
   ChartLine,
@@ -17,12 +18,14 @@ import {
   House,
   Rocket,
   Scale,
+  ScrollText,
   Shirt,
   Sigma,
   type LucideIcon,
 } from "lucide-react";
 
 export const lucideIcons: Record<string, LucideIcon> = {
+  ArrowRightLeft,
   Blocks,
   BookOpen,
   ChartLine,
@@ -36,6 +39,7 @@ export const lucideIcons: Record<string, LucideIcon> = {
   House,
   Rocket,
   Scale,
+  ScrollText,
   Shirt,
   Sigma,
 };

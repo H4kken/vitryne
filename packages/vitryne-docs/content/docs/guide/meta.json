@@ -1,7 +1,7 @@
 {
   "title": "Guide",
   "description": "Design garments with Vitryne",
-  "icon": "Shirt",
+  "icon": "ScrollText",
   "root": true,
-  "pages": ["index", "requirements"]
+  "pages": ["first-pattern", "first-fabric"]
 }
