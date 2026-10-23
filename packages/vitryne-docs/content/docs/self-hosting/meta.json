@@ -1,7 +1,0 @@
-{
-  "title": "Self-hosting",
-  "description": "Run your own Vitryne",
-  "icon": "Server",
-  "root": true,
-  "pages": ["index", "cloud", "static-hosting"]
-}

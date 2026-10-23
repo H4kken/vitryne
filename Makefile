@@ -16,6 +16,12 @@ WEB := packages/vitryne-web
 CLOUD := packages/vitryne-cloud
 DOCS := packages/vitryne-docs
 VITRYNE := $(ENGINE)/target/release/vitryne
+STACK := docker compose -f $(CLOUD)/dev/docker-compose.yml
+# The dev stack's API, demo key, mail catcher and database (packages/vitryne-cloud/dev/), for the
+# backend tests (packages/vitryne-cloud/tests/instance.mjs).
+STACK_ENV := SUPABASE_URL=http://127.0.0.1:54321 \
+	SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0 \
+	MAILPIT_URL=http://127.0.0.1:54324 SUPABASE_DB_CONTAINER=vitryne-dev-db-1
 
 STEP := printf '\n== %s\n'
 
@@ -24,7 +30,7 @@ STEP := printf '\n== %s\n'
 .NOTPARALLEL:
 .DEFAULT_GOAL := help
 .PHONY: help setup dev dev-app docs-dev docs wasm assets build hygiene fmt fmt-check lint test syntax examples \
-	examples-check regress regress-update check-quick check-ci check cloud-test clean \
+	examples-check regress regress-update check-quick check-ci check cloud-test stack stack-down stack-test clean \
 	deps cli fmt-check-rust fmt-check-web fmt-check-docs lint-rust lint-web test-rust test-web
 
 help: ## Lists the targets
@@ -157,6 +163,16 @@ check: $(CHECK_NO_GPU) regress ## Everything; must pass before a milestone commi
 cloud-test: ## The web image's smoke test, then the backend tests: RLS, accounts, cleanup (Docker)
 	$(CLOUD)/deploy/smoke.sh
 	node --test '$(CLOUD)/tests/*.test.mjs'
+
+stack: ## Everything in Docker: the editor from this checkout + a local Supabase, http://localhost:8000
+	$(STACK) up -d --build
+	printf 'stack: editor http://localhost:8000 · Studio http://127.0.0.1:54323 · emails http://127.0.0.1:54324\n'
+
+stack-down: ## Stops the Docker stack (ARGS=-v: also deletes its accounts and projects)
+	$(STACK) down $(ARGS)
+
+stack-test: ## The backend tests against the Docker stack (make stack first)
+	$(STACK_ENV) node --test '$(CLOUD)/tests/*.test.mjs'
 
 clean: ## cargo clean (and the SDF cache in it), the web package's dist/ pkg/ pkg-node/, the docs' dist/, bench-out/
 	cd $(ENGINE) && cargo clean

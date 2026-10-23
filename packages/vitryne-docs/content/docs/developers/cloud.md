@@ -1,6 +1,7 @@
 ---
-title: "Cloud storage and self-hosting"
-description: "How projects are stored, running the editor with a Supabase backend, accounts, security and privacy."
+title: "Cloud backend"
+icon: Cloud
+description: "How accounts, projects and storage work in the backend: the design, security, privacy and tests."
 ---
 
 <!-- Copied from docs/CLOUD.md. -->
@@ -109,7 +110,7 @@ ssh you@server 'cd vitryne && VITRYNE_IMAGE=vitryne-web VITRYNE_VERSION=latest \
 ```
 
 The static build of each release (`vitryne-web-<version>.tar.gz`) also runs on any static host
-that sends the isolation headers ([HOSTING.md](/self-hosting/static-hosting)) and serves `config.json` itself.
+that sends the isolation headers ([HOSTING.md](https://github.com/H4kken/vitryne/blob/main/docs/HOSTING.md)) and serves `config.json` itself.
 
 **Over HTTPS:** browsers ignore the isolation headers and refuse WebGPU on a plain `http://` page
 other than localhost, so a server needs a domain with HTTPS (Chrome's console then says the

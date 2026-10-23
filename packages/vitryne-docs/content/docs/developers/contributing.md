@@ -110,13 +110,18 @@ make build          # production build in packages/vitryne-web/dist
 make test           # cargo test, then format types up to date, tsc, eslint, vitest
 ```
 
+**Everything in Docker:** `make stack` builds the editor from your checkout and runs it with a
+local Supabase (accounts, saving, emails, Studio) on http://localhost:8000, with only Docker
+installed; `make stack-test` runs the backend tests against it and `make stack-down` stops it.
+See [Run it all in Docker](/developers/docker-stack).
+
 The editor (`packages/vitryne-web/`) is TypeScript, React, Tailwind and shadcn/ui; how it is
 built, and the rules it follows, are in [docs/ARCHITECTURE.md](/developers/architecture). After
 changing `docs/format/schema/`, run `pnpm run gen:format` in `packages/vitryne-web/` to
 regenerate the types and validators.
 
 The app needs cross-origin isolation, so whatever serves it must send two headers (the dev
-server and `vite preview` already do); [docs/HOSTING.md](/self-hosting/static-hosting) has them for nginx,
+server and `vite preview` already do); [docs/HOSTING.md](https://github.com/H4kken/vitryne/blob/main/docs/HOSTING.md) has them for nginx,
 Caddy and static hosts.
 
 The bench page is at `/bench.html`. Benchmark scripts are in [tools/bench/](https://github.com/H4kken/vitryne/tree/main/tools/bench), and

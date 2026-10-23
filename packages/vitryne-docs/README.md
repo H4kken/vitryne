@@ -13,23 +13,23 @@ contents. It uses the editor's look (colours and fonts from `packages/vitryne-we
 
 Search runs in the browser over that static index; the site makes no other requests.
 
-## Three tabs, three readers
+## Two tabs, two readers
 
-| Tab          | For                                               | Folder                       | URLs                 |
-| ------------ | ------------------------------------------------- | ---------------------------- | -------------------- |
-| Guide        | People designing garments: no technical words     | `content/docs/(guide)/`      | `/`, `/requirements` |
-| Self-hosting | People running their own instance                 | `content/docs/self-hosting/` | `/self-hosting/…`    |
-| Developers   | Contributors: how it works, the format, the rules | `content/docs/developers/`   | `/developers/…`      |
+| Tab        | For                                               | Folder                     | URLs                 |
+| ---------- | ------------------------------------------------- | -------------------------- | -------------------- |
+| Guide      | People designing garments: no technical words     | `content/docs/(guide)/`    | `/`, `/requirements` |
+| Developers | Contributors: how it works, the format, the rules | `content/docs/developers/` | `/developers/…`      |
 
 Each folder is a root (`"root": true` in its `meta.json`): its own sidebar, and a search tag so
 search starts within the current tab ([src/lib/tabs.ts](src/lib/tabs.ts)). The parentheses keep
 `(guide)` out of the URLs. A new tab needs a folder with `"root": true`, a line in
 `src/lib/tabs.ts`, and its name in `content/docs/meta.json`.
 
-The `.md` pages in Self-hosting and Developers are copies of the repository's `docs/*.md` and
-`CONTRIBUTING.md` (each says which at the top): the H1 became the `title`, links between them
-became site URLs, and links into the repository point at GitHub. An edit to one side isn't
-carried to the other. `docs/PROGRESS.md` and `docs/MAINTAINING.md` stay on GitHub only.
+The `.mdx` pages in Developers are written for the site (`docker-stack.mdx`). The `.md` ones are copies of the repository's
+`docs/*.md` and `CONTRIBUTING.md` (each says which at the top): the H1 became the `title`,
+links between them became site URLs, and links into the repository point at GitHub. An edit to
+one side isn't carried to the other. `docs/PROGRESS.md` and `docs/MAINTAINING.md` stay on GitHub
+only, and so does `docs/HOSTING.md` (vitryne.app is the hosted instance; a Self-hosting tab can come back later).
 
 ## Run and check
 

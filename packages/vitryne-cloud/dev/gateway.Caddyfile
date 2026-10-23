@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The local API's one address (docker-compose.yml), in place of the Kong a Supabase project has:
+# each service under its usual path, CORS for the editor on another port, and the apikey as the
+# Authorization when a request has none (the anon key is a JWT here). It checks no key:
+# localhost only.
+{
+	admin off
+	auto_https off
+}
+
+:8000 {
+	@nobearer {
+		not header Authorization *
+		header apikey *
+	}
+	request_header @nobearer Authorization "Bearer {http.request.header.apikey}"
+
+	# After the services' own CORS headers, so there is only one of each.
+	header {
+		defer
+		Access-Control-Allow-Origin *
+		Access-Control-Allow-Headers *
+		Access-Control-Allow-Methods *
+		Access-Control-Expose-Headers *
+	}
+	@preflight method OPTIONS
+	handle @preflight {
+		respond 204
+	}
+	handle_path /auth/v1/* {
+		reverse_proxy auth:9999
+	}
+	handle_path /rest/v1/* {
+		reverse_proxy rest:3000
+	}
+	handle_path /storage/v1/* {
+		reverse_proxy storage:5000
+	}
+	handle_path /functions/v1/* {
+		reverse_proxy functions:9000
+	}
+	# The email templates, for Auth (supabase/templates).
+	handle_path /email/* {
+		root * /srv/email
+		file_server
+	}
+	handle {
+		respond 404
+	}
+}

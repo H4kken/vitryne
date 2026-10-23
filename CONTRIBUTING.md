@@ -103,6 +103,11 @@ make build          # production build in packages/vitryne-web/dist
 make test           # cargo test, then format types up to date, tsc, eslint, vitest
 ```
 
+**Everything in Docker:** `make stack` builds the editor from your checkout and runs it with a
+local Supabase (accounts, saving, emails, Studio) on http://localhost:8000, with only Docker
+installed; `make stack-test` runs the backend tests against it and `make stack-down` stops it.
+It's described in [packages/vitryne-cloud/dev/](packages/vitryne-cloud/dev/docker-compose.yml).
+
 The editor (`packages/vitryne-web/`) is TypeScript, React, Tailwind and shadcn/ui; how it is
 built, and the rules it follows, are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). After
 changing `docs/format/schema/`, run `pnpm run gen:format` in `packages/vitryne-web/` to

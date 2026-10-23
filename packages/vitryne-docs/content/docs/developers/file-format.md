@@ -814,7 +814,7 @@ by its SHA-256. That gives, for free:
 The editor saves projects to its backend, never to disk (since the MVP fixes): a `.vtry` file is
 what the CLI writes, what _Download all my data_ gives, and what the editor opens as a new
 project. How accounts and storage work is an app concern, not a format one: see
-[CLOUD.md](/self-hosting/cloud) (M12). There, parts are deduplicated per person rather than across people
+[CLOUD.md](/developers/cloud) (M12). There, parts are deduplicated per person rather than across people
 (an avatar is stored once per person, whatever the number of their projects), so that knowing a
 hash never gives access to someone else's part.
 

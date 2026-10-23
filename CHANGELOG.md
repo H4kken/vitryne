@@ -10,8 +10,10 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Added
 
-- A documentation website (`packages/vitryne-docs`, Astro + Fumadocs): getting started,
-  requirements and self-hosting, with search.
+- A documentation website (`packages/vitryne-docs`, Astro + Fumadocs): getting started and
+  requirements, and the developer docs, with search.
+- `make stack`: the editor built from the checkout and a local Supabase, all in Docker, for
+  contributors (`packages/vitryne-cloud/dev/`); `make stack-test` runs the backend tests on it.
 
 ## [0.1.1] - 2026-10-22
 

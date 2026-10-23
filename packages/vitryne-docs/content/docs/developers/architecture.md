@@ -358,7 +358,7 @@ The native CLI uses the same key for its cache in `packages/vitryne-engine/targe
 
 ### Storage
 
-Projects live in the backend ([CLOUD.md](/self-hosting/cloud), `packages/vitryne-web/src/cloud/`) and save by
+Projects live in the backend ([CLOUD.md](/developers/cloud), `packages/vitryne-web/src/cloud/`) and save by
 themselves; nothing is written to disk. A project is a `FileRef` with a `cloud` field (id, revision,
 the part hashes the backend holds). `useFiles` saves it by asking the worker for the folder form,
 and `cloud/projects.ts` turns that into content-addressed parts and a row. Only a document Rust
