@@ -8,6 +8,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-23
+
 ### Added
 
 - A documentation website (`packages/vitryne-docs`, Astro + Fumadocs): getting started and
@@ -46,5 +48,6 @@ The first public beta.
   ([docs/CLOUD.md](docs/CLOUD.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
+[0.2.0]: https://github.com/H4kken/vitryne/releases/tag/v0.2.0
 [0.1.1]: https://github.com/H4kken/vitryne/releases/tag/v0.1.1
 [0.1.0]: https://github.com/H4kken/vitryne/releases/tag/v0.1.0
