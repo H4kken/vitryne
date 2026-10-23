@@ -8,6 +8,11 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+### Added
+
+- A documentation website (`packages/vitryne-docs`, Astro + Fumadocs): getting started,
+  requirements and self-hosting, with search.
+
 ## [0.1.1] - 2026-10-22
 
 ### Changed

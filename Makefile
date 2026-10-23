@@ -14,6 +14,7 @@ export PATH := $(HOME)/.cargo/bin:$(PATH)
 ENGINE := packages/vitryne-engine
 WEB := packages/vitryne-web
 CLOUD := packages/vitryne-cloud
+DOCS := packages/vitryne-docs
 VITRYNE := $(ENGINE)/target/release/vitryne
 
 STEP := printf '\n== %s\n'
@@ -22,9 +23,9 @@ STEP := printf '\n== %s\n'
 .SILENT:
 .NOTPARALLEL:
 .DEFAULT_GOAL := help
-.PHONY: help setup dev dev-app wasm assets build hygiene fmt fmt-check lint test syntax examples \
+.PHONY: help setup dev dev-app docs-dev docs wasm assets build hygiene fmt fmt-check lint test syntax examples \
 	examples-check regress regress-update check-quick check-ci check cloud-test clean \
-	deps cli fmt-check-rust fmt-check-web lint-rust lint-web test-rust test-web
+	deps cli fmt-check-rust fmt-check-web fmt-check-docs lint-rust lint-web test-rust test-web
 
 help: ## Lists the targets
 	awk 'BEGIN { FS = ":.*## " } /^[a-z-]+:.*## / { printf "  make %-16s %s\n", $$1, $$2 }' \
@@ -39,6 +40,13 @@ dev: ## Editor + its backend: .env.local's, or the local Supabase stack (ARGS=--
 
 dev-app: ## Editor dev server only (no backend; enough for bench.html)
 	cd $(WEB) && pnpm run dev:app
+
+docs-dev: deps ## Docs site dev server (packages/vitryne-docs, http://localhost:4321)
+	cd $(DOCS) && pnpm run dev
+
+docs: deps ## Docs site: type check (astro check), static build in packages/vitryne-docs/dist
+	$(STEP) 'docs: astro check, static build'
+	cd $(DOCS) && pnpm run check && pnpm run build
 
 wasm: ## wasm build (browser + Node)
 	cd $(WEB) && pnpm run wasm
@@ -62,11 +70,12 @@ hygiene: ## SPDX headers, no file over 1 MiB outside Git LFS
 	$(STEP) 'repository hygiene'
 	tools/check/hygiene.sh
 
-fmt: ## Format Rust (rustfmt) and the web package (prettier)
+fmt: ## Format Rust (rustfmt), the web and docs packages (prettier)
 	cd $(ENGINE) && cargo fmt --all
 	cd $(WEB) && pnpm exec prettier --write . > /dev/null
+	cd $(DOCS) && pnpm exec prettier --write . > /dev/null
 
-fmt-check: fmt-check-rust fmt-check-web ## Fail if `make fmt` would change anything
+fmt-check: fmt-check-rust fmt-check-web fmt-check-docs ## Fail if `make fmt` would change anything
 
 fmt-check-rust:
 	$(STEP) 'rustfmt'
@@ -75,6 +84,10 @@ fmt-check-rust:
 fmt-check-web: deps
 	$(STEP) 'prettier'
 	cd $(WEB) && pnpm exec prettier --check . > /dev/null
+
+fmt-check-docs: deps
+	$(STEP) 'prettier (docs)'
+	cd $(DOCS) && pnpm exec prettier --check . > /dev/null
 
 lint: lint-rust lint-web ## clippy (native + wasm32), eslint
 
@@ -134,7 +147,7 @@ check-quick: hygiene fmt-check-rust lint-rust test-rust ## Rust only: hygiene, r
 	printf '\ncheck: quick checks passed (web build and drapes skipped)\n'
 
 CHECK_NO_GPU := hygiene fmt-check-rust lint-rust test-rust build fmt-check-web test-web syntax \
-	examples-check
+	examples-check fmt-check-docs docs
 check-ci: $(CHECK_NO_GPU) ## Everything but the drapes (no GPU): what CI runs on every pull request
 	printf '\ncheck: all passed but the drapes (make regress needs a GPU)\n'
 
@@ -145,6 +158,6 @@ cloud-test: ## The web image's smoke test, then the backend tests: RLS, accounts
 	$(CLOUD)/deploy/smoke.sh
 	node --test '$(CLOUD)/tests/*.test.mjs'
 
-clean: ## cargo clean (and the SDF cache in it), the web package's dist/ pkg/ pkg-node/, bench-out/
+clean: ## cargo clean (and the SDF cache in it), the web package's dist/ pkg/ pkg-node/, the docs' dist/, bench-out/
 	cd $(ENGINE) && cargo clean
-	rm -rf $(WEB)/dist $(WEB)/pkg $(WEB)/pkg-node bench-out
+	rm -rf $(WEB)/dist $(WEB)/pkg $(WEB)/pkg-node $(DOCS)/dist bench-out

@@ -1,0 +1,91 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The editor's look (packages/vitryne-web/src/index.css): a light, warm grey ground, near-black
+   ink, one orange-red accent, blue for focus; Bricolage Grotesque for headings, DM Sans for the
+   rest, both bundled. Fumadocs' shadcn preset reads the same shadcn variables the editor
+   defines, so the light values below are the editor's; keep them in step with it. The editor
+   is light only; the dark values are the docs' own, the same warm greys and orange turned
+   down (next-themes sets .dark on <html>, from the switch or the system setting). */
+@import "tailwindcss";
+@import "fumadocs-ui/css/shadcn.css";
+@import "fumadocs-ui/css/preset.css";
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/bricolage-grotesque/600.css";
+@import "@fontsource/bricolage-grotesque/700.css";
+
+:root {
+  --radius: 0.625rem;
+  --background: #f4f5f2;
+  --foreground: #14181f;
+  --card: #ffffff;
+  --card-foreground: #14181f;
+  --popover: #ffffff;
+  --popover-foreground: #14181f;
+  --primary: #e4572e;
+  --primary-foreground: #ffffff;
+  --secondary: #e8ece4;
+  --secondary-foreground: #14181f;
+  --muted: #e8ece4;
+  --muted-foreground: #5b625c;
+  --accent: #e8ece4;
+  --accent-foreground: #14181f;
+  --destructive: #b42d14;
+  --border: #e1e4de;
+  --ring: #3a63f0;
+  /* The sidebar, which the shadcn preset styles on its own */
+  --sidebar: #fafbf8;
+  --sidebar-foreground: #14181f;
+  --sidebar-border: #e1e4de;
+  --sidebar-accent: #e8ece4;
+  --sidebar-accent-foreground: #14181f;
+  --sidebar-ring: #3a63f0;
+  --sidebar-primary-foreground: #ffffff;
+}
+
+.dark {
+  --background: #121512;
+  --foreground: #eceee9;
+  --card: #1a1d1a;
+  --card-foreground: #eceee9;
+  --popover: #1c201d;
+  --popover-foreground: #eceee9;
+  --primary: #f0714b;
+  --primary-foreground: #14181f;
+  --secondary: #242925;
+  --secondary-foreground: #eceee9;
+  --muted: #242925;
+  --muted-foreground: #a0a89f;
+  --accent: #2a302b;
+  --accent-foreground: #eceee9;
+  --destructive: #e0644a;
+  --border: #2c322d;
+  --ring: #7090ff;
+  --sidebar: #151815;
+  --sidebar-foreground: #eceee9;
+  --sidebar-border: #2c322d;
+  --sidebar-accent: #242925;
+  --sidebar-accent-foreground: #eceee9;
+  --sidebar-ring: #7090ff;
+  --sidebar-primary-foreground: #14181f;
+}
+
+@theme inline {
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "DM Sans", sans-serif;
+}
+
+@layer base {
+  body {
+    @apply font-sans antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
