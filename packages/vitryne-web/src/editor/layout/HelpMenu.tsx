@@ -8,11 +8,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FEEDBACK_URL, REPO_URL } from "@/links";
+import { DOCS_URL, FEEDBACK_URL, REPO_URL } from "@/links";
 
-/** Feedback, the source code and the privacy policy, in the top bar and on the start screen. */
+/** The documentation, feedback, the source code and the privacy policy, in the top bar and on the start screen. */
 export function HelpMenu(props: { privacyPolicy: string | null }) {
   const links: [string, string][] = [
+    ["Documentation", DOCS_URL],
     ["Send feedback or report a bug", FEEDBACK_URL],
     ["Source code", REPO_URL],
   ];

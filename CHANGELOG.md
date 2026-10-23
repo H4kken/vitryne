@@ -12,6 +12,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 - A documentation website (`packages/vitryne-docs`, Astro + Fumadocs): getting started and
   requirements, and the developer docs, with search.
+- The editor links to the documentation: _Docs_ on the start screen, _Documentation_ in the help
+  menu, and _How it works_ on an empty pattern.
 - `make stack`: the editor built from the checkout and a local Supabase, all in Docker, for
   contributors (`packages/vitryne-cloud/dev/`); `make stack-test` runs the backend tests on it.
 

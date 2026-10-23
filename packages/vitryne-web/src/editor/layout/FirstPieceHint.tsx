@@ -2,6 +2,7 @@
 
 import { PenTool, SquarePlus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DOCS_URL } from "@/links";
 
 /** The flat view of a garment with no pieces yet. */
 export function FirstPieceHint(props: {
@@ -39,6 +40,14 @@ export function FirstPieceHint(props: {
             Import
           </Button>
         </div>
+        <a
+          href={`${DOCS_URL}/guide/first-pattern`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-muted-foreground hover:text-foreground text-sm underline underline-offset-4"
+        >
+          How it works
+        </a>
       </div>
     </div>
   );
