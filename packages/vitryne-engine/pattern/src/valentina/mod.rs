@@ -9,7 +9,10 @@
 //! <https://github.com/FashionFreedom/Seamly2D>; both GPL-3.0). No code is copied from them.
 
 pub mod formula;
+pub mod geom;
 pub mod measurements;
+pub mod tools;
+pub mod xml;
 
 /// A length unit of a pattern or measurements file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
