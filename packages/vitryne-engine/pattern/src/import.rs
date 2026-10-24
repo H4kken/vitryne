@@ -86,6 +86,48 @@ impl Choice {
     }
 }
 
+/// A pattern file to import, as the editor sends it.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum ImportSource {
+    /// DXF-AAMA, and a garment.toml written for it.
+    Dxf {
+        name: String,
+        text: String,
+        #[serde(default)]
+        sidecar: Option<String>,
+    },
+    /// A Valentina pattern, its measurements file, and a size of its size chart.
+    Valentina {
+        name: String,
+        text: String,
+        #[serde(default)]
+        measurements: Option<String>,
+        #[serde(default)]
+        size: Option<Vec<f64>>,
+    },
+}
+
+impl ImportSource {
+    pub fn read(&self) -> Result<PatternImport, String> {
+        match self {
+            ImportSource::Dxf {
+                name,
+                text,
+                sidecar,
+            } => PatternImport::read(name, text, sidecar.as_deref()),
+            ImportSource::Valentina {
+                name,
+                text,
+                measurements,
+                size,
+            } => {
+                PatternImport::read_valentina(name, text, measurements.as_deref(), size.as_deref())
+            }
+        }
+    }
+}
+
 /// Where an import's pieces come from.
 enum Origin {
     /// DXF-AAMA, with its sidecar if one came with it.

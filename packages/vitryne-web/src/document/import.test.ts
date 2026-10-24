@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Importing a DXF through the worker's Rust, built for Node: the FreeSewing T-shirt's
-// bare DXF becomes a project with no file edited by hand, and pieces added to an open project
-// are an edit Rust accepts.
+// Importing a pattern through the worker's Rust, built for Node: the FreeSewing T-shirt's
+// bare DXF and a small Valentina pattern become projects with no file edited by hand, and
+// pieces added to an open project are an edit Rust accepts.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -20,6 +20,7 @@ import { mainGarment, parseEntities } from "./entities";
 import { decodeChoice } from "@/editor/dialogs/decodeChoice";
 import { encodeChoice } from "@/editor/dialogs/encodeChoice";
 import { leftOut } from "@/editor/dialogs/leftOut";
+import { importSource } from "@/editor/dialogs/importSource";
 
 const repo = resolve(import.meta.dirname, "../../../..");
 const tshirtDxf = readFileSync(
@@ -34,6 +35,36 @@ const hoodieToml = readFileSync(
   resolve(repo, "assets/garments/hoodie/garment.toml"),
   "utf8",
 );
+const tshirt = importSource(
+  { name: "tshirt.dxf", text: tshirtDxf },
+  null,
+  null,
+);
+const hoodie = importSource(
+  { name: "hoodie.dxf", text: hoodieDxf },
+  { name: "garment.toml", text: hoodieToml },
+  null,
+);
+/** A skirt panel in Valentina's format, drafted from hip_circ in its measurements file. */
+const skirtVal = `<?xml version="1.0" encoding="UTF-8"?>
+<pattern><version>0.9.2</version><unit>cm</unit>
+<measurements path="C:/Users/someone/skirt.vit"/>
+<draw name="Skirt"><calculation>
+  <point type="single" id="1" name="A" x="0" y="0"/>
+  <point type="endLine" id="2" name="B" basePoint="1" angle="0" length="hip_circ/4"/>
+  <point type="endLine" id="3" name="C" basePoint="1" angle="270" length="60"/>
+  <point type="endLine" id="4" name="D" basePoint="2" angle="270" length="60"/>
+  <spline type="simpleInteractive" id="5" point1="1" point4="2" angle1="350" angle2="190" length1="5" length2="5"/>
+</calculation><modeling/><details>
+  <detail id="10" name="Skirt front" version="2"><nodes>
+    <node type="NodeSpline" idObject="5"/>
+    <node type="NodePoint" idObject="4"/>
+    <node type="NodePoint" idObject="3"/>
+  </nodes></detail>
+</details></draw></pattern>`;
+const skirtVit = `<?xml version="1.0" encoding="UTF-8"?>
+<vit><version>0.6.2</version><read-only>false</read-only><unit>cm</unit><pm_system></pm_system>
+<personal/><body-measurements><m name="hip_circ" value="100"/></body-measurements></vit>`;
 const avatar = () => {
   const { file, entities } = openExample("tshirt");
   file.free();
@@ -48,10 +79,45 @@ function suggested(p: Preview): Record<string, Choice> {
 }
 
 describe("import", () => {
+  it("asks for a Valentina pattern's measurements, then makes a project", () => {
+    expect(JSON.parse(wasm.VtryFile.pattern_needs(skirtVal))).toEqual({
+      measurements: "skirt.vit",
+    });
+    const bare = importSource(
+      { name: "skirt.val", text: skirtVal },
+      null,
+      null,
+    );
+    expect(() => wasm.VtryFile.inspect_import(bare)).toThrow(/skirt\.vit/);
+    const source = importSource(
+      { name: "skirt.val", text: skirtVal },
+      { name: "mine.vit", text: skirtVit },
+      null,
+    );
+    const p = JSON.parse(wasm.VtryFile.inspect_import(source)) as Preview;
+    expect(p.pieces.map((x) => x.name)).toEqual(["Skirt front"]);
+    expect(p.sizes).toEqual([]);
+    expect(Math.max(...p.pieces[0].outline.map((q) => q[0]))).toBe(250);
+    const glb = readFileSync(
+      resolve(repo, "packages/vitryne-web/public/avatar/body.glb"),
+    );
+    const f = wasm.VtryFile.import_new(
+      source,
+      JSON.stringify(suggested(p)),
+      glb,
+      Date.now(),
+      seed,
+    );
+    const g = mainGarment(parseEntities(f.entities()))!;
+    expect(g.sources![0].type).toBe("valentina");
+    expect(g.pieces[0].outline.some((n) => n.edge?.type === "cubic")).toBe(
+      true,
+    );
+    f.free();
+  });
+
   it("turns the bare T-shirt DXF into a placed project", () => {
-    const p = JSON.parse(
-      wasm.VtryFile.inspect_dxf("tshirt.dxf", tshirtDxf, ""),
-    ) as Preview;
+    const p = JSON.parse(wasm.VtryFile.inspect_import(tshirt)) as Preview;
     expect(p.pieces.map((x) => x.name)).toEqual(["front", "back", "sleeve"]);
     expect(p.sewing).toBeNull();
     for (const x of p.pieces)
@@ -61,9 +127,7 @@ describe("import", () => {
       resolve(repo, "packages/vitryne-web/public/avatar/body.glb"),
     );
     const f = wasm.VtryFile.import_new(
-      "tshirt.dxf",
-      tshirtDxf,
-      "",
+      tshirt,
       JSON.stringify(suggested(p)),
       glb,
       Date.now(),
@@ -107,16 +171,12 @@ describe("import", () => {
   });
 
   it("suggests seams for a bare import and refuses anything but whole edges", () => {
-    const p = JSON.parse(
-      wasm.VtryFile.inspect_dxf("tshirt.dxf", tshirtDxf, ""),
-    ) as Preview;
+    const p = JSON.parse(wasm.VtryFile.inspect_import(tshirt)) as Preview;
     const glb = readFileSync(
       resolve(repo, "packages/vitryne-web/public/avatar/body.glb"),
     );
     const f = wasm.VtryFile.import_new(
-      "tshirt.dxf",
-      tshirtDxf,
-      "",
+      tshirt,
       JSON.stringify(suggested(p)),
       glb,
       Date.now(),
@@ -168,17 +228,13 @@ describe("import", () => {
   });
 
   it("adds pieces with their sewing to an open project as one undoable edit", () => {
-    const p = JSON.parse(
-      wasm.VtryFile.inspect_dxf("hoodie.dxf", hoodieDxf, hoodieToml),
-    ) as Preview;
+    const p = JSON.parse(wasm.VtryFile.inspect_import(hoodie)) as Preview;
     expect(p.sewing!.seams).toBeGreaterThan(5);
     expect(leftOut(p).join("\n")).toMatch(/doesn't use: .*cuff/);
     const { file, entities } = openExample("trousers");
     const a = JSON.parse(
       file.import_addition(
-        "hoodie.dxf",
-        hoodieDxf,
-        hoodieToml,
+        hoodie,
         JSON.stringify(suggested(p)),
         Date.now(),
         seed,
@@ -202,15 +258,11 @@ describe("import", () => {
   });
 
   it("refuses a choice the sewing file cannot have", () => {
-    const p = JSON.parse(
-      wasm.VtryFile.inspect_dxf("hoodie.dxf", hoodieDxf, hoodieToml),
-    ) as Preview;
+    const p = JSON.parse(wasm.VtryFile.inspect_import(hoodie)) as Preview;
     const c = { ...suggested(p), front: { type: "pair", pair: "arms" } };
     expect(() =>
       wasm.VtryFile.import_new(
-        "hoodie.dxf",
-        hoodieDxf,
-        hoodieToml,
+        hoodie,
         JSON.stringify(c),
         new Uint8Array(),
         0,

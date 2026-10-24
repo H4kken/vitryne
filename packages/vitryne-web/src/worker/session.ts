@@ -283,7 +283,7 @@ export class EngineSession {
   }
 
   /**
-   * A new project from a DXF (see `Requests.importNew`): it becomes the worker's document, and
+   * A new project from a pattern (see `Requests.importNew`): it becomes the worker's document, and
    * the file it made is what a restarted worker reopens.
    */
   async importNew(
@@ -322,13 +322,14 @@ export class EngineSession {
     return reply;
   }
 
-  async inspectDxf(
-    name: string,
-    dxf: string,
-    sidecar: string,
-  ): Promise<string> {
-    return (await this.need().request("inspectDxf", { name, dxf, sidecar }))
-      .preview;
+  /** The measurements file a pattern needs (Rust `valentina::Needs`, JSON). */
+  async patternNeeds(text: string): Promise<string> {
+    return (await this.need().request("patternNeeds", { text })).needs;
+  }
+
+  /** What importing `source` (Rust `import::ImportSource`, JSON) would give. */
+  async inspectImport(source: string): Promise<string> {
+    return (await this.need().request("inspectImport", { source })).preview;
   }
 
   async importAddition(

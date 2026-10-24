@@ -338,7 +338,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
       <input
         ref={fileInput}
         type="file"
-        accept=".dxf,.toml,.vtry"
+        accept=".dxf,.toml,.val,.vit,.vst,.vtry"
         multiple
         className="hidden"
         onChange={(e) => {
@@ -349,8 +349,8 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
       />
       <ImportDialog
         key={imports.importKey}
-        dxf={imports.importing}
-        initialSidecar={imports.droppedSidecar}
+        pattern={imports.importing}
+        initialCompanion={imports.droppedCompanion}
         session={session}
         projectName={
           doc.empty ? null : (doc.entities.project?.name ?? doc.fileName)
