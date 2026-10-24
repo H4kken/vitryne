@@ -3,13 +3,13 @@
 // file, picked or dropped anywhere here: a DXF or Valentina pattern, or a .vtry project; start from
 // scratch; or start from one of the bundled examples), then the person's projects as cards.
 
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DOCS_URL } from "@/links";
 import { type Example, exampleId, fetchExample } from "../examples";
-import { ImportIcon } from "../icons/ImportIcon";
 import { Logo } from "../icons/Logo";
 import { PRESET_ART } from "../icons/presetArt";
-import { ScratchIcon } from "../icons/ScratchIcon";
+import { Import, PencilRuler } from "lucide-react";
 
 /** What each bundled example is made of. */
 const PRESET_NOTES: Record<string, string> = {
@@ -46,11 +46,48 @@ export function StartScreen(props: {
   /** The person's projects (a grid), once they are known. */
   projects: React.ReactNode;
 }) {
+  // Dragging a file over the window shows a full-screen drop zone. Enter/leave fire for every child
+  // the pointer crosses, so count them instead of toggling.
+  const [dragging, setDragging] = useState(false);
+  const depth = useRef(0);
+  const hasFiles = (e: React.DragEvent) =>
+    e.dataTransfer.types.includes("Files");
   return (
     <div
       className="bg-background absolute inset-0 z-30 flex flex-col overflow-y-auto"
-      {...props.dropProps}
+      onDragOver={props.dropProps.onDragOver}
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        depth.current += 1;
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!hasFiles(e)) return;
+        depth.current = Math.max(0, depth.current - 1);
+        if (depth.current === 0) setDragging(false);
+      }}
+      onDrop={(e) => {
+        depth.current = 0;
+        setDragging(false);
+        props.dropProps.onDrop(e);
+      }}
     >
+      {dragging && (
+        <div
+          aria-hidden="true"
+          className="bg-background/90 pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-6 backdrop-blur-sm"
+        >
+          <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-3xl border-4 border-dashed border-foreground bg-card/70 text-center">
+            <Import className="text-foreground size-14" />
+            <span className="font-display text-3xl font-bold tracking-[-0.02em]">
+              Drop to import
+            </span>
+            <span className="text-muted-foreground text-base">
+              A DXF or Valentina pattern, or a .vtry project
+            </span>
+          </div>
+        </div>
+      )}
       <div className="flex h-16 shrink-0 flex-wrap items-center gap-3 px-8">
         <Logo />
         <span className="font-display text-xl font-bold tracking-[-0.01em]">
@@ -92,43 +129,25 @@ export function StartScreen(props: {
               .
             </p>
           </div>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-            <button
-              type="button"
-              onClick={props.onImport}
-              disabled={!!props.busy}
-              className={`${TILE} border-2 border-dashed border-input hover:border-foreground`}
-            >
-              <span className="flex aspect-[4/3] w-full items-center justify-center">
-                <ImportIcon className="text-foreground" />
+          <button
+            type="button"
+            onClick={props.onImport}
+            disabled={!!props.busy}
+            className="flex w-full min-w-0 cursor-pointer items-center gap-4 rounded-2xl border-2 border-dashed border-input bg-card px-5 py-4 text-left transition-colors duration-150 hover:border-foreground disabled:opacity-60"
+          >
+            <Import className="text-foreground size-6 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <span className="font-display text-lg font-semibold">
+                Import a file
               </span>
-              <span className="flex flex-col gap-0.5 px-4 pt-1 pb-4">
-                <span className="font-display text-lg font-semibold">
-                  Import a file
-                </span>
-                <span className="text-muted-foreground text-sm">
-                  A DXF or Valentina pattern, or a .vtry project
-                </span>
+              <span className="text-muted-foreground text-sm">
+                Drop a file here or click to browse. DXF or Valentina pattern,
+                or a .vtry project
               </span>
-            </button>
-            <button
-              type="button"
-              onClick={props.onScratch}
-              disabled={!!props.busy}
-              className={`${TILE} border-2 border-dashed border-input hover:border-foreground`}
-            >
-              <span className="flex aspect-[4/3] w-full items-center justify-center">
-                <ScratchIcon className="text-foreground" />
-              </span>
-              <span className="flex flex-col gap-0.5 px-4 pt-1 pb-4">
-                <span className="font-display text-lg font-semibold">
-                  Start from scratch
-                </span>
-                <span className="text-muted-foreground text-sm">
-                  An empty garment on the body
-                </span>
-              </span>
-            </button>
+            </span>
+          </button>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
+            {/* The separator sits in the grid gap, so it takes no cell of its own. */}
             {[...props.examples]
               .sort((a, b) => rank(a) - rank(b))
               .map((ex) => {
@@ -172,6 +191,30 @@ export function StartScreen(props: {
                   </button>
                 );
               })}
+            <button
+              type="button"
+              onClick={props.onScratch}
+              disabled={!!props.busy}
+              className={`${TILE} border-2 border-input hover:border-foreground`}
+            >
+              <span
+                className="flex aspect-[4/3] w-full items-center justify-center"
+                style={{ background: "#E8ECE4" }}
+              >
+                <PencilRuler
+                  className="text-foreground size-10"
+                  strokeWidth={1.75}
+                />
+              </span>
+              <span className="flex flex-col gap-0.5 px-4 pt-3 pb-4">
+                <span className="font-display text-lg font-semibold">
+                  Start from scratch
+                </span>
+                <span className="text-muted-foreground text-sm">
+                  An empty garment on the body
+                </span>
+              </span>
+            </button>
           </div>
           {props.onOpenFolder && (
             <button
