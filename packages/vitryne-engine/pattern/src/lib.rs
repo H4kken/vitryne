@@ -17,3 +17,4 @@ pub mod project;
 pub mod seams;
 pub mod suggest;
 pub mod tshirt;
+pub mod valentina;
