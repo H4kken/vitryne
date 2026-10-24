@@ -110,20 +110,37 @@ impl Curve {
 
     /// The arc length from the start to the point of the curve nearest `p`.
     pub fn length_to(&self, p: DVec2) -> f64 {
-        let mut best = (f64::MAX, 0.0);
-        let mut before = 0.0;
-        for s in &self.segs {
-            let n = 200;
+        if geom::same_point(p, self.first()) {
+            return 0.0;
+        }
+        if geom::same_point(p, self.last()) {
+            return self.length();
+        }
+        // The nearest sample, then the nearest parameter around it (ternary search).
+        let n = 64;
+        let mut best = (f64::MAX, 0, 0.0);
+        for (i, s) in self.segs.iter().enumerate() {
             for k in 0..=n {
                 let t = k as f64 / n as f64;
                 let d = geom::cubic_at(s, t).distance(p);
                 if d < best.0 {
-                    best = (d, before + geom::cubic_length_to(s, t));
+                    best = (d, i, t);
                 }
             }
-            before += geom::cubic_length(s);
         }
-        best.1
+        let (_, i, t) = best;
+        let s = &self.segs[i];
+        let (mut lo, mut hi) = ((t - 1.0 / n as f64).max(0.0), (t + 1.0 / n as f64).min(1.0));
+        for _ in 0..80 {
+            let (a, b) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+            if geom::cubic_at(s, a).distance(p) < geom::cubic_at(s, b).distance(p) {
+                hi = b;
+            } else {
+                lo = a;
+            }
+        }
+        let before: f64 = self.segs[..i].iter().map(geom::cubic_length).sum();
+        before + geom::cubic_length_to(s, (lo + hi) / 2.0)
     }
 
     fn transformed(&self, f: &dyn Fn(DVec2) -> DVec2) -> Curve {
@@ -155,13 +172,17 @@ pub struct Draft {
     /// Objects that couldn't be made, and why.
     pub unavailable: HashMap<u32, String>,
     point_names: HashMap<String, u32>,
-    /// Files before 0.3: a cut curve's halves (`id+1`, `id+2`) mean the curve that was cut.
-    old_halves: HashMap<u32, u32>,
+    /// Lines the tools registered, `A_B` → the two points' ids (later ones replace earlier,
+    /// which is how a name repeated in another block resolves).
+    lines: HashMap<String, (u32, u32)>,
     /// Files before 1.2: ids in use, for the ids cut halves had implicitly.
     free_ids: Option<std::collections::HashSet<u32>>,
-    /// Files before 0.3: every cut curve's halves are `id+1` and `id+2`.
+    /// Files before 0.3, where every cut curve's halves are objects at `id+1` and `id+2`.
     old_cuts: bool,
 }
+
+/// How a failure caused by another one starts.
+const NEEDS: &str = "needs an object that failed";
 
 fn id_attr(el: Node, name: &str) -> Result<u32, String> {
     let v = el
@@ -210,7 +231,7 @@ impl Draft {
             objects: HashMap::new(),
             unavailable: HashMap::new(),
             point_names: HashMap::new(),
-            old_halves: HashMap::new(),
+            lines: HashMap::new(),
             free_ids: None,
             old_cuts: pattern.version < (0, 3, 0),
         };
@@ -220,21 +241,6 @@ impl Draft {
             .flat_map(|b| b.descendants())
             .filter(|n| n.is_element())
             .collect();
-        if pattern.version < (0, 3, 0) {
-            for el in &elements {
-                let attr = match el.attribute("type") {
-                    Some("cutSpline") => "spline",
-                    Some("cutSplinePath") => "splinePath",
-                    Some("cutArc") => "arc",
-                    _ => continue,
-                };
-                if let (Ok(id), Ok(base)) = (id_attr(*el, "id"), id_attr(*el, attr)) {
-                    let base = d.old_halves.get(&base).copied().unwrap_or(base);
-                    d.old_halves.insert(id + 1, base);
-                    d.old_halves.insert(id + 2, base);
-                }
-            }
-        }
         if pattern.version < (1, 2, 0) {
             let mut used = std::collections::HashSet::new();
             // Ids elements and operation copies take (not ids they refer to).
@@ -263,10 +269,10 @@ impl Draft {
                 if let Some(s) = super::child(*block, section) {
                     for el in s.children().filter(|c| c.is_element()) {
                         if let Err(e) = d.tool(el) {
-                            let what = el
-                                .attribute("name")
-                                .map(|n| format!("{n}: "))
-                                .unwrap_or_default();
+                            let what = match el.attribute("name") {
+                                Some(n) if !e.starts_with(NEEDS) => format!("{n}: "),
+                                _ => String::new(),
+                            };
                             for id in made_ids(el) {
                                 d.unavailable
                                     .entry(id)
@@ -288,8 +294,14 @@ impl Draft {
         v / PX_PER_MM / self.unit.mm()
     }
 
-    /// Two named points from `A_B` where names may hold `_`.
+    /// Two named points from `A_B`: a registered line's, else any two points so named (names
+    /// may hold `_`, so each split is tried).
     fn two_points(&self, rest: &str) -> Option<(DVec2, DVec2)> {
+        if let Some((a, b)) = self.lines.get(rest)
+            && let (Ok(a), Ok(b)) = (self.point(*a), self.point(*b))
+        {
+            return Some((a.p, b.p));
+        }
         for (i, _) in rest.match_indices('_') {
             let (a, b) = (&rest[..i], &rest[i + 1..]);
             if let (Some(a), Some(b)) = (self.point_names.get(a), self.point_names.get(b))
@@ -341,7 +353,9 @@ impl Draft {
             return Ok(o);
         }
         Err(match self.unavailable.get(&id) {
-            Some(why) => format!("needs an object that failed ({why})"),
+            // The first failure is the one to fix.
+            Some(why) if why.starts_with(NEEDS) => why.clone(),
+            Some(why) => format!("{NEEDS} ({why})"),
             None => format!("needs object {id}, which the file doesn't make"),
         })
     }
@@ -364,10 +378,8 @@ impl Draft {
         Ok(self.point(id_attr(el, attr)?)?.p)
     }
 
-    /// A curve an attribute names (in files before 0.3, a cut half means the whole curve).
     fn curve_id(&self, el: Node, attr: &str) -> Result<u32, String> {
-        let id = id_attr(el, attr)?;
-        Ok(self.old_halves.get(&id).copied().unwrap_or(id))
+        id_attr(el, attr)
     }
 
     fn c(&self, el: Node, attr: &str) -> Result<&Curve, String> {
@@ -466,8 +478,8 @@ impl Draft {
             (Arc { f2: f, ..a }, Arc { f1: f, ..a })
         });
         let [id1, id2, name1, name2] = attrs;
-        // Before 1.2 an arc's halves took the ids after the tool's (the later ones: +3, +4
-        // for a second curve), unless something else uses them; before 0.3 every curve's did.
+        // Before 1.2 an arc's halves took the ids after the tool's (the later ones: +3, +4 for
+        // a second curve), unless something else uses them; before 0.3 every curve's did.
         let base = id_attr(el, "id").unwrap_or(0) + if id1 == "segment3Id" { 2 } else { 0 };
         let implicit = |k: u32| -> Option<u32> {
             let used = self.free_ids.as_ref()?;
@@ -526,16 +538,63 @@ impl Draft {
         let tag = el.tag_name().name();
         let ty = el.attribute("type").unwrap_or("");
         match tag {
-            "point" => self.point_tool(el, ty),
+            "point" => {
+                self.point_tool(el, ty)?;
+                self.register_lines(el);
+                Ok(())
+            }
             "spline" => self.spline_tool(el, ty),
             "arc" => self.arc_tool(el, ty),
             "operation" => self.operation(el, ty),
             // Drawn lines carry nothing; internal paths are read with the pieces.
-            "line" | "path" => Ok(()),
+            "line" => {
+                if let (Ok(a), Ok(b)) = (id_attr(el, "firstPoint"), id_attr(el, "secondPoint")) {
+                    self.register(a, b);
+                }
+                Ok(())
+            }
+            "path" => Ok(()),
             "elArc" if ty == "modeling" => self.copy(el),
             "elArc" => Err("elliptical arcs are not supported yet".into()),
             "tools" => Err(format!("the \"{ty}\" tool is not supported")),
             other => Err(format!("<{other}> is not supported")),
+        }
+    }
+
+    fn register(&mut self, a: u32, b: u32) {
+        if let (Ok(pa), Ok(pb)) = (self.point(a), self.point(b)) {
+            let key = format!("{}_{}", pa.name, pb.name);
+            self.lines.insert(key, (a, b));
+        }
+    }
+
+    /// The lines a point tool draws: from each point it starts from to the new point.
+    fn register_lines(&mut self, el: Node) {
+        const FROM: [&str; 11] = [
+            "basePoint",
+            "firstPoint",
+            "secondPoint",
+            "thirdPoint",
+            "p1Line",
+            "p2Line",
+            "pShoulder",
+            "center",
+            "tangent",
+            "cCenter",
+            "axisP1",
+        ];
+        let Ok(id) = id_attr(el, "id") else {
+            return;
+        };
+        if !matches!(self.objects.get(&id), Some(Object::Point(_))) {
+            return;
+        }
+        for a in FROM {
+            if let Ok(from) = id_attr(el, a)
+                && from != id
+            {
+                self.register(from, id);
+            }
         }
     }
 

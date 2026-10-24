@@ -11,7 +11,7 @@ use glam::Vec3;
 use serde::Serialize;
 use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Piece, Placement, Wrap};
 use vitryne_pattern::{
-    import::{Addition, Choice, DxfImport, import_bounds, rewrap},
+    import::{Addition, Choice, PatternImport, import_bounds, rewrap},
     placement::{BodyFacts, BodyPlace},
     project::{Placer, ProjectGarment, avatar_mesh},
     seams::{self, CutEdge, EdgePick, SeamProposal},
@@ -242,7 +242,7 @@ impl ProjectFile {
         now_ms: u64,
         seed: &[u8],
     ) -> Result<Imported, String> {
-        let imp = DxfImport::read(file_name, dxf, sidecar)?;
+        let imp = PatternImport::read(file_name, dxf, sidecar)?;
         let (doc, notes) = imp.new_project(choices, body_glb, &mut IdGen::new(now_ms, seed))?;
         Ok(Imported {
             file: Self { doc },
@@ -268,7 +268,7 @@ impl ProjectFile {
         now_ms: u64,
         seed: &[u8],
     ) -> Result<Addition, String> {
-        let imp = DxfImport::read(file_name, dxf, sidecar)?;
+        let imp = PatternImport::read(file_name, dxf, sidecar)?;
         let (regions, body) = self.body()?;
         imp.addition(choices, regions, &body, &mut IdGen::new(now_ms, seed))
     }

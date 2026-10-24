@@ -284,7 +284,7 @@ const SAME_PLACE_MM: f64 = 0.01;
 /// An outline is a simple polygon, counter-clockwise (FORMAT.md, Pieces and outlines): no two
 /// consecutive nodes in the same place, no edge crossing or touching another. The polygon is the
 /// outline as meshed (`outline_points`, curves flattened).
-fn check_outline_shape(outline: &[Node]) -> Result<(), String> {
+pub fn check_outline_shape(outline: &[Node]) -> Result<(), String> {
     let n = outline.len();
     for (k, a) in outline.iter().enumerate() {
         let b = &outline[(k + 1) % n];

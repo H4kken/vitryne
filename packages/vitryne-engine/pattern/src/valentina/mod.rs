@@ -11,8 +11,129 @@
 pub mod formula;
 pub mod geom;
 pub mod measurements;
+pub mod pieces;
 pub mod tools;
 pub mod xml;
+
+use std::collections::HashMap;
+
+use serde::Serialize;
+
+use measurements::{Dimension, Measurements};
+use pieces::Shape;
+use tools::Draft;
+use xml::Pattern;
+
+/// What a pattern needs before it can be read.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Needs {
+    /// The measurements file it was drafted with (file name only), if any.
+    pub measurements: Option<String>,
+}
+
+/// One dimension of a size chart, for the size picker.
+#[derive(Debug, Clone, Serialize)]
+pub struct SizeOption {
+    pub label: String,
+    pub values: Vec<f64>,
+    pub base: f64,
+}
+
+/// A pattern read for import.
+#[derive(Debug, Clone)]
+pub struct Read {
+    pub shapes: Vec<Shape>,
+    /// Pieces that couldn't be made: (name, why).
+    pub refused: Vec<(String, String)>,
+    pub warnings: Vec<String>,
+    /// A size chart's dimensions (empty for one person's measurements).
+    pub sizes: Vec<SizeOption>,
+}
+
+fn doc(text: &str) -> Result<roxmltree::Document<'_>, String> {
+    roxmltree::Document::parse(text).map_err(|e| format!("not a pattern file: {e}"))
+}
+
+pub fn needs(pattern: &str) -> Result<Needs, String> {
+    let d = doc(pattern)?;
+    let p = Pattern::read(&d)?;
+    Ok(Needs {
+        measurements: p.measurements_file_name().map(str::to_string),
+    })
+}
+
+fn size_option(d: &Dimension) -> SizeOption {
+    SizeOption {
+        label: d.label().to_string(),
+        values: d.values(),
+        base: d.base,
+    }
+}
+
+/// Reads a pattern with its measurements file (`measurements`: the file's text) at `size`
+/// (one value per dimension of a size chart; its base size if `None`).
+pub fn read(
+    pattern: &str,
+    measurements: Option<&str>,
+    size: Option<&[f64]>,
+) -> Result<Read, String> {
+    let d = doc(pattern)?;
+    let p = Pattern::read(&d)?;
+    let mut values = HashMap::new();
+    let mut sizes = Vec::new();
+    match (p.measurements_file_name(), measurements) {
+        (Some(name), None) => {
+            return Err(format!(
+                "this pattern uses the measurements in {name}: add that file"
+            ));
+        }
+        (_, Some(text)) => {
+            let m = Measurements::read(text)?;
+            let size = size.map(<[f64]>::to_vec).unwrap_or_else(|| m.base_size());
+            values.extend(m.values(&size, p.unit)?);
+            sizes = m.dimensions.iter().map(size_option).collect();
+        }
+        (None, None) => {}
+    }
+    let draft = Draft::run(&p, values);
+    let modeling: Vec<roxmltree::Node> = p
+        .sections("modeling")
+        .iter()
+        .flat_map(|m| m.children())
+        .filter(|c| c.is_element())
+        .collect();
+    let (mut shapes, mut refused, mut warnings) = (Vec::new(), Vec::new(), Vec::new());
+    for (_, el) in p.pieces() {
+        let name = el.attribute("name").unwrap_or("Piece").trim().to_string();
+        // Pieces kept out of the layout are drafts or helpers, not cut.
+        if el.attribute("inLayout") == Some("false") {
+            warnings.push(format!("{name}: not in the layout, left out"));
+            continue;
+        }
+        match pieces::build(&draft, el, &modeling) {
+            Ok(mut s) => {
+                warnings.append(&mut s.warnings);
+                shapes.push(s);
+            }
+            Err(e) => refused.push((name, e)),
+        }
+    }
+    // Names are how the import refers to pieces: make repeats distinct.
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    for s in &mut shapes {
+        let k = seen.entry(s.name.clone()).or_default();
+        *k += 1;
+        if *k > 1 {
+            s.name = format!("{} ({k})", s.name);
+        }
+    }
+    Ok(Read {
+        shapes,
+        refused,
+        warnings,
+        sizes,
+    })
+}
 
 /// A length unit of a pattern or measurements file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
