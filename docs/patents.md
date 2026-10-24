@@ -95,6 +95,11 @@ Where each rule is implemented, so a reviewer can check it. See ARCHITECTURE.md,
 | 5 no cross-piece measure tool | There is none. The seam list shows a length difference of an existing seam only, as text. |
 | 6 parametric fit | Not touched. |
 
+Importing a Valentina pattern joins nothing and places pieces as a DXF import does (the user's
+choice of place, suggested from names, rule 4); its sewing comes from the same suggestions and
+Sew tool (rules 1 to 3). Picking a size of the pattern's own size chart works out the author's
+formulas at that size: no grading from avatar strain (rule 6), and no measure tool (rule 5).
+
 Drawing and editing pieces is not covered by any listed claim. Where it meets the rules:
 
 | Rule | In the code |

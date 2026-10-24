@@ -488,7 +488,7 @@ export interface Source {
    */
   id: string;
   /**
-   * dxf-aama, ...
+   * dxf-aama, valentina, ...
    */
   type: string;
   /**

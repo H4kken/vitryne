@@ -97,7 +97,7 @@ describe("import", () => {
     const p = JSON.parse(wasm.VtryFile.inspect_import(source)) as Preview;
     expect(p.pieces.map((x) => x.name)).toEqual(["Skirt front"]);
     expect(p.sizes).toEqual([]);
-    expect(Math.max(...p.pieces[0].outline.map((q) => q[0]))).toBe(250);
+    expect(Math.max(...p.pieces[0]!.outline.map((q) => q[0]))).toBe(250);
     const glb = readFileSync(
       resolve(repo, "packages/vitryne-web/public/avatar/body.glb"),
     );
@@ -109,8 +109,8 @@ describe("import", () => {
       seed,
     );
     const g = mainGarment(parseEntities(f.entities()))!;
-    expect(g.sources![0].type).toBe("valentina");
-    expect(g.pieces[0].outline.some((n) => n.edge?.type === "cubic")).toBe(
+    expect(g.sources![0]!.type).toBe("valentina");
+    expect(g.pieces[0]!.outline.some((n) => n.edge?.type === "cubic")).toBe(
       true,
     );
     f.free();
