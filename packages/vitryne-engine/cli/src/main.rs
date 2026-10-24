@@ -54,7 +54,7 @@ use vitryne_format::{Document, IdGen, Kind, glb};
 use vitryne_pattern::{
     convert::ConvertOptions,
     garment::Garment as DxfGarment,
-    import::DxfImport,
+    import::PatternImport,
     project::{DEFAULT_TARGET_VERTICES, ProjectGarment, avatar_mesh},
     tshirt::{self, SdfParams, TshirtParams},
 };
@@ -377,13 +377,19 @@ fn main() {
         }
         "convert" => {
             let include_dxf = take_flag(&mut args, "--include-dxf");
+            let measurements = take_value(&mut args, "--measurements");
+            let size = take_value(&mut args, "--size");
             let (Some(src), Some(out)) = (args.get(1), args.get(2)) else {
                 eprintln!(
-                    "usage: vitryne convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]"
+                    "usage: vitryne convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]\n       vitryne convert <pattern.val> <out.vtry | out.vtry/> [--measurements <file.vit|.vst>] [--size 176,100]"
                 );
                 std::process::exit(2);
             };
-            convert(src, out, include_dxf);
+            if src.to_lowercase().ends_with(".val") {
+                convert_valentina(src, out, measurements.as_deref(), size.as_deref());
+            } else {
+                convert(src, out, include_dxf);
+            }
         }
         "pattern-svg" => {
             let out = args.get(1).cloned().unwrap_or_else(|| "pattern.svg".into());
@@ -685,26 +691,18 @@ fn open_project(path: &str) -> Document {
 }
 
 /// `vitryne convert`: a garment.toml and its DXF to a project file, with the test avatar.
-fn convert(src: &str, out: &str, include_dxf: bool) {
-    let g = DxfGarment::load_file(src).unwrap_or_else(|e| panic!("{e}"));
-    let dxf_path = std::path::Path::new(src)
-        .parent()
-        .unwrap_or(std::path::Path::new("."))
-        .join(&g.spec.dxf);
+/// The test avatar's mesh as glTF binary.
+fn body_glb() -> Vec<u8> {
     let body = BodyMesh::from_obj(&std::fs::read_to_string(BODY_OBJ).expect("body obj"))
         .expect("parse body obj");
     let mesh = glb::Mesh {
         positions: body.pos.iter().map(|p| p.to_array()).collect(),
         indices: body.tris.iter().flatten().copied().collect(),
     };
-    let opts = ConvertOptions {
-        body_glb: glb::write(&mesh, vitryne_format::GENERATOR),
-        dxf_file_name: dxf_path.file_name().unwrap().to_string_lossy().into_owned(),
-        include_dxf: include_dxf.then(|| std::fs::read(&dxf_path).expect("read dxf")),
-    };
-    let mut doc =
-        vitryne_pattern::convert::convert(&g, &opts).unwrap_or_else(|e| panic!("{src}: {e}"));
-    doc.generator = Some(format!("vitryne convert ({})", vitryne_format::GENERATOR));
+    glb::write(&mesh, vitryne_format::GENERATOR)
+}
+
+fn save(doc: &Document, out: &str) {
     let folder = out.ends_with('/') || std::path::Path::new(out).is_dir();
     let r = if folder {
         doc.save_folder(std::path::Path::new(out))
@@ -712,6 +710,85 @@ fn convert(src: &str, out: &str, include_dxf: bool) {
         doc.save(std::path::Path::new(out))
     };
     r.unwrap_or_else(|e| panic!("{out}: {e}"));
+}
+
+/// A Valentina pattern as a project, its pieces placed where the import suggests (those with
+/// no suggestion are left out, to place in the editor).
+fn convert_valentina(src: &str, out: &str, measurements: Option<&str>, size: Option<&str>) {
+    let text = std::fs::read_to_string(src).unwrap_or_else(|e| panic!("{src}: {e}"));
+    let m = measurements.map(|p| std::fs::read_to_string(p).unwrap_or_else(|e| panic!("{p}: {e}")));
+    let size: Option<Vec<f64>> = size.map(|s| {
+        s.split(',')
+            .map(|v| {
+                v.trim()
+                    .parse()
+                    .unwrap_or_else(|_| panic!("--size: bad value {v:?}"))
+            })
+            .collect()
+    });
+    let name = std::path::Path::new(src)
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let imp = PatternImport::read_valentina(&name, &text, m.as_deref(), size.as_deref())
+        .unwrap_or_else(|e| panic!("{src}: {e}"));
+    let preview = imp.preview();
+    for w in &preview.report.warnings {
+        eprintln!("note: {w}");
+    }
+    let choices = preview
+        .pieces
+        .iter()
+        .map(|p| {
+            if p.suggestion.is_none() {
+                eprintln!("note: {} left out (no suggested place)", p.name);
+            }
+            (
+                p.name.clone(),
+                p.suggestion
+                    .clone()
+                    .unwrap_or(vitryne_pattern::import::Choice::Leave),
+            )
+        })
+        .collect();
+    let mut ids = IdGen::new(ID_TIME_MS, name.as_bytes());
+    let (mut doc, notes) = imp
+        .new_project(&choices, &body_glb(), &mut ids)
+        .unwrap_or_else(|e| panic!("{src}: {e}"));
+    for n in notes {
+        eprintln!("note: {n}");
+    }
+    doc.generator = Some(format!("vitryne convert ({})", vitryne_format::GENERATOR));
+    save(&doc, out);
+    let g = &doc.garments[0];
+    println!(
+        "wrote {out}: {} pieces, {} cuts, {} nodes",
+        g.pieces.len(),
+        g.cuts().count(),
+        g.pieces.iter().map(|p| p.outline.len()).sum::<usize>(),
+    );
+}
+
+/// When ids made by `vitryne convert` from a Valentina pattern start (2026-10-13), so its
+/// output is the same every run.
+const ID_TIME_MS: u64 = 1_792_022_400_000;
+
+fn convert(src: &str, out: &str, include_dxf: bool) {
+    let g = DxfGarment::load_file(src).unwrap_or_else(|e| panic!("{e}"));
+    let dxf_path = std::path::Path::new(src)
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .join(&g.spec.dxf);
+    let opts = ConvertOptions {
+        body_glb: body_glb(),
+        dxf_file_name: dxf_path.file_name().unwrap().to_string_lossy().into_owned(),
+        include_dxf: include_dxf.then(|| std::fs::read(&dxf_path).expect("read dxf")),
+    };
+    let mut doc =
+        vitryne_pattern::convert::convert(&g, &opts).unwrap_or_else(|e| panic!("{src}: {e}"));
+    doc.generator = Some(format!("vitryne convert ({})", vitryne_format::GENERATOR));
+    save(&doc, out);
     let g = &doc.garments[0];
     println!(
         "wrote {out}: {} pieces, {} cuts, {} seams, {} nodes{}",
@@ -791,7 +868,7 @@ fn export_app_assets(dir: &str) {
     std::fs::create_dir_all(format!("{dir}/avatar")).expect("avatar dir");
     std::fs::write(format!("{dir}/avatar/body.glb"), glb).expect("write avatar");
     let dxf = std::fs::read_to_string("assets/garments/tshirt/tshirt.dxf").expect("tshirt.dxf");
-    let imp = DxfImport::read("tshirt.dxf", &dxf, None).expect("import tshirt.dxf");
+    let imp = PatternImport::read("tshirt.dxf", &dxf, None).expect("import tshirt.dxf");
     let choices = imp
         .preview()
         .pieces

@@ -11,7 +11,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use vitryne_pattern::{
     garment::Garment as DxfGarment,
-    import::{Choice, DxfImport},
+    import::{Choice, PatternImport},
     placement::BodyPlace,
     seams::EdgePick,
     tshirt::{self, SdfParams, TshirtParams},
@@ -313,7 +313,7 @@ impl VtryFile {
     /// What importing a DXF would give (`import::Preview` as JSON): its pieces, what was
     /// ignored, a suggested place for each. `sidecar`: a garment.toml's text, or empty.
     pub fn inspect_dxf(file_name: &str, dxf: &str, sidecar: &str) -> Result<String, JsValue> {
-        let imp = DxfImport::read(file_name, dxf, (!sidecar.is_empty()).then_some(sidecar))?;
+        let imp = PatternImport::read(file_name, dxf, (!sidecar.is_empty()).then_some(sidecar))?;
         Ok(serde_json::to_string(&imp.preview()).expect("preview serializes"))
     }
 

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! DXF-AAMA into the editor (docs/ARCHITECTURE.md, Import and placement). Reading a DXF gives
-//! a preview: what was found, what was ignored, and for each piece how often it is cut and a
-//! suggested place on the body. The user confirms or changes a choice per piece, and the import
+//! Patterns into the editor (docs/ARCHITECTURE.md, Import and placement): DXF-AAMA, or a
+//! Valentina pattern with its measurements (`valentina`). Reading one gives a preview: what was
+//! found, what was ignored, and for each piece how often it is cut and a suggested place on the
+//! body. The user confirms or changes a choice per piece, and the import
 //! makes the pieces and cuts, each cut wrapped around its place (`placement::auto_wrap`), as a
 //! new project or as an addition to the open one.
 //!
 //! A `garment.toml` sidecar may come with the DXF: then its pieces, cuts, names and seams are
 //! used (as `vitryne convert` does), and only its placements are replaced by the user's choices.
-//! Without one the garment has no seams yet.
+//! Without one (and for Valentina patterns, which carry no sewing) the garment has no seams
+//! yet; the editor's suggestions sew it.
 //!
 //! Suggestions come from the piece names only ("sleeve", "front", ...), never from anything
 //! learned, and the user sees and changes every one (docs/PATENTS.md, rule 4).
@@ -29,6 +31,7 @@ use crate::{
     convert::{ConvertOptions, convert_with, dxf_piece, fabric_entity, project_document},
     garment::Garment as SidecarGarment,
     placement::{BodyFacts, BodyPlace, auto_wrap, default_avatar},
+    valentina::{self, SizeOption, pieces::Shape},
 };
 
 /// How far a piece placed on another one sits off it, mm (the hoodie's pocket).
@@ -83,12 +86,60 @@ impl Choice {
     }
 }
 
-/// A DXF read for import, with its sidecar if one came with it.
-pub struct DxfImport {
+/// Where an import's pieces come from.
+enum Origin {
+    /// DXF-AAMA, with its sidecar if one came with it.
+    Dxf {
+        pieces: Vec<aama::Piece>,
+        sidecar: Option<Box<SidecarGarment>>,
+    },
+    /// A Valentina pattern, drafted with its measurements.
+    Valentina(Vec<Shape>),
+}
+
+/// A pattern read for import.
+pub struct PatternImport {
     file_name: String,
-    pieces: Vec<aama::Piece>,
     report: ImportReport,
-    sidecar: Option<SidecarGarment>,
+    origin: Origin,
+    sizes: Vec<SizeOption>,
+}
+
+/// One piece the import offers.
+struct Offer<'a> {
+    name: &'a str,
+    quantity: u32,
+    /// The sidecar's cuts of it, if it has a sidecar.
+    cuts: Option<usize>,
+    from: PieceRef<'a>,
+}
+
+enum PieceRef<'a> {
+    Dxf(&'a aama::Piece),
+    Shape(&'a Shape),
+}
+
+fn dxf_offer(p: &aama::Piece, cuts: Option<usize>) -> Offer<'_> {
+    Offer {
+        name: &p.name,
+        quantity: p.quantity,
+        cuts,
+        from: PieceRef::Dxf(p),
+    }
+}
+
+impl Offer<'_> {
+    /// The outline (mm, unfolded), for a thumbnail.
+    fn outline(&self) -> Vec<[f64; 2]> {
+        match self.from {
+            PieceRef::Dxf(p) => p
+                .boundary
+                .iter()
+                .map(|q| [whole_mm(q.x), whole_mm(q.y)])
+                .collect(),
+            PieceRef::Shape(s) => s.thumbnail(),
+        }
+    }
 }
 
 /// What the import dialog shows.
@@ -96,6 +147,8 @@ pub struct DxfImport {
 pub struct Preview {
     pub file_name: String,
     pub report: ImportReport,
+    /// A size chart's dimensions (Valentina's multisize measurements), else empty.
+    pub sizes: Vec<SizeOption>,
     /// With a sidecar: its title and how many seams it sews.
     pub sewing: Option<SewingInfo>,
     pub pieces: Vec<PiecePreview>,
@@ -122,7 +175,7 @@ pub struct PiecePreview {
     pub suggestion: Option<Choice>,
 }
 
-/// The garment's parts an import makes (see `DxfImport::parts`).
+/// The garment's parts an import makes (see `PatternImport::parts`).
 struct Parts {
     pieces: Vec<Piece>,
     seams: Vec<Seam>,
@@ -257,7 +310,7 @@ fn cut_outline(piece: &Piece, mirrored: bool) -> Result<Vec<Vec2>, String> {
         .collect())
 }
 
-impl DxfImport {
+impl PatternImport {
     /// Reads the DXF (and the sidecar, which names the DXF it was written for; any name is
     /// accepted here, the user picked both files).
     pub fn read(file_name: &str, dxf: &str, sidecar: Option<&str>) -> Result<Self, String> {
@@ -279,52 +332,109 @@ impl DxfImport {
         }
         Ok(Self {
             file_name: file_name.to_string(),
-            pieces,
             report,
-            sidecar,
+            origin: Origin::Dxf {
+                pieces,
+                sidecar: sidecar.map(Box::new),
+            },
+            sizes: Vec::new(),
         })
     }
 
-    /// The pieces the import offers: the sidecar's, in its order, or every DXF piece.
-    fn offered(&self) -> Vec<(&aama::Piece, Option<usize>)> {
-        match &self.sidecar {
-            Some(g) => {
-                let mut out: Vec<(&aama::Piece, Option<usize>)> = Vec::new();
+    /// Reads a Valentina pattern with its measurements file (its text), at `size` of a size
+    /// chart (the chart's base size if `None`).
+    pub fn read_valentina(
+        file_name: &str,
+        pattern: &str,
+        measurements: Option<&str>,
+        size: Option<&[f64]>,
+    ) -> Result<Self, String> {
+        let r = valentina::read(pattern, measurements, size)?;
+        if r.shapes.is_empty() {
+            let why: Vec<String> = r.refused.iter().map(|(n, e)| format!("{n}: {e}")).collect();
+            return Err(if why.is_empty() {
+                "the pattern has no pieces (make them in Valentina's Details mode)".into()
+            } else {
+                format!("no piece could be made: {}", why.join("; "))
+            });
+        }
+        let mut warnings: Vec<String> = r
+            .refused
+            .iter()
+            .map(|(n, e)| format!("{n} can't be imported: {e}"))
+            .collect();
+        warnings.extend(r.warnings);
+        Ok(Self {
+            file_name: file_name.to_string(),
+            report: ImportReport {
+                units_m: 0.001,
+                pieces: r.shapes.iter().map(|s| s.name.clone()).collect(),
+                warnings,
+                ..ImportReport::default()
+            },
+            origin: Origin::Valentina(r.shapes),
+            sizes: r.sizes,
+        })
+    }
+
+    fn sidecar(&self) -> Option<&SidecarGarment> {
+        match &self.origin {
+            Origin::Dxf { sidecar, .. } => sidecar.as_deref(),
+            Origin::Valentina(_) => None,
+        }
+    }
+
+    /// The pieces the import offers: the sidecar's, in its order, or every piece.
+    fn offered(&self) -> Vec<Offer<'_>> {
+        match &self.origin {
+            Origin::Dxf {
+                pieces,
+                sidecar: Some(g),
+            } => {
+                let mut out: Vec<Offer> = Vec::new();
                 for ps in &g.spec.piece {
-                    if out.iter().any(|(p, _)| p.name == ps.dxf) {
+                    if out.iter().any(|o| o.name == ps.dxf) {
                         continue;
                     }
-                    if let Some(p) = self.pieces.iter().find(|p| p.name == ps.dxf) {
+                    if let Some(p) = pieces.iter().find(|p| p.name == ps.dxf) {
                         let n = g.spec.piece.iter().filter(|q| q.dxf == ps.dxf).count();
-                        out.push((p, Some(n)));
+                        out.push(dxf_offer(p, Some(n)));
                     }
                 }
                 out
             }
-            None => self.pieces.iter().map(|p| (p, None)).collect(),
+            Origin::Dxf {
+                pieces,
+                sidecar: None,
+            } => pieces.iter().map(|p| dxf_offer(p, None)).collect(),
+            Origin::Valentina(shapes) => shapes
+                .iter()
+                .map(|s| Offer {
+                    name: &s.name,
+                    quantity: s.quantity,
+                    cuts: None,
+                    from: PieceRef::Shape(s),
+                })
+                .collect(),
         }
     }
 
     pub fn preview(&self) -> Preview {
         let offered = self.offered();
-        let names: Vec<&str> = offered.iter().map(|(p, _)| p.name.as_str()).collect();
+        let names: Vec<&str> = offered.iter().map(|o| o.name).collect();
         let pieces = offered
             .iter()
-            .map(|(p, cuts)| {
-                let n = cuts.unwrap_or((p.quantity as usize).clamp(1, 2));
-                let suggestion = suggest(&p.name, n, &names).filter(|c| match cuts {
-                    Some(k) => c.cuts() == *k,
+            .map(|o| {
+                let n = o.cuts.unwrap_or((o.quantity as usize).clamp(1, 2));
+                let suggestion = suggest(o.name, n, &names).filter(|c| match o.cuts {
+                    Some(k) => c.cuts() == k,
                     None => true,
                 });
                 PiecePreview {
-                    name: p.name.clone(),
-                    quantity: p.quantity,
-                    cuts: *cuts,
-                    outline: p
-                        .boundary
-                        .iter()
-                        .map(|q| [whole_mm(q.x), whole_mm(q.y)])
-                        .collect(),
+                    name: o.name.to_string(),
+                    quantity: o.quantity,
+                    cuts: o.cuts,
+                    outline: o.outline(),
                     suggestion,
                 }
             })
@@ -332,17 +442,20 @@ impl DxfImport {
         Preview {
             file_name: self.file_name.clone(),
             report: self.report.clone(),
-            sewing: self.sidecar.as_ref().map(|g| SewingInfo {
+            sizes: self.sizes.clone(),
+            sewing: self.sidecar().map(|g| SewingInfo {
                 title: g.spec.title.clone().unwrap_or_else(|| g.spec.name.clone()),
                 seams: g.spec.seam.len(),
             }),
             pieces,
-            unused: self
-                .pieces
-                .iter()
-                .filter(|p| !names.contains(&p.name.as_str()))
-                .map(|p| p.name.clone())
-                .collect(),
+            unused: match &self.origin {
+                Origin::Dxf { pieces, .. } => pieces
+                    .iter()
+                    .filter(|p| !names.contains(&p.name.as_str()))
+                    .map(|p| p.name.clone())
+                    .collect(),
+                Origin::Valentina(_) => Vec::new(),
+            },
         }
     }
 
@@ -360,7 +473,7 @@ impl DxfImport {
         let offered = self.offered();
         let mut notes = Vec::new();
         for name in choices.keys() {
-            if !offered.iter().any(|(p, _)| &p.name == name) {
+            if !offered.iter().any(|o| o.name == name) {
                 return Err(format!("no piece {name} to import"));
             }
         }
@@ -382,23 +495,32 @@ impl DxfImport {
             None => {
                 let source = Source {
                     id: ids.next_id(),
-                    kind: "dxf-aama".into(),
+                    kind: match self.origin {
+                        Origin::Dxf { .. } => "dxf-aama",
+                        Origin::Valentina(_) => "valentina",
+                    }
+                    .into(),
                     file_name: Some(self.file_name.clone()),
                     part: None,
                     other: Map::new(),
                 };
                 let mut pieces = Vec::new();
-                for (p, _) in &offered {
-                    let n = choice(&p.name)?.cuts();
+                for o in &offered {
+                    let n = choice(o.name)?.cuts();
                     if n == 0 {
                         continue;
                     }
-                    let mut piece = dxf_piece(p, &[], &BTreeMap::new(), &source.id, ids)?.piece;
+                    let mut piece = match o.from {
+                        PieceRef::Dxf(p) => {
+                            dxf_piece(p, &[], &BTreeMap::new(), &source.id, ids)?.piece
+                        }
+                        PieceRef::Shape(s) => s.to_piece(&source.id, ids),
+                    };
                     for k in 0..n {
                         piece.cuts.push(Cut {
                             id: ids.next_id(),
                             name: (n == 2).then(|| {
-                                format!("{} {}", if k == 0 { "right" } else { "left" }, p.name)
+                                format!("{} {}", if k == 0 { "right" } else { "left" }, o.name)
                             }),
                             mirrored: k == 1,
                             fabric: None,
@@ -505,8 +627,7 @@ impl DxfImport {
         body_glb: &[u8],
         ids: &mut IdGen,
     ) -> Result<Option<Document>, String> {
-        self.sidecar
-            .as_ref()
+        self.sidecar()
             .map(|g| {
                 convert_with(
                     g,
@@ -564,6 +685,7 @@ impl DxfImport {
             .unwrap_or(&self.file_name)
             .trim_end_matches(".dxf")
             .trim_end_matches(".DXF")
+            .trim_end_matches(".val")
             .to_string();
         let fabric = fabric_entity(
             fabric_id.clone(),
@@ -606,7 +728,7 @@ impl DxfImport {
         // The sidecar's conversion needs a body file only for its project; any bytes do.
         let sidecar = self.sidecar_document(&[], ids)?;
         let mut notes = Vec::new();
-        if self.sidecar.is_some() {
+        if self.sidecar().is_some() {
             notes.push("the sewing file's fabric and simulation settings are not used when adding to a project".into());
         }
         let Parts {
@@ -735,7 +857,7 @@ mod tests {
     /// the suggestions alone, and its wraps land near the hand-tuned sidecar's.
     #[test]
     fn tshirt_dxf_imports_and_places() {
-        let imp = DxfImport::read(
+        let imp = PatternImport::read(
             "tshirt.dxf",
             &asset("assets/garments/tshirt/tshirt.dxf"),
             None,
@@ -784,7 +906,7 @@ mod tests {
     #[test]
     fn sidecar_gives_the_sewing() {
         let toml = asset("assets/garments/hoodie/garment.toml");
-        let imp = DxfImport::read(
+        let imp = PatternImport::read(
             "hoodie.dxf",
             &asset("assets/garments/hoodie/hoodie.dxf"),
             Some(&toml),
@@ -824,6 +946,92 @@ mod tests {
             },
         );
         assert!(imp.new_project(&choices, &body_glb(), &mut ids).is_err());
+    }
+
+    /// A small skirt in Valentina's format: a front and a back panel with a curved hip,
+    /// drafted from `hip_circ` in its measurements file.
+    const SKIRT_VAL: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
+<pattern>
+    <version>0.9.2</version>
+    <unit>cm</unit>
+    <measurements path="/home/someone/skirt.vit"/>
+    <increments><increment name="#ease" formula="2"/></increments>
+    <draw name="Skirt">
+        <calculation>
+            <point type="single" id="1" name="A" x="0" y="0"/>
+            <point type="endLine" id="2" name="B" basePoint="1" angle="0" length="hip_circ/4 + #ease"/>
+            <point type="endLine" id="3" name="C" basePoint="1" angle="270" length="60"/>
+            <point type="endLine" id="4" name="D" basePoint="2" angle="270" length="60"/>
+            <point type="endLine" id="5" name="E" basePoint="2" angle="270" length="20"/>
+            <point type="endLine" id="6" name="F" basePoint="1" angle="0" length="Line_A_B - 3"/>
+            <spline type="simpleInteractive" id="7" point1="6" point4="5" angle1="0" angle2="90" length1="2" length2="8"/>
+        </calculation>
+        <modeling/>
+        <details>
+            <detail id="20" name="Skirt front" version="2">
+                <data quantity="1"/>
+                <nodes>
+                    <node type="NodePoint" idObject="1"/>
+                    <node type="NodeSpline" idObject="7"/>
+                    <node type="NodePoint" idObject="4"/>
+                    <node type="NodePoint" idObject="3"/>
+                </nodes>
+            </detail>
+            <detail id="21" name="Skirt back" version="2">
+                <nodes>
+                    <node type="NodePoint" idObject="1"/>
+                    <node type="NodeSpline" idObject="7"/>
+                    <node type="NodePoint" idObject="4"/>
+                    <node type="NodePoint" idObject="3"/>
+                </nodes>
+            </detail>
+        </details>
+    </draw>
+</pattern>"##;
+
+    const SKIRT_VIT: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<vit><version>0.6.2</version><read-only>false</read-only><unit>cm</unit><pm_system></pm_system>
+<personal/><body-measurements><m name="hip_circ" value="96"/></body-measurements></vit>"#;
+
+    /// A Valentina pattern becomes a placed, valid project whose curved hip is a cubic edge.
+    #[test]
+    fn valentina_pattern_imports() {
+        let e = PatternImport::read_valentina("skirt.val", SKIRT_VAL, None, None)
+            .err()
+            .unwrap();
+        assert!(e.contains("skirt.vit"), "{e}");
+        let imp =
+            PatternImport::read_valentina("skirt.val", SKIRT_VAL, Some(SKIRT_VIT), None).unwrap();
+        let preview = imp.preview();
+        assert_eq!(preview.pieces.len(), 2);
+        assert!(preview.sizes.is_empty());
+        let front = &preview.pieces[0];
+        assert_eq!(front.name, "Skirt front");
+        // 96/4 + 2 = 26 cm across.
+        let w = front.outline.iter().map(|p| p[0]).fold(0.0, f64::max);
+        assert_eq!(w, 260.0);
+        assert_eq!(
+            front.suggestion,
+            Some(Choice::One {
+                place: BodyPlace::BodyFront
+            })
+        );
+        let mut ids = IdGen::new(0, b"valentina");
+        let (doc, _) = imp
+            .new_project(&suggested(&preview), &body_glb(), &mut ids)
+            .unwrap();
+        assert!(doc.validate().errors.is_empty());
+        let g = &doc.garments[0];
+        assert_eq!(g.name, "skirt");
+        assert_eq!(g.sources[0].kind, "valentina");
+        assert_eq!(g.pieces.len(), 2);
+        assert!(
+            g.pieces[0]
+                .outline
+                .iter()
+                .any(|n| n.edge.as_ref().is_some_and(|e| e.is_cubic()))
+        );
+        assert!(g.seams.is_empty());
     }
 
     #[test]

@@ -35,7 +35,7 @@ pub use entities::Entities;
 pub use id::{Id, IdGen};
 pub use manifest::Kind;
 pub use model::*;
-pub use validate::Report;
+pub use validate::{Report, check_outline_shape};
 
 /// The version this crate reads and writes.
 pub const FORMAT_VERSION: u32 = 3;
