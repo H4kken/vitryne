@@ -11,7 +11,7 @@ use glam::Vec3;
 use serde::Serialize;
 use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Piece, Placement, Wrap};
 use vitryne_pattern::{
-    import::{Addition, Choice, PatternImport, import_bounds, rewrap},
+    import::{Addition, Choice, ImportSource, import_bounds, rewrap},
     placement::{BodyFacts, BodyPlace},
     project::{Placer, ProjectGarment, avatar_mesh},
     seams::{self, CutEdge, EdgePick, SeamProposal},
@@ -230,19 +230,17 @@ impl ProjectFile {
             .collect())
     }
 
-    /// A DXF (and its sidecar) as a new project around the test avatar, its pieces placed
-    /// as chosen (docs/ARCHITECTURE.md, Import and placement). `body_glb`: the test avatar's
-    /// mesh; `now_ms` and `seed` make the ids.
+    /// A pattern as a new project around the test avatar, its pieces placed as chosen
+    /// (docs/ARCHITECTURE.md, Import and placement). `body_glb`: the test avatar's mesh;
+    /// `now_ms` and `seed` make the ids.
     pub fn import_new(
-        file_name: &str,
-        dxf: &str,
-        sidecar: Option<&str>,
+        source: &ImportSource,
         choices: &BTreeMap<String, Choice>,
         body_glb: &[u8],
         now_ms: u64,
         seed: &[u8],
     ) -> Result<Imported, String> {
-        let imp = PatternImport::read(file_name, dxf, sidecar)?;
+        let imp = source.read()?;
         let (doc, notes) = imp.new_project(choices, body_glb, &mut IdGen::new(now_ms, seed))?;
         Ok(Imported {
             file: Self { doc },
@@ -257,18 +255,16 @@ impl ProjectFile {
         Ok(Self { doc })
     }
 
-    /// Pieces from a DXF (and its sidecar's seams) to add to this project's garment, placed
-    /// around its avatar. Nothing changes here: the editor adds them as an edit.
+    /// Pieces from a pattern (and a DXF sidecar's seams) to add to this project's garment,
+    /// placed around its avatar. Nothing changes here: the editor adds them as an edit.
     pub fn import_addition(
         &self,
-        file_name: &str,
-        dxf: &str,
-        sidecar: Option<&str>,
+        source: &ImportSource,
         choices: &BTreeMap<String, Choice>,
         now_ms: u64,
         seed: &[u8],
     ) -> Result<Addition, String> {
-        let imp = PatternImport::read(file_name, dxf, sidecar)?;
+        let imp = source.read()?;
         let (regions, body) = self.body()?;
         imp.addition(choices, regions, &body, &mut IdGen::new(now_ms, seed))
     }
@@ -600,6 +596,14 @@ mod tests {
         .unwrap()
     }
 
+    fn tshirt_source() -> ImportSource {
+        ImportSource::Dxf {
+            name: "tshirt.dxf".into(),
+            text: asset("assets/garments/tshirt/tshirt.dxf"),
+            sidecar: None,
+        }
+    }
+
     /// The test avatar's mesh as the app bundles it (`export-app-assets`: avatar/body.glb).
     fn body_glb() -> Vec<u8> {
         let doc = Document::open(
@@ -622,9 +626,7 @@ mod tests {
         )
         .unwrap();
         let imported = ProjectFile::import_new(
-            "tshirt.dxf",
-            &asset("assets/garments/tshirt/tshirt.dxf"),
-            None,
+            &tshirt_source(),
             &choices,
             &body_glb(),
             1_792_022_400_000,
@@ -666,9 +668,7 @@ mod tests {
         )
         .unwrap();
         let imported = ProjectFile::import_new(
-            "tshirt.dxf",
-            &asset("assets/garments/tshirt/tshirt.dxf"),
-            None,
+            &tshirt_source(),
             &choices,
             &body_glb(),
             1_792_022_400_000,
@@ -690,14 +690,7 @@ mod tests {
 
         // Its first piece, from a DXF, as the editor adds it (`addPieces`).
         let a = again
-            .import_addition(
-                "tshirt.dxf",
-                &asset("assets/garments/tshirt/tshirt.dxf"),
-                None,
-                &choices,
-                1_792_022_400_001,
-                b"seed",
-            )
+            .import_addition(&tshirt_source(), &choices, 1_792_022_400_001, b"seed")
             .unwrap();
         let mut e = again.document().entities();
         e.garments[0]["pieces"] = serde_json::to_value(&a.pieces).unwrap();
@@ -816,9 +809,7 @@ mod tests {
         )
         .unwrap();
         let mut file = ProjectFile::import_new(
-            "tshirt.dxf",
-            &asset("assets/garments/tshirt/tshirt.dxf"),
-            None,
+            &tshirt_source(),
             &choices,
             &body_glb(),
             1_792_022_400_000,

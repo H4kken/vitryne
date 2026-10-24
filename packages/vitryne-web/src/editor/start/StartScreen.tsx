@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // What the editor shows with nothing open, like a design tool's home: a Create row (import a
-// file, picked or dropped anywhere here: a DXF pattern, or a .vtry project; start from
+// file, picked or dropped anywhere here: a DXF or Valentina pattern, or a .vtry project; start from
 // scratch; or start from one of the bundled examples), then the person's projects as cards.
 
 import { Button } from "@/components/ui/button";
@@ -31,9 +31,9 @@ export function StartScreen(props: {
   onPreset: (e: Example) => void;
   /** An empty project. */
   onScratch: () => void;
-  /** Picks a DXF pattern or a .vtry project. */
+  /** Picks a pattern (DXF, or Valentina with its measurements) or a .vtry project. */
   onImport: () => void;
-  /** Dropping a DXF (and its garment.toml), or a .vtry, here imports it. */
+  /** Dropping a pattern (a DXF and its garment.toml, a .val and its measurements), or a .vtry, here imports it. */
   dropProps: {
     onDragOver: (e: React.DragEvent) => void;
     onDrop: (e: React.DragEvent) => void;
@@ -107,7 +107,7 @@ export function StartScreen(props: {
                   Import a file
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  A DXF pattern or a .vtry project
+                  A DXF or Valentina pattern, or a .vtry project
                 </span>
               </span>
             </button>

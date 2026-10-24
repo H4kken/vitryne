@@ -125,21 +125,28 @@ export interface Requests {
     args: { rev: number; form: FileData["form"] };
     reply: { rev: number; data: FileData };
   };
-  /** What importing a DXF would give (Rust `import::Preview`, JSON). `sidecar`: a garment.toml or "". */
-  inspectDxf: {
-    args: { name: string; dxf: string; sidecar: string };
+  /** What a pattern file needs before it can be read (Rust `valentina::Needs`, JSON). */
+  patternNeeds: {
+    args: { text: string };
+    reply: { needs: string };
+  };
+  /**
+   * What importing a pattern would give (Rust `import::Preview`, JSON). `source`: Rust
+   * `import::ImportSource` (JSON), a DXF or a Valentina pattern and the file with it.
+   */
+  inspectImport: {
+    args: { source: string };
     reply: { preview: string };
   };
   /**
-   * A new project from a DXF, its pieces placed as `choices` (JSON) say; it becomes the
-   * worker's document, like `open`. `avatar`: the test avatar's mesh. The reply has its
-   * entities, the import's notes, and the file (kept by the UI, to reopen after a restart).
+   * A new project from a pattern (`source`, as for `inspectImport`), its pieces placed as
+   * `choices` (JSON) say; it becomes the worker's document, like `open`. `avatar`: the test
+   * avatar's mesh. The reply has its entities, the import's notes, and the file (kept by the
+   * UI, to reopen after a restart).
    */
   importNew: {
     args: {
-      name: string;
-      dxf: string;
-      sidecar: string;
+      source: string;
       choices: string;
       avatar: ArrayBuffer;
       seed: number[];
@@ -154,12 +161,10 @@ export interface Requests {
     args: { avatar: ArrayBuffer; seed: number[] };
     reply: { entities: string; notes: string[]; zip: ArrayBuffer };
   };
-  /** Pieces from a DXF to add to the open project (Rust `import::Addition`, JSON); nothing changes. */
+  /** Pieces from a pattern to add to the open project (Rust `import::Addition`, JSON); nothing changes. */
   importAddition: {
     args: {
-      name: string;
-      dxf: string;
-      sidecar: string;
+      source: string;
       choices: string;
       seed: number[];
     };

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Importing: a file picked or dropped. A .vtry opens as a new project; a DXF goes to the import
-// dialog (a garment.toml with it is kept for it), whose pieces become a new project or are added
-// to the open one.
+// Importing: a file picked or dropped. A .vtry opens as a new project; a pattern goes to the
+// import dialog: a DXF (with a garment.toml if one came with it) or a Valentina pattern (with
+// its measurements file), whose pieces become a new project or are added to the open one.
 
 import { useState } from "react";
 import { type Addition, addPieces } from "@/document/commands";
@@ -9,21 +9,30 @@ import type { DocumentStore } from "@/document/store";
 import type { Garment } from "@/format/schema.gen";
 import type { EngineSession } from "@/worker/session";
 import type { TextFile } from "../dialogs/ImportDialog";
+import {
+  importSource,
+  isCompanion,
+  patternKind,
+} from "../dialogs/importSource";
 import { fetchAvatar } from "../examples";
 import { seed } from "../seed";
 import type { useFiles } from "./useFiles";
 
-/** Text files from a drop or a file input: a DXF, and a garment.toml if there is one. */
+/**
+ * Text files from a drop or a file input: a pattern, and the file that goes with it if there is
+ * one (a garment.toml for a DXF, measurements for a Valentina pattern).
+ */
 async function readPattern(
   files: FileList | File[],
-): Promise<{ dxf: TextFile; sidecar: TextFile | null } | null> {
+): Promise<{ pattern: TextFile; companion: TextFile | null } | null> {
   const list = [...files];
-  const dxf = list.find((f) => /\.dxf$/i.test(f.name));
-  if (!dxf) return null;
-  const toml = list.find((f) => /\.toml$/i.test(f.name));
+  const pattern = list.find((f) => patternKind(f.name));
+  const kind = pattern && patternKind(pattern.name);
+  if (!pattern || !kind) return null;
+  const other = list.find((f) => isCompanion(kind, f.name));
   return {
-    dxf: { name: dxf.name, text: await dxf.text() },
-    sidecar: toml ? { name: toml.name, text: await toml.text() } : null,
+    pattern: { name: pattern.name, text: await pattern.text() },
+    companion: other ? { name: other.name, text: await other.text() } : null,
   };
 }
 
@@ -42,7 +51,9 @@ export function useImport(o: {
   const { session, store, files, garment, empty, startNew } = o;
   const [importing, setImporting] = useState<TextFile | null>(null);
   const [importKey, setImportKey] = useState(0);
-  const [droppedSidecar, setDroppedSidecar] = useState<TextFile | null>(null);
+  const [droppedCompanion, setDroppedCompanion] = useState<TextFile | null>(
+    null,
+  );
 
   const startImport = async (list: FileList | File[]) => {
     const vtry = [...list].find((f) => /\.vtry$/i.test(f.name));
@@ -52,16 +63,16 @@ export function useImport(o: {
       files.showError(
         "Not imported",
         new Error(
-          "pick a DXF-AAMA pattern (.dxf) or a Vitryne project (.vtry)",
+          "pick a pattern (DXF-AAMA .dxf, or Valentina .val with its .vit or .vst) or a Vitryne project (.vtry)",
         ),
       );
       return;
     }
     // Pieces added to the open project aren't a new project; a new one replaces the draft.
     const show = () => {
-      setDroppedSidecar(r.sidecar);
+      setDroppedCompanion(r.companion);
       setImportKey((k) => k + 1);
-      setImporting(r.dxf);
+      setImporting(r.pattern);
     };
     if (empty) startNew(show);
     else show();
@@ -79,21 +90,17 @@ export function useImport(o: {
   };
 
   const runImport = async (r: {
-    dxf: TextFile;
-    sidecar: TextFile | null;
+    pattern: TextFile;
+    companion: TextFile | null;
+    size: number[] | null;
     choices: Record<string, unknown>;
     into: "new" | "add";
   }) => {
     const choices = JSON.stringify(r.choices);
+    const source = importSource(r.pattern, r.companion, r.size);
     if (r.into === "add" && garment) {
       const a = JSON.parse(
-        await session.importAddition({
-          name: r.dxf.name,
-          dxf: r.dxf.text,
-          sidecar: r.sidecar?.text ?? "",
-          choices,
-          seed: seed(),
-        }),
+        await session.importAddition({ source, choices, seed: seed() }),
       ) as Addition;
       if (!store.execute((e) => addPieces(e, garment.id, a)))
         throw new Error(store.state.refused ?? "the pieces could not be added");
@@ -102,18 +109,11 @@ export function useImport(o: {
       // With nothing open, starting the import already asked.
       if (!empty && !(await o.confirmReplace())) return;
       const avatar = await fetchAvatar();
-      const name = `${r.dxf.name.replace(/\.dxf$/i, "")}.vtry`;
+      const name = `${r.pattern.name.replace(/\.(dxf|val)$/i, "")}.vtry`;
       await files.importNew(async (rev) => ({
         name,
         ...(await session.importNew(
-          {
-            name: r.dxf.name,
-            dxf: r.dxf.text,
-            sidecar: r.sidecar?.text ?? "",
-            choices,
-            avatar,
-            seed: seed(),
-          },
+          { source, choices, avatar, seed: seed() },
           rev,
         )),
       }));
@@ -123,11 +123,11 @@ export function useImport(o: {
   };
 
   return {
-    /** The DXF in the import dialog. */
+    /** The pattern in the import dialog. */
     importing,
     /** Bumped by each import, so the dialog starts afresh. */
     importKey,
-    droppedSidecar,
+    droppedCompanion,
     closeImport: () => setImporting(null),
     startImport,
     dropProps,

@@ -135,15 +135,17 @@ const handlers: Handlers = {
     return { rev, data: { form, files } };
   },
 
-  async inspectDxf({ name, dxf, sidecar }) {
-    return { preview: VtryFile.inspect_dxf(name, dxf, sidecar) };
+  async patternNeeds({ text }) {
+    return { needs: VtryFile.pattern_needs(text) };
   },
 
-  async importNew({ name, dxf, sidecar, choices, avatar, seed }) {
+  async inspectImport({ source }) {
+    return { preview: VtryFile.inspect_import(source) };
+  },
+
+  async importNew({ source, choices, avatar, seed }) {
     const next = VtryFile.import_new(
-      name,
-      dxf,
-      sidecar,
+      source,
       choices,
       new Uint8Array(avatar),
       Date.now(),
@@ -175,12 +177,10 @@ const handlers: Handlers = {
     };
   },
 
-  async importAddition({ name, dxf, sidecar, choices, seed }) {
+  async importAddition({ source, choices, seed }) {
     return {
       addition: needFile().import_addition(
-        name,
-        dxf,
-        sidecar,
+        source,
         choices,
         Date.now(),
         new Uint8Array(seed),
