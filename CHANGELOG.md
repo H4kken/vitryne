@@ -13,6 +13,11 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 - Dark mode in the editor: pick Light, Dark or System from the new appearance menu in the top bar
   and on the start screen (the choice is kept in this browser).
 
+- Import Valentina patterns (`.val`) with their measurements (`.vit`, or a `.vst` size chart and
+  a size): drop them on the editor or use **Import a file**; the dialog asks for the measurements
+  file the pattern names. Curves stay curves. Also `vitryne convert pattern.val out.vtry
+  --measurements m.vit [--size 176,100]`.
+
 ## [0.2.0] - 2026-10-23
 
 ### Added

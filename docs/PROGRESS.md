@@ -1287,3 +1287,50 @@ Four commits, `make check` after each (apart from the hygiene step, below):
   Docker and the local Supabase stack; the Supabase CLI finds its project at the new workdir.
 - rust-analyzer finds the workspace in `packages/vitryne-engine/` only if the editor opens that
   folder or is told where it is (`rust-analyzer.linkedProjects`).
+
+## M15 — Import Valentina patterns (2026-10-24, waiting for review)
+
+Why: a Reddit reply ("there's already free tools like Valentina") showed the pitch reads as
+"another pattern tool". Opening the files Valentina users already have, and draping them, is
+what Vitryne adds. Feature 1 of 2 (Seamly2D's `.sm2d` is next; it shares this core). Branch
+`feature/valentina-import`, five commits:
+
+| Step | What |
+|---|---|
+| Formulas, measurements | `valentina::formula`: the apps' muParser dialect (`;` arguments, Unicode names, `#increments`, statement lists). `valentina::measurements`: `.vit` (values are formulas) and `.vst` size charts (0.4 height/size, 0.5+ dimensions, shifts, corrections), in the pattern's unit. |
+| Tools | `valentina::{xml, geom, tools}`: the file's layout, and every drafting tool run in order in the app's units (96 dpi px, y down) so its tolerances hold: all point tools, splines and paths (old and current forms), Bézier curves and paths, arcs, cuts and intersections with their halves, rotation/flip/move, modeling copies; the values formulas see (`Line_`, `AngleLine_` through the lines tools register, curve lengths and angles, `_Seg_N`, `CurrentLength`). A failing tool marks only what depends on it. |
+| Pieces | `valentina::pieces`: paths to outlines (curves trimmed between neighbours, `cubic` edges, 15° corners, passmark notches, lines, grain, mirror line unfolded); slits closed and small self-crossings trimmed with a warning; anything else not a simple polygon refused with the reason. `import::PatternImport` (was `DxfImport`) takes a DXF or a Valentina pattern; `vitryne convert x.val`. |
+| Editor | `ImportSource` through wasm and the worker; the dialog asks for the measurements file the pattern names, offers a size chart's sizes; `.val/.vit/.vst` accepted. |
+| Docs | This entry, ARCHITECTURE (Import), FORMAT (Interop), PATENTS (no rule touched), the docs site's Imports page, `tools/valentina/corpus.sh` (`make valentina-corpus`). |
+
+### Numbers
+
+`make valentina-corpus` (Valentina's own collection at `6f4358d9`, 78 patterns, each with the
+measurements file it names at its base size):
+
+- **78 of 78 read; 214 pieces made, 11 refused**, each with its reason:
+  - the union-details tool (not supported): 3 pieces (jacketM4 ×2, Steampunk trousers' waist);
+  - outlines that really cross themselves (darts drawn overlapping, or drafting slips beyond a
+    small overlap): 6 pieces (Basic block women FrontPanel1, Gent jacket Sivupalakainalo,
+    pattern_blusa, and three files from `bugs/`);
+  - an elliptical-arc tool not supported yet (`bugs/Issue_#642`, `#963` via its dependants), a
+    piece with under three points (`bugs/`).
+- Formula parser: all 4239 well-formed formulas in Valentina's sample and test files parse.
+- Checked by eye (plots of the made pieces): Keiko's skirt (darts), the MaleShirt (17 pieces),
+  the Trousers (13), jacketM1, Basic block women; the shirt and trousers convert to valid projects.
+- Tests: 51 in `vitryne-pattern`'s library (formula, measurements, geometry, layout, tools,
+  pieces, and a Valentina skirt through the import), wasm 12, vitest 122 (+1: a Valentina
+  skirt through the wasm as the editor sends it). `make check` passes; the goldens are
+  unchanged (0.00 mm).
+
+### Open items
+
+- **Your review**, and two checks this machine couldn't do without you:
+  - **Valentina's own output as the reference.** With Valentina installed, its command line can
+    export each sample as DXF-AAMA; a golden test can then require our outlines to match within
+    0.1 mm (step 4 of the plan, `tests/valentina/`). Until then the check is by eye.
+  - **The editor end to end** (drop a `.val` + `.vit`, place, sew from suggestions, drape) in
+    real Chrome needs the local stack (`make dev ARGS=--local`, Docker), which wasn't running.
+- Not supported yet: the union-details tool, elliptical arcs, Valentina 1.x parallel and
+  graduated curves; labels, seam allowances and layout data are not imported (by design).
+- Feature 2: Seamly2D (`.sm2d` with `.smis`/`.smms`).

@@ -183,6 +183,22 @@ bindings, cuffs and bands get none), which the user sees and can change: no lear
 become a new project (the test avatar, a placeholder jersey, self-collision on, the import
 collision box) or are added to the open project's garment as one undoable edit.
 
+**Valentina patterns** (`.val`) take the same dialog (`vitryne_pattern::valentina`). A Valentina
+file stores no shapes: it lists drafting tools (a point at a distance and angle, along a line,
+where two circles meet, a spline, a rotation, ...) whose numbers are formulas over body
+measurements kept in another file (`.vit` for one person, `.vst` for a size chart) that the
+pattern names by the author's path. The worker first asks which file that is
+(`pattern_needs`); the dialog asks for it by name and, for a size chart, offers its sizes.
+Reading runs every tool in the file's order, in the app's own units (96 dpi pixels, y down) so
+its tolerances hold, and turns each piece's path into an outline: curves become `cubic` edges
+trimmed between their neighbouring points, a node a `corner` where the outline turns over 15°
+or a `notch` where it has a passmark; internal paths, the grainline and a mirror line (unfolded,
+with a `fold`) come along. A tool that can't be worked out makes only what depends on it
+unavailable; a piece that needs it, or that isn't a simple polygon after closing slits and
+trimming small overlaps, is refused with the reason, and the other pieces still import. The
+file has no sewing: the seam suggestions sew the pieces afterwards. The dialog sends the worker
+an `ImportSource` (JSON): the pattern and the file that goes with it.
+
 **Placement is a wrap, chosen from a list and then adjusted.** Every place is a region of the
 avatar and an angle (`BodyPlace`). The starting wrap (`placement::auto_wrap`) is worked out from
 the piece and the body, never stored rules per garment:

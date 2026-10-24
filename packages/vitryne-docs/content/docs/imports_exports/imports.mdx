@@ -4,10 +4,12 @@ icon: Upload
 description: Bring in a pattern from your pattern software, or a Vitryne project file.
 ---
 
-Vitryne opens two kinds of files:
+Vitryne opens three kinds of files:
 
 - **A DXF pattern** (`.dxf`) in the DXF-AAMA format, the pattern exchange format most pattern
   software can save to. You get its pieces, ready to place on the body and sew.
+- **A Valentina pattern** (`.val`), with the measurements file it was drafted from (`.vit` or
+  `.vst`). You get its pieces at the size you choose, curves and all.
 - **A Vitryne project** (`.vtry`), exported from Vitryne. It opens as a new project, exactly as
   it was saved.
 
@@ -17,9 +19,22 @@ Vitryne opens two kinds of files:
 - In an empty garment, choose **Import** on the _Draw your first piece_ card.
 - Drop a file on the pattern or the 3D view of an open project.
 
+## Valentina patterns
+
+A Valentina pattern doesn't hold its pieces' sizes: Valentina works them out from body
+measurements kept in a separate file. So Vitryne needs that file too.
+
+- Drop the `.val` and its `.vit` or `.vst` together, or import the `.val` and choose **Add …** in
+  the **Measurements** box: the dialog names the file the pattern was drafted with.
+- With a size chart (`.vst`), pick the size in the same box. The pieces update.
+- A pattern that needs no measurements file opens straight away.
+
+If Valentina can't work out a piece in a way Vitryne can follow, the dialog lists it under
+**Left out of the file** with the reason, and the other pieces still import.
+
 ## Place the pieces
 
-A DXF pattern opens the **Import a pattern** dialog. It lists every piece with a small drawing and
+A pattern opens the **Import a pattern** dialog. It lists every piece with a small drawing and
 asks where each one goes on the body:
 
 - **One place**, such as _Body, front_ or _Right arm_.
@@ -42,7 +57,7 @@ open one.
 
 ## After the import
 
-The pieces are placed but **not sewn yet**. Sew them as in
+The pieces are placed but **not sewn yet** (Valentina patterns carry no sewing). Sew them as in
 [Your first Pattern](/guide/first-pattern#sew-the-sides): **Suggest seams** in the **Pieces**
 panel finds the obvious ones, and **Sew two edges** joins the rest.
 
