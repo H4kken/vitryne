@@ -24,11 +24,12 @@ export function DrapeToolBar({
   // The drape waits while placing, whatever the pause flag says.
   const running = !engine.controls.paused && !placing;
   // A pinch on the cloth while paused: the Play button flashes, it is what makes it work.
-  const [flash, setFlash] = useState(false);
+  const [seenHint, setSeenHint] = useState(0);
+  const flash = engine.playHint !== 0 && engine.playHint !== seenHint;
   useEffect(() => {
     if (engine.playHint === 0) return;
-    setFlash(true);
-    const t = setTimeout(() => setFlash(false), 1500);
+    const hint = engine.playHint;
+    const t = setTimeout(() => setSeenHint(hint), 1500);
     return () => clearTimeout(t);
   }, [engine.playHint]);
   return (
