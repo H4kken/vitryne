@@ -84,6 +84,19 @@ export function useSewing(o: {
     [sewingKey],
   );
 
+  // Escape drops the edges picked so far.
+  const picking = picks !== null;
+  useEffect(() => {
+    if (!picking) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key !== "Escape" || t?.closest("input, textarea, select")) return;
+      setPicks(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [picking, setPicks]);
+
   const findSeams = useCallback(async () => {
     setFinding(true);
     try {

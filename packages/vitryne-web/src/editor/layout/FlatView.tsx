@@ -174,7 +174,7 @@ export function FlatView(props: {
       {!doc.empty && flatTool === "sew" && garment && (
         <SewLengthBar
           garment={garment}
-          picked={picks?.open === "b" ? picks.a : []}
+          picked={picks?.a ?? []}
           hovered={hoveredEdge}
           second={picks?.open === "b"}
         />

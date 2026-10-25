@@ -16,12 +16,18 @@ export function SewLengthBar(props: {
   /** The first side is done: the next pick is the second. */
   second: boolean;
 }) {
-  const { garment, picked, hovered, second } = props;
+  const { garment, hovered, second } = props;
+  // Each edge once, whatever the picks hold.
+  const picked = props.picked.filter(
+    (e, i, all) =>
+      all.findIndex((x) => x.cut === e.cut && x.from === e.from) === i,
+  );
   const first = picked[0];
   const row = (label: string, edge: CutEdge) => (
     <div
-      // A new edge is a new row, so it fades in again.
-      key={`${edge.cut}:${edge.from}:${edge.to}`}
+      // A new edge is a new row, so it fades in again. The label is in the key: the edge under
+      // the pointer is often the one just picked, and two siblings with one key pile up rows.
+      key={`${label}:${edge.cut}:${edge.from}:${edge.to}`}
       className="animate-in fade-in slide-in-from-top-1 flex items-baseline gap-2 duration-150"
     >
       <span className="text-muted-foreground text-[13px]">{label}</span>
