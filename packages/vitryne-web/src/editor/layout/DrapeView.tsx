@@ -117,7 +117,6 @@ export function DrapeView(props: {
         engine={engine}
         tool={tool}
         setTool={setTool}
-        placing={placing}
       />
     </div>
   );

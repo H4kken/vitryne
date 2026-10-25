@@ -13,16 +13,13 @@ export function DrapeToolBar({
   engine,
   tool,
   setTool,
-  placing,
 }: {
   session: EngineSession;
   engine: EngineState;
   tool: PointerTool;
   setTool: (t: PointerTool) => void;
-  placing: boolean;
 }) {
-  // The drape waits while placing, whatever the pause flag says.
-  const running = !engine.controls.paused && !placing;
+  const running = !engine.controls.paused;
   // A pinch on the cloth while paused: the Play button flashes, it is what makes it work.
   const [seenHint, setSeenHint] = useState(0);
   const flash = engine.playHint !== 0 && engine.playHint !== seenHint;
@@ -53,11 +50,7 @@ export function DrapeToolBar({
         label={running ? "Pause (space)" : "Play (space)"}
         flash={flash}
         onClick={() => {
-          // Play while placing means "drape now".
-          if (placing) setTool("pinch");
-          session.setControls({
-            paused: placing ? false : !engine.controls.paused,
-          });
+          session.setControls({ paused: !engine.controls.paused });
         }}
       >
         {running ? <Pause className="size-5" /> : <Play className="size-5" />}

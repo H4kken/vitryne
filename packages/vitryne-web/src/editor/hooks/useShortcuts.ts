@@ -141,11 +141,8 @@ export function useShortcuts(o: {
         return;
       }
       const c = session.state.controls;
-      if (e.key === " ") {
-        // Play while placing means "drape now", as the button does.
-        if (c.placing) setTool("pinch");
-        session.setControls({ paused: c.placing ? false : !c.paused });
-      } else if (k === "f") session.setControls({ fast: !c.fast });
+      if (e.key === " ") session.setControls({ paused: !c.paused });
+      else if (k === "f") session.setControls({ fast: !c.fast });
       else if (k === "r") session.resetDrape();
       else return;
       e.preventDefault();
