@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // A list of where something can go on the body: places, pairs of places, "on top of" another
 // piece, and "leave it out". Values are strings: `one:<place>`, `pair:<pair>`, `on:<key>`,
-// `leave`.
+// `flat`, `leave`.
 
 import {
   Select,
@@ -22,6 +22,8 @@ export interface PlaceOptions {
   /** "On top of": key and label of each piece it can go on. */
   on: { key: string; label: string }[];
   leave: boolean;
+  /** "Import as it is": no place fits, start it flat in front of the chest. */
+  flat?: boolean;
 }
 
 export function PlaceSelect(props: {
@@ -48,7 +50,8 @@ export function PlaceSelect(props: {
           placeholder={props.placeholder ?? "Choose where it goes"}
         />
       </SelectTrigger>
-      <SelectContent>
+      {/* Popper, not item-aligned: aligning to the selected item scrolls a long list back up. */}
+      <SelectContent position="popper" className="max-h-72">
         {o.pairs && (
           <SelectGroup>
             <SelectLabel>Two copies</SelectLabel>
@@ -83,12 +86,9 @@ export function PlaceSelect(props: {
             </SelectGroup>
           </>
         )}
-        {o.leave && (
-          <>
-            <SelectSeparator />
-            <SelectItem value="leave">Leave it out</SelectItem>
-          </>
-        )}
+        {(o.flat || o.leave) && <SelectSeparator />}
+        {o.flat && <SelectItem value="flat">Import as it is</SelectItem>}
+        {o.leave && <SelectItem value="leave">Leave it out</SelectItem>}
       </SelectContent>
     </Select>
   );

@@ -50,7 +50,7 @@ export function MeasurementsBox(props: {
   );
   const current = props.size ?? props.sizes.map((d) => d.base);
   return (
-    <div className="flex flex-col gap-2 rounded-2xl bg-[#F4F5F2] p-4 text-[14px] leading-snug">
+    <div className="flex flex-col gap-2 rounded-2xl bg-secondary/50 p-4 text-foreground text-[14px] leading-snug">
       <span className="font-semibold">Measurements</span>
       {props.file ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -81,7 +81,7 @@ export function MeasurementsBox(props: {
                   props.onSize(current.map((x, j) => (j === k ? Number(v) : x)))
                 }
               >
-                <SelectTrigger className="h-9 w-[110px] rounded-[10px] bg-white">
+                <SelectTrigger className="h-9 w-[110px] rounded-[10px] bg-card">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -22,6 +22,19 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 - Start screen: **Import a file** is a slim row above the examples, dragging a file over the
   window shows a full-screen drop zone, and **Start from scratch** has a larger Lucide icon.
 
+- Import dialog: **Import as it is** for a piece no body place fits. It starts as a nearly flat
+  sheet in front of the chest, to move by hand.
+
+### Fixed
+
+- Importing a Valentina pattern whose outline has a hairpin stub (an edge out and back along a
+  curve) no longer stops the 3D engine: the stub is closed, and an outline that still folds back
+  on itself is refused with a message.
+- The import dialog's measurements box follows the dark theme, and its place list no longer
+  offers a piece that already sits on this one (two pieces on each other made the project
+  invalid: "its placement follows itself").
+- The "where it goes" list scrolls normally instead of jumping back up.
+
 ## [0.2.0] - 2026-10-23
 
 ### Added

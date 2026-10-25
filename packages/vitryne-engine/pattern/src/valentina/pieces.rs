@@ -308,17 +308,21 @@ fn classify(vs: &mut [Vertex], closed: bool) {
     }
 }
 
-/// Closes slits drawn into a closed outline (a straight edge out to a vertex and straight back,
-/// like a sleeve placket's cut): the outline must be a simple polygon. Returns how many.
+/// Closes slits drawn into a closed outline (an edge out to a vertex and straight back, like a
+/// sleeve placket's cut): the outline must be a simple polygon. The slit may leave along a line
+/// or a curve's tangent, but must arrive along a line. Returns how many.
 fn close_slits(vs: &mut Vec<Vertex>) -> usize {
     let mut closed = 0;
     while vs.len() > 3 {
         let n = vs.len();
         let spike = (0..n).find(|&i| {
             let (prev, v, next) = (&vs[(i + n - 1) % n], &vs[i], vs[(i + 1) % n].p);
-            let (a, b) = (v.p - prev.p, next - v.p);
+            let a = v.p - prev.p;
+            let b = match v.edge {
+                Seg::Line => next - v.p,
+                Seg::Cubic(c, _) => c - v.p,
+            };
             prev.edge == Seg::Line
-                && v.edge == Seg::Line
                 && a.length() > 1e-9
                 && b.length() > 1e-9
                 && a.angle_to(b).abs().to_degrees() > 179.0
@@ -326,6 +330,9 @@ fn close_slits(vs: &mut Vec<Vertex>) -> usize {
         let Some(i) = spike else {
             break;
         };
+        // The slit's far side starts where its near side ended.
+        let (before, edge) = ((i + n - 1) % n, vs[i].edge);
+        vs[before].edge = edge;
         vs.remove(i);
         closed += 1;
         // The two sides of the slit may now meet in one place.
@@ -484,13 +491,13 @@ pub fn build(draft: &Draft, el: Node, modeling: &[Node]) -> Result<Shape, String
         ))
     });
     to_mm(&mut outline);
+    if area(&flat(&outline, true)) < 0.0 {
+        outline = reversed(&outline);
+    }
     if close_slits(&mut outline) > 0 {
         warnings.push(format!(
             "{name}: a slit cut into its outline is closed (sew or cut it after draping)"
         ));
-    }
-    if area(&flat(&outline, true)) < 0.0 {
-        outline = reversed(&outline);
     }
     if trim_loops(&mut outline) > 0 {
         warnings.push(format!(
@@ -884,5 +891,29 @@ mod tests {
         assert_eq!(p.lines[0].nodes.last().unwrap().edge, None);
         let folded = all[1].as_ref().unwrap().to_piece(&src, &mut ids);
         assert_eq!(folded.folds.len(), 1);
+    }
+
+    /// A stub out along a line and back along a curve's tangent (the Steampunk trousers' back)
+    /// is a slit too: closed, the far side starting where the near side ended.
+    #[test]
+    fn closes_a_slit_that_leaves_along_a_curve() {
+        let v = |x, y, edge| Vertex {
+            p: DVec2::new(x, y),
+            kind: NodeType::Point,
+            notch: false,
+            edge,
+        };
+        // The stub runs out to (70, 110); the curve leaves it back along the same line.
+        let back = Seg::Cubic(DVec2::new(85.0, 105.0), DVec2::new(20.0, 70.0));
+        let mut vs = vec![
+            v(0.0, 0.0, Seg::Line),
+            v(100.0, 0.0, Seg::Line),
+            v(100.0, 100.0, Seg::Line),
+            v(70.0, 110.0, back),
+            v(0.0, 50.0, Seg::Line),
+        ];
+        assert_eq!(close_slits(&mut vs), 1);
+        assert_eq!(vs.len(), 4);
+        assert_eq!(vs[2].edge, back);
     }
 }

@@ -36,7 +36,8 @@ export type Choice =
   | { type: "leave" }
   | { type: "one"; place: string }
   | { type: "pair"; pair: string }
-  | { type: "on"; piece: string };
+  | { type: "on"; piece: string }
+  | { type: "flat" };
 
 /** Rust `valentina::SizeOption`: one dimension of a size chart. */
 export interface SizeOption {
@@ -155,6 +156,16 @@ export function ImportDialog(props: {
   const preview = current?.preview ?? null;
   const error = runError ?? current?.error ?? null;
 
+  /** Whether `a` already goes on `b`, directly or through other pieces: `b` can't go on it. */
+  const sitsOn = (a: string, b: string): boolean => {
+    for (let k = 0, at = a; k <= Object.keys(choices).length; k++) {
+      const c = choices[at];
+      if (!c?.startsWith("on:")) return false;
+      at = c.slice(3);
+      if (at === b) return true;
+    }
+    return false;
+  };
   const missing = preview?.pieces.filter((x) => !choices[x.name]) ?? [];
   const placed =
     preview?.pieces.filter(
@@ -224,7 +235,12 @@ export function ImportDialog(props: {
               {preview.pieces.map((x) => {
                 const fixed = x.cuts;
                 const others = preview.pieces
-                  .filter((o) => o.name !== x.name)
+                  .filter(
+                    (o) =>
+                      o.name !== x.name &&
+                      !sitsOn(o.name, x.name) &&
+                      choices[o.name] !== "leave",
+                  )
                   .map((o) => ({ key: o.name, label: o.name }));
                 return (
                   <li
@@ -253,10 +269,25 @@ export function ImportDialog(props: {
                         one: fixed !== 2,
                         pairs: fixed !== 1,
                         on: fixed === 2 ? [] : others,
+                        flat: fixed !== 2,
                         leave: true,
                       }}
                       onChange={(v) =>
-                        setChoices((c) => ({ ...c, [x.name]: v }))
+                        setChoices((c) => {
+                          const next = { ...c, [x.name]: v };
+                          // A piece left out can't carry others: they choose again.
+                          for (
+                            let gone = v === "leave" ? [x.name] : [];
+                            gone.length;
+                          ) {
+                            const on = new Set(gone.map((n) => `on:${n}`));
+                            gone = Object.entries(next)
+                              .filter(([, choice]) => on.has(choice))
+                              .map(([n]) => n);
+                            for (const n of gone) delete next[n];
+                          }
+                          return next;
+                        })
                       }
                     />
                   </li>

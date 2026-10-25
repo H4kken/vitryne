@@ -30,7 +30,7 @@ use crate::{
     aama::{self, ImportReport},
     convert::{ConvertOptions, convert_with, dxf_piece, fabric_entity, project_document},
     garment::Garment as SidecarGarment,
-    placement::{BodyFacts, BodyPlace, auto_wrap, default_avatar},
+    placement::{BodyFacts, BodyPlace, auto_wrap, default_avatar, flat_wrap},
     valentina::{self, SizeOption, pieces::Shape},
 };
 
@@ -72,6 +72,8 @@ pub enum Choice {
     One { place: BodyPlace },
     /// Two cuts, at the pair's two places.
     Pair { pair: Pair },
+    /// One cut as it is: a flat sheet in front of the chest, for when no place fits.
+    Flat,
     /// One cut on top of the first cut of `piece` (a pocket on a front).
     On { piece: String },
 }
@@ -624,6 +626,7 @@ impl PatternImport {
             }
             let places: Vec<Option<BodyPlace>> = match &c {
                 Choice::Leave => unreachable!("removed above"),
+                Choice::Flat => vec![None],
                 Choice::One { place } => vec![Some(*place)],
                 Choice::Pair { pair } => pair.places().map(Some).to_vec(),
                 Choice::On { .. } => vec![None],
@@ -648,7 +651,8 @@ impl PatternImport {
                         angle: None,
                         other: Map::new(),
                     }),
-                    (None, _) => unreachable!("only On has no place"),
+                    (None, Choice::Flat) => Placement::Wrap(flat_wrap(&outline, regions, facts)?),
+                    (None, _) => unreachable!("only On and Flat have no place"),
                 };
             }
         }
@@ -980,6 +984,12 @@ mod tests {
         let (doc, notes) = imp.new_project(&choices, &body_glb(), &mut ids).unwrap();
         assert!(doc.garments[0].seams.len() < seams);
         assert!(!notes.is_empty());
+        // Imported as it is, the pocket starts as a wrap of its own, not on the front.
+        choices.insert("pocket".into(), Choice::Flat);
+        let (doc, _) = imp.new_project(&choices, &body_glb(), &mut ids).unwrap();
+        let g = &doc.garments[0];
+        let pocket = g.pieces.iter().find(|x| x.name == "pocket").unwrap();
+        assert!(matches!(pocket.cuts[0].placement, Placement::Wrap(_)));
         // A pair where the sidecar cuts once is refused.
         choices.insert(
             "front".into(),
