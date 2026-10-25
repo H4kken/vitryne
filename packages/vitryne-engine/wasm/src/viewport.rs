@@ -67,6 +67,9 @@ struct Core {
     /// The body and its SDF key, kept across garment changes.
     body: RefCell<Option<(String, Arc<Body>)>>,
     pulling: Cell<Option<Vec3>>,
+    /// Counts pointer releases: a grab still reading the cloth when the pointer comes up is
+    /// dropped, or it would hold the cloth (and run a paused drape) with nothing pressed.
+    releases: Cell<u32>,
     fast: Cell<bool>,
     paused: Cell<bool>,
     /// Placing pieces: the cloth stays where it starts.
@@ -205,6 +208,7 @@ impl Viewport {
                 bare: RefCell::new(None),
                 body: RefCell::new(None),
                 pulling: Cell::new(None),
+                releases: Cell::new(0),
                 fast: Cell::new(false),
                 paused: Cell::new(false),
                 placing: Cell::new(false),
@@ -551,17 +555,19 @@ impl Viewport {
     pub fn pointer_down(&self, x: f32, y: f32) -> js_sys::Promise {
         let c = self.core.clone();
         let (o, d) = self.ray(x, y);
+        let releases = c.releases.get();
         wasm_bindgen_futures::future_to_promise(async move {
             let Some(live) = c.live.borrow().clone() else {
                 return Ok(JsValue::FALSE);
             };
             let pos = live.sim.read_positions().await;
-            // The drape may have been replaced while reading.
-            if !c
-                .live
-                .borrow()
-                .as_ref()
-                .is_some_and(|l| Rc::ptr_eq(l, &live))
+            // The drape may have been replaced, or the pointer let go, while reading.
+            if c.releases.get() != releases
+                || !c
+                    .live
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|l| Rc::ptr_eq(l, &live))
             {
                 return Ok(JsValue::FALSE);
             }
@@ -591,6 +597,9 @@ impl Viewport {
     }
 
     pub fn pointer_up(&self) {
+        self.core
+            .releases
+            .set(self.core.releases.get().wrapping_add(1));
         self.core.pulling.set(None);
         if let Some(live) = self.core.live.borrow().as_ref() {
             live.sim.release();
