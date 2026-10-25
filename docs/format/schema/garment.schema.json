@@ -297,7 +297,7 @@
       "type": "object",
       "properties": {
         "id": { "$ref": "common.schema.json#/$defs/id" },
-        "type": { "description": "dxf-aama, ...", "type": "string" },
+        "type": { "description": "dxf-aama, valentina, ...", "type": "string" },
         "part": { "description": "Path of the original file in the container, if kept.", "type": "string" },
         "fileName": { "type": "string" },
         "extensions": { "$ref": "common.schema.json#/$defs/extensions" },

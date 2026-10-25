@@ -12,6 +12,28 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 - Dark mode in the editor: pick Light, Dark or System from the new appearance menu in the top bar
   and on the start screen (the choice is kept in this browser).
+- Import Valentina patterns (`.val`) with their measurements (`.vit`, or a `.vst` size chart and
+  a size): drop them on the editor or use **Import a file**; the dialog asks for the measurements
+  file the pattern names. Curves stay curves. Also `vitryne convert pattern.val out.vtry
+  --measurements m.vit [--size 176,100]`.
+
+### Changed
+
+- Start screen: **Import a file** is a slim row above the examples, dragging a file over the
+  window shows a full-screen drop zone, and **Start from scratch** has a larger Lucide icon.
+
+- Import dialog: **Import as it is** for a piece no body place fits. It starts as a nearly flat
+  sheet in front of the chest, to move by hand.
+
+### Fixed
+
+- Importing a Valentina pattern whose outline has a hairpin stub (an edge out and back along a
+  curve) no longer stops the 3D engine: the stub is closed, and an outline that still folds back
+  on itself is refused with a message.
+- The import dialog's measurements box follows the dark theme, and its place list no longer
+  offers a piece that already sits on this one (two pieces on each other made the project
+  invalid: "its placement follows itself").
+- The "where it goes" list scrolls normally instead of jumping back up.
 
 ## [0.2.0] - 2026-10-23
 

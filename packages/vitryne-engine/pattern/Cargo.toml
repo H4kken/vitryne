@@ -14,3 +14,4 @@ serde_json.workspace = true
 log.workspace = true
 spade = "2.15"
 toml = { version = "1.1.8", default-features = false, features = ["parse", "serde"] }
+roxmltree = "0.21.2"

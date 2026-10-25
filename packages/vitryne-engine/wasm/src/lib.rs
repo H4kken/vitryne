@@ -11,7 +11,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use vitryne_pattern::{
     garment::Garment as DxfGarment,
-    import::{Choice, DxfImport},
+    import::{Choice, ImportSource},
     placement::BodyPlace,
     seams::EdgePick,
     tshirt::{self, SdfParams, TshirtParams},
@@ -240,6 +240,10 @@ pub struct VtryFile {
     warnings: Vec<String>,
 }
 
+fn read_source(json: &str) -> Result<ImportSource, String> {
+    serde_json::from_str(json).map_err(|e| format!("import source: {e}"))
+}
+
 #[wasm_bindgen]
 impl VtryFile {
     /// Opens a `.vtry` zip; refuses anything that isn't a valid project.
@@ -310,20 +314,25 @@ impl VtryFile {
         })
     }
 
-    /// What importing a DXF would give (`import::Preview` as JSON): its pieces, what was
-    /// ignored, a suggested place for each. `sidecar`: a garment.toml's text, or empty.
-    pub fn inspect_dxf(file_name: &str, dxf: &str, sidecar: &str) -> Result<String, JsValue> {
-        let imp = DxfImport::read(file_name, dxf, (!sidecar.is_empty()).then_some(sidecar))?;
+    /// What a pattern file needs before it can be read (`valentina::Needs` as JSON): the
+    /// measurements file a Valentina pattern was drafted with, if any.
+    pub fn pattern_needs(text: &str) -> Result<String, JsValue> {
+        let n = vitryne_pattern::valentina::needs(text)?;
+        Ok(serde_json::to_string(&n).expect("needs serialize"))
+    }
+
+    /// What importing a pattern would give (`import::Preview` as JSON): its pieces, what was
+    /// ignored, a suggested place for each. `source`: `import::ImportSource` as JSON.
+    pub fn inspect_import(source: &str) -> Result<String, JsValue> {
+        let imp = read_source(source)?.read()?;
         Ok(serde_json::to_string(&imp.preview()).expect("preview serializes"))
     }
 
-    /// A new project from a DXF, its pieces placed as `choices` (JSON: piece name ->
-    /// `import::Choice`) say. `body_glb`: the test avatar's mesh. `seed`: random bytes for
-    /// the ids. The import's notes are in `warnings()`.
+    /// A new project from a pattern (`source`: `import::ImportSource` as JSON), its pieces
+    /// placed as `choices` (JSON: piece name -> `import::Choice`) say. `body_glb`: the test
+    /// avatar's mesh. `seed`: random bytes for the ids. The import's notes are in `warnings()`.
     pub fn import_new(
-        file_name: &str,
-        dxf: &str,
-        sidecar: &str,
+        source: &str,
         choices: &str,
         body_glb: &[u8],
         now_ms: f64,
@@ -332,9 +341,7 @@ impl VtryFile {
         let choices: BTreeMap<String, Choice> =
             serde_json::from_str(choices).map_err(|e| format!("choices: {e}"))?;
         let imported = project::ProjectFile::import_new(
-            file_name,
-            dxf,
-            (!sidecar.is_empty()).then_some(sidecar),
+            &read_source(source)?,
             &choices,
             body_glb,
             now_ms as u64,
@@ -355,27 +362,21 @@ impl VtryFile {
         })
     }
 
-    /// Pieces from a DXF to add to this project's garment (`import::Addition` as JSON). The
-    /// project is unchanged: the editor adds them as an edit.
+    /// Pieces from a pattern (`source`: `import::ImportSource` as JSON) to add to this
+    /// project's garment (`import::Addition` as JSON). The project is unchanged: the editor
+    /// adds them as an edit.
     pub fn import_addition(
         &self,
-        file_name: &str,
-        dxf: &str,
-        sidecar: &str,
+        source: &str,
         choices: &str,
         now_ms: f64,
         seed: &[u8],
     ) -> Result<String, JsValue> {
         let choices: BTreeMap<String, Choice> =
             serde_json::from_str(choices).map_err(|e| format!("choices: {e}"))?;
-        let a = self.file.import_addition(
-            file_name,
-            dxf,
-            (!sidecar.is_empty()).then_some(sidecar),
-            &choices,
-            now_ms as u64,
-            seed,
-        )?;
+        let a = self
+            .file
+            .import_addition(&read_source(source)?, &choices, now_ms as u64, seed)?;
         Ok(serde_json::to_string(&a).expect("addition serializes"))
     }
 

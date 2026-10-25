@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Importing a DXF-AAMA pattern (docs/ARCHITECTURE.md, Import and placement): what the file
-// holds and what was left out of it, then where each piece goes on the body (suggested from
-// its name, the user decides), an optional garment.toml for the sewing, and whether the pieces
-// make a new project or join the open one.
+// Importing a pattern (docs/ARCHITECTURE.md, Import and placement), a DXF-AAMA file or a
+// Valentina pattern: what the file holds and what was left out of it, then where each piece goes
+// on the body (suggested from its name, the user decides), an optional garment.toml for a DXF's
+// sewing or the measurements a Valentina pattern is drafted from (and its size), and whether the
+// pieces make a new project or join the open one.
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,10 +18,13 @@ import {
 import { cn } from "@/lib/utils";
 import { PlaceSelect } from "@/placement/PlaceSelect";
 import type { EngineSession } from "@/worker/session";
+import { chooseFor } from "./chooseFor";
 import { encodeChoice } from "./encodeChoice";
 import { leftOut } from "./leftOut";
 import { decodeChoice } from "./decodeChoice";
 import { ImportThumb } from "./ImportThumb";
+import { importSource, patternKind } from "./importSource";
+import { MeasurementsBox } from "./MeasurementsBox";
 
 /** A text file the user picked or dropped. */
 export interface TextFile {
@@ -33,11 +37,20 @@ export type Choice =
   | { type: "leave" }
   | { type: "one"; place: string }
   | { type: "pair"; pair: string }
-  | { type: "on"; piece: string };
+  | { type: "on"; piece: string }
+  | { type: "flat" };
+
+/** Rust `valentina::SizeOption`: one dimension of a size chart. */
+export interface SizeOption {
+  label: string;
+  values: number[];
+  base: number;
+}
 
 /** Rust `import::Preview`. */
 export interface Preview {
   file_name: string;
+  sizes: SizeOption[];
   report: {
     units_m: number;
     pieces: string[];
@@ -59,27 +72,35 @@ export interface Preview {
 }
 
 export function ImportDialog(props: {
-  /** The DXF to import; the dialog is open while there is one. */
-  dxf: TextFile | null;
-  /** A garment.toml that came with the DXF (dropped together). */
-  initialSidecar?: TextFile | null;
+  /** The pattern to import; the dialog is open while there is one. */
+  pattern: TextFile | null;
+  /** A file that came with it (dropped together): a garment.toml, or measurements. */
+  initialCompanion?: TextFile | null;
   session: EngineSession;
   /** The open project's name, if any: the pieces can join it. */
   projectName: string | null;
   onClose: () => void;
   onImport: (o: {
-    dxf: TextFile;
-    sidecar: TextFile | null;
+    pattern: TextFile;
+    companion: TextFile | null;
+    size: number[] | null;
     choices: Record<string, Choice>;
     into: "new" | "add";
   }) => Promise<void>;
 }) {
-  const { dxf, session } = props;
-  // The parent mounts a new dialog per DXF, so this starts over each time.
-  const [sidecar, setSidecar] = useState<TextFile | null>(
-    props.initialSidecar ?? null,
+  const { pattern, session } = props;
+  const kind = pattern ? patternKind(pattern.name) : null;
+  // The parent mounts a new dialog per pattern, so this starts over each time.
+  const [companion, setCompanion] = useState<TextFile | null>(
+    props.initialCompanion ?? null,
   );
-  /** The newest reading, for the DXF and sidecar it was made from. */
+  const sidecar = kind === "dxf" ? companion : null;
+  const [size, setSize] = useState<number[] | null>(null);
+  /** A Valentina pattern's measurements file (null: it needs none), once asked. */
+  const [needs, setNeeds] = useState<{ measurements: string | null } | null>(
+    null,
+  );
+  /** The newest reading, for the files (and size) it was made from. */
   const [reading, setReading] = useState<{
     key: string;
     preview?: Preview;
@@ -92,11 +113,27 @@ export function ImportDialog(props: {
   const tomlInput = useRef<HTMLInputElement>(null);
   const ids = useId();
 
-  const key = `${dxf?.name ?? ""}|${sidecar?.name ?? ""}`;
   useEffect(() => {
-    if (!dxf) return;
+    if (!pattern || kind !== "valentina") return;
     let stale = false;
-    session.inspectDxf(dxf.name, dxf.text, sidecar?.text ?? "").then(
+    session.patternNeeds(pattern.text).then(
+      (json) =>
+        !stale && setNeeds(JSON.parse(json) as { measurements: string | null }),
+      (e: Error) =>
+        !stale && setReading({ key: pattern.name, error: e.message }),
+    );
+    return () => {
+      stale = true;
+    };
+  }, [pattern, kind, session]);
+  // A Valentina pattern can't be read before its measurements are here.
+  const waiting =
+    kind === "valentina" && (!needs || (!!needs.measurements && !companion));
+  const key = `${pattern?.name ?? ""}|${companion?.name ?? ""}|${size?.join(",") ?? ""}`;
+  useEffect(() => {
+    if (!pattern || waiting) return;
+    let stale = false;
+    session.inspectImport(importSource(pattern, companion, size)).then(
       (json) => {
         if (stale) return;
         const p = JSON.parse(json) as Preview;
@@ -114,11 +151,22 @@ export function ImportDialog(props: {
     return () => {
       stale = true;
     };
-  }, [dxf, sidecar, session, key]);
-  const current = reading?.key === key ? reading : null;
+  }, [pattern, companion, size, waiting, session, key]);
+  const current =
+    reading?.key === key || reading?.key === pattern?.name ? reading : null;
   const preview = current?.preview ?? null;
   const error = runError ?? current?.error ?? null;
 
+  /** Whether `a` already goes on `b`, directly or through other pieces: `b` can't go on it. */
+  const sitsOn = (a: string, b: string): boolean => {
+    for (let k = 0, at = a; k <= Object.keys(choices).length; k++) {
+      const c = choices[at];
+      if (!c?.startsWith("on:")) return false;
+      at = c.slice(3);
+      if (at === b) return true;
+    }
+    return false;
+  };
   const missing = preview?.pieces.filter((x) => !choices[x.name]) ?? [];
   const placed =
     preview?.pieces.filter(
@@ -127,13 +175,14 @@ export function ImportDialog(props: {
   const lines = preview ? leftOut(preview) : [];
 
   const run = async () => {
-    if (!dxf || !preview) return;
+    if (!pattern || !preview) return;
     setBusy(true);
     setRunError(null);
     try {
       await props.onImport({
-        dxf,
-        sidecar,
+        pattern,
+        companion,
+        size,
         choices: Object.fromEntries(
           preview.pieces.map((x) => [
             x.name,
@@ -151,7 +200,7 @@ export function ImportDialog(props: {
 
   return (
     <Dialog
-      open={!!dxf}
+      open={!!pattern}
       onOpenChange={(open) => !open && !busy && props.onClose()}
     >
       <DialogContent className="flex max-h-[calc(100vh-32px)] flex-col gap-5 rounded-[20px] p-6 sm:max-w-[640px]">
@@ -161,20 +210,38 @@ export function ImportDialog(props: {
           </DialogTitle>
           <DialogDescription className="text-body-text text-[15px]">
             {preview
-              ? `${dxf?.name}: ${preview.pieces.length} piece${preview.pieces.length === 1 ? "" : "s"}. Choose where each one goes on the body; you can move them afterwards.`
+              ? `${pattern?.name}: ${preview.pieces.length} piece${preview.pieces.length === 1 ? "" : "s"}. Choose where each one goes on the body; you can move them afterwards.`
               : error
-                ? `${dxf?.name} could not be read.`
-                : `Reading ${dxf?.name}…`}
+                ? `${pattern?.name} could not be read.`
+                : waiting && needs
+                  ? `${pattern?.name} needs its measurements file.`
+                  : `Reading ${pattern?.name}…`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="-mx-6 flex min-h-0 grow flex-col gap-5 overflow-y-auto px-6">
+          {kind === "valentina" && needs && (
+            <MeasurementsBox
+              needed={needs.measurements}
+              file={companion}
+              onFile={setCompanion}
+              sizes={preview?.sizes ?? []}
+              size={size}
+              onSize={setSize}
+            />
+          )}
+
           {preview && (
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {preview.pieces.map((x) => {
                 const fixed = x.cuts;
                 const others = preview.pieces
-                  .filter((o) => o.name !== x.name)
+                  .filter(
+                    (o) =>
+                      o.name !== x.name &&
+                      !sitsOn(o.name, x.name) &&
+                      choices[o.name] !== "leave",
+                  )
                   .map((o) => ({ key: o.name, label: o.name }));
                 return (
                   <li
@@ -203,10 +270,11 @@ export function ImportDialog(props: {
                         one: fixed !== 2,
                         pairs: fixed !== 1,
                         on: fixed === 2 ? [] : others,
+                        flat: fixed !== 2,
                         leave: true,
                       }}
                       onChange={(v) =>
-                        setChoices((c) => ({ ...c, [x.name]: v }))
+                        setChoices((c) => chooseFor(c, x.name, v))
                       }
                     />
                   </li>
@@ -218,7 +286,12 @@ export function ImportDialog(props: {
           {preview && (
             <div className="flex flex-col gap-2 rounded-2xl bg-hover p-4 text-[14px] leading-snug">
               <span className="font-semibold">Sewing</span>
-              {sidecar ? (
+              {kind === "valentina" ? (
+                <span className="text-body-text">
+                  The pieces are placed but not sewn yet. Once they're in, the
+                  seam suggestions sew them.
+                </span>
+              ) : sidecar ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="grow">
                     From {sidecar.name}: {preview.sewing?.seams ?? 0} seams (
@@ -227,7 +300,7 @@ export function ImportDialog(props: {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSidecar(null)}
+                    onClick={() => setCompanion(null)}
                   >
                     Remove
                   </Button>
@@ -256,7 +329,7 @@ export function ImportDialog(props: {
                       if (f)
                         void f
                           .text()
-                          .then((text) => setSidecar({ name: f.name, text }));
+                          .then((text) => setCompanion({ name: f.name, text }));
                     }}
                   />
                 </div>
@@ -278,12 +351,14 @@ export function ImportDialog(props: {
                 {preview.report.warnings.map((w) => (
                   <li key={w}>{w}</li>
                 ))}
-                <li>
-                  Units:{" "}
-                  {preview.report.units_m === 0.001
-                    ? "millimetres"
-                    : `${preview.report.units_m * 1000} mm per drawing unit`}
-                </li>
+                {kind === "dxf" && (
+                  <li>
+                    Units:{" "}
+                    {preview.report.units_m === 0.001
+                      ? "millimetres"
+                      : `${preview.report.units_m * 1000} mm per drawing unit`}
+                  </li>
+                )}
               </ul>
             </details>
           )}

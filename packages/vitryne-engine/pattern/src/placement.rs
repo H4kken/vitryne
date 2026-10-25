@@ -600,6 +600,45 @@ pub fn auto_wrap(
     })
 }
 
+/// Radius of a "flat" start, in piece widths: the sheet bows towards the body by about 1/24 of
+/// its width.
+const FLAT_RADIUS: f32 = 3.0;
+
+/// The starting wrap for a piece no body place fits, imported as it is: a nearly flat sheet at
+/// its own size in front of the chest, clear of the body, for the person to move by hand. Same
+/// inputs as `auto_wrap` (no ease, no fitting to the body).
+pub fn flat_wrap(
+    outline: &[Vec2],
+    regions: &BTreeMap<String, Region>,
+    facts: &BodyFacts,
+) -> Result<Wrap, String> {
+    let place = BodyPlace::BodyFront;
+    let f = region_frame(regions, place.region())?;
+    let (lo, hi) = outline.iter().fold(
+        (Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)),
+        |(lo, hi), q| (lo.min(*q), hi.max(*q)),
+    );
+    let w = hi.x - lo.x;
+    if !(w > 0.0 && hi.y > lo.y) {
+        return Err("the piece has no area".into());
+    }
+    if f.a.y.abs() < 0.1 {
+        return Err(format!("region {} doesn't rise", place.region()));
+    }
+    let radius = (FLAT_RADIUS * w).max(facts.shoulders.unwrap_or(0.11 * facts.height) + CLEARANCE);
+    let top = (NECK_BASE * facts.height - f.o.y) / f.a.y;
+    let whole_mm = |x: f32| (x as f64 * 1000.0).round() + 0.0;
+    Ok(Wrap {
+        region: place.region().to_string(),
+        angle: place.angle(),
+        radius: whole_mm(radius),
+        top: whole_mm(top),
+        rotation: None,
+        tube: None,
+        other: Default::default(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

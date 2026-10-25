@@ -87,26 +87,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
-          IMAGE: ${{ steps.version.outputs.image }}
           PRERELEASE: ${{ steps.version.outputs.prerelease }}
         run: |
-          cat >> "$RUNNER_TEMP/notes.md" <<EOF
-
-          ## Run it
-
-          The web image is \`$IMAGE:$VERSION\` (linux/amd64 and linux/arm64). With a Supabase
-          project ([docs/CLOUD.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/CLOUD.md)):
-
-          \`\`\`sh
-          curl -fsSLO https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/docker-compose.yml
-          curl -fsSL https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/env.example -o .env
-          # set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env, then
-          docker compose up -d
-          \`\`\`
-
-          \`vitryne-web-$VERSION.tar.gz\` is the editor's static build, for any host that sends the
-          isolation headers ([docs/HOSTING.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/HOSTING.md)).
-          EOF
           flags=()
           [ "$PRERELEASE" = true ] && flags+=(--prerelease)
           gh release create "$GITHUB_REF_NAME" --verify-tag --title "Vitryne $VERSION" \

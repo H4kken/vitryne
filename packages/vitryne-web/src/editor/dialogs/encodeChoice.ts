@@ -7,6 +7,8 @@ export function encodeChoice(c: Choice): string {
       return "leave";
     case "one":
       return `one:${c.place}`;
+    case "flat":
+      return "flat";
     case "pair":
       return `pair:${c.pair}`;
     case "on":

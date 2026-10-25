@@ -284,7 +284,7 @@ const SAME_PLACE_MM: f64 = 0.01;
 /// An outline is a simple polygon, counter-clockwise (FORMAT.md, Pieces and outlines): no two
 /// consecutive nodes in the same place, no edge crossing or touching another. The polygon is the
 /// outline as meshed (`outline_points`, curves flattened).
-fn check_outline_shape(outline: &[Node]) -> Result<(), String> {
+pub fn check_outline_shape(outline: &[Node]) -> Result<(), String> {
     let n = outline.len();
     for (k, a) in outline.iter().enumerate() {
         let b = &outline[(k + 1) % n];
@@ -320,6 +320,12 @@ fn check_outline_shape(outline: &[Node]) -> Result<(), String> {
             "the outline runs clockwise; it must run counter-clockwise".into()
         });
     }
+    if let Some(i) = spike(&pts) {
+        return Err(format!(
+            "the outline folds back on itself at ({:.1}, {:.1}) mm",
+            pts[i][0], pts[i][1]
+        ));
+    }
     if let Some((i, j)) = self_crossing(&pts) {
         return Err(format!(
             "the outline crosses itself (near ({:.1}, {:.1}) mm and ({:.1}, {:.1}) mm)",
@@ -327,6 +333,18 @@ fn check_outline_shape(outline: &[Node]) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+/// The first vertex of the closed polygon `pts` where the outline turns back along the way it
+/// came (a sliver of no width, which cannot be meshed).
+fn spike(pts: &[Vec2]) -> Option<usize> {
+    let n = pts.len();
+    (0..n).find(|&i| {
+        let (p, q, r) = (pts[(i + n - 1) % n], pts[i], pts[(i + 1) % n]);
+        let (a, b) = ([q[0] - p[0], q[1] - p[1]], [r[0] - q[0], r[1] - q[1]]);
+        let (la, lb) = (a[0].hypot(a[1]), b[0].hypot(b[1]));
+        la > 0.0 && lb > 0.0 && (a[0] * b[0] + a[1] * b[1]) / (la * lb) < -0.99985
+    })
 }
 
 /// The first pair of non-adjacent segments (by their start vertex) of the closed polygon `pts`
