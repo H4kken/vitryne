@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PlaceSelect } from "@/placement/PlaceSelect";
 import type { EngineSession } from "@/worker/session";
+import { chooseFor } from "./chooseFor";
 import { encodeChoice } from "./encodeChoice";
 import { leftOut } from "./leftOut";
 import { decodeChoice } from "./decodeChoice";
@@ -273,21 +274,7 @@ export function ImportDialog(props: {
                         leave: true,
                       }}
                       onChange={(v) =>
-                        setChoices((c) => {
-                          const next = { ...c, [x.name]: v };
-                          // A piece left out can't carry others: they choose again.
-                          for (
-                            let gone = v === "leave" ? [x.name] : [];
-                            gone.length;
-                          ) {
-                            const on = new Set(gone.map((n) => `on:${n}`));
-                            gone = Object.entries(next)
-                              .filter(([, choice]) => on.has(choice))
-                              .map(([n]) => n);
-                            for (const n of gone) delete next[n];
-                          }
-                          return next;
-                        })
+                        setChoices((c) => chooseFor(c, x.name, v))
                       }
                     />
                   </li>
