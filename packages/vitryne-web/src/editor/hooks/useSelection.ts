@@ -29,8 +29,8 @@ export function useSelection(o: {
   const shownHovered =
     hovered && garment && findCut(garment, hovered) ? hovered : null;
   useEffect(() => {
-    session.highlight(shownHovered);
-  }, [session, shownHovered]);
+    session.highlight(shownHovered ?? selected?.cut.id ?? null);
+  }, [session, shownHovered, selected?.cut.id]);
 
   // A seam: hovered in the list or open in the Pieces panel, it is picked out in 2D and 3D.
   const [openSeam, setOpenSeam] = useState<string | null>(null);

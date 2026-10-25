@@ -605,6 +605,12 @@ impl Viewport {
         self.core.camera.borrow_mut().orbit(dx, dy);
     }
 
+    /// Slides the view by a pointer move of (`dx`, `dy`) in normalized device coordinates.
+    pub fn pan(&self, dx: f32, dy: f32) {
+        let aspect = self.core.aspect();
+        self.core.camera.borrow_mut().pan(dx, dy, aspect);
+    }
+
     pub fn zoom(&self, steps: f32) {
         self.core.camera.borrow_mut().zoom(steps);
     }

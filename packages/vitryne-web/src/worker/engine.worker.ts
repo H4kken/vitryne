@@ -317,6 +317,10 @@ let press: {
   px: number;
   py: number;
   orbit: boolean;
+  /** The drag slides the view (`x`, `y` of the last move are in `lx`, `ly`). */
+  pan: boolean;
+  lx: number;
+  ly: number;
   select: boolean;
   x: number;
   y: number;
@@ -422,11 +426,14 @@ function input(m: Input) {
       return;
     case "pointer":
       if (m.phase === "down") {
-        const select = m.tool === "select";
+        const select = m.tool === "select" && !m.camera;
         const p = {
           px: m.px,
           py: m.py,
-          orbit: m.tool !== "pinch",
+          orbit: m.tool !== "pinch" || !!m.camera,
+          pan: m.camera === "pan",
+          lx: m.x,
+          ly: m.y,
           select,
           x: m.x,
           y: m.y,
@@ -447,7 +454,10 @@ function input(m: Input) {
         else if (press?.orbit) {
           if (Math.abs(m.px - press.sx) + Math.abs(m.py - press.sy) > 4)
             press.moved = true;
-          v.orbit(m.px - press.px, m.py - press.py);
+          if (press.pan) v.pan(m.x - press.lx, m.y - press.ly);
+          else v.orbit(m.px - press.px, m.py - press.py);
+          press.lx = m.x;
+          press.ly = m.y;
           press.px = m.px;
           press.py = m.py;
         }
@@ -486,10 +496,6 @@ function input(m: Input) {
     case "wheel":
       v.zoom(m.steps);
       return;
-    case "orbit":
-      v.orbit(m.dx, m.dy);
-      return;
-
     case "controls":
       if (m.fast !== undefined) v.set_fast(m.fast);
       if (m.paused !== undefined) v.set_paused(m.paused);

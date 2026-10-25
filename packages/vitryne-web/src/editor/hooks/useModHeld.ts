@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useState } from "react";
 
-/** Cmd (Ctrl) held: dragging pans the flat view, whatever the tool, until it is let go. */
+/** Cmd (Ctrl) held: dragging pans the flat view and turns the 3D view, whatever the tool, until it is let go. */
 export function useModHeld(): boolean {
   const [modHeld, setModHeld] = useState(false);
   useEffect(() => {

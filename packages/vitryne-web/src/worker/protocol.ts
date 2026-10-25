@@ -50,16 +50,20 @@ export function copyFileData(d: FileData): FileData {
     : { form: "folder", files: d.files.map(([p, b]) => [p, b.slice(0)]) };
 }
 
-/** select: pick a cut (placing pieces); turn: orbit; pinch: pull the cloth. */
-export type PointerTool = "select" | "turn" | "pinch";
+/** select: pick a cut (placing pieces); pinch: pull the cloth. */
+export type PointerTool = "select" | "pinch";
+
+/** A drag that moves the camera whatever the tool: Cmd (Ctrl) turns it, Option (Alt) slides it. */
+export type CameraDrag = "orbit" | "pan";
 
 export type Input =
   | { kind: "init"; canvas: OffscreenCanvas; width: number; height: number }
   | { kind: "resize"; width: number; height: number }
   /**
    * `x`, `y`: normalized device coordinates (-1..1, y up); `px`, `py`: CSS pixels. `tool`
-   * (on down): `turn` always orbits; `pinch` pulls the cloth under the pointer, or orbits when
-   * there is none; `select` picks the cut under it (a `picked` event), or orbits when dragged.
+   * (on down): `pinch` pulls the cloth under the pointer, or orbits when there is none;
+   * `select` picks the cut under it (a `picked` event), or orbits when dragged. `camera` (on
+   * down) overrides the tool: the drag turns or slides the view.
    */
   | {
       kind: "pointer";
@@ -69,12 +73,11 @@ export type Input =
       px: number;
       py: number;
       tool?: PointerTool;
+      camera?: CameraDrag;
     }
   /** The scene's colours (`Viewport::set_style`): background, cloth front, cloth back, body. */
   | { kind: "style"; rgb: number[] }
   | { kind: "wheel"; steps: number }
-  /** The camera turned by a two-finger trackpad drag, in the same units as a pointer drag (px). */
-  | { kind: "orbit"; dx: number; dy: number }
   /** `placing`: the cloth stays where it starts while pieces are placed. `seams`: seams drawn on the cloth. */
   | {
       kind: "controls";

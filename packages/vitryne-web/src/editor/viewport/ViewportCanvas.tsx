@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useRef } from "react";
+import { useAltHeld } from "../hooks/useAltHeld";
+import { useModHeld } from "../hooks/useModHeld";
 import { sceneStyle } from "./sceneStyle";
 import { useResolvedTheme } from "@/lib/theme";
 import type { PointerTool } from "@/worker/protocol";
@@ -24,6 +26,8 @@ export function ViewportCanvas({
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const theme = useResolvedTheme();
+  const turning = useModHeld();
+  const sliding = useAltHeld();
 
   // Sent before the canvas attaches, and again when the theme changes (the worker repaints).
   useEffect(() => {
@@ -39,9 +43,9 @@ export function ViewportCanvas({
       session.resize(s.width, s.height);
     });
     ro.observe(canvas);
-    // A wheel notch zooms. On a trackpad a two-finger drag turns the camera and a pinch (which
-    // browsers send as a wheel with ctrl held) zooms. Trackpads send small, often fractional
-    // deltas or sideways ones; a wheel notch is a big, whole, vertical one.
+    // A wheel notch zooms, and so does a two-finger drag up or down on a trackpad and a pinch
+    // (which browsers send as a wheel with ctrl held). Trackpads send small, often fractional
+    // deltas, sideways ones too (ignored); a wheel notch is a big, whole, vertical one.
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
       if (e.ctrlKey) {
@@ -53,8 +57,7 @@ export function ViewportCanvas({
         (e.deltaX !== 0 ||
           Math.abs(e.deltaY) < 50 ||
           !Number.isInteger(e.deltaY));
-      if (trackpad) session.orbit(-e.deltaX, -e.deltaY);
-      else session.wheel(-e.deltaY / 100);
+      session.wheel(-e.deltaY / (trackpad ? 60 : 100));
     };
     canvas.addEventListener("wheel", wheel, { passive: false });
     return () => {
@@ -71,6 +74,9 @@ export function ViewportCanvas({
     const r = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * 2 - 1;
     const y = 1 - ((e.clientY - r.top) / r.height) * 2;
+    // Cmd (Ctrl) turns the view and Option (Alt) slides it, whatever the tool.
+    const camera =
+      e.metaKey || e.ctrlKey ? "orbit" : e.altKey ? "pan" : undefined;
     session.pointer(
       phase,
       x,
@@ -78,6 +84,7 @@ export function ViewportCanvas({
       e.clientX,
       e.clientY,
       phase === "down" ? tool : undefined,
+      phase === "down" ? camera : undefined,
     );
   };
 
@@ -85,7 +92,7 @@ export function ViewportCanvas({
     <canvas
       ref={ref}
       aria-label="3D view of the garment on the mannequin"
-      className={`block h-full w-full touch-none outline-none ${tool === "turn" ? "cursor-grab active:cursor-grabbing" : tool === "pinch" ? "cursor-crosshair" : "cursor-default"}`}
+      className={`block h-full w-full touch-none outline-none ${turning ? "cursor-grab active:cursor-grabbing" : sliding ? "cursor-move" : tool === "pinch" ? "cursor-crosshair" : "cursor-default"}`}
       tabIndex={-1}
       onPointerDown={(e) => {
         try {

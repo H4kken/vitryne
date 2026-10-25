@@ -3,11 +3,10 @@ import { FastForward, Pause, Play, RotateCcw } from "lucide-react";
 import type { PointerTool } from "@/worker/protocol";
 import { EngineSession, type EngineState } from "@/worker/session";
 import { SelectIcon } from "../icons/SelectIcon";
-import { TurnIcon } from "../icons/TurnIcon";
 import { PinchIcon } from "../icons/PinchIcon";
 import { ToolButton } from "./ToolButton";
 
-/** The 3D view's floating tool bar: Select, Turn view and Pinch fabric; play, fast and restart. */
+/** The 3D view's floating tool bar: Select and Pinch fabric; play, fast and restart. */
 export function DrapeToolBar({
   session,
   engine,
@@ -31,13 +30,6 @@ export function DrapeToolBar({
         <SelectIcon />
       </ToolButton>
       <ToolButton
-        label="Turn view"
-        selected={tool === "turn"}
-        onClick={() => setTool("turn")}
-      >
-        <TurnIcon />
-      </ToolButton>
-      <ToolButton
         label="Pinch fabric"
         selected={tool === "pinch"}
         onClick={() => setTool("pinch")}
@@ -49,7 +41,7 @@ export function DrapeToolBar({
         label={engine.controls.paused ? "Play (space)" : "Pause (space)"}
         onClick={() => {
           // Play while placing means "drape now".
-          if (placing) setTool("turn");
+          if (placing) setTool("pinch");
           session.setControls({
             paused: placing ? false : !engine.controls.paused,
           });

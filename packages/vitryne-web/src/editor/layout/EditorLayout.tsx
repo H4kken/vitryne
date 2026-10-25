@@ -96,7 +96,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     files.ref?.cloud?.id ?? null,
     store,
   );
-  const [tool, setTool] = useState<PointerTool>("turn");
+  const [tool, setTool] = useState<PointerTool>("pinch");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
   const modHeld = useModHeld();

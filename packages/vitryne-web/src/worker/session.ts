@@ -11,6 +11,7 @@ import {
   type FileData,
   fileDataBuffers,
   type GizmoView,
+  type CameraDrag,
   type PointerTool,
   type Requests,
   type Stats,
@@ -415,8 +416,9 @@ export class EngineSession {
     px: number,
     py: number,
     tool?: PointerTool,
+    camera?: CameraDrag,
   ) {
-    this.client?.send({ kind: "pointer", phase, x, y, px, py, tool });
+    this.client?.send({ kind: "pointer", phase, x, y, px, py, tool, camera });
   }
 
   private style: number[] | null = null;
@@ -429,11 +431,6 @@ export class EngineSession {
 
   wheel(steps: number) {
     this.client?.send({ kind: "wheel", steps });
-  }
-
-  /** Turns the camera, as a pointer drag of (`dx`, `dy`) px would. */
-  orbit(dx: number, dy: number) {
-    this.client?.send({ kind: "orbit", dx, dy });
   }
 
   setControls(c: Partial<EngineState["controls"]>) {
