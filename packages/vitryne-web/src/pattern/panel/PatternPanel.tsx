@@ -207,6 +207,24 @@ export function PatternPanel({
       ref={host}
       className={`flat-grid relative h-full w-full touch-none overflow-hidden ${panning ? "cursor-grab" : tool === "sew" || tool === "shape" || drawing ? "cursor-crosshair" : "cursor-default"}`}
       {...pointer}
+      onPointerMove={(e) => {
+        pointer.onPointerMove(e);
+        if (tool === "sew" && sewing && !dragRef.current) {
+          const hit = sel.edgeHit(toPattern(e));
+          const was = sewing.hovered;
+          if (
+            hit?.cut !== was?.cut ||
+            hit?.from !== was?.from ||
+            hit?.to !== was?.to
+          )
+            sewing.onHover(hit);
+        }
+      }}
+      onPointerLeave={(e) => {
+        pointer.onPointerLeave();
+        void e;
+        if (sewing?.hovered) sewing.onHover(null);
+      }}
     >
       <svg
         className={garment ? "block h-full w-full" : "hidden"}

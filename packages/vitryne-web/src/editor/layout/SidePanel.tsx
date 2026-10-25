@@ -43,6 +43,7 @@ export function SidePanel(props: {
     findSeams,
     acceptProposal,
     skipProposal,
+    hoverProposal,
   } = props.sewing;
   return (
     <aside
@@ -98,6 +99,7 @@ export function SidePanel(props: {
                   onFind: () => void findSeams(),
                   onAccept: acceptProposal,
                   onSkip: skipProposal,
+                  onHoverProposal: hoverProposal,
                   onHover: setHoveredSeam,
                   onOpen: openSeamPage,
                 }}

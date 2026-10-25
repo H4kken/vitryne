@@ -39,6 +39,19 @@ export interface SewingState {
   edges: CutEdge[];
   /** The edges picked so far, both sides. */
   picked: CutEdge[];
+  /** The free edge under the pointer, if any. */
+  hovered: CutEdge | null;
+  onHover: (edge: CutEdge | null) => void;
+  /** A suggestion hovered in the seams list: the runs it would sew. */
+  suggested:
+    | readonly {
+        cut: string;
+        from: string;
+        to: string;
+        direction?: string;
+        line?: string;
+      }[]
+    | null;
   /** `more`: Shift was held, so the side being picked continues with another edge. */
   onPick: (edge: CutEdge, more: boolean) => void;
 }

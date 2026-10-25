@@ -24,6 +24,8 @@ export interface Sewing {
   onFind: () => void;
   onAccept: (p: SeamProposal) => void;
   onSkip: (index: number) => void;
+  /** A suggestion hovered in the list (picked out in the flat view), or none. */
+  onHoverProposal: (index: number | null) => void;
   /** A seam hovered in the list (picked out in the views), or none. */
   onHover: (seamId: string | null) => void;
   /** Opens a seam's page, or goes back to the list. */
@@ -110,9 +112,18 @@ export function SeamsSection(props: {
             view.
           </p>
         ) : (
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          <ul
+            className="m-0 flex list-none flex-col gap-2 p-0"
+            onPointerLeave={() => sewing.onHoverProposal(null)}
+          >
             {sewing.proposals.map((p, i) => (
-              <li key={i} className="rounded-xl border border-border p-3">
+              <li
+                key={i}
+                className="rounded-xl border border-border p-3 transition-colors hover:border-foreground/30 hover:bg-hover"
+                onPointerEnter={() => sewing.onHoverProposal(i)}
+                onFocus={() => sewing.onHoverProposal(i)}
+                onBlur={() => sewing.onHoverProposal(null)}
+              >
                 <div className="text-[14px] leading-snug font-semibold">
                   {sideTitle(garment, p.a)}{" "}
                   <span className="text-muted-foreground font-normal">

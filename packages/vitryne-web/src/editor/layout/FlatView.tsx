@@ -2,7 +2,9 @@
 // The flat view (the 2D window): the pattern pieces, the status and notices while the 3D view
 // is hidden, the shape bar, and the tool bar.
 
-import { type ReactNode, type RefObject } from "react";
+import { type ReactNode, type RefObject, useState } from "react";
+import { type CutEdge } from "@/sewing/api";
+import { SewLengthBar } from "./SewLengthBar";
 import { setLayouts } from "@/document/commands";
 import type { Garment, OutlineNode, Vec2 } from "@/format/schema.gen";
 import { type DocState, DocumentStore } from "@/document/store";
@@ -72,7 +74,8 @@ export function FlatView(props: {
     hovered: shownHovered,
     litSeam: shownLitSeam,
   } = props.selection;
-  const { edges, picks, pickEdge } = props.sewing;
+  const { edges, picks, pickEdge, hoveredRuns } = props.sewing;
+  const [hoveredEdge, setHoveredEdge] = useState<CutEdge | null>(null);
   return (
     <div
       key="window-2d"
@@ -101,6 +104,9 @@ export function FlatView(props: {
             edges,
             picked: picks ? [...picks.a, ...picks.b] : [],
             onPick: pickEdge,
+            hovered: hoveredEdge,
+            onHover: setHoveredEdge,
+            suggested: hoveredRuns,
           }}
           cutColors={cutColors}
           highlight={shownHovered}
@@ -164,6 +170,15 @@ export function FlatView(props: {
         </div>
         {!show3d && cards}
       </div>
+
+      {!doc.empty && flatTool === "sew" && garment && (
+        <SewLengthBar
+          garment={garment}
+          picked={picks?.open === "b" ? picks.a : []}
+          hovered={hoveredEdge}
+          second={picks?.open === "b"}
+        />
+      )}
 
       {!doc.empty && flatTool === "shape" && (
         <div className="absolute bottom-[76px] left-1/2 z-10 w-max max-w-[calc(100%-32px)] -translate-x-1/2">
