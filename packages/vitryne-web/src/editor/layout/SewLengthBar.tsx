@@ -5,7 +5,7 @@
 // comparison is what docs/PATENTS.md rule 1 rules out.
 
 import type { Garment } from "@/format/schema.gen";
-import { type CutEdge, cutLabel, formatLength } from "@/sewing/api";
+import { type CutEdge, cutLabel, formatLength, sameEdge } from "@/sewing/api";
 
 export function SewLengthBar(props: {
   garment: Garment;
@@ -23,6 +23,9 @@ export function SewLengthBar(props: {
       all.findIndex((x) => x.cut === e.cut && x.from === e.from) === i,
   );
   const first = picked[0];
+  // The edge already picked, pointed at again: clicking it takes it back, it can't be the other side.
+  const itself =
+    second && !!hovered && picked.some((e) => sameEdge(e, hovered));
   const row = (label: string, edge: CutEdge) => (
     <div
       // A new edge is a new row, so it fades in again. The label is in the key: the edge under
@@ -48,7 +51,15 @@ export function SewLengthBar(props: {
             First side: {picked.length} edges
           </div>
         )}
-        {hovered ? (
+        {itself ? (
+          <div
+            key="itself"
+            role="status"
+            className="animate-in fade-in slide-in-from-top-1 text-amber-600 dark:text-amber-400 text-[13px] duration-150"
+          >
+            An edge can't be sewn to itself. Point at another one.
+          </div>
+        ) : hovered ? (
           row(second ? "Second edge" : "Edge", hovered)
         ) : (
           <div className="text-muted-foreground text-[13px]">
