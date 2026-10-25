@@ -444,8 +444,11 @@ function input(m: Input) {
         press = p;
         if (p.orbit) return;
         v.pointer_down(m.x, m.y).then(
-          (grabbed: boolean) => {
-            if (press === p && !grabbed) p.orbit = true;
+          (grab: number) => {
+            if (press !== p) return;
+            // 0: no cloth there (orbit), 1: grabbed, 2: cloth, but the drape isn't live.
+            if (grab === 0) p.orbit = true;
+            else if (grab === 2) post({ kind: "needsPlay" });
           },
           () => {},
         );

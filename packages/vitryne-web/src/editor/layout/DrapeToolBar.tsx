@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { useEffect, useState } from "react";
 import { FastForward, Pause, Play, RotateCcw } from "lucide-react";
 import type { PointerTool } from "@/worker/protocol";
 import { EngineSession, type EngineState } from "@/worker/session";
@@ -20,17 +21,27 @@ export function DrapeToolBar({
   setTool: (t: PointerTool) => void;
   placing: boolean;
 }) {
+  // The drape waits while placing, whatever the pause flag says.
+  const running = !engine.controls.paused && !placing;
+  // A pinch on the cloth while paused: the Play button flashes, it is what makes it work.
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    if (engine.playHint === 0) return;
+    setFlash(true);
+    const t = setTimeout(() => setFlash(false), 1500);
+    return () => clearTimeout(t);
+  }, [engine.playHint]);
   return (
     <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-primary p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
       <ToolButton
-        label="Select"
+        label="Select (1)"
         selected={tool === "select"}
         onClick={() => setTool("select")}
       >
         <SelectIcon />
       </ToolButton>
       <ToolButton
-        label="Pinch fabric"
+        label="Pinch fabric (2)"
         selected={tool === "pinch"}
         onClick={() => setTool("pinch")}
       >
@@ -38,7 +49,8 @@ export function DrapeToolBar({
       </ToolButton>
       <span className="mx-1 my-2 w-px bg-primary-foreground/20" />
       <ToolButton
-        label={engine.controls.paused ? "Play (space)" : "Pause (space)"}
+        label={running ? "Pause (space)" : "Play (space)"}
+        flash={flash}
         onClick={() => {
           // Play while placing means "drape now".
           if (placing) setTool("pinch");
@@ -47,11 +59,7 @@ export function DrapeToolBar({
           });
         }}
       >
-        {engine.controls.paused ? (
-          <Play className="size-5" />
-        ) : (
-          <Pause className="size-5" />
-        )}
+        {running ? <Pause className="size-5" /> : <Play className="size-5" />}
       </ToolButton>
       <ToolButton
         label="Fast drape (F)"

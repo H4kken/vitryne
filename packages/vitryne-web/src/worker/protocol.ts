@@ -232,6 +232,8 @@ export type WorkerEvent =
   | { kind: "progress"; task: string; fraction: number }
   /** The select tool's pick: a panel index (see `DrapeInfo.cuts`), or -1 for none. */
   | { kind: "picked"; cut: number }
+  /** A pinch pressed on cloth while the drape isn't live: the cloth can't be pulled. */
+  | { kind: "needsPlay" }
   /** The handles asked for with a `gizmo` input, whenever they move; null: none to show. */
   | { kind: "gizmo"; gizmo: GizmoView | null }
   /** The worker can't go on (panic, lost GPU device): the UI restarts it. */

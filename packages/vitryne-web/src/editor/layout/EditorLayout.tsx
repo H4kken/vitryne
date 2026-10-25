@@ -96,7 +96,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     files.ref?.cloud?.id ?? null,
     store,
   );
-  const [tool, setTool] = useState<PointerTool>("pinch");
+  const [tool, setTool] = useState<PointerTool>("select");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
   const modHeld = useModHeld();
@@ -188,6 +188,8 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     showInfo: files.showInfo,
     fileInput,
     show2d: view.show2d,
+    show3d: view.show3d,
+    setTool,
     flatTool,
     setFlatTool,
     onSew: sewTool,
