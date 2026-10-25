@@ -197,10 +197,7 @@ export function StartScreen(props: {
               disabled={!!props.busy}
               className={`${TILE} border-2 border-input hover:border-foreground`}
             >
-              <span
-                className="flex aspect-[4/3] w-full items-center justify-center"
-                style={{ background: "#E8ECE4" }}
-              >
+              <span className="bg-muted flex aspect-[4/3] w-full items-center justify-center">
                 <PencilRuler
                   className="text-foreground size-10"
                   strokeWidth={1.75}
