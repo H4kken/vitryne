@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // What the 3D view does besides draping: placing pieces (the Select tool in 3D while the drape
-// is paused; the cloth waits where it starts), the seams drawn on the cloth while sewing in the flat view, a click picking
+// is paused; the cloth waits), the seams drawn on the cloth while sewing in the flat view, a click picking
 // a cut of the drape shown, and the selected cut's handles.
 
 import { useEffect } from "react";
@@ -25,8 +25,8 @@ export function useDrapeControls(o: {
   select: (s: Selection) => void;
 }) {
   const { session, engine, garment, selection, select } = o;
-  // Placing pieces: the Select tool in 3D while paused. The cloth waits where it starts; when
-  // live, Select only picks. Pausing with Select returns the cloth to its placement.
+  // Placing pieces: the Select tool in 3D while paused. The cloth waits where it is (moving a
+  // piece restarts the drape from the placement); when live, Select only picks.
   const placing =
     o.show3d && o.tool === "select" && !o.empty && engine.controls.paused;
   useEffect(() => {

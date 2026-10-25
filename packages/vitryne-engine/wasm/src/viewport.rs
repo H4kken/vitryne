@@ -659,13 +659,11 @@ impl Viewport {
         self.core.live.borrow().as_ref().map_or(0, |l| l.n_verts)
     }
 
-    /// Placing pieces (on) or draping (off). Either way the cloth goes back to where it starts:
-    /// while placing it stays there, so a cut's handles are where the cut starts.
+    /// Placing pieces (on) or draping (off): the cloth doesn't advance while placing, and stays
+    /// where it is (pausing must not undo the drape; moving a piece restarts from the placement,
+    /// `place_cut`).
     pub fn set_placing(&self, on: bool) {
-        if self.core.placing.get() != on {
-            self.core.placing.set(on);
-            self.reset();
-        }
+        self.core.placing.set(on);
     }
 
     /// Draws the garment's seams on the cloth (on) or not. Kept for later drapes.
