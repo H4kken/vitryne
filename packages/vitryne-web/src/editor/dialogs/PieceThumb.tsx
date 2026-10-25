@@ -15,7 +15,7 @@ export function PieceThumb({
       width={120}
       height={120}
       viewBox={`${b.minX - pad} ${-b.maxY - pad} ${b.maxX - b.minX + 2 * pad} ${b.maxY - b.minY + 2 * pad}`}
-      className="shrink-0 rounded-xl bg-[#F4F5F2]"
+      className="shrink-0 rounded-xl bg-hover"
       aria-hidden="true"
     >
       {pts.length > 0 && (

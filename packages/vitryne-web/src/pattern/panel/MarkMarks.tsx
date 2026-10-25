@@ -30,7 +30,7 @@ export function MarkMarks({
   bad: boolean;
   r: number;
 }) {
-  const blue = "#3A63F0";
+  const blue = "var(--select)";
   const nodes = v.piece.outline;
   const k = fold ? nodes.findIndex((n) => n.id === fold.nodeId) : -1;
   const start = nodes[k]?.position;

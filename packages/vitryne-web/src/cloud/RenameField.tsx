@@ -23,7 +23,7 @@ export function RenameField({
         if (e.key === "Enter") e.currentTarget.blur();
         if (e.key === "Escape") onDone(null);
       }}
-      className="-mx-1 rounded-md border-[1.5px] border-[#14181F] px-1 text-[15px] font-semibold outline-none"
+      className="-mx-1 rounded-md border-[1.5px] border-foreground px-1 text-[15px] font-semibold outline-none"
     />
   );
 }

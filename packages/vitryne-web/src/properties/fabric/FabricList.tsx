@@ -24,7 +24,7 @@ export function FabricList(props: {
               <button
                 type="button"
                 onClick={() => props.onView({ kind: "fabric", id: f.id })}
-                className="flex w-full items-center gap-3 rounded-[10px] px-2 py-2 text-left hover:bg-[#F4F5F2]"
+                className="flex w-full items-center gap-3 rounded-[10px] px-2 py-2 text-left hover:bg-hover"
               >
                 <FabricSwatch color={fabricColor(e, f)} />
                 <span className="flex min-w-0 flex-1 flex-col">
@@ -33,7 +33,7 @@ export function FabricList(props: {
                       {f.name}
                     </span>
                     {g?.fabric === f.id && (
-                      <span className="shrink-0 rounded-full bg-[#E1E4DE] px-2 py-0.5 text-[11px] font-medium">
+                      <span className="shrink-0 rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium">
                         Default
                       </span>
                     )}

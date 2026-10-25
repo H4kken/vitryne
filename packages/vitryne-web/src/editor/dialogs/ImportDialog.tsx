@@ -179,7 +179,7 @@ export function ImportDialog(props: {
                 return (
                   <li
                     key={x.name}
-                    className="flex items-center gap-3 rounded-2xl border border-[#E1E4DE] p-2.5"
+                    className="flex items-center gap-3 rounded-2xl border border-border p-2.5"
                   >
                     <ImportThumb outline={x.outline} />
                     <div className="flex min-w-0 grow flex-col gap-0.5">
@@ -197,7 +197,7 @@ export function ImportDialog(props: {
                     </div>
                     <PlaceSelect
                       id={`${ids}-${x.name}`}
-                      className="h-11 w-[230px] shrink-0 rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white text-[14px]"
+                      className="h-11 w-[230px] shrink-0 rounded-[10px] border-[1.5px] border-border-strong bg-card text-[14px]"
                       value={choices[x.name] ?? null}
                       options={{
                         one: fixed !== 2,
@@ -216,7 +216,7 @@ export function ImportDialog(props: {
           )}
 
           {preview && (
-            <div className="flex flex-col gap-2 rounded-2xl bg-[#F4F5F2] p-4 text-[14px] leading-snug">
+            <div className="flex flex-col gap-2 rounded-2xl bg-hover p-4 text-[14px] leading-snug">
               <span className="font-semibold">Sewing</span>
               {sidecar ? (
                 <div className="flex flex-wrap items-center gap-3">
@@ -293,7 +293,7 @@ export function ImportDialog(props: {
               <legend className="mb-2 text-[14px] font-semibold">
                 Import into
               </legend>
-              <div className="flex gap-1 rounded-xl bg-[#F4F5F2] p-1">
+              <div className="flex gap-1 rounded-xl bg-hover p-1">
                 {(["new", "add"] as const).map((k) => (
                   <button
                     key={k}
@@ -303,7 +303,7 @@ export function ImportDialog(props: {
                     className={cn(
                       "h-10 flex-1 rounded-[9px] px-3 text-[15px] font-semibold",
                       into === k &&
-                        "bg-white shadow-[0_1px_3px_rgba(20,24,31,.15)]",
+                        "bg-card shadow-[0_1px_3px_rgba(20,24,31,.15)]",
                     )}
                   >
                     {k === "new" ? "A new project" : `${props.projectName}`}
@@ -316,7 +316,7 @@ export function ImportDialog(props: {
           {error && (
             <p
               role="alert"
-              className="m-0 rounded-2xl border border-[#F0C9BE] bg-white px-4 py-3 text-[14px] text-[#8A2410]"
+              className="m-0 rounded-2xl border border-danger/30 bg-card px-4 py-3 text-[14px] text-danger"
             >
               {error}
             </p>

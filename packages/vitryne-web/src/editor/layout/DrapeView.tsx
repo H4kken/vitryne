@@ -99,7 +99,7 @@ export function DrapeView(props: {
 
       {engine.phase === "failed" && (
         <div className="bg-background/90 absolute inset-0 z-20 flex items-center justify-center p-8">
-          <div className="max-w-md space-y-2 rounded-[20px] border bg-white p-7 text-[15px]">
+          <div className="max-w-md space-y-2 rounded-[20px] border bg-card p-7 text-[15px]">
             <p className="font-display m-0 text-xl font-semibold">
               The 3D view keeps stopping
             </p>

@@ -13,7 +13,7 @@ export function FirstPieceHint(props: {
 }) {
   return (
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
-      <div className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-[#E1E4DE] bg-white px-7 py-6 text-center shadow-[0_10px_24px_rgba(20,24,31,.08)]">
+      <div className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-border bg-card px-7 py-6 text-center shadow-[0_10px_24px_rgba(20,24,31,.08)]">
         <h2 className="font-display m-0 text-xl font-semibold">
           Draw your first piece
         </h2>

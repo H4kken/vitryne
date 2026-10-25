@@ -17,7 +17,7 @@ export function FlatToolBar({
   onSew: () => void;
 }) {
   return (
-    <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
+    <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-primary p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
       <ToolButton
         label="Select"
         selected={flatTool === "select"}

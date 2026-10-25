@@ -50,8 +50,8 @@ export function ColorField(props: {
             onClick={() => pick(s.color, false)}
             className={`aspect-square w-full rounded-full border border-black/10 transition-shadow ${
               props.value === s.color
-                ? "ring-2 ring-[#14181F] ring-offset-2"
-                : "hover:ring-2 hover:ring-[#B5B9B0] hover:ring-offset-1"
+                ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
+                : "hover:ring-2 hover:ring-border-strong hover:ring-offset-1 ring-offset-background"
             }`}
             style={{ background: s.color }}
           />
@@ -60,8 +60,8 @@ export function ColorField(props: {
           title="Any colour"
           className={`relative flex aspect-square w-full cursor-pointer items-center justify-center rounded-full border border-black/10 ${
             custom
-              ? "ring-2 ring-[#14181F] ring-offset-2"
-              : "hover:ring-2 hover:ring-[#B5B9B0] hover:ring-offset-1"
+              ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
+              : "hover:ring-2 hover:ring-border-strong hover:ring-offset-1 ring-offset-background"
           }`}
           style={{
             background: custom

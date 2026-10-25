@@ -9,7 +9,7 @@ export function ImportThumb({ outline }: { outline: [number, number][] }) {
       width={56}
       height={56}
       viewBox={`${b.minX - pad} ${-b.maxY - pad} ${b.maxX - b.minX + 2 * pad} ${b.maxY - b.minY + 2 * pad}`}
-      className="shrink-0 rounded-lg bg-[#F4F5F2]"
+      className="shrink-0 rounded-lg bg-hover"
       aria-hidden="true"
     >
       <path

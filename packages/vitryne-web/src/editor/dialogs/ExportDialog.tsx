@@ -143,7 +143,7 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[480px] rounded-2xl bg-white p-6 shadow-xl">
+      <DialogContent className="max-w-[480px] rounded-2xl bg-card p-6 shadow-xl">
         <DialogHeader className="gap-1.5 text-left">
           <DialogTitle className="font-display text-xl font-semibold">
             Export
@@ -159,7 +159,7 @@ export function ExportDialog({
           {/* Format selection */}
           <div className="flex flex-col gap-2">
             <span className="text-[13px] font-semibold">Format</span>
-            <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#F4F5F2] p-1">
+            <div className="grid grid-cols-3 gap-2 rounded-xl bg-hover p-1">
               <button
                 type="button"
                 aria-pressed={format === "glb"}
@@ -167,7 +167,7 @@ export function ExportDialog({
                 className={cn(
                   "flex flex-col items-center justify-center rounded-[9px] py-2.5 px-3 text-center transition-all",
                   format === "glb"
-                    ? "bg-white font-semibold shadow-xs text-foreground"
+                    ? "bg-card font-semibold shadow-xs text-foreground"
                     : "text-muted-foreground hover:text-foreground font-medium",
                 )}
               >
@@ -181,7 +181,7 @@ export function ExportDialog({
                 className={cn(
                   "flex flex-col items-center justify-center rounded-[9px] py-2.5 px-3 text-center transition-all",
                   format === "obj"
-                    ? "bg-white font-semibold shadow-xs text-foreground"
+                    ? "bg-card font-semibold shadow-xs text-foreground"
                     : "text-muted-foreground hover:text-foreground font-medium",
                 )}
               >
@@ -195,7 +195,7 @@ export function ExportDialog({
                 className={cn(
                   "flex flex-col items-center justify-center rounded-[9px] py-2.5 px-3 text-center transition-all",
                   format === "vtry"
-                    ? "bg-white font-semibold shadow-xs text-foreground"
+                    ? "bg-card font-semibold shadow-xs text-foreground"
                     : "text-muted-foreground hover:text-foreground font-medium",
                 )}
               >
@@ -207,7 +207,7 @@ export function ExportDialog({
 
           {/* Include avatar toggle */}
           {(format === "glb" || format === "obj") && (
-            <div className="flex items-center justify-between rounded-xl bg-[#F8F9F7] px-4 py-3">
+            <div className="flex items-center justify-between rounded-xl bg-hover px-4 py-3">
               <div className="flex flex-col gap-0.5">
                 <Label
                   htmlFor="include-avatar"
@@ -228,7 +228,7 @@ export function ExportDialog({
           )}
 
           {/* Details callout */}
-          <div className="rounded-xl border border-[#E5E8E2] bg-[#FAFAF8] p-3.5 text-[13px] leading-relaxed text-[#5A6054]">
+          <div className="rounded-xl border border-border bg-hover p-3.5 text-[13px] leading-relaxed text-body-text">
             {format === "vtry" ? (
               <p className="m-0">
                 Everything in the project: pieces, seams, fabrics, the avatar
@@ -244,7 +244,7 @@ export function ExportDialog({
           </div>
 
           {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] text-red-700">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
               {error}
             </div>
           )}

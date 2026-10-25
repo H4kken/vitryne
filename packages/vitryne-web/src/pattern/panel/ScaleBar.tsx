@@ -16,10 +16,10 @@ export function ScaleBar({ mmPerPx }: { mmPerPx: number }) {
         ? `${mm / 10} cm`
         : `${+mm.toPrecision(3)} mm`;
   return (
-    <div className="pointer-events-none absolute right-4 bottom-4 flex flex-col items-end gap-1 text-[12px] font-medium text-[#4A514B]">
+    <div className="pointer-events-none absolute right-4 bottom-4 flex flex-col items-end gap-1 text-[12px] font-medium text-body-text">
       <span>{label}</span>
       <span
-        className="h-1.5 border-x-[1.5px] border-b-[1.5px] border-[#4A514B]"
+        className="h-1.5 border-x-[1.5px] border-b-[1.5px] border-body-text"
         style={{ width: mm / mmPerPx }}
       />
     </div>

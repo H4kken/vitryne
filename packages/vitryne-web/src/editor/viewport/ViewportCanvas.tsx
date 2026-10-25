@@ -1,21 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useRef } from "react";
-import { DEFAULT_CLOTH_COLOR } from "@/format/colors";
+import { sceneStyle } from "./sceneStyle";
+import { useResolvedTheme } from "@/lib/theme";
 import type { PointerTool } from "@/worker/protocol";
 import { type EngineSession } from "@/worker/session";
 
 const MAX_DPR = 2;
-
-/** The concept's 3D look: its canvas ground, a sage garment, the mannequin grey. Values 0..1. */
-const hex = (h: string) =>
-  [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
-
-export const SCENE_STYLE = [
-  ...hex("#ECEFE9"),
-  ...hex(DEFAULT_CLOTH_COLOR),
-  ...hex("#7F9783"),
-  ...hex("#CBD0C6"),
-];
 
 function canvasSize(el: HTMLElement) {
   const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
@@ -33,11 +23,16 @@ export function ViewportCanvas({
   tool: PointerTool;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const theme = useResolvedTheme();
+
+  // Sent before the canvas attaches, and again when the theme changes (the worker repaints).
+  useEffect(() => {
+    session.setStyle(sceneStyle(theme));
+  }, [session, theme]);
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    session.setStyle(SCENE_STYLE);
     session.attach(canvas, canvasSize(canvas));
     const ro = new ResizeObserver(() => {
       const s = canvasSize(canvas);

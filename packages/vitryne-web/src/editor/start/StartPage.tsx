@@ -5,6 +5,7 @@ import type { Cloud } from "@/cloud/useCloud";
 import type { Example } from "../examples";
 import { CloudButton } from "../layout/CloudButton";
 import { HelpMenu } from "../layout/HelpMenu";
+import { ThemeMenu } from "../layout/ThemeMenu";
 import { NoticeCard } from "../layout/NoticeCard";
 import { StartScreen } from "./StartScreen";
 
@@ -41,6 +42,7 @@ export function StartPage(props: {
       onOpenFolder={props.onOpenFolder}
       account={
         <>
+          <ThemeMenu />
           <HelpMenu privacyPolicy={cloud.config.privacyPolicy} />
           <CloudButton user={cloud.user} onClick={onAccount} />
         </>

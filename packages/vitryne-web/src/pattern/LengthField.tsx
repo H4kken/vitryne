@@ -15,12 +15,12 @@ export function LengthField(props: {
     setDraft(null);
   };
   return (
-    <label className="flex items-center gap-1.5 text-[13px] text-[#4A514B]">
+    <label className="flex items-center gap-1.5 text-[13px] text-body-text">
       Length
       <input
         aria-label="Edge length, mm"
         inputMode="decimal"
-        className="h-8 w-20 rounded-lg border-[1.5px] border-[#D5D9D1] bg-white px-2 text-right text-[13px] text-[#14181F] tabular-nums"
+        className="h-8 w-20 rounded-lg border-[1.5px] border-border-strong bg-card px-2 text-right text-[13px] text-foreground tabular-nums"
         value={draft ?? shown}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}

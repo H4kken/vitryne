@@ -151,7 +151,7 @@ export function CutDetails(props: {
         >
           <SelectTrigger
             aria-label="Piece fabric"
-            className="h-11 w-full rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white text-[15px]"
+            className="h-11 w-full rounded-[10px] border-[1.5px] border-border-strong bg-card text-[15px]"
           >
             <SelectValue placeholder="Choose fabric" />
           </SelectTrigger>
@@ -273,7 +273,7 @@ export function CutDetails(props: {
               <button
                 type="button"
                 onClick={() => props.onRewrap(cut.id, place)}
-                className="border-input hover:border-foreground h-11 self-start rounded-[10px] border bg-white px-4 text-[15px] font-semibold"
+                className="border-input hover:border-foreground h-11 self-start rounded-[10px] border bg-card px-4 text-[15px] font-semibold"
               >
                 Fit to the body again
               </button>
@@ -307,7 +307,7 @@ export function CutDetails(props: {
           <button
             type="button"
             onClick={props.onPlaceIn3d}
-            className="border-input hover:border-foreground h-11 self-start rounded-[10px] border bg-white px-4 text-[15px] font-semibold"
+            className="border-input hover:border-foreground h-11 self-start rounded-[10px] border bg-card px-4 text-[15px] font-semibold"
           >
             Place it in 3D
           </button>

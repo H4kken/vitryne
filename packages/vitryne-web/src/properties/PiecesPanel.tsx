@@ -110,7 +110,7 @@ export function PiecesPanel(props: {
                           cutId: cut.id,
                         })
                       }
-                      className="flex w-full flex-col items-start rounded-[10px] px-3 py-2 text-left hover:bg-[#F4F5F2]"
+                      className="flex w-full flex-col items-start rounded-[10px] px-3 py-2 text-left hover:bg-hover"
                     >
                       <span className="flex items-center gap-2 text-[15px] font-semibold">
                         <span
@@ -130,7 +130,7 @@ export function PiecesPanel(props: {
                         {own && (
                           <>
                             <span>·</span>
-                            <span className="rounded bg-[#E1E4DE] px-1.5 py-0.5 text-[11px] font-medium text-foreground">
+                            <span className="rounded bg-chip px-1.5 py-0.5 text-[11px] font-medium text-foreground">
                               {own.name}
                             </span>
                           </>

@@ -23,7 +23,7 @@ export function PointMarks({
   r: number;
 }) {
   const nodes = piece.outline;
-  const blue = "#3A63F0";
+  const blue = "var(--select)";
   return (
     <g pointerEvents="none">
       {pick?.kind === "edge" && (
@@ -53,7 +53,7 @@ export function PointMarks({
               cx={c[0]}
               cy={-c[1]}
               r={CONTROL_PX * (r / NODE_PX)}
-              fill="#FFFFFF"
+              fill="var(--piece-fill)"
               stroke={blue}
               strokeWidth={1.5}
               vectorEffect="non-scaling-stroke"
@@ -65,8 +65,8 @@ export function PointMarks({
         const on = pick?.kind === "node" && pick.k === k;
         const [x, y] = [n.position[0], -n.position[1]];
         const paint = {
-          fill: on ? blue : "#FFFFFF",
-          stroke: on ? blue : "#14181F",
+          fill: on ? blue : "var(--piece-fill)",
+          stroke: on ? blue : "var(--foreground)",
           strokeWidth: 1.5,
           vectorEffect: "non-scaling-stroke" as const,
         };

@@ -24,8 +24,8 @@ export function ToolButton(props: {
           className={cn(
             "flex size-11 items-center justify-center rounded-[10px]",
             props.selected
-              ? "bg-white text-[#14181F]"
-              : "text-white hover:bg-white/10",
+              ? "bg-primary-foreground text-primary"
+              : "text-primary-foreground hover:bg-primary-foreground/10",
           )}
         >
           {props.children}

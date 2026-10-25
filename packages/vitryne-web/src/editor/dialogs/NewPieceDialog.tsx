@@ -92,7 +92,7 @@ export function NewPieceDialog(props: {
                   </label>
                   <input
                     id={`${ids}-name`}
-                    className="h-10 rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white px-2.5 text-[15px]"
+                    className="h-10 rounded-[10px] border-[1.5px] border-border-strong bg-card px-2.5 text-[15px]"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
@@ -123,7 +123,7 @@ export function NewPieceDialog(props: {
             {error && (
               <p
                 role="alert"
-                className="m-0 rounded-2xl border border-[#F0C9BE] bg-white px-4 py-3 text-[14px] text-[#8A2410]"
+                className="m-0 rounded-2xl border border-danger/30 bg-card px-4 py-3 text-[14px] text-danger"
               >
                 {error}
               </p>

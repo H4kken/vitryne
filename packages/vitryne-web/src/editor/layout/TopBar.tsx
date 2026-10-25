@@ -23,6 +23,7 @@ import { FlatIcon } from "../icons/FlatIcon";
 import { CubeIcon } from "../icons/CubeIcon";
 import { CloudButton } from "./CloudButton";
 import { HelpMenu } from "./HelpMenu";
+import { ThemeMenu } from "./ThemeMenu";
 import { ProjectName } from "./ProjectName";
 import { IconButton } from "./IconButton";
 import type { SplitView } from "../hooks/useSplitView";
@@ -66,7 +67,7 @@ export function TopBar(props: {
     ? `${files.busy}…`
     : saveStateText(files.saveStatus, doc, !!files.ref?.cloud);
   return (
-    <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b bg-white px-4 py-2">
+    <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b bg-card px-4 py-2">
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -80,7 +81,7 @@ export function TopBar(props: {
         </TooltipTrigger>
         <TooltipContent>Back to files</TooltipContent>
       </Tooltip>
-      <span className="mx-1 h-6 w-px bg-[#E1E4DE]" />
+      <span className="mx-1 h-6 w-px bg-chip" />
       {doc.entities.project ? (
         <ProjectName
           name={doc.entities.project.name ?? doc.fileName}
@@ -175,6 +176,7 @@ export function TopBar(props: {
           </TooltipContent>
         </Tooltip>
       </div>
+      <ThemeMenu />
       <HelpMenu privacyPolicy={cloud.config.privacyPolicy} />
       <CloudButton user={cloud.user} onClick={onAccount} />
       <Button

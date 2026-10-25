@@ -227,7 +227,7 @@ export function PatternPanel({
             <path
               d="M1 1 L9 5 L1 9"
               fill="none"
-              stroke="#8E968A"
+              stroke="var(--line)"
               strokeWidth={1.6}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -281,7 +281,7 @@ export function PatternPanel({
               width={v.box.maxX - v.box.minX + 24}
               height={v.box.maxY - v.box.minY + 24}
               fill="none"
-              stroke="#3A63F0"
+              stroke="var(--select)"
               strokeWidth={1.5}
               strokeDasharray="5 4"
               vectorEffect="non-scaling-stroke"
@@ -295,9 +295,9 @@ export function PatternPanel({
             y={-Math.max(box.from[1], box.to[1])}
             width={Math.abs(box.to[0] - box.from[0])}
             height={Math.abs(box.to[1] - box.from[1])}
-            fill="#3A63F0"
+            fill="var(--select)"
             fillOpacity={0.08}
-            stroke="#3A63F0"
+            stroke="var(--select)"
             strokeWidth={1}
             vectorEffect="non-scaling-stroke"
             pointerEvents="none"

@@ -57,12 +57,12 @@ export function MarkBar(props: {
       {props.warning && (
         <div
           role="status"
-          className="rounded-lg bg-[#FCE9E9] px-3 py-1 text-[13px] font-medium text-[#A12C2C]"
+          className="rounded-lg bg-danger-soft px-3 py-1 text-[13px] font-medium text-danger-soft-foreground"
         >
           {props.warning}
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-center gap-0.5 rounded-[12px] border border-[#E1E4DE] bg-white p-1 shadow-[0_4px_16px_rgba(20,24,31,.08)]">
+      <div className="flex flex-wrap items-center justify-center gap-0.5 rounded-[12px] border border-border bg-card p-1 shadow-[0_4px_16px_rgba(20,24,31,.08)]">
         {KINDS.map((k) => (
           <BarSegment
             key={k.kind}
@@ -75,7 +75,7 @@ export function MarkBar(props: {
         <BarDivider />
         {props.drawing ? (
           <>
-            <span className="px-1.5 text-[13px] text-[#4A514B]">
+            <span className="px-1.5 text-[13px] text-body-text">
               {props.drawing.points < 2
                 ? "Click the next point"
                 : `${props.drawing.points} points`}
@@ -99,7 +99,7 @@ export function MarkBar(props: {
           </>
         ) : props.folding ? (
           <>
-            <span className="px-1.5 text-[13px] text-[#4A514B]">
+            <span className="px-1.5 text-[13px] text-body-text">
               Now click the fold's other end
             </span>
             <MarkAction onClick={props.folding.onCancel} title="Cancel (Esc)">
@@ -108,7 +108,7 @@ export function MarkBar(props: {
           </>
         ) : props.picked ? (
           <>
-            <span className="px-1.5 text-[13px] text-[#4A514B]">
+            <span className="px-1.5 text-[13px] text-body-text">
               {PICKED[props.picked.what]}
             </span>
             {props.picked.what === "grain" ? (
@@ -128,7 +128,7 @@ export function MarkBar(props: {
             )}
           </>
         ) : (
-          <span className="px-2 py-1.5 text-[13px] text-[#4A514B]">{hint}</span>
+          <span className="px-2 py-1.5 text-[13px] text-body-text">{hint}</span>
         )}
       </div>
     </div>

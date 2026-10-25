@@ -17,7 +17,7 @@ export function RailButton(props: {
       onClick={() => props.setPanel(on ? null : props.id)}
       className={cn(
         "flex h-16 w-full flex-col items-center justify-center gap-1 rounded-xl text-xs font-semibold transition-colors duration-200",
-        on ? "bg-[#E8ECE4]" : "hover:bg-[#F4F5F2]",
+        on ? "bg-secondary" : "hover:bg-hover",
       )}
     >
       {props.icon}

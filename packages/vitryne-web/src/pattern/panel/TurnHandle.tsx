@@ -20,14 +20,14 @@ export function TurnHandle({
         width={selected.box.maxX - selected.box.minX + 24}
         height={selected.box.maxY - selected.box.minY + 24}
         fill="none"
-        stroke="#3A63F0"
+        stroke="var(--select)"
         strokeWidth={1.5}
         strokeDasharray="5 4"
         vectorEffect="non-scaling-stroke"
       />
       <path
         d={pathData([[handle[0], selected.box.maxY + 12], handle], false)}
-        stroke="#3A63F0"
+        stroke="var(--select)"
         strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
       />
@@ -35,8 +35,8 @@ export function TurnHandle({
         cx={handle[0]}
         cy={-handle[1]}
         r={HANDLE_R_PX * mmPerPx}
-        fill="#FFFFFF"
-        stroke="#3A63F0"
+        fill="var(--piece-fill)"
+        stroke="var(--select)"
         strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
         className="cursor-grab"

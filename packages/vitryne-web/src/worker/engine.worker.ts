@@ -3,6 +3,7 @@
 // canvas, the drape, and the file (see protocol.ts). Requests run one at a time, in order;
 // inputs and frames run between them.
 
+import { sceneStyle } from "@/editor/viewport/sceneStyle";
 import init, {
   type PreparedScene,
   Viewport,
@@ -213,7 +214,15 @@ const handlers: Handlers = {
   },
 
   async thumbnail({ width, height }) {
-    const rgba: Uint8Array = await needViewport().thumbnail(width, height);
+    // Thumbnails keep the light ground whatever the editor's theme (they are shown on both).
+    const vp = needViewport();
+    vp.set_style(new Float32Array(sceneStyle("light")));
+    let rgba: Uint8Array;
+    try {
+      rgba = await vp.thumbnail(width, height);
+    } finally {
+      if (style) vp.set_style(style);
+    }
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("no 2D canvas in the worker");

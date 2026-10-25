@@ -8,6 +8,11 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+### Added
+
+- Dark mode in the editor: pick Light, Dark or System from the new appearance menu in the top bar
+  and on the start screen (the choice is kept in this browser).
+
 ## [0.2.0] - 2026-10-23
 
 ### Added

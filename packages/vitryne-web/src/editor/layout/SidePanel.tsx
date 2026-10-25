@@ -52,9 +52,9 @@ export function SidePanel(props: {
         width: panel ? "300px" : "0px",
       }}
       className={cn(
-        "relative h-full shrink-0 overflow-hidden bg-white",
+        "relative h-full shrink-0 overflow-hidden bg-card",
         panel
-          ? "border-r border-[#E1E4DE] opacity-100"
+          ? "border-r border-border opacity-100"
           : "pointer-events-none border-r-0 opacity-0",
         "transition-[width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
       )}

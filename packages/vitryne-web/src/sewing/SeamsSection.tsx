@@ -58,7 +58,7 @@ export function SeamsSection(props: {
           {seams.map((s) => (
             <li
               key={s.id}
-              className="group flex items-center rounded-[10px] hover:bg-[#F4F5F2]"
+              className="group flex items-center rounded-[10px] hover:bg-hover"
               onPointerEnter={() => sewing.onHover(s.id)}
             >
               <button
@@ -82,7 +82,7 @@ export function SeamsSection(props: {
                 onClick={() =>
                   store.execute((e) => removeSeam(e, garment.id, s.id))
                 }
-                className="text-muted-foreground hover:text-foreground mr-1 grid size-9 shrink-0 place-items-center rounded-lg opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-[#E1E4DE]"
+                className="text-muted-foreground hover:text-foreground mr-1 grid size-9 shrink-0 place-items-center rounded-lg opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-chip"
               >
                 <Trash2 className="size-4" />
               </button>
@@ -112,7 +112,7 @@ export function SeamsSection(props: {
         ) : (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {sewing.proposals.map((p, i) => (
-              <li key={i} className="rounded-xl border border-[#E1E4DE] p-3">
+              <li key={i} className="rounded-xl border border-border p-3">
                 <div className="text-[14px] leading-snug font-semibold">
                   {sideTitle(garment, p.a)}{" "}
                   <span className="text-muted-foreground font-normal">
