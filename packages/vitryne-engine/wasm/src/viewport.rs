@@ -195,6 +195,17 @@ impl Viewport {
             log::error!("GPU device lost ({reason:?}): {msg}");
             flag.store(true, Ordering::Relaxed);
         });
+        // Without a handler wgpu only reports the follow-up errors ("[Invalid Texture] is invalid
+        // due to a previous error"); the first one is the cause, so it is logged as an error and
+        // the rest as warnings.
+        let first = AtomicBool::new(true);
+        g.device.on_uncaptured_error(Arc::new(move |e: wgpu::Error| {
+            if first.swap(false, Ordering::Relaxed) {
+                log::error!("first GPU error: {e}");
+            } else {
+                log::warn!("GPU error: {e}");
+            }
+        }));
         Ok(Viewport {
             core: Rc::new(Core {
                 engine: Engine::new(g),

@@ -17,6 +17,7 @@ import {
   type Stats,
   type WorkerEvent,
 } from "./protocol";
+import { trace } from "./trace";
 
 export interface EngineState {
   /** Changes when the worker is replaced: the viewport makes a new canvas for it. */
@@ -170,6 +171,7 @@ export class EngineSession {
 
   private crashed(reason: string) {
     console.error("engine worker crashed:", reason);
+    trace.crash(reason);
     const now = Date.now();
     this.crashes = [
       ...this.crashes.filter((t) => now - t < CRASH_WINDOW_MS),

@@ -10,6 +10,7 @@ import type {
   ToWorker,
   WorkerEvent,
 } from "./protocol";
+import { trace } from "./trace";
 
 export class WorkerCrashed extends Error {
   constructor(reason: string) {
@@ -56,10 +57,13 @@ export class WorkerClient {
       const p = this.pending.get(m.id);
       if (!p) return;
       this.pending.delete(m.id);
+      trace.note(`reply #${m.id} ${m.ok ? "ok" : `error: ${m.error}`}`);
       if (m.ok) p.resolve(m.value);
       else p.reject(new Error(m.error));
       return;
     }
+    if (m.kind !== "stats" && m.kind !== "progress" && m.kind !== "gizmo")
+      trace.note(`event ${m.kind}`);
     if (m.kind === "crashed") {
       this.die(m.reason);
       return;
@@ -103,6 +107,7 @@ export class WorkerClient {
   ): Promise<Requests[K]["reply"]> {
     if (this.dead) return Promise.reject(new WorkerCrashed(this.dead));
     const id = this.nextId++;
+    trace.note(`request ${op} #${id}`);
     return new Promise((resolve, reject) => {
       this.pending.set(id, {
         resolve: resolve as (v: unknown) => void,
