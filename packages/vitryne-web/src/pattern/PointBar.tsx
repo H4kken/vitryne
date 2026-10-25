@@ -50,14 +50,14 @@ export function PointBar(
       {props.warning && (
         <div
           role="status"
-          className="rounded-lg bg-[#FCE9E9] px-3 py-1 text-[13px] font-medium text-[#A12C2C]"
+          className="rounded-lg bg-danger-soft px-3 py-1 text-[13px] font-medium text-danger-soft-foreground"
         >
           {props.warning}
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-center gap-0.5 rounded-[12px] border border-[#E1E4DE] bg-white p-1 shadow-[0_4px_16px_rgba(20,24,31,.08)]">
+      <div className="flex flex-wrap items-center justify-center gap-0.5 rounded-[12px] border border-border bg-card p-1 shadow-[0_4px_16px_rgba(20,24,31,.08)]">
         {props.kind === "hint" && (
-          <span className="px-2 py-1.5 text-[13px] text-[#4A514B]">
+          <span className="px-2 py-1.5 text-[13px] text-body-text">
             Drag a point to move it · double-click an edge to add one
           </span>
         )}
@@ -78,7 +78,7 @@ export function PointBar(
               type="button"
               onClick={props.onDelete}
               title="Delete the point (Delete)"
-              className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium hover:bg-[#F4F5F2]"
+              className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium hover:bg-hover"
             >
               <Trash2 className="size-4" /> Delete
             </button>
@@ -103,12 +103,12 @@ export function PointBar(
             {props.edge === "straight" ? (
               <LengthField value={props.length} onCommit={props.onLength} />
             ) : (
-              <span className="px-1.5 text-[13px] text-[#4A514B] tabular-nums">
+              <span className="px-1.5 text-[13px] text-body-text tabular-nums">
                 Length {props.length.toFixed(1)} mm
               </span>
             )}
             {props.angle !== undefined && (
-              <span className="px-1.5 text-[13px] text-[#4A514B] tabular-nums">
+              <span className="px-1.5 text-[13px] text-body-text tabular-nums">
                 {props.angle.toFixed(1)}°
               </span>
             )}
@@ -117,7 +117,7 @@ export function PointBar(
               type="button"
               onClick={props.onAddPoint}
               title="Add a point in the middle (or double-click the edge)"
-              className="flex h-8 items-center gap-1 rounded-lg px-2.5 text-[13px] font-medium hover:bg-[#F4F5F2]"
+              className="flex h-8 items-center gap-1 rounded-lg px-2.5 text-[13px] font-medium hover:bg-hover"
             >
               <Plus className="size-4" /> Add point
             </button>

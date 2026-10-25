@@ -16,7 +16,7 @@ export function BarSegment(props: {
       onClick={props.onClick}
       className={cn(
         "h-8 rounded-lg px-2.5 text-[13px] font-medium",
-        props.on ? "bg-[#14181F] text-white" : "hover:bg-[#F4F5F2]",
+        props.on ? "bg-primary text-primary-foreground" : "hover:bg-hover",
       )}
     >
       {props.children}

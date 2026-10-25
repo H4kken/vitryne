@@ -10,7 +10,7 @@ export function RecoveryBanner({
 }) {
   return (
     <div
-      className="mx-auto mt-2 flex w-[calc(100%-64px)] max-w-[1056px] flex-wrap items-center gap-3 rounded-2xl border border-[#E1E4DE] bg-white px-5 py-3 text-[15px]"
+      className="mx-auto mt-2 flex w-[calc(100%-64px)] max-w-[1056px] flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-5 py-3 text-[15px]"
       role="status"
     >
       <span className="grow">

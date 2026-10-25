@@ -56,7 +56,7 @@ export function CloudProjectList(props: {
     );
   return (
     <div className="flex flex-col gap-2">
-      <ul className="m-0 flex list-none flex-col divide-y divide-[#E1E4DE] p-0">
+      <ul className="m-0 flex list-none flex-col divide-y divide-border p-0">
         {props.projects.map((p) => (
           <li key={p.id} className="flex flex-wrap items-center gap-2 py-2.5">
             <button
@@ -140,7 +140,7 @@ export function CloudProjectList(props: {
           </li>
         ))}
       </ul>
-      {error && <p className="m-0 text-sm text-[#8A2410]">{error}</p>}
+      {error && <p className="m-0 text-sm text-danger">{error}</p>}
     </div>
   );
 }

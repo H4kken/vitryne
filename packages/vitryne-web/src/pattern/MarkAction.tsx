@@ -13,7 +13,7 @@ export function MarkAction(props: {
       title={props.title}
       disabled={props.disabled}
       onClick={props.onClick}
-      className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium hover:bg-[#F4F5F2] disabled:opacity-40"
+      className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium hover:bg-hover disabled:opacity-40"
     >
       {props.children}
     </button>

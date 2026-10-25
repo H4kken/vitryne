@@ -22,7 +22,7 @@ export function DrapeToolBar({
   placing: boolean;
 }) {
   return (
-    <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-[#14181F] p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
+    <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-primary p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
       <ToolButton
         label="Select"
         selected={tool === "select"}
@@ -44,7 +44,7 @@ export function DrapeToolBar({
       >
         <PinchIcon />
       </ToolButton>
-      <span className="mx-1 my-2 w-px bg-white/20" />
+      <span className="mx-1 my-2 w-px bg-primary-foreground/20" />
       <ToolButton
         label={engine.controls.paused ? "Play (space)" : "Pause (space)"}
         onClick={() => {

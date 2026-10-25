@@ -41,7 +41,7 @@ export function PlaceSelect(props: {
         aria-label={props.label}
         className={
           props.className ??
-          "h-11 w-full rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white text-[15px]"
+          "h-11 w-full rounded-[10px] border-[1.5px] border-border-strong bg-card text-[15px]"
         }
       >
         <SelectValue

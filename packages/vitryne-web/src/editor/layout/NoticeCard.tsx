@@ -12,10 +12,10 @@ export function NoticeCard(props: {
     <div
       role={props.tone === "error" ? "alert" : "status"}
       className={cn(
-        "flex max-w-[480px] items-start gap-3 rounded-2xl border bg-white px-4 py-3 text-sm leading-snug shadow-[0_8px_24px_rgba(20,24,31,.08)]",
+        "flex max-w-[480px] items-start gap-3 rounded-2xl border bg-card px-4 py-3 text-sm leading-snug shadow-[0_8px_24px_rgba(20,24,31,.08)]",
         props.tone === "error"
-          ? "border-[#F0C9BE] text-[#8A2410]"
-          : "border-[#E1E4DE]",
+          ? "border-danger/30 text-danger"
+          : "border-border",
       )}
     >
       <span className="grow">{props.children}</span>

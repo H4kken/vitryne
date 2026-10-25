@@ -21,7 +21,7 @@ export function Grid({ box, mmPerPx }: { box: Box; mmPerPx: number }) {
   return (
     <g
       fill="none"
-      stroke="#7F8B78"
+      stroke="var(--grid)"
       strokeWidth={1}
       vectorEffect="non-scaling-stroke"
       shapeRendering="crispEdges"

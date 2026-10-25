@@ -22,9 +22,9 @@ export function ShapePreview({
           nodesPoints(shapeOutline(shapeKind, shapePreview.size, () => "")),
           true,
         )}
-        fill="#FFFFFF"
+        fill="var(--piece-fill)"
         fillOpacity={0.7}
-        stroke={shapePreview.problem ? BAD : "#3A63F0"}
+        stroke={shapePreview.problem ? BAD : "var(--select)"}
         strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
         strokeLinejoin="round"
@@ -33,7 +33,7 @@ export function ShapePreview({
         x={shapePreview.origin[0] + shapePreview.size.width / 2}
         y={-shapePreview.origin[1] - shapePreview.size.height - 8 * mmPerPx}
         textAnchor="middle"
-        fill={shapePreview.problem ? BAD : "#3A63F0"}
+        fill={shapePreview.problem ? BAD : "var(--select)"}
         fontSize={12 * mmPerPx}
         className="font-sans font-semibold tabular-nums select-none"
       >

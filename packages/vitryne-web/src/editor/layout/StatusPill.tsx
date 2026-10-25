@@ -46,7 +46,7 @@ export function StatusPill({
         <span
           tabIndex={0}
           role="status"
-          className="flex items-center gap-2 rounded-full border border-[#E1E4DE] bg-white px-3.5 py-2 text-sm font-medium"
+          className="flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-medium"
         >
           <span className={cn("size-2 rounded-full", dot)} />
           {text}

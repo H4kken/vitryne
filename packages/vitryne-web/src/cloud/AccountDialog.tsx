@@ -470,7 +470,7 @@ export function AccountDialog(props: {
     body = (
       <div className="flex flex-col gap-4 text-[15px]">
         {googleTaken && (
-          <div className="flex flex-col gap-2 rounded-xl border border-[#E1E4DE] p-3">
+          <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
             <p className="m-0">
               That Google account already has a Vitryne account. Sign in to it?
               The projects saved from this browser move to it.
@@ -524,7 +524,7 @@ export function AccountDialog(props: {
         )}
         {user && usage && (
           <div className="flex flex-col gap-1.5">
-            <div className="h-2 overflow-hidden rounded-full bg-[#E8ECE4]">
+            <div className="h-2 overflow-hidden rounded-full bg-secondary">
               <div
                 className="bg-primary h-full"
                 style={{
@@ -560,7 +560,7 @@ export function AccountDialog(props: {
             )}
             <button
               type="button"
-              className="text-[#8A2410] underline underline-offset-4"
+              className="text-danger underline underline-offset-4"
               onClick={() => go({ at: "delete" })}
             >
               Delete my account
@@ -596,7 +596,7 @@ export function AccountDialog(props: {
         </DialogHeader>
         {body}
         {error && (
-          <p role="alert" className="m-0 text-sm text-[#8A2410]">
+          <p role="alert" className="m-0 text-sm text-danger">
             {error}
           </p>
         )}

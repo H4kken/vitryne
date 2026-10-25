@@ -39,7 +39,7 @@ export function ProjectThumbnail({
         />
       ) : (
         <Shirt
-          className="size-14 text-[#B9C0B4]"
+          className="size-14 text-faint"
           strokeWidth={1.2}
           aria-hidden="true"
         />

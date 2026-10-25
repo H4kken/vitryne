@@ -24,7 +24,7 @@ const rank = (e: Example) =>
   (ORDER.indexOf(exampleId(e)) + ORDER.length + 1) % (ORDER.length + 1);
 
 const TILE =
-  "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E1E4DE] bg-white text-left transition-[transform,box-shadow] duration-150 hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)] disabled:opacity-60 cursor-pointer";
+  "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition-[transform,box-shadow] duration-150 hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)] disabled:opacity-60 cursor-pointer";
 
 export function StartScreen(props: {
   examples: Example[];
@@ -97,7 +97,7 @@ export function StartScreen(props: {
               type="button"
               onClick={props.onImport}
               disabled={!!props.busy}
-              className={`${TILE} border-2 border-dashed border-[#CFD4CB] hover:border-[#14181F]`}
+              className={`${TILE} border-2 border-dashed border-input hover:border-foreground`}
             >
               <span className="flex aspect-[4/3] w-full items-center justify-center">
                 <ImportIcon className="text-foreground" />
@@ -115,7 +115,7 @@ export function StartScreen(props: {
               type="button"
               onClick={props.onScratch}
               disabled={!!props.busy}
-              className={`${TILE} border-2 border-dashed border-[#CFD4CB] hover:border-[#14181F]`}
+              className={`${TILE} border-2 border-dashed border-input hover:border-foreground`}
             >
               <span className="flex aspect-[4/3] w-full items-center justify-center">
                 <ScratchIcon className="text-foreground" />

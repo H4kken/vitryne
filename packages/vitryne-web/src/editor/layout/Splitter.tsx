@@ -70,7 +70,7 @@ export function Splitter({ view }: { view: SplitView }) {
           "absolute inset-y-0 -left-px w-px transition-colors",
           isResizing
             ? "bg-primary w-0.5 -left-[1px]"
-            : "bg-[#E1E4DE] group-hover:bg-primary/50 group-hover:w-0.5 group-hover:-left-[1px]",
+            : "bg-chip group-hover:bg-primary/50 group-hover:w-0.5 group-hover:-left-[1px]",
         )}
       />
 
@@ -89,8 +89,8 @@ export function Splitter({ view }: { view: SplitView }) {
               if (!hasDragged.current) toggleSplit();
             }}
             className={cn(
-              "absolute top-1/2 -translate-y-1/2 z-30 flex h-10 w-4 items-center justify-center rounded-full border border-[#E1E4DE] bg-white shadow-xs transition-all",
-              "group-hover:scale-110 group-hover:border-foreground/30 group-hover:bg-[#F4F5F2]",
+              "absolute top-1/2 -translate-y-1/2 z-30 flex h-10 w-4 items-center justify-center rounded-full border border-border bg-card shadow-xs transition-all",
+              "group-hover:scale-110 group-hover:border-foreground/30 group-hover:bg-hover",
               isResizing &&
                 "scale-110 border-primary bg-primary text-primary-foreground shadow-sm",
             )}

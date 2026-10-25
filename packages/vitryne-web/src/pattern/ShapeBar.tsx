@@ -45,7 +45,7 @@ export function ShapeBar(props: {
       <div
         role="radiogroup"
         aria-label="Shape"
-        className="flex items-center gap-1 rounded-[14px] border border-[#E1E4DE] bg-white p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.12)]"
+        className="flex items-center gap-1 rounded-[14px] border border-border bg-card p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.12)]"
       >
         {SHAPES.map((s) => (
           <button
@@ -57,15 +57,15 @@ export function ShapeBar(props: {
             onClick={() => props.onKind(s.kind)}
             className={
               props.kind === s.kind
-                ? "flex size-12 items-center justify-center rounded-[10px] bg-[#E9EBE6]"
-                : "flex size-12 items-center justify-center rounded-[10px] hover:bg-[#F4F5F2]"
+                ? "flex size-12 items-center justify-center rounded-[10px] bg-accent"
+                : "flex size-12 items-center justify-center rounded-[10px] hover:bg-hover"
             }
           >
             <svg
               viewBox="0 0 28 28"
               className="size-7"
-              fill="#14181F"
-              stroke="#14181F"
+              fill="var(--foreground)"
+              stroke="var(--foreground)"
               aria-hidden="true"
             >
               {s.glyph}

@@ -180,7 +180,7 @@ export function FabricDetails(props: {
         >
           <SelectTrigger
             aria-label="Kind"
-            className="h-11 w-full rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-white text-[15px]"
+            className="h-11 w-full rounded-[10px] border-[1.5px] border-border-strong bg-card text-[15px]"
           >
             <SelectValue />
           </SelectTrigger>

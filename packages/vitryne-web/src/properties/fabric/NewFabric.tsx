@@ -95,20 +95,20 @@ export function NewFabric(props: {
                 onClick={() => setPreset(p)}
                 className={`flex flex-col items-start rounded-[10px] border p-2.5 text-left transition-colors ${
                   on
-                    ? "border-[#14181F] bg-[#14181F] text-white"
-                    : "border-[#E1E4DE] bg-white hover:border-[#B5B9B0]"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card hover:border-line"
                 }`}
               >
                 <span className="flex w-full items-center justify-between">
                   <span className="text-[14px] font-semibold">{p.name}</span>
                   <span
-                    className={`text-[11px] ${on ? "text-white/70" : "text-muted-foreground"}`}
+                    className={`text-[11px] ${on ? "text-primary-foreground/70" : "text-muted-foreground"}`}
                   >
                     {Math.round(p.density * 1000)} g/m²
                   </span>
                 </span>
                 <span
-                  className={`text-[12px] ${on ? "text-white/80" : "text-muted-foreground"}`}
+                  className={`text-[12px] ${on ? "text-primary-foreground/80" : "text-muted-foreground"}`}
                 >
                   {KIND_HINTS[p.name] ?? p.category}
                 </span>
@@ -133,7 +133,7 @@ export function NewFabric(props: {
         </Label>
         <input
           id="new-fabric-name"
-          className="h-11 rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-card px-3 text-[15px]"
+          className="h-11 rounded-[10px] border-[1.5px] border-border-strong bg-card px-3 text-[15px]"
           value={shownName}
           onChange={(ev) => setName(ev.target.value)}
         />

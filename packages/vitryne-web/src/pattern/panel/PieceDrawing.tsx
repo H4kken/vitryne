@@ -31,8 +31,8 @@ export function PieceDrawing({
 }) {
   const ink = (kind: "line" | "fold" | "grain", id = "") =>
     marked?.kind === kind && (kind === "grain" || marked.id === id)
-      ? { stroke: "#3A63F0", strokeWidth: 3.5 }
-      : { stroke: "#8E968A", strokeWidth: 1.6 };
+      ? { stroke: "var(--select)", strokeWidth: 3.5 }
+      : { stroke: "var(--line)", strokeWidth: 1.6 };
   const outline = outlinePoints(piece);
   const nodes = piece.outline;
   const byId = new Map(nodes.map((n: OutlineNode) => [n.id, n.position]));
@@ -60,12 +60,16 @@ export function PieceDrawing({
   });
   return (
     <>
-      <path d={pathData(outline, true)} fill="#FFFFFF" stroke="none" />
+      <path
+        d={pathData(outline, true)}
+        fill="var(--piece-fill)"
+        stroke="none"
+      />
       <path
         d={pathData(outline, true)}
         fill={color ?? "none"}
         fillOpacity={0.55}
-        stroke={bad ? BAD : "#14181F"}
+        stroke={bad ? BAD : "var(--foreground)"}
         strokeWidth={2.5}
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
@@ -96,7 +100,7 @@ export function PieceDrawing({
         <path
           key={i}
           d={pathData(t, false)}
-          stroke="#14181F"
+          stroke="var(--foreground)"
           strokeWidth={2}
           vectorEffect="non-scaling-stroke"
         />

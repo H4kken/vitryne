@@ -102,7 +102,7 @@ export function ProjectGrid(props: {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as "edited" | "name")}
-              className="text-foreground rounded-lg border border-[#D5D9D1] bg-white px-2 py-1 text-sm font-medium"
+              className="text-foreground rounded-lg border border-border-strong bg-card px-2 py-1 text-sm font-medium"
             >
               <option value="edited">Last edited</option>
               <option value="name">Name</option>
@@ -112,7 +112,7 @@ export function ProjectGrid(props: {
       </div>
       {props.note}
       {!props.projects.length && (
-        <p className="text-muted-foreground m-0 rounded-2xl border border-dashed border-[#D5D9D1] px-5 py-8 text-center text-[15px]">
+        <p className="text-muted-foreground m-0 rounded-2xl border border-dashed border-border-strong px-5 py-8 text-center text-[15px]">
           Your projects will appear here. Start from an example or import a
           pattern: it is saved as soon as you change it.
         </p>
@@ -121,7 +121,7 @@ export function ProjectGrid(props: {
         {list.map((p) => (
           <li
             key={p.id}
-            className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E1E4DE] bg-white transition-[transform,box-shadow] duration-150 focus-within:shadow-[0_10px_24px_rgba(20,24,31,.10)] hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)]"
+            className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card transition-[transform,box-shadow] duration-150 focus-within:shadow-[0_10px_24px_rgba(20,24,31,.10)] hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)]"
           >
             <button
               type="button"
@@ -240,7 +240,7 @@ export function ProjectGrid(props: {
         ))}
       </ul>
       {error && (
-        <p role="alert" className="m-0 text-sm text-[#8A2410]">
+        <p role="alert" className="m-0 text-sm text-danger">
           {error}
         </p>
       )}

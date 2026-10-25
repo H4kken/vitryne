@@ -28,8 +28,8 @@ export function PenMarks({
   /** An internal line: never closed, no edge back to the first point. */
   open?: boolean;
 }) {
-  const blue = "#3A63F0";
-  const ink = bad ? BAD : "#14181F";
+  const blue = "var(--select)";
+  const ink = bad ? BAD : "var(--foreground)";
   const first = points[0];
   const dot = (p: P, key: string, on = false) => (
     <rect
@@ -38,7 +38,7 @@ export function PenMarks({
       y={-p[1] - r}
       width={2 * r}
       height={2 * r}
-      fill={on ? blue : "#FFFFFF"}
+      fill={on ? blue : "var(--piece-fill)"}
       stroke={on ? blue : ink}
       strokeWidth={1.5}
       vectorEffect="non-scaling-stroke"
@@ -94,7 +94,7 @@ export function PenMarks({
             cx={end.out[0]}
             cy={-end.out[1]}
             r={CONTROL_PX * (r / NODE_PX)}
-            fill="#FFFFFF"
+            fill="var(--piece-fill)"
             stroke={blue}
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"

@@ -26,7 +26,7 @@ export function TextField(props: {
       </Label>
       <Input
         id={id}
-        className="h-11 rounded-[10px] border-[1.5px] border-[#D5D9D1] bg-card px-3 text-[15px] shadow-none"
+        className="h-11 rounded-[10px] border-[1.5px] border-border-strong bg-card px-3 text-[15px] shadow-none"
         value={d.text}
         placeholder={props.placeholder}
         onChange={(e) => d.setDraft(e.target.value)}

@@ -44,7 +44,7 @@ export function ProjectName(props: {
             e.currentTarget.blur();
           }
         }}
-        className="col-start-1 row-start-1 h-8 min-w-0 truncate rounded-lg border-[1.5px] border-transparent bg-transparent px-2 outline-none hover:border-[#D5D9D1] focus:border-[#14181F] focus:text-clip"
+        className="col-start-1 row-start-1 h-8 min-w-0 truncate rounded-lg border-[1.5px] border-transparent bg-transparent px-2 outline-none hover:border-border-strong focus:border-foreground focus:text-clip"
       />
     </span>
   );

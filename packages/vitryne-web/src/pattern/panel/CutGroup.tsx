@@ -81,7 +81,7 @@ export function CutGroup(props: {
           <path
             d={pathData(outlinePoints(v.piece), true)}
             fill="none"
-            stroke="#3A63F0"
+            stroke="var(--select)"
             strokeWidth={5}
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"
@@ -124,7 +124,7 @@ export function CutGroup(props: {
                   key={`${e.from}:${e.to}`}
                   d={pathData(runPoints(v.piece, e.from, e.to, true), false)}
                   fill="none"
-                  stroke="#3A63F0"
+                  stroke="var(--select)"
                   strokeWidth={on ? 7 : 4}
                   strokeDasharray={on ? undefined : "2 7"}
                   strokeLinecap="round"
@@ -170,7 +170,7 @@ export function CutGroup(props: {
         x={(v.box.minX + v.box.maxX) / 2}
         y={-v.box.minY + LABEL_GAP_MM}
         textAnchor="middle"
-        fill={on ? "#14181F" : "#5B625C"}
+        fill={on ? "var(--foreground)" : "var(--muted-foreground)"}
         fontWeight={on ? 600 : 400}
         className="pointer-events-none font-sans text-[22px] select-none"
       >

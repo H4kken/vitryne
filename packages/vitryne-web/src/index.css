@@ -5,8 +5,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Light only, like the concept: `dark:` styles (in the shadcn components) apply under a .dark
-   class the app never sets, not from the system setting. */
+/* Light is the concept's look; dark is the same palette turned down. `src/lib/theme.ts` sets the
+   `.dark` class on <html> (the person's choice, or the system setting), and `dark:` styles in the
+   shadcn components follow it. */
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -40,6 +41,56 @@
   --canvas-3d: #ecefe9;
   --canvas-flat: #fafbf8;
   --on-ink-muted: #c9cec6;
+  /* Tokens for what was once hard-coded hex */
+  --border-strong: #d5d9d1;
+  --hover: #f4f5f2;
+  --chip: #e1e4de;
+  --faint: #b9c0b4;
+  --danger: #8a2410;
+  --danger-soft: #fce9e9;
+  --danger-soft-foreground: #a12c2c;
+  --piece-fill: #ffffff;
+  --grid: #7f8b78;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #14171c;
+  --foreground: #eceee9;
+  --card: #1c2027;
+  --card-foreground: #eceee9;
+  --popover: #1c2027;
+  --popover-foreground: #eceee9;
+  --primary: #eceee9;
+  --primary-foreground: #14181f;
+  --secondary: #272c34;
+  --secondary-foreground: #eceee9;
+  --muted: #272c34;
+  --muted-foreground: #9ba29c;
+  --accent: #2b3139;
+  --accent-foreground: #eceee9;
+  --destructive: #e0644c;
+  --border: #2a2f37;
+  --input: #3a414b;
+  --ring: #7b98ff;
+  --body-text: #b9bfb8;
+  --line: #6f776c;
+  --brand: #f0683f;
+  --select: #7b98ff;
+  --live: #34c58a;
+  --canvas-3d: #1a1e24;
+  --canvas-flat: #171a1f;
+  --on-ink-muted: #4a514b;
+  --border-strong: #3a414b;
+  --hover: #22272e;
+  --chip: #313740;
+  --faint: #4a514b;
+  --danger: #f08a76;
+  --danger-soft: #3a1d1d;
+  --danger-soft-foreground: #f2a0a0;
+  --piece-fill: #2a2f37;
+  --grid: #8e9a86;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -76,6 +127,15 @@
   --color-canvas-3d: var(--canvas-3d);
   --color-canvas-flat: var(--canvas-flat);
   --color-on-ink-muted: var(--on-ink-muted);
+  --color-border-strong: var(--border-strong);
+  --color-hover: var(--hover);
+  --color-chip: var(--chip);
+  --color-faint: var(--faint);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-soft-foreground: var(--danger-soft-foreground);
+  --color-piece-fill: var(--piece-fill);
+  --color-grid: var(--grid);
 }
 
 @layer base {

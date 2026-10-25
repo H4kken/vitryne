@@ -6,6 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/images/vitryne-logo-192.png" />
     <link rel="apple-touch-icon" href="/images/vitryne-logo-192.png" />
+    <!-- Sets the theme before the first paint, so a dark choice doesn't flash light. Same rule
+         as src/lib/theme.ts. -->
+    <script>
+      try {
+        var t = localStorage.getItem("vitryne.theme");
+        if (
+          t === "dark" ||
+          (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)
+        )
+          document.documentElement.classList.add("dark");
+      } catch (e) {}
+    </script>
     <title>Vitryne: garment design in your browser</title>
     <meta
       name="description"

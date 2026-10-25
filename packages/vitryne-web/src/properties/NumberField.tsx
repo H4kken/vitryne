@@ -57,7 +57,7 @@ export function NumberField(p: NumberFieldProps) {
         <div className="flex items-center gap-1.5">
           <Input
             id={id}
-            className="h-8 w-20 rounded-lg border-[#D5D9D1] bg-card px-2 text-right text-[13px] tabular-nums shadow-none"
+            className="h-8 w-20 rounded-lg border-border-strong bg-card px-2 text-right text-[13px] tabular-nums shadow-none"
             inputMode="decimal"
             value={d.text}
             onChange={(e) => d.setDraft(e.target.value)}

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Fabric colours (appearances, docs/FORMAT.md, Appearance): the swatches the editor offers, and
-// the colour cloth has without one (the 3D view's, SCENE_STYLE).
+// the colour cloth has without one (the 3D view's, sceneStyle).
 
 /** The cloth colour of a garment or piece that has no appearance. */
 export const DEFAULT_CLOTH_COLOR = "#9db4a0";

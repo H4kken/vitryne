@@ -46,14 +46,14 @@ export function DrawBar(props: {
       {props.warning && (
         <div
           role="status"
-          className="rounded-lg bg-[#FCE9E9] px-3 py-1 text-[13px] font-medium text-[#A12C2C]"
+          className="rounded-lg bg-danger-soft px-3 py-1 text-[13px] font-medium text-danger-soft-foreground"
         >
           {props.warning}
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-center gap-1 rounded-[12px] border border-[#E1E4DE] bg-white p-1 shadow-[0_4px_16px_rgba(20,24,31,.08)]">
+      <div className="flex flex-wrap items-center justify-center gap-1 rounded-[12px] border border-border bg-card p-1 shadow-[0_4px_16px_rgba(20,24,31,.08)]">
         {props.points === 0 ? (
-          <span className="px-2 py-1.5 text-[13px] text-[#4A514B]">
+          <span className="px-2 py-1.5 text-[13px] text-body-text">
             Click to put a point down, drag for a curve · Shift: 15° steps ·
             Alt: no snapping
           </span>
@@ -75,7 +75,7 @@ export function DrawBar(props: {
               onDraft={setAngle}
               onEnter={place}
             />
-            <span className="mx-1 h-5 w-px bg-[#E1E4DE]" />
+            <span className="mx-1 h-5 w-px bg-chip" />
             <BarButton
               onClick={props.onUndo}
               title="Take the last point back (Backspace)"
