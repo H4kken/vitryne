@@ -446,9 +446,9 @@ function input(m: Input) {
         v.pointer_down(m.x, m.y).then(
           (grab: number) => {
             if (press !== p) return;
-            // 0: no cloth there (orbit), 1: grabbed, 2: cloth, but the drape isn't live.
-            if (grab === 0) p.orbit = true;
-            else if (grab === 2) post({ kind: "needsPlay" });
+            // 0: no cloth there (nothing: the view turns only with Cmd), 1: grabbed, 2: cloth, but
+            // the drape isn't live.
+            if (grab === 2) post({ kind: "needsPlay" });
           },
           () => {},
         );

@@ -642,8 +642,11 @@ impl Viewport {
 
     /// Restarts the drape from the placed pattern.
     pub fn reset(&self) {
+        self.core.pulling.set(None);
         if let Some(live) = self.core.live.borrow().as_ref() {
             live.sim.reset();
+            // Back to the placement of the file: a cut shown moved is not any more.
+            *live.moved.borrow_mut() = None;
         }
     }
 

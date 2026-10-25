@@ -61,7 +61,7 @@ export type Input =
   | { kind: "resize"; width: number; height: number }
   /**
    * `x`, `y`: normalized device coordinates (-1..1, y up); `px`, `py`: CSS pixels. `tool`
-   * (on down): `pinch` pulls the cloth under the pointer, or orbits when there is none;
+   * (on down): `pinch` pulls the cloth under the pointer, and does nothing when there is none;
    * `select` picks the cut under it (a `picked` event), or orbits when dragged. `camera` (on
    * down) overrides the tool: the drag turns or slides the view.
    */
