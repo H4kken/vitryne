@@ -175,6 +175,12 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
   const importFile = () => fileInput.current?.click();
   const exportIt = () =>
     account.need("Create a free account to export.", () => setExporting(true));
+  const sewTool = () => {
+    setFlatTool("sew");
+    selection.setSelection(null);
+    selection.setOpenSeam(null);
+    panels.setPanel("pieces");
+  };
   useShortcuts({
     session,
     store,
@@ -183,6 +189,8 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     fileInput,
     show2d: view.show2d,
     flatTool,
+    setFlatTool,
+    onSew: sewTool,
     garment,
     selection: selection.shown,
     onRemoved: () => selection.setSelection(null),
@@ -291,12 +299,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
               setAdding({ outline, origin, key: Date.now() })
             }
             addNewPiece={addNewPiece}
-            onSew={() => {
-              setFlatTool("sew");
-              selection.setSelection(null);
-              selection.setOpenSeam(null);
-              panels.setPanel("pieces");
-            }}
+            onSew={sewTool}
           />
           <Splitter view={view} />
           <DrapeView

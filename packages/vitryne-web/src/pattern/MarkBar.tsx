@@ -51,7 +51,11 @@ export function MarkBar(props: {
   picked?: { what: "line" | "fold" | "grain"; onRemove: () => void };
   warning?: string;
 }) {
-  const hint = KINDS.find((k) => k.kind === props.kind)?.hint;
+  // The hint shows above the buttons while nothing is being drawn or picked.
+  const hint =
+    props.drawing || props.folding || props.picked
+      ? undefined
+      : KINDS.find((k) => k.kind === props.kind)?.hint;
   return (
     <div className="pointer-events-auto flex max-w-[calc(100vw-32px)] flex-col items-center gap-1.5">
       {props.warning && (
@@ -60,6 +64,14 @@ export function MarkBar(props: {
           className="rounded-lg bg-danger-soft px-3 py-1 text-[13px] font-medium text-danger-soft-foreground"
         >
           {props.warning}
+        </div>
+      )}
+      {hint && (
+        <div
+          key={props.kind}
+          className="animate-in fade-in slide-in-from-bottom-1 rounded-lg border border-border bg-card px-3 py-1 text-center text-[13px] text-body-text shadow-[0_4px_16px_rgba(20,24,31,.08)] duration-150"
+        >
+          {hint}
         </div>
       )}
       <div className="flex flex-wrap items-center justify-center gap-0.5 rounded-[12px] border border-border bg-card p-1 shadow-[0_4px_16px_rgba(20,24,31,.08)]">
@@ -72,7 +84,7 @@ export function MarkBar(props: {
             {k.label}
           </BarSegment>
         ))}
-        <BarDivider />
+        {!hint && <BarDivider />}
         {props.drawing ? (
           <>
             <span className="px-1.5 text-[13px] text-body-text">
@@ -127,9 +139,7 @@ export function MarkBar(props: {
               </MarkAction>
             )}
           </>
-        ) : (
-          <span className="px-2 py-1.5 text-[13px] text-body-text">{hint}</span>
-        )}
+        ) : null}
       </div>
     </div>
   );

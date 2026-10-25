@@ -6,6 +6,7 @@
 
 import { Check, Undo2, X } from "lucide-react";
 import { useState } from "react";
+import { ALT, SHIFT } from "@/lib/keys";
 import { DrawNumberField } from "./DrawNumberField";
 import { BarButton } from "./BarButton";
 
@@ -54,8 +55,8 @@ export function DrawBar(props: {
       <div className="flex flex-wrap items-center justify-center gap-1 rounded-[12px] border border-border bg-card p-1 shadow-[0_4px_16px_rgba(20,24,31,.08)]">
         {props.points === 0 ? (
           <span className="px-2 py-1.5 text-[13px] text-body-text">
-            Click to put a point down, drag for a curve · Shift: 15° steps ·
-            Alt: no snapping
+            Click to put a point down, drag for a curve · {SHIFT}: 15° steps ·{" "}
+            {ALT}: no snapping
           </span>
         ) : (
           <>

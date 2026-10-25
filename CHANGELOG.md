@@ -14,6 +14,9 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
   Sew tool highlights the free edge under the pointer and a header at the top of the flat view
   shows its length (the first edge stays there while you point at the second); the dot in the
   middle of a piece's 3D handles drags it freely over the body.
+- Keys for the flat view's tools: V Select, A Edit points, P Draw a piece, M Lines, notches, folds
+  and grain, S Sew two edges; hints show ⇧ ⌥ ⌘ on a Mac. The marks tool's hint sits above its
+  buttons.
 - Dark mode in the editor: pick Light, Dark or System from the new appearance menu in the top bar
   and on the start screen (the choice is kept in this browser).
 - Import Valentina patterns (`.val`) with their measurements (`.vit`, or a `.vst` size chart and
