@@ -19,7 +19,7 @@ export function ProjectName(props: {
   };
   return (
     <span className="inline-grid max-w-[40vw] text-[15px] font-semibold">
-      {/* The hidden copy sizes the field to its text. */}
+      {/* The hidden copy sizes the field to its text (the input itself has no width of its own: its default 20 characters would be a minimum). */}
       <span
         aria-hidden
         className="invisible col-start-1 row-start-1 truncate border-[1.5px] px-2 whitespace-pre"
@@ -44,7 +44,7 @@ export function ProjectName(props: {
             e.currentTarget.blur();
           }
         }}
-        className="col-start-1 row-start-1 h-8 min-w-0 truncate rounded-lg border-[1.5px] border-transparent bg-transparent px-2 outline-none hover:border-border-strong focus:border-foreground focus:text-clip"
+        className="col-start-1 row-start-1 h-8 w-0 min-w-full truncate rounded-lg border-[1.5px] border-transparent bg-transparent px-2 outline-none hover:border-border-strong focus:border-foreground focus:text-clip"
       />
     </span>
   );
