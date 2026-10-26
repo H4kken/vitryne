@@ -318,7 +318,20 @@ export function outlineProblem(nodes: Nodes): string | null {
     return area === 0
       ? "the outline has no area"
       : "the outline runs clockwise; it must run counter-clockwise";
+  if (spike(pts)) return "the outline would fold back on itself";
   return selfCrossing(pts) ? "the outline would cross itself" : null;
+}
+
+/** Whether the closed polygon `pts` turns back on itself at a point (Rust `spike`). */
+function spike(pts: readonly P[]): boolean {
+  return pts.some((q, i) => {
+    const a = sub(q, at(pts, i - 1));
+    const b = sub(at(pts, i + 1), q);
+    const [la, lb] = [Math.hypot(...a), Math.hypot(...b)];
+    return (
+      la > 0 && lb > 0 && (a[0] * b[0] + a[1] * b[1]) / (la * lb) < -0.99985
+    );
+  });
 }
 
 /** Whether two non-adjacent segments of the closed polygon `pts` cross or touch (Rust `self_crossing`). */

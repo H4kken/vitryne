@@ -37,6 +37,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Fixed
 
+- Dragging a point so the outline folds back on itself now shows red and is refused, instead of
+  being accepted and then failing to save.
 - Importing a Valentina pattern whose outline has a hairpin stub (an edge out and back along a
   curve) no longer stops the 3D engine: the stub is closed, and an outline that still folds back
   on itself is refused with a message.

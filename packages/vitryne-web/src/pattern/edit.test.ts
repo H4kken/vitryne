@@ -148,6 +148,10 @@ describe("outlineProblem", () => {
     expect(
       outlineProblem(moveNodes(r, new Map([[r[1]!.id, [0, 0] as const]]))),
     ).toMatch(/same place/);
+    // Dragged back onto the edge it came along: a spike.
+    expect(
+      outlineProblem(moveNodes(r, new Map([[r[2]!.id, [100, 0] as const]]))),
+    ).toMatch(/fold back/);
   });
 
   it("checks curves as flattened", () => {
