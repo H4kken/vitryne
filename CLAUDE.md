@@ -67,7 +67,10 @@ shell here doesn't have it: `export PATH="$HOME/.cargo/bin:$PATH"` before callin
   `make test` runs the TypeScript gate after `cargo test` (needs `make wasm assets` once).
 - Editor in a real browser: a headless browser without a GPU only shows the no-WebGPU page. Drive
   real Chrome over CDP like `tools/bench/chrome-check.mjs` does; use `Input.dispatch*` events
-  (synthetic DOM events can't capture pointers). Projects save to the backend: test against the
+  (synthetic DOM events can't capture pointers). Kill every Chrome you launch when you're done,
+  and remove its temp profile (they stack up otherwise): a script's `finally` kills it, and
+  afterwards `pkill -f "MacOS/Google Chrome --headless=new --remote-debugging-port"`; never kill
+  the person's own Chrome. Projects save to the backend: test against the
   local stack only (`make dev ARGS=--local`), never the hosted project
   `packages/vitryne-web/.env.local` names.
 - Backend: `make dev ARGS=--local` (local Supabase stack: Studio on :54323, emails on :54324);
