@@ -67,6 +67,9 @@ struct Core {
     /// The body and its SDF key, kept across garment changes.
     body: RefCell<Option<(String, Arc<Body>)>>,
     pulling: Cell<Option<Vec3>>,
+    /// Counts pointer releases: a grab still reading the cloth when the pointer comes up is
+    /// dropped, or it would hold the cloth (and run a paused drape) with nothing pressed.
+    releases: Cell<u32>,
     fast: Cell<bool>,
     paused: Cell<bool>,
     /// Placing pieces: the cloth stays where it starts.
@@ -89,10 +92,10 @@ struct Core {
 const HIGHLIGHT_FADE: f32 = 0.7;
 
 impl Core {
-    /// Whether frames advance the drape: when not paused, or while the cloth is held (a pinch
-    /// works on a paused drape, which stays where it is let go).
+    /// Whether frames advance the drape: live, and not placing. The cloth can be pulled only
+    /// then (`pointer_down`), so a held cloth never runs a paused drape.
     fn stepping(&self) -> bool {
-        (!self.paused.get() || self.pulling.get().is_some()) && !self.placing.get()
+        !self.paused.get() && !self.placing.get()
     }
 
     /// Gives `live`'s renderer the seams to draw: the highlighted one alone, or all of them
@@ -205,6 +208,7 @@ impl Viewport {
                 bare: RefCell::new(None),
                 body: RefCell::new(None),
                 pulling: Cell::new(None),
+                releases: Cell::new(0),
                 fast: Cell::new(false),
                 paused: Cell::new(false),
                 placing: Cell::new(false),
@@ -546,28 +550,34 @@ impl Viewport {
             .ray(x, y, cfg.width as f32 / cfg.height.max(1) as f32)
     }
 
-    /// Pointer down at normalized device coordinates. Resolves to true if cloth was grabbed
-    /// (then moves drag it), false if not (then the caller orbits).
+    /// Pointer down at normalized device coordinates. Resolves to 1 if cloth was grabbed (then
+    /// moves drag it), 0 if there is none under the pointer (then the caller orbits), 2 if there
+    /// is cloth but the drape isn't live (paused or placing): it can't be pulled.
     pub fn pointer_down(&self, x: f32, y: f32) -> js_sys::Promise {
         let c = self.core.clone();
         let (o, d) = self.ray(x, y);
+        let releases = c.releases.get();
         wasm_bindgen_futures::future_to_promise(async move {
             let Some(live) = c.live.borrow().clone() else {
-                return Ok(JsValue::FALSE);
+                return Ok(JsValue::from_f64(0.0));
             };
             let pos = live.sim.read_positions().await;
-            // The drape may have been replaced while reading.
-            if !c
-                .live
-                .borrow()
-                .as_ref()
-                .is_some_and(|l| Rc::ptr_eq(l, &live))
+            // The drape may have been replaced, or the pointer let go, while reading.
+            if c.releases.get() != releases
+                || !c
+                    .live
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|l| Rc::ptr_eq(l, &live))
             {
-                return Ok(JsValue::FALSE);
+                return Ok(JsValue::from_f64(0.0));
             }
             let Some(v) = render::pick(&pos, o, d, 0.015) else {
-                return Ok(JsValue::FALSE);
+                return Ok(JsValue::from_f64(0.0));
             };
+            if !c.stepping() {
+                return Ok(JsValue::from_f64(2.0));
+            }
             let patch = DragPatch::grab(
                 live.sim.adjacency(),
                 &pos,
@@ -576,7 +586,7 @@ impl Viewport {
             );
             live.sim.grab_patch(&patch, pos[v as usize]);
             c.pulling.set(Some(pos[v as usize]));
-            Ok(JsValue::TRUE)
+            Ok(JsValue::from_f64(1.0))
         })
     }
 
@@ -591,6 +601,9 @@ impl Viewport {
     }
 
     pub fn pointer_up(&self) {
+        self.core
+            .releases
+            .set(self.core.releases.get().wrapping_add(1));
         self.core.pulling.set(None);
         if let Some(live) = self.core.live.borrow().as_ref() {
             live.sim.release();
@@ -605,6 +618,12 @@ impl Viewport {
         self.core.camera.borrow_mut().orbit(dx, dy);
     }
 
+    /// Slides the view by a pointer move of (`dx`, `dy`) in normalized device coordinates.
+    pub fn pan(&self, dx: f32, dy: f32) {
+        let aspect = self.core.aspect();
+        self.core.camera.borrow_mut().pan(dx, dy, aspect);
+    }
+
     pub fn zoom(&self, steps: f32) {
         self.core.camera.borrow_mut().zoom(steps);
     }
@@ -615,12 +634,19 @@ impl Viewport {
 
     pub fn set_paused(&self, on: bool) {
         self.core.paused.set(on);
+        if on {
+            // Pausing lets go of the cloth.
+            self.pointer_up();
+        }
     }
 
     /// Restarts the drape from the placed pattern.
     pub fn reset(&self) {
+        self.core.pulling.set(None);
         if let Some(live) = self.core.live.borrow().as_ref() {
             live.sim.reset();
+            // Back to the placement of the file: a cut shown moved is not any more.
+            *live.moved.borrow_mut() = None;
         }
     }
 
@@ -636,13 +662,11 @@ impl Viewport {
         self.core.live.borrow().as_ref().map_or(0, |l| l.n_verts)
     }
 
-    /// Placing pieces (on) or draping (off). Either way the cloth goes back to where it starts:
-    /// while placing it stays there, so a cut's handles are where the cut starts.
+    /// Placing pieces (on) or draping (off): the cloth doesn't advance while placing, and stays
+    /// where it is (pausing must not undo the drape; moving a piece restarts from the placement,
+    /// `place_cut`).
     pub fn set_placing(&self, on: bool) {
-        if self.core.placing.get() != on {
-            self.core.placing.set(on);
-            self.reset();
-        }
+        self.core.placing.set(on);
     }
 
     /// Draws the garment's seams on the cloth (on) or not. Kept for later drapes.

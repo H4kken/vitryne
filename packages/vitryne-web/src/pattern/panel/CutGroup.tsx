@@ -119,20 +119,41 @@ export function CutGroup(props: {
             .filter((e) => e.cut === v.cut.id && !e.sewn)
             .map((e) => {
               const on = sewing.picked.some((x) => sameEdge(x, e));
+              const hot = !!sewing.hovered && sameEdge(sewing.hovered, e);
               return (
                 <path
                   key={`${e.from}:${e.to}`}
                   d={pathData(runPoints(v.piece, e.from, e.to, true), false)}
                   fill="none"
                   stroke="var(--select)"
-                  strokeWidth={on ? 7 : 4}
-                  strokeDasharray={on ? undefined : "2 7"}
+                  strokeWidth={on || hot ? 7 : 4}
+                  strokeDasharray={on || hot ? undefined : "2 7"}
                   strokeLinecap="round"
-                  opacity={on ? 1 : 0.55}
+                  opacity={on || hot ? 1 : 0.55}
                   vectorEffect="non-scaling-stroke"
+                  className="transition-[stroke-width,opacity] duration-150"
                 />
               );
             })}
+        {/* A suggestion hovered in the seams list: the edges it would sew. */}
+        {sewing?.suggested
+          ?.filter((r) => r.cut === v.cut.id && !r.line)
+          .map((r, k) => (
+            <path
+              key={`suggested:${k}`}
+              d={pathData(
+                runPoints(v.piece, r.from, r.to, r.direction !== "cw"),
+                false,
+              )}
+              fill="none"
+              stroke="var(--select)"
+              strokeWidth={9}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              className="pointer-events-none animate-in fade-in duration-200"
+            />
+          ))}
         {marking && (
           <MarkMarks
             v={v}

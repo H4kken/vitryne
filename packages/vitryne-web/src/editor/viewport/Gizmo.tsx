@@ -9,13 +9,14 @@ import type { Placement } from "@/format/schema.gen";
 import type { GizmoHandle, GizmoView } from "@/worker/protocol";
 
 type Wrap = Placement & { type: "wrap" };
-type Kind = "along" | "around" | "out" | "turn";
+type Kind = "along" | "around" | "out" | "turn" | "free";
 
 const LABELS: Record<Kind, string> = {
   along: "Drag to move it up or down the body",
   around: "Drag to move it around the body",
   out: "Drag to move it closer to or away from the body",
   turn: "Drag to turn it",
+  free: "Drag to move it around the body",
 };
 
 type Px = [number, number];
@@ -76,7 +77,21 @@ export function Gizmo(props: {
     const dy = e.clientY - g.last[1];
     if (!dx && !dy) return;
     const p = { ...g.p };
-    if (g.kind === "along") p.top = (p.top ?? 0) + along(view.along, dx, dy);
+    if (g.kind === "free") {
+      // Both ways at once: the move in (up the body, around it) that the pointer's move is,
+      // when the two handles' screen directions are not (nearly) the same line.
+      const [ax, ay] = perPx(view.along);
+      const [rx, ry] = perPx(view.around);
+      const det = ax * ry - rx * ay;
+      if (Math.abs(det) > 1e-3 * Math.hypot(ax, ay) * Math.hypot(rx, ry)) {
+        p.top = (p.top ?? 0) + (dx * ry - rx * dy) / det;
+        p.angle = (p.angle ?? 0) + (ax * dy - dx * ay) / det;
+      } else {
+        p.top = (p.top ?? 0) + along(view.along, dx, dy);
+        p.angle = (p.angle ?? 0) + along(view.around, dx, dy);
+      }
+    } else if (g.kind === "along")
+      p.top = (p.top ?? 0) + along(view.along, dx, dy);
     else if (g.kind === "around")
       p.angle = (p.angle ?? 0) + along(view.around, dx, dy);
     else if (g.kind === "out")
@@ -117,9 +132,9 @@ export function Gizmo(props: {
 
   const handleProps = (kind: Kind) => ({
     onPointerDown: start(kind),
-    onPointerMove: move,
-    onPointerUp: end,
-    onPointerCancel: end,
+    onPointerMove: (e: React.PointerEvent<SVGElement>) => move(e),
+    onPointerUp: () => end(),
+    onPointerCancel: () => end(),
     onPointerEnter: () => setHover(kind),
     onPointerLeave: () => setHover(null),
     className: "pointer-events-auto cursor-grab active:cursor-grabbing",
@@ -190,6 +205,22 @@ export function Gizmo(props: {
     </g>
   );
 
+  /** The middle: grab it to move the piece freely over the body. */
+  const middle = () => (
+    <g {...handleProps("free")}>
+      <title>{LABELS.free}</title>
+      <circle cx={centre[0]} cy={centre[1]} r={16} fill="transparent" />
+      <circle
+        cx={centre[0]}
+        cy={centre[1]}
+        r={active === "free" || hover === "free" ? 8 : 6}
+        fill="#FFFFFF"
+        stroke={stroke("free")}
+        strokeWidth={2.5}
+      />
+    </g>
+  );
+
   return (
     <svg
       className="pointer-events-none absolute inset-0 h-full w-full"
@@ -202,14 +233,7 @@ export function Gizmo(props: {
       {handle("along", view.along.line, "both")}
       {handle("around", view.around.line, "both")}
       {handle("out", view.out.line, "end")}
-      <circle
-        cx={centre[0]}
-        cy={centre[1]}
-        r={5}
-        fill="#FFFFFF"
-        stroke="#3A63F0"
-        strokeWidth={2}
-      />
+      {middle()}
     </svg>
   );
 }

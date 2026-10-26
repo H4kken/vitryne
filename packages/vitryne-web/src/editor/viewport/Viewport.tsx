@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The 3D view: a canvas whose drawing is handed to the engine worker. Pointer input goes to
-// the worker with the active tool (turn: orbit; pinch: pull the cloth, or orbit off it;
-// select: pick a piece with a click, orbit with a drag). On a trackpad a two-finger drag turns
-// the camera and a pinch zooms, whatever the tool.
+// the worker with the active tool (pinch: pull the cloth; select: pick a
+// piece with a click, orbit with a drag). Cmd (Ctrl) held turns the view and Option (Alt) slides
+// it, whatever the tool. On a trackpad a two-finger drag up or down and a pinch zoom.
 
 import type { PointerTool } from "@/worker/protocol";
 import { type EngineSession, useEngine } from "@/worker/session";

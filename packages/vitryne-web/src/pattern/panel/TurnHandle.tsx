@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { SHIFT } from "@/lib/keys";
 import { type CutView, type P, pathData } from "../geometry";
 import { HANDLE_R_PX } from "./constants";
 
@@ -41,7 +42,7 @@ export function TurnHandle({
         vectorEffect="non-scaling-stroke"
         className="cursor-grab"
       >
-        <title>Drag to turn (Shift: 15° steps)</title>
+        <title>Drag to turn ({SHIFT}: 15° steps)</title>
       </circle>
     </g>
   );

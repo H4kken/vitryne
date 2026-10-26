@@ -1,14 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The editor's keys: save, open a file, undo and redo; Delete takes the picked pieces out;
-// space, F and R pause, speed up and restart the drape.
+// space, F and R pause, speed up and restart the drape; in the flat view V, A, P, M and S pick
+// the Select, Edit points, Draw, Marks and Sew tools; in the 3D view 1 and 2 pick Select and Pinch.
 
 import { type RefObject, useEffect } from "react";
 import { findCut, removeCuts } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
 import type { Garment } from "@/format/schema.gen";
 
+import type { PointerTool } from "@/worker/protocol";
 import type { EngineSession } from "@/worker/session";
 import type { FlatTool, Selection } from "@/pattern/panel/types";
+
+/** By physical key (`code`), not the character: on an AZERTY keyboard the digit row types & and é
+ * without Shift, so `key` is never "1" or "2" there. */
+const DRAPE_TOOL_KEYS: Record<string, PointerTool | undefined> = {
+  Digit1: "select",
+  Numpad1: "select",
+  Digit2: "pinch",
+  Numpad2: "pinch",
+};
+
+const FLAT_TOOL_KEYS: Record<string, FlatTool | undefined> = {
+  v: "select",
+  a: "points",
+  p: "draw",
+  m: "marks",
+  s: "sew",
+};
 
 export function useShortcuts(o: {
   session: EngineSession;
@@ -18,7 +37,12 @@ export function useShortcuts(o: {
   /** The file input that Cmd-O opens. */
   fileInput: RefObject<HTMLInputElement | null>;
   show2d: boolean;
+  show3d: boolean;
+  setTool: (t: PointerTool) => void;
   flatTool: FlatTool;
+  setFlatTool: (t: FlatTool) => void;
+  /** The Sew tool picked (it also opens the seams and clears the selection). */
+  onSew: () => void;
   garment: Garment | undefined;
   selection: Selection;
   /** The picked pieces were taken out. */
@@ -31,7 +55,11 @@ export function useShortcuts(o: {
     showInfo,
     fileInput,
     show2d,
+    show3d,
+    setTool,
     flatTool,
+    setFlatTool,
+    onSew,
     garment,
     selection,
     onRemoved,
@@ -61,7 +89,29 @@ export function useShortcuts(o: {
         else store.undo();
         return;
       }
-      if (typing || mod) return;
+      if (typing || mod || e.altKey) return;
+      // The flat view's tools, one letter each.
+      // Not under a dialog or menu, nor with nothing open.
+      const over =
+        e.target instanceof Element &&
+        !!e.target.closest('[role="dialog"], [role="menu"], [role="listbox"]');
+      const tool =
+        show2d && !over && !e.shiftKey && garment
+          ? FLAT_TOOL_KEYS[k]
+          : undefined;
+      const drapeTool =
+        show3d && !over && !e.shiftKey ? DRAPE_TOOL_KEYS[e.code] : undefined;
+      if (drapeTool) {
+        e.preventDefault();
+        setTool(drapeTool);
+        return;
+      }
+      if (tool) {
+        e.preventDefault();
+        if (tool === "sew") onSew();
+        else setFlatTool(tool);
+        return;
+      }
       // Delete takes the picked pieces out, in 2D or 3D; the 2D tools that pick points or
       // lines keep it for those.
       if (
@@ -106,7 +156,11 @@ export function useShortcuts(o: {
     showInfo,
     fileInput,
     show2d,
+    show3d,
+    setTool,
     flatTool,
+    setFlatTool,
+    onSew,
     garment,
     selection,
     onRemoved,

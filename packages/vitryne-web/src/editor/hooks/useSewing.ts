@@ -37,6 +37,7 @@ export function useSewing(o: {
   const [edges, setEdges] = useState<CutEdge[]>([]);
   const [differences, setDifferences] = useState<Record<string, number>>({});
   const [finding, setFinding] = useState(false);
+  const [hoveredProposal, setHoveredProposal] = useState<number | null>(null);
   const sewingKey = garment ? `${garment.id}` : "";
   const seams = garment?.seams;
   const pieces = garment?.pieces;
@@ -83,6 +84,19 @@ export function useSewing(o: {
     [sewingKey],
   );
 
+  // Escape drops the edges picked so far.
+  const picking = picks !== null;
+  useEffect(() => {
+    if (!picking) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key !== "Escape" || t?.closest("input, textarea, select")) return;
+      setPicks(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [picking, setPicks]);
+
   const findSeams = useCallback(async () => {
     setFinding(true);
     try {
@@ -112,6 +126,7 @@ export function useSewing(o: {
   const acceptProposal = useCallback(
     (p: SeamProposal) => {
       // Edges taken, so the rest of the list is asked again.
+      setHoveredProposal(null);
       if (sew(p)) void findSeams();
     },
     [sew, findSeams],
@@ -168,8 +183,15 @@ export function useSewing(o: {
     [picks, setPicks, completeSeam],
   );
 
+  /** The runs of the suggestion hovered in the list, picked out in the flat view. */
+  const hoveredRuns =
+    (hoveredProposal !== null ? proposals?.[hoveredProposal] : undefined) ??
+    null;
+
   return {
     edges,
+    hoveredRuns: hoveredRuns ? [...hoveredRuns.a, ...hoveredRuns.b] : null,
+    hoverProposal: setHoveredProposal,
     differences,
     finding,
     proposals,
@@ -177,8 +199,10 @@ export function useSewing(o: {
     findSeams,
     acceptProposal,
     /** Takes a suggestion off the list. */
-    skipProposal: (i: number) =>
-      setProposals((list) => list?.filter((_, k) => k !== i) ?? null),
+    skipProposal: (i: number) => {
+      setHoveredProposal(null);
+      setProposals((list) => list?.filter((_, k) => k !== i) ?? null);
+    },
     pickEdge,
   };
 }

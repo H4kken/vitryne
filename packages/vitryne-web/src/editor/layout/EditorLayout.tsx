@@ -96,7 +96,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     files.ref?.cloud?.id ?? null,
     store,
   );
-  const [tool, setTool] = useState<PointerTool>("turn");
+  const [tool, setTool] = useState<PointerTool>("select");
   const [flatTool, setFlatTool] = useState<FlatTool>("select");
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
   const modHeld = useModHeld();
@@ -175,6 +175,12 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
   const importFile = () => fileInput.current?.click();
   const exportIt = () =>
     account.need("Create a free account to export.", () => setExporting(true));
+  const sewTool = () => {
+    setFlatTool("sew");
+    selection.setSelection(null);
+    selection.setOpenSeam(null);
+    panels.setPanel("pieces");
+  };
   useShortcuts({
     session,
     store,
@@ -182,7 +188,11 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     showInfo: files.showInfo,
     fileInput,
     show2d: view.show2d,
+    show3d: view.show3d,
+    setTool,
     flatTool,
+    setFlatTool,
+    onSew: sewTool,
     garment,
     selection: selection.shown,
     onRemoved: () => selection.setSelection(null),
@@ -291,12 +301,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
               setAdding({ outline, origin, key: Date.now() })
             }
             addNewPiece={addNewPiece}
-            onSew={() => {
-              setFlatTool("sew");
-              selection.setSelection(null);
-              selection.setOpenSeam(null);
-              panels.setPanel("pieces");
-            }}
+            onSew={sewTool}
           />
           <Splitter view={view} />
           <DrapeView

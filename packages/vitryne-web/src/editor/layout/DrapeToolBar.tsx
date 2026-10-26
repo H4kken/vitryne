@@ -1,44 +1,45 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { useEffect, useState } from "react";
 import { FastForward, Pause, Play, RotateCcw } from "lucide-react";
 import type { PointerTool } from "@/worker/protocol";
 import { EngineSession, type EngineState } from "@/worker/session";
 import { SelectIcon } from "../icons/SelectIcon";
-import { TurnIcon } from "../icons/TurnIcon";
 import { PinchIcon } from "../icons/PinchIcon";
 import { ToolButton } from "./ToolButton";
 
-/** The 3D view's floating tool bar: Select, Turn view and Pinch fabric; play, fast and restart. */
+/** The 3D view's floating tool bar: Select and Pinch fabric; play, fast and restart. */
 export function DrapeToolBar({
   session,
   engine,
   tool,
   setTool,
-  placing,
 }: {
   session: EngineSession;
   engine: EngineState;
   tool: PointerTool;
   setTool: (t: PointerTool) => void;
-  placing: boolean;
 }) {
+  const running = !engine.controls.paused;
+  // A pinch on the cloth while paused: the Play button flashes, it is what makes it work.
+  const [seenHint, setSeenHint] = useState(0);
+  const flash = engine.playHint !== 0 && engine.playHint !== seenHint;
+  useEffect(() => {
+    if (engine.playHint === 0) return;
+    const hint = engine.playHint;
+    const t = setTimeout(() => setSeenHint(hint), 1500);
+    return () => clearTimeout(t);
+  }, [engine.playHint]);
   return (
     <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-[14px] bg-primary p-1.5 shadow-[0_8px_24px_rgba(20,24,31,.25)]">
       <ToolButton
-        label="Select"
+        label="Select (1)"
         selected={tool === "select"}
         onClick={() => setTool("select")}
       >
         <SelectIcon />
       </ToolButton>
       <ToolButton
-        label="Turn view"
-        selected={tool === "turn"}
-        onClick={() => setTool("turn")}
-      >
-        <TurnIcon />
-      </ToolButton>
-      <ToolButton
-        label="Pinch fabric"
+        label="Pinch fabric (2)"
         selected={tool === "pinch"}
         onClick={() => setTool("pinch")}
       >
@@ -46,20 +47,13 @@ export function DrapeToolBar({
       </ToolButton>
       <span className="mx-1 my-2 w-px bg-primary-foreground/20" />
       <ToolButton
-        label={engine.controls.paused ? "Play (space)" : "Pause (space)"}
+        label={running ? "Pause (space)" : "Play (space)"}
+        flash={flash}
         onClick={() => {
-          // Play while placing means "drape now".
-          if (placing) setTool("turn");
-          session.setControls({
-            paused: placing ? false : !engine.controls.paused,
-          });
+          session.setControls({ paused: !engine.controls.paused });
         }}
       >
-        {engine.controls.paused ? (
-          <Play className="size-5" />
-        ) : (
-          <Pause className="size-5" />
-        )}
+        {running ? <Pause className="size-5" /> : <Play className="size-5" />}
       </ToolButton>
       <ToolButton
         label="Fast drape (F)"

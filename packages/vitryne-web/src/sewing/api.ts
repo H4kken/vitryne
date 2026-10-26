@@ -28,6 +28,11 @@ export interface SeamProposal {
   difference_percent: number;
 }
 
+/** An edge or chain of edges' length as the header shows it: cm, one decimal. */
+export function formatLength(mm: number): string {
+  return `${(mm / 10).toFixed(1)} cm`;
+}
+
 export function parseEdges(json: string): CutEdge[] {
   return JSON.parse(json) as CutEdge[];
 }
@@ -85,7 +90,7 @@ function runPlace(g: Garment, r: Run): string | null {
   return null;
 }
 
-function cutLabel(g: Garment, cutId: string): string {
+export function cutLabel(g: Garment, cutId: string): string {
   for (const p of g.pieces) {
     const c = p.cuts.find((x) => x.id === cutId);
     if (c) return c.name ?? p.name;

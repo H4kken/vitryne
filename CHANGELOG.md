@@ -10,6 +10,16 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Added
 
+- Sewing is easier to read: hovering a suggested seam picks its edges out in the flat view; the
+  Sew tool highlights the free edge under the pointer and a header at the top of the flat view
+  shows its length (the first edge stays there while you point at the second); the dot in the
+  middle of a piece's 3D handles drags it freely over the body.
+- Keys for the flat view's tools: V Select, A Edit points, P Draw a piece, M Lines, notches, folds
+  and grain, S Sew two edges; hints show ⇧ ⌥ ⌘ on a Mac. The marks tool's hint sits above its
+  buttons.
+- The 3D view: Cmd (Ctrl) + drag turns the view and Option (Alt) + drag slides it, with any tool;
+  two fingers up and down on a trackpad zoom; selecting a piece picks it out in 3D. The Turn view
+  tool is gone (Pinch fabric is the default and dragging empty space still turns the view).
 - Dark mode in the editor: pick Light, Dark or System from the new appearance menu in the top bar
   and on the start screen (the choice is kept in this browser).
 - Import Valentina patterns (`.val`) with their measurements (`.vit`, or a `.vst` size chart and
@@ -27,6 +37,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Fixed
 
+- Dragging a point so the outline folds back on itself now shows red and is refused, instead of
+  being accepted and then failing to save.
 - Importing a Valentina pattern whose outline has a hairpin stub (an edge out and back along a
   curve) no longer stops the 3D engine: the stub is closed, and an outline that still folds back
   on itself is refused with a message.

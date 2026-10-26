@@ -114,6 +114,16 @@ impl OrbitCamera {
         self.pitch = (self.pitch + dy * 0.008).clamp(-1.5, 1.5);
     }
 
+    /// Slides the view across the scene so that what is under the pointer follows it: `dx`,
+    /// `dy` are the pointer's move in normalized device coordinates (y up).
+    pub fn pan(&mut self, dx: f32, dy: f32, aspect: f32) {
+        let forward = (self.target - self.eye()).normalize();
+        let right = forward.cross(Vec3::Y).normalize_or_zero();
+        let up = right.cross(forward);
+        let half_h = self.distance * (self.fov_y / 2.0).tan();
+        self.target -= right * (dx * aspect * half_h) + up * (dy * half_h);
+    }
+
     pub fn zoom(&mut self, steps: f32) {
         self.distance = (self.distance * 0.9f32.powf(steps)).clamp(0.2, 20.0);
     }

@@ -11,6 +11,7 @@ import {
   type FileData,
   fileDataBuffers,
   type GizmoView,
+  type CameraDrag,
   type PointerTool,
   type Requests,
   type Stats,
@@ -40,6 +41,8 @@ export interface EngineState {
   };
   /** The handles of the cut asked for with `showGizmo`, on screen. */
   gizmo: GizmoView | null;
+  /** Counts pinches that needed the drape live: the Play button flashes on each. */
+  playHint: number;
 }
 
 /** Crashes within this window count towards giving up. */
@@ -74,6 +77,7 @@ export class EngineSession {
     // Paused at first: the drape runs once the person presses Play.
     controls: { fast: false, paused: false, placing: false, seams: false },
     gizmo: null,
+    playHint: 0,
   };
 
   private set(patch: Partial<EngineState>) {
@@ -149,6 +153,9 @@ export class EngineSession {
         return;
       case "picked":
         for (const cb of this.pickListeners) cb(e.cut);
+        return;
+      case "needsPlay":
+        this.set({ playHint: this.state.playHint + 1 });
         return;
       case "gizmo":
         this.set({ gizmo: e.gizmo });
@@ -415,8 +422,9 @@ export class EngineSession {
     px: number,
     py: number,
     tool?: PointerTool,
+    camera?: CameraDrag,
   ) {
-    this.client?.send({ kind: "pointer", phase, x, y, px, py, tool });
+    this.client?.send({ kind: "pointer", phase, x, y, px, py, tool, camera });
   }
 
   private style: number[] | null = null;
@@ -429,11 +437,6 @@ export class EngineSession {
 
   wheel(steps: number) {
     this.client?.send({ kind: "wheel", steps });
-  }
-
-  /** Turns the camera, as a pointer drag of (`dx`, `dy`) px would. */
-  orbit(dx: number, dy: number) {
-    this.client?.send({ kind: "orbit", dx, dy });
   }
 
   setControls(c: Partial<EngineState["controls"]>) {

@@ -25,10 +25,9 @@ import { CloudButton } from "./CloudButton";
 import { HelpMenu } from "./HelpMenu";
 import { ThemeMenu } from "./ThemeMenu";
 import { ProjectName } from "./ProjectName";
+import { MOD, SHIFT } from "@/lib/keys";
 import { IconButton } from "./IconButton";
 import type { SplitView } from "../hooks/useSplitView";
-
-const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 /** The title bar's save state. */
 function saveStateText(s: SaveStatus, doc: DocState, inCloud: boolean): string {
@@ -118,7 +117,7 @@ export function TopBar(props: {
       <IconButton
         label={
           doc.redoLabel
-            ? `Redo: ${doc.redoLabel} (⇧${MOD}Z)`
+            ? `Redo: ${doc.redoLabel} (${SHIFT}${MOD}Z)`
             : "Nothing to redo"
         }
         disabled={!doc.redoLabel}
