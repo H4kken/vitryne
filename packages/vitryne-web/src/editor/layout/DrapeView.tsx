@@ -7,6 +7,8 @@ import { setPlacement } from "@/document/commands";
 import type { Garment, Placement } from "@/format/schema.gen";
 import { DocumentStore } from "@/document/store";
 import { cn } from "@/lib/utils";
+import { findCut } from "@/document/commands";
+import { cutName } from "@/properties/cutName";
 import { tidy } from "@/placement/places";
 import type { PointerTool } from "@/worker/protocol";
 import { EngineSession, type EngineState } from "@/worker/session";
@@ -48,6 +50,20 @@ export function DrapeView(props: {
   const { show2d, show3d, splitRatio, isResizing } = props.view;
   const canvasBox = useRef<HTMLDivElement>(null);
   const canvasSize = useElementSize(canvasBox);
+
+  // Why the selected piece has no handles, while placing: it goes on another piece, or the
+  // engine could not work out its handles.
+  let noHandles: string | null = null;
+  if (placing && selected && garment && engine.phase === "ready") {
+    const p = selected.cut.placement;
+    if (p.type === "follow") {
+      const on = p.cut ? findCut(garment, p.cut) : undefined;
+      noHandles = `${cutName(selected.piece, selected.cut)} goes on ${on ? cutName(on.piece, on.cut) : "another piece"}: move that one`;
+    } else if (gizmoIndex >= 0 && !engine.gizmo) {
+      noHandles =
+        "No handles for this piece here. Try “Fit to the body again” in its properties";
+    }
+  }
   return (
     <div
       key="window-3d"
@@ -93,6 +109,12 @@ export function DrapeView(props: {
       <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill engine={engine} show3d={show3d} placing={placing} />
+          {noHandles && (
+            <span className="flex items-center gap-2 rounded-full border border-amber-400 bg-card px-3.5 py-2 text-sm font-medium">
+              <span className="size-2 rounded-full bg-amber-400" />
+              {noHandles}
+            </span>
+          )}
         </div>
         {cards}
       </div>
