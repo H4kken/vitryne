@@ -2,7 +2,7 @@
 // The 3D view (the drape): the viewport, the selected piece's handles while placing, the status
 // and notices, what to do when the 3D view keeps stopping, and the tool bar.
 
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setPlacement } from "@/document/commands";
 import type { Garment, Placement } from "@/format/schema.gen";
 import { DocumentStore } from "@/document/store";
@@ -51,6 +51,25 @@ export function DrapeView(props: {
   const canvasBox = useRef<HTMLDivElement>(null);
   const canvasSize = useElementSize(canvasBox);
 
+  // A wrap's handles come a frame or two after a pause or a pick: complain only if they stay
+  // away.
+  const missing =
+    placing &&
+    !!garment &&
+    selected?.cut.placement.type === "wrap" &&
+    gizmoIndex >= 0 &&
+    !engine.gizmo &&
+    engine.phase === "ready";
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    if (!missing) return;
+    const t = setTimeout(() => setWaited(true), 600);
+    return () => {
+      clearTimeout(t);
+      setWaited(false);
+    };
+  }, [missing]);
+
   // Why the selected piece has no handles, while placing: it goes on another piece, or the
   // engine could not work out its handles.
   let noHandles: string | null = null;
@@ -59,7 +78,7 @@ export function DrapeView(props: {
     if (p.type === "follow") {
       const on = p.cut ? findCut(garment, p.cut) : undefined;
       noHandles = `${cutName(selected.piece, selected.cut)} goes on ${on ? cutName(on.piece, on.cut) : "another piece"}: move that one`;
-    } else if (gizmoIndex >= 0 && !engine.gizmo) {
+    } else if (missing && waited) {
       noHandles =
         "No handles for this piece here. Try “Fit to the body again” in its properties";
     }
