@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The switch at the top of the Pieces panel: the plain list of pieces, or the stack (Layers).
+// The switch at the top of the Pieces panel: the plain list of pieces, the stack (Layers) or the seams.
 
 import { cn } from "@/lib/utils";
 
-export type PiecesView = "pieces" | "layers";
+export type PiecesView = "pieces" | "layers" | "seams";
 
 const VIEWS: { id: PiecesView; label: string }[] = [
   { id: "pieces", label: "Pieces" },
   { id: "layers", label: "Layers" },
+  { id: "seams", label: "Seams" },
 ];
 
 export function PiecesViewSwitch(props: {

@@ -37,7 +37,7 @@ export function PiecesPanel(props: {
   /** The seam whose page is open, or none. */
   openSeam: string | null;
   sewing: Sewing;
-  /** The list of pieces, or the stack of them (Layers). */
+  /** The list of pieces, the stack of them (Layers) or the seams. */
   view: PiecesView;
   onView: (v: PiecesView) => void;
   /** How far out each cut starts, mm, by cut id, in the drape shown. */
@@ -51,7 +51,8 @@ export function PiecesPanel(props: {
       : undefined;
   // The list goes away when a cut or a seam is open: nothing stays hovered.
   const layers = props.view === "layers";
-  const listed = layers ? !seam : !selection && !seam;
+  const seams = props.view === "seams";
+  const listed = layers || seams ? !seam : !selection && !seam;
   const onHoverSeam = sewing.onHover;
   useEffect(() => {
     if (!listed) {
@@ -76,7 +77,7 @@ export function PiecesPanel(props: {
     );
   return (
     <div className="flex flex-col gap-5">
-      {(layers || !found) && (
+      {(layers || seams || !found) && (
         <PiecesViewSwitch view={props.view} onView={props.onView} />
       )}
       {layers ? (
@@ -89,6 +90,8 @@ export function PiecesPanel(props: {
           onHover={onHover}
           startsOut={props.startsOut}
         />
+      ) : seams ? (
+        <SeamsSection store={store} garment={garment} sewing={sewing} />
       ) : found ? (
         <CutDetails
           {...props}
@@ -154,9 +157,6 @@ export function PiecesPanel(props: {
             )}
           </ul>
         </div>
-      )}
-      {!found && !layers && (
-        <SeamsSection store={store} garment={garment} sewing={sewing} />
       )}
     </div>
   );

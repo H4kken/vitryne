@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The seams in the Pieces panel: a list of what is sewn (hover picks a seam out in 2D and 3D,
+// The Seams view of the Pieces panel: a list of what is sewn (hover picks a seam out in 2D and 3D,
 // a click opens it) and suggestions to accept or skip; the flat view's Sew tool picks edges by
 // hand. Plain words (the target is someone who has never drafted a pattern).
 // Design rules from docs/PATENTS.md: whole edges only; two picks, no readout while picking; a
@@ -11,7 +11,6 @@ import { removeSeam } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
 import type { Garment, Seam } from "@/format/schema.gen";
 import { describeSide, type SeamProposal, sideTitle } from "./api";
-import { PanelHeading } from "@/components/PanelHeading";
 import { seamTitle } from "./seamTitle";
 
 /** What the seams section needs from the editor: suggestions live there. */
@@ -45,8 +44,7 @@ export function SeamsSection(props: {
   const { store, garment, sewing } = props;
   const seams = garment.seams ?? [];
   return (
-    <div className="flex flex-col gap-3 border-t pt-4">
-      <PanelHeading>Seams</PanelHeading>
+    <div className="flex flex-col gap-3">
       {seams.length === 0 ? (
         <p className="text-muted-foreground m-0 text-sm leading-snug">
           A seam joins one edge of a piece to an edge of another. Sew whole

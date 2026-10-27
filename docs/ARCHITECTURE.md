@@ -225,8 +225,8 @@ or removes cuts (`addPiece`, `addPieces`, `removeCuts`, `setPlacement` to a foll
 list one entry per cut. The random-edit sessions include reorders and offsets. "Fit to the body
 again" keeps the cut's offset.
 
-**The Layers view** is the second view of the Pieces panel (a Pieces | Layers switch at its top;
-the plain list stays the first view, and the choice stays while other panels are open). It lists
+**The Layers view** is the second view of the Pieces panel (a Pieces | Layers | Seams switch at
+its top; the plain list stays the first view, the sewn list the third, and the choice stays while other panels are open). It lists
 the stack outermost first (`placement/stackOrder.ts`: the cuts wrapped on the body, each with the
 cuts placed on it nested under it). A drop or an Alt + arrow becomes `moveInStack`; the selected
 row's field is `setOffset`. How far out each cut starts comes from Rust with the drape
@@ -297,7 +297,7 @@ differ). The design, and why:
   `seams.rs` (the project's cuts and node ids, proposals, `join_chains`, per-seam length
   differences); the worker calls `sewing_edges`, `suggest_seams`, `join_edges` and
   `seam_differences`; `document/commands.ts` has `addSeam`, `removeSeam`, `reverseSeam` (so
-  undo, validation and recovery work as for every edit); `sewing/` has the seams section of
+  undo, validation and recovery work as for every edit); `sewing/` has the Seams view of
   the Pieces panel (the sewn list, each seam's page, suggestions); the flat view
   (`pattern/panel/`) draws each seam in a colour on its edges and hosts the Sew tool;
   the 3D view draws the seams on the cloth (`drape-render/shaders/seams.wgsl`, screen-space
