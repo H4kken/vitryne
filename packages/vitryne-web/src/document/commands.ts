@@ -966,6 +966,7 @@ export function setPlacement(
     "rotation",
     "tube",
     "lift",
+    "offset",
   ] as const) {
     const v = placement[k];
     if (v !== undefined && !Number.isFinite(v))
@@ -995,6 +996,82 @@ export function setPlacement(
     },
     { label: "Move a piece on the body", drape: true, coalesce },
   );
+}
+
+/**
+ * How much further out than the stack puts it a cut starts, mm (a cut that goes on another: how
+ * far above it, its `lift`). Never negative; 0 stores nothing. `coalesce`: a drag of the field.
+ */
+export function setOffset(
+  e: Entities,
+  garmentId: string,
+  cutId: string,
+  mm: number,
+  coalesce?: string,
+): Command {
+  if (!Number.isFinite(mm) || mm < 0)
+    throw new CommandError("a piece can't start closer than the layers allow");
+  const found = findCut(garment(e, garmentId), cutId);
+  if (!found) throw new CommandError("no such piece");
+  const p = found.cut.placement;
+  const rounded = Math.round(mm * 10) / 10;
+  if (p.type === "follow")
+    return setPlacement(
+      e,
+      garmentId,
+      cutId,
+      { ...p, lift: rounded },
+      undefined,
+      coalesce,
+    );
+  const without: Placement = { ...p };
+  delete without.offset;
+  return setPlacement(
+    e,
+    garmentId,
+    cutId,
+    rounded ? { ...without, offset: rounded } : without,
+    undefined,
+    coalesce,
+  );
+}
+
+/**
+ * Moves a cut, and the cuts placed on it, to place `to` of the stack without them (0: closest
+ * to the body, the stack's length less theirs: outermost). The cuts placed on it go with it; a
+ * cut placed on another has to stay above that one.
+ */
+export function moveInStack(
+  e: Entities,
+  garmentId: string,
+  cutId: string,
+  to: number,
+): Command {
+  const label = "Reorder the pieces";
+  const g = garment(e, garmentId);
+  cutAt(g, cutId);
+  const block = followers(g, cutId);
+  const moved = g.stack.filter((id) => block.has(id));
+  const rest = g.stack.filter((id) => !block.has(id));
+  if (!Number.isInteger(to) || to < 0 || to > rest.length)
+    throw new CommandError(`${label}: there is no such place in the stack`);
+  for (const id of moved) {
+    const p = findCut(g, id)?.cut.placement;
+    if (
+      p?.type === "follow" &&
+      p.cut &&
+      !block.has(p.cut) &&
+      rest.indexOf(p.cut) >= to
+    )
+      throw new CommandError(
+        `${label}: a piece placed on another stays above it`,
+      );
+  }
+  const stack = [...rest.slice(0, to), ...moved, ...rest.slice(to)];
+  return editGarment(e, garmentId, (x) => setIn(x, ["stack"], stack), {
+    label,
+    drape: true,
+  });
 }
 
 /** A cut becomes the mirror image of the piece, or stops being it. */

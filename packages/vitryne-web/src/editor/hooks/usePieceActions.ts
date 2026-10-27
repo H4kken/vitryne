@@ -3,7 +3,12 @@
 // document takes it as one edit.
 
 import { type RefObject, useCallback } from "react";
-import { addPiece, type Bounds, setPlacement } from "@/document/commands";
+import {
+  addPiece,
+  type Bounds,
+  findCut,
+  setPlacement,
+} from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
 import type { Garment, Placement, Vec2 } from "@/format/schema.gen";
 
@@ -35,12 +40,19 @@ export function usePieceActions(o: {
             placement: Omit<Placement, "type">;
             bounds: Bounds | null;
           };
+          // How far out the person pushed it past the layers is theirs, and stays.
+          const old = findCut(g, cutId)?.cut.placement;
+          const offset = old?.type === "wrap" ? old.offset : undefined;
           store.execute((e) =>
             setPlacement(
               e,
               g.id,
               cutId,
-              { type: "wrap", ...r.placement },
+              {
+                type: "wrap",
+                ...r.placement,
+                ...(offset ? { offset } : {}),
+              },
               r.bounds ?? undefined,
             ),
           );

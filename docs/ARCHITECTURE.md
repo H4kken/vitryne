@@ -218,6 +218,13 @@ Overlap is judged before the push, so one pass settles the stack and a reset alw
 same arrangement. A cut that goes on another is lifted by its `lift` and not pushed by the cuts
 it goes on. Rust works all of this out; the editor only stores the order and the offsets.
 
+The commands that keep the stack: `moveInStack` (a cut and the cuts placed on it move together to
+a place in the list; a cut placed on another stays above it), `setOffset` (how much further out a
+cut starts, or the lift of a cut placed on another; never negative), and every command that adds
+or removes cuts (`addPiece`, `addPieces`, `removeCuts`, `setPlacement` to a follow), which keep the
+list one entry per cut. The random-edit sessions include reorders and offsets. "Fit to the body
+again" keeps the cut's offset.
+
 For the three samples these land within a few cm of the hand-tuned sidecars (docs/PROGRESS.md, Import and placement).
 Then the user adjusts: in the Pieces panel (the place, around, height, distance from the body,
 turn, mirror image, "fit to the body again"), or **with the 3D gizmo**. The gizmo is ours: the
