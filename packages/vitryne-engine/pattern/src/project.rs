@@ -29,7 +29,8 @@ use crate::{
     meshing::mesh_pattern,
     pattern::{EdgeRef, Panel, Pattern, PatternEdge, Seam},
     placement::{
-        Basis, PlaceSpec, Resolved, default_avatar, place, positions, region_frame, resolve_all,
+        Basis, PlaceSpec, Resolved, Stacking, default_avatar, gap_for, place, positions,
+        region_frame, resolve_all,
     },
     tshirt::tshirt_schedule,
 };
@@ -482,6 +483,26 @@ impl<'a> ProjectGarment<'a> {
         Ok((2.0 * area / (3f32.sqrt() * verts as f32)).sqrt())
     }
 
+    /// The garment's stack as every cut's index (in the garment's cut order), and the gap between
+    /// layers for a mesh of triangles `edge` long.
+    fn stacking(&self, edge: f32) -> Stacking {
+        let index: BTreeMap<&Id, usize> = self
+            .garment
+            .cuts()
+            .enumerate()
+            .map(|(i, (_, c))| (&c.id, i))
+            .collect();
+        Stacking {
+            order: self
+                .garment
+                .stack
+                .iter()
+                .filter_map(|id| index.get(id).copied())
+                .collect(),
+            gap: gap_for(edge),
+        }
+    }
+
     fn place_specs(&self) -> Result<Vec<PlaceSpec>, String> {
         let placements: Vec<(&vitryne_format::Cut, &Placement)> = self
             .garment
@@ -504,6 +525,7 @@ impl<'a> ProjectGarment<'a> {
             names: pat.panels.iter().map(|p| p.name.clone()).collect(),
             cuts: self.garment.cuts().map(|(_, c)| c.clone()).collect(),
             regions: self.regions.clone(),
+            stacking: self.stacking(edge),
         };
         Ok((self.finish(pat, mp, edge)?, placer))
     }
@@ -538,6 +560,7 @@ fn place_specs(
                     radius: m(w.radius),
                     top: m(w.top),
                     tube: w.tube.map(|x| x as f32),
+                    offset: m(w.offset.unwrap_or(0.0)),
                 },
                 Placement::Follow(f) => PlaceSpec::Follow {
                     of: *index
@@ -581,7 +604,8 @@ impl ProjectGarment<'_> {
             .collect();
         let specs = place_specs(&self.garment.name, self.regions, &pairs)?;
         let names: Vec<&str> = gp.pattern.panels.iter().map(|p| p.name.as_str()).collect();
-        let resolved = resolve_all(&outlines, &names, &specs)?;
+        let edge = (2.0 * gp.pattern.area() / (3f32.sqrt() * self.target_vertices() as f32)).sqrt();
+        let resolved = resolve_all(&outlines, &names, &specs, &self.stacking(edge))?;
         Ok(outlines[i].iter().map(|&q| resolved[i].at(q)).collect())
     }
 
@@ -599,7 +623,7 @@ impl ProjectGarment<'_> {
         mut mp: MeshedPattern,
         edge: f32,
     ) -> Result<GarmentDesc, String> {
-        place(&mut mp, pat, &self.place_specs()?)?;
+        place(&mut mp, pat, &self.place_specs()?, &self.stacking(edge))?;
         let sdf = self.sdf_params(&mp.mesh.pos);
         let material = self.material();
         let description = serde_json::json!({ "garment": self.garment.name, "edge": edge,
@@ -628,6 +652,8 @@ pub struct Placer {
     /// The cuts as meshed, one per panel.
     cuts: Vec<vitryne_format::Cut>,
     regions: BTreeMap<String, Region>,
+    /// Which cut is outside which, and the gap between layers.
+    stacking: Stacking,
 }
 
 /// The garment's wraps with one cut's placement replaced (see `Placer::resolve`): each panel's
@@ -681,7 +707,7 @@ impl Placer {
         let specs = place_specs("the garment", &self.regions, &pairs)?;
         let names: Vec<&str> = self.names.iter().map(String::as_str).collect();
         Ok(Replaced {
-            resolved: resolve_all(&outlines, &names, &specs)?,
+            resolved: resolve_all(&outlines, &names, &specs, &self.stacking)?,
             outlines,
             turn,
         })

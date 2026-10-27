@@ -33,7 +33,10 @@ use crate::{
     aama::{self, ImportReport, Piece},
     meshing::{MeshedPattern, mesh_pattern},
     pattern::{EdgeRef, Panel, Pattern, PatternEdge, Seam},
-    placement::{PlaceSpec, default_avatar, place, region_frame, sidecar_region},
+    placement::{
+        PlaceSpec, Stacking, default_avatar, default_order, gap_for, place, region_frame,
+        sidecar_region,
+    },
     tshirt::{SdfParams, tshirt_schedule},
 };
 
@@ -579,6 +582,7 @@ impl Garment {
                             radius: need(ps.place.radius, "radius")? + ps.place.lift,
                             top: need(ps.place.top, "top")?,
                             tube: ps.place.tube,
+                            offset: 0.0,
                         }
                     }
                 })
@@ -607,7 +611,12 @@ impl Garment {
         let gp = self.pattern()?;
         let pat = &gp.pattern;
         let mut mp = mesh_pattern(pat, edge);
-        place(&mut mp, pat, &self.place_specs()?)?;
+        let specs = self.place_specs()?;
+        let stacking = Stacking {
+            order: default_order(&specs),
+            gap: gap_for(edge),
+        };
+        place(&mut mp, pat, &specs, &stacking)?;
         let material = self.fabric();
         let camera = self
             .spec

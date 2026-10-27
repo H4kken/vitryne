@@ -33,6 +33,10 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
   to the body first) and a piece can sit further out (`offset`), the base for a Layers panel.
   Older files open and are migrated; files with garments saved by this version need this version
   or newer (a fabric or avatar file still opens in older ones).
+- Pieces that overlap on the body start apart: the one higher in the layer order starts further
+  out than the ones under it (a gap that follows the mesh, at least 12 mm), plus its own offset,
+  so alternative versions of a piece or layers of clothing no longer start inside each other.
+  The sample garments start as before.
 - Start screen: **Import a file** is a slim row above the examples, dragging a file over the
   window shows a full-screen drop zone, and **Start from scratch** has a larger Lucide icon.
 

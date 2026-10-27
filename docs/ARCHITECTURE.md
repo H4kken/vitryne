@@ -206,6 +206,18 @@ the piece and the body, never stored rules per garment:
   3 cm above the head for hoods, the shoulder joint for sleeves, centred for a strip over the
   head.
 
+**The stack decides what is outside what** (`placement/stacking.rs`; the garment's `stack`, FORMAT.md).
+Cuts are placed from the bottom of the stack up. Each is sampled every 12 mm over its outline,
+and pushed out, along the whole cut by one amount, until it is a gap past every cut below it
+that it overlaps, plus its own `offset`. The gap is the mesh's edge length, never below 12 mm,
+so layers start clear of the cloth's self-collision radius. Two cuts in one body region overlap
+where their areas do, at any radius, so a coat drawn inside a shirt is pushed out past it; cuts
+in different regions only count where they face the same way within a gap and a half. Two cuts
+that meet along an edge overlap nothing, so the three sample garments start as drawn.
+Overlap is judged before the push, so one pass settles the stack and a reset always gives the
+same arrangement. A cut that goes on another is lifted by its `lift` and not pushed by the cuts
+it goes on. Rust works all of this out; the editor only stores the order and the offsets.
+
 For the three samples these land within a few cm of the hand-tuned sidecars (docs/PROGRESS.md, Import and placement).
 Then the user adjusts: in the Pieces panel (the place, around, height, distance from the body,
 turn, mirror image, "fit to the body again"), or **with the 3D gizmo**. The gizmo is ours: the

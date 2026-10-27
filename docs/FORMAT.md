@@ -374,8 +374,10 @@ refused.
 
 What the order means for the start positions is the app's to work out and not stored: a cut that
 overlaps others on the body starts further out than the ones below it, by a gap that follows the
-mesh resolution, plus its own `offset`. Version 4 only stores the order and the offsets; the
-engine starts using them in a later step.
+mesh resolution (never below 12 mm), plus its own `offset`. Two cuts overlap where their areas
+on the body do; cuts that only meet along an edge don't. The reference implementation is
+`vitryne-pattern` `placement/stacking.rs`; how it works is in
+[ARCHITECTURE.md](ARCHITECTURE.md#import-and-placement).
 
 **Why a list of cuts, not a number per cut:** reordering is one edit to one list and can't leave
 two cuts tied or a gap in the numbers; the list is the same shape as `project.garments`, which is
