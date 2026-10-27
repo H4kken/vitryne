@@ -520,8 +520,8 @@ return errors === 0;
 validate20.evaluated = {"props":{"id":true,"name":true,"description":true,"garments":true,"avatar":true,"fabrics":true,"appearances":true,"simulation":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const garment = validate24;
-const schema44 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/garment.schema.json","title":"Vitryne format v1: garments/<id>.json","description":"One garment: its pattern pieces (2D, mm), how many times each is cut, where each cut starts around the avatar, and which runs of outline are sewn together.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"fabric":{"description":"The fabric of every cut that doesn't name its own.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"The appearance (colour) of every cut that doesn't name its own. Absent: the app's own.","$ref":"common.schema.json#/$defs/id"},"pieces":{"description":"Empty in a garment started from scratch, before its first piece is drawn.","type":"array","items":{"$ref":"#/$defs/piece"}},"seams":{"type":"array","items":{"$ref":"#/$defs/seam"}},"simulation":{"description":"Overrides of the project's simulation settings for this garment.","type":"object","properties":{"targetVertices":{"type":"integer","minimum":100},"engine":{"description":"Sparse engine tuning, merged over the project's (same rules: engine keys and units).","type":"object"},"collisionBounds":{"description":"The box (mm, avatar space) the cloth can reach, for the body's collision field. Optional: the engine derives one when absent.","type":"object","properties":{"min":{"$ref":"common.schema.json#/$defs/vec3"},"max":{"$ref":"common.schema.json#/$defs/vec3"}},"required":["min","max"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}},"sources":{"description":"Imported originals this garment was made from (e.g. a DXF-AAMA file), kept as parts with role source. For reference and re-import only: nothing is read from them.","type":"array","items":{"$ref":"#/$defs/source"}},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","fabric","pieces","seams"],"$defs":{"piece":{"description":"A pattern piece as drafted, in its own 2D frame (mm, +y towards the top of the garment), seen from the right side of the fabric. Cut-on-fold pieces are stored unfolded, with the fold kept in folds.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"outline":{"description":"The sewing line, a closed loop of nodes in counter-clockwise order. Each node's edge runs to the next node (the last one's back to the first).","type":"array","items":{"$ref":"#/$defs/outlineNode"},"minItems":3},"lines":{"description":"Internal lines (pocket placement, darts, stitching lines): open paths inside the piece. They are meshed as creases and can be sewn.","type":"array","items":{"$ref":"#/$defs/line"}},"folds":{"description":"Fold lines of a cut-on-fold piece: the straight line between two outline nodes the piece was mirrored about.","type":"array","items":{"$ref":"#/$defs/fold"}},"grain":{"description":"The grain line, as drawn: its direction (to - from) is the fabric's warp. Absent: +y.","type":"object","properties":{"from":{"$ref":"common.schema.json#/$defs/vec2"},"to":{"$ref":"common.schema.json#/$defs/vec2"}},"required":["from","to"]},"cuts":{"description":"How many times the piece is cut, and how each copy is used. Seams and placement refer to cuts.","type":"array","items":{"$ref":"#/$defs/cut"},"minItems":1},"source":{"description":"The piece in an imported source this was made from.","type":"object","properties":{"source":{"$ref":"common.schema.json#/$defs/id"},"piece":{"description":"The piece's name in the source.","type":"string"}},"required":["source","piece"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","outline","cuts"]},"node":{"description":"A point of a piece that other things refer to. corner: the outline turns here. notch: an alignment notch. point: anything else worth naming (fold ends, where an internal line meets the outline, a point added for a seam).","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"enum":["corner","notch","point"]},"name":{"$ref":"common.schema.json#/$defs/name"},"position":{"$ref":"common.schema.json#/$defs/vec2"},"edge":{"$ref":"#/$defs/edge"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type","position"]},"outlineNode":{"$ref":"#/$defs/node","required":["edge"]},"edge":{"description":"The path from this node to the next one: a polyline (core) or a cubic Bézier (extension VTRY_curves). Other curve types (arcs) may be added by later versions or extensions.","oneOf":[{"$ref":"#/$defs/polylineEdge"},{"$ref":"#/$defs/cubicEdge"}]},"polylineEdge":{"description":"The points strictly between the two nodes, in order (empty for a straight edge).","type":"object","properties":{"type":{"const":"polyline"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec2"}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","points"]},"cubicEdge":{"description":"One cubic Bézier segment from this node to the next (extension VTRY_curves, which a file using it lists in extensionsUsed and extensionsRequired). Its two control points, mm, in the piece frame.","type":"object","properties":{"type":{"const":"cubic"},"controls":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec2"},"minItems":2,"maxItems":2},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","controls"]},"line":{"description":"An open path: nodes in order, each with the edge to the next one, except the last, which has none.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"nodes":{"type":"array","items":{"$ref":"#/$defs/node"},"minItems":2},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","nodes"]},"fold":{"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"from":{"description":"Outline node id.","$ref":"common.schema.json#/$defs/id"},"to":{"description":"Outline node id.","$ref":"common.schema.json#/$defs/id"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","from","to"]},"cut":{"description":"One copy of the piece in the garment. mirrored: the mirror image (x -> -x in the piece frame), the other one of a left/right pair; references into it still use the piece's node ids and the piece frame's directions.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mirrored":{"type":"boolean","default":false},"fabric":{"description":"Overrides the garment's fabric for this cut.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"Overrides the garment's appearance for this cut.","$ref":"common.schema.json#/$defs/id"},"placement":{"$ref":"#/$defs/placement"},"layout":{"description":"Where the cut sits in the 2D pattern view (mm, radians). Display only.","type":"object","properties":{"position":{"$ref":"common.schema.json#/$defs/vec2"},"rotation":{"type":"number"}}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","placement"]},"placement":{"description":"Where the cut starts before sewing. wrap: rolled onto a cylinder around an avatar region. follow: on top of another cut (a pocket on a front), lifted off it.","type":"object","properties":{"type":{"enum":["wrap","follow"]},"region":{"description":"wrap: a region name from the avatar's regions.","type":"string"},"angle":{"description":"Where the piece's centre goes around the axis, radians from the region's zero direction (follow: overrides the followed cut's).","type":"number"},"radius":{"description":"wrap: cylinder radius, mm.","type":"number","exclusiveMinimum":0},"top":{"description":"wrap: position of the piece's top edge along the region's axis, mm from its origin (negative = down a limb).","type":"number"},"rotation":{"description":"In-plane rotation of the piece before wrapping, radians counter-clockwise (after mirroring).","type":"number"},"tube":{"description":"wrap: long sleeves. Below the piece's widest row the radius follows the pattern, tube x width / 2 pi (> 1 leaves a gap so the open edges meet under the arm); above it, it rises linearly to radius at the top edge.","type":"number","exclusiveMinimum":0},"cut":{"description":"follow: the cut to follow (it must not itself follow this one, directly or not).","$ref":"common.schema.json#/$defs/id"},"lift":{"description":"follow: distance off the followed cut, mm.","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type"],"allOf":[{"if":{"properties":{"type":{"const":"wrap"}}},"then":{"required":["region","radius","top"],"properties":{"cut":false,"lift":false}}},{"if":{"properties":{"type":{"const":"follow"}}},"then":{"required":["cut"],"properties":{"region":false,"radius":false,"top":false,"tube":false,"rotation":false}}}]},"run":{"description":"A stretch of one cut's outline or internal line, between two of its nodes. On the outline, direction says which way round: ccw (the outline's order) or cw, in the piece frame (also for a mirrored cut). On an internal line, the run goes from 'from' to 'to' along the line.","type":"object","properties":{"cut":{"$ref":"common.schema.json#/$defs/id"},"line":{"description":"Internal line id; absent = the outline.","$ref":"common.schema.json#/$defs/id"},"from":{"$ref":"common.schema.json#/$defs/id"},"to":{"$ref":"common.schema.json#/$defs/id"},"direction":{"enum":["ccw","cw"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["cut","from","to"],"if":{"required":["line"]},"then":{"properties":{"direction":false}},"else":{"required":["direction"]}},"seam":{"description":"Two sides sewn together, each a chain of runs (a chain may span cuts). The start of a meets the start of b, the end of a the end of b.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"a":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"b":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"pairing":{"description":"nodes: if both sides pass through the same number of nodes, the nodes meet (notches line up) and each stretch in between is matched by length; otherwise as length. length: matched by length along the whole chain.","enum":["nodes","length"],"default":"nodes"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","a","b"]},"source":{"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"description":"dxf-aama, valentina, ...","type":"string"},"part":{"description":"Path of the original file in the container, if kept.","type":"string"},"fileName":{"type":"string"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type"]}}};
-const schema108 = {"description":"A 3D point or vector, mm (a direction's length doesn't matter).","type":"array","items":{"type":"number"},"minItems":3,"maxItems":3};
+const schema44 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/garment.schema.json","title":"Vitryne format v1: garments/<id>.json","description":"One garment: its pattern pieces (2D, mm), how many times each is cut, where each cut starts around the avatar, and which runs of outline are sewn together.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"fabric":{"description":"The fabric of every cut that doesn't name its own.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"The appearance (colour) of every cut that doesn't name its own. Absent: the app's own.","$ref":"common.schema.json#/$defs/id"},"pieces":{"description":"Empty in a garment started from scratch, before its first piece is drawn.","type":"array","items":{"$ref":"#/$defs/piece"}},"stack":{"description":"Every cut of the garment once, closest to the body first. Where cuts overlap on the body, the one higher in the list starts further out. A cut that goes on another (follow) comes after it.","type":"array","items":{"$ref":"common.schema.json#/$defs/id"},"uniqueItems":true},"seams":{"type":"array","items":{"$ref":"#/$defs/seam"}},"simulation":{"description":"Overrides of the project's simulation settings for this garment.","type":"object","properties":{"targetVertices":{"type":"integer","minimum":100},"engine":{"description":"Sparse engine tuning, merged over the project's (same rules: engine keys and units).","type":"object"},"collisionBounds":{"description":"The box (mm, avatar space) the cloth can reach, for the body's collision field. Optional: the engine derives one when absent.","type":"object","properties":{"min":{"$ref":"common.schema.json#/$defs/vec3"},"max":{"$ref":"common.schema.json#/$defs/vec3"}},"required":["min","max"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}},"sources":{"description":"Imported originals this garment was made from (e.g. a DXF-AAMA file), kept as parts with role source. For reference and re-import only: nothing is read from them.","type":"array","items":{"$ref":"#/$defs/source"}},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","fabric","pieces","stack","seams"],"$defs":{"piece":{"description":"A pattern piece as drafted, in its own 2D frame (mm, +y towards the top of the garment), seen from the right side of the fabric. Cut-on-fold pieces are stored unfolded, with the fold kept in folds.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"outline":{"description":"The sewing line, a closed loop of nodes in counter-clockwise order. Each node's edge runs to the next node (the last one's back to the first).","type":"array","items":{"$ref":"#/$defs/outlineNode"},"minItems":3},"lines":{"description":"Internal lines (pocket placement, darts, stitching lines): open paths inside the piece. They are meshed as creases and can be sewn.","type":"array","items":{"$ref":"#/$defs/line"}},"folds":{"description":"Fold lines of a cut-on-fold piece: the straight line between two outline nodes the piece was mirrored about.","type":"array","items":{"$ref":"#/$defs/fold"}},"grain":{"description":"The grain line, as drawn: its direction (to - from) is the fabric's warp. Absent: +y.","type":"object","properties":{"from":{"$ref":"common.schema.json#/$defs/vec2"},"to":{"$ref":"common.schema.json#/$defs/vec2"}},"required":["from","to"]},"cuts":{"description":"How many times the piece is cut, and how each copy is used. Seams and placement refer to cuts.","type":"array","items":{"$ref":"#/$defs/cut"},"minItems":1},"source":{"description":"The piece in an imported source this was made from.","type":"object","properties":{"source":{"$ref":"common.schema.json#/$defs/id"},"piece":{"description":"The piece's name in the source.","type":"string"}},"required":["source","piece"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","outline","cuts"]},"node":{"description":"A point of a piece that other things refer to. corner: the outline turns here. notch: an alignment notch. point: anything else worth naming (fold ends, where an internal line meets the outline, a point added for a seam).","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"enum":["corner","notch","point"]},"name":{"$ref":"common.schema.json#/$defs/name"},"position":{"$ref":"common.schema.json#/$defs/vec2"},"edge":{"$ref":"#/$defs/edge"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type","position"]},"outlineNode":{"$ref":"#/$defs/node","required":["edge"]},"edge":{"description":"The path from this node to the next one: a polyline (core) or a cubic Bézier (extension VTRY_curves). Other curve types (arcs) may be added by later versions or extensions.","oneOf":[{"$ref":"#/$defs/polylineEdge"},{"$ref":"#/$defs/cubicEdge"}]},"polylineEdge":{"description":"The points strictly between the two nodes, in order (empty for a straight edge).","type":"object","properties":{"type":{"const":"polyline"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec2"}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","points"]},"cubicEdge":{"description":"One cubic Bézier segment from this node to the next (extension VTRY_curves, which a file using it lists in extensionsUsed and extensionsRequired). Its two control points, mm, in the piece frame.","type":"object","properties":{"type":{"const":"cubic"},"controls":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec2"},"minItems":2,"maxItems":2},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","controls"]},"line":{"description":"An open path: nodes in order, each with the edge to the next one, except the last, which has none.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"nodes":{"type":"array","items":{"$ref":"#/$defs/node"},"minItems":2},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","nodes"]},"fold":{"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"from":{"description":"Outline node id.","$ref":"common.schema.json#/$defs/id"},"to":{"description":"Outline node id.","$ref":"common.schema.json#/$defs/id"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","from","to"]},"cut":{"description":"One copy of the piece in the garment. mirrored: the mirror image (x -> -x in the piece frame), the other one of a left/right pair; references into it still use the piece's node ids and the piece frame's directions.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mirrored":{"type":"boolean","default":false},"fabric":{"description":"Overrides the garment's fabric for this cut.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"Overrides the garment's appearance for this cut.","$ref":"common.schema.json#/$defs/id"},"placement":{"$ref":"#/$defs/placement"},"layout":{"description":"Where the cut sits in the 2D pattern view (mm, radians). Display only.","type":"object","properties":{"position":{"$ref":"common.schema.json#/$defs/vec2"},"rotation":{"type":"number"}}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","placement"]},"placement":{"description":"Where the cut starts before sewing. wrap: rolled onto a cylinder around an avatar region. follow: on top of another cut (a pocket on a front), lifted off it.","type":"object","properties":{"type":{"enum":["wrap","follow"]},"region":{"description":"wrap: a region name from the avatar's regions.","type":"string"},"angle":{"description":"Where the piece's centre goes around the axis, radians from the region's zero direction (follow: overrides the followed cut's).","type":"number"},"radius":{"description":"wrap: cylinder radius, mm.","type":"number","exclusiveMinimum":0},"top":{"description":"wrap: position of the piece's top edge along the region's axis, mm from its origin (negative = down a limb).","type":"number"},"rotation":{"description":"In-plane rotation of the piece before wrapping, radians counter-clockwise (after mirroring).","type":"number"},"tube":{"description":"wrap: long sleeves. Below the piece's widest row the radius follows the pattern, tube x width / 2 pi (> 1 leaves a gap so the open edges meet under the arm); above it, it rises linearly to radius at the top edge.","type":"number","exclusiveMinimum":0},"offset":{"description":"wrap: further out than the stack puts it, mm. Never negative; absent is 0.","type":"number","minimum":0},"cut":{"description":"follow: the cut to follow (it must not itself follow this one, directly or not).","$ref":"common.schema.json#/$defs/id"},"lift":{"description":"follow: distance off the followed cut, mm.","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type"],"allOf":[{"if":{"properties":{"type":{"const":"wrap"}}},"then":{"required":["region","radius","top"],"properties":{"cut":false,"lift":false}}},{"if":{"properties":{"type":{"const":"follow"}}},"then":{"required":["cut"],"properties":{"region":false,"radius":false,"top":false,"tube":false,"rotation":false,"offset":false}}}]},"run":{"description":"A stretch of one cut's outline or internal line, between two of its nodes. On the outline, direction says which way round: ccw (the outline's order) or cw, in the piece frame (also for a mirrored cut). On an internal line, the run goes from 'from' to 'to' along the line.","type":"object","properties":{"cut":{"$ref":"common.schema.json#/$defs/id"},"line":{"description":"Internal line id; absent = the outline.","$ref":"common.schema.json#/$defs/id"},"from":{"$ref":"common.schema.json#/$defs/id"},"to":{"$ref":"common.schema.json#/$defs/id"},"direction":{"enum":["ccw","cw"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["cut","from","to"],"if":{"required":["line"]},"then":{"properties":{"direction":false}},"else":{"required":["direction"]}},"seam":{"description":"Two sides sewn together, each a chain of runs (a chain may span cuts). The start of a meets the start of b, the end of a the end of b.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"a":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"b":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"pairing":{"description":"nodes: if both sides pass through the same number of nodes, the nodes meet (notches line up) and each stretch in between is matched by length; otherwise as length. length: matched by length along the whole chain.","enum":["nodes","length"],"default":"nodes"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","a","b"]},"source":{"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"description":"dxf-aama, valentina, ...","type":"string"},"part":{"description":"Path of the original file in the container, if kept.","type":"string"},"fileName":{"type":"string"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type"]}}};
+const schema109 = {"description":"A 3D point or vector, mm (a direction's length doesn't matter).","type":"array","items":{"type":"number"},"minItems":3,"maxItems":3};
 const schema49 = {"description":"A pattern piece as drafted, in its own 2D frame (mm, +y towards the top of the garment), seen from the right side of the fabric. Cut-on-fold pieces are stored unfolded, with the fold kept in folds.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"outline":{"description":"The sewing line, a closed loop of nodes in counter-clockwise order. Each node's edge runs to the next node (the last one's back to the first).","type":"array","items":{"$ref":"#/$defs/outlineNode"},"minItems":3},"lines":{"description":"Internal lines (pocket placement, darts, stitching lines): open paths inside the piece. They are meshed as creases and can be sewn.","type":"array","items":{"$ref":"#/$defs/line"}},"folds":{"description":"Fold lines of a cut-on-fold piece: the straight line between two outline nodes the piece was mirrored about.","type":"array","items":{"$ref":"#/$defs/fold"}},"grain":{"description":"The grain line, as drawn: its direction (to - from) is the fabric's warp. Absent: +y.","type":"object","properties":{"from":{"$ref":"common.schema.json#/$defs/vec2"},"to":{"$ref":"common.schema.json#/$defs/vec2"}},"required":["from","to"]},"cuts":{"description":"How many times the piece is cut, and how each copy is used. Seams and placement refer to cuts.","type":"array","items":{"$ref":"#/$defs/cut"},"minItems":1},"source":{"description":"The piece in an imported source this was made from.","type":"object","properties":{"source":{"$ref":"common.schema.json#/$defs/id"},"piece":{"description":"The piece's name in the source.","type":"string"}},"required":["source","piece"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","outline","cuts"]};
 const schema56 = {"description":"A 2D point or vector, mm.","type":"array","items":{"type":"number"},"minItems":2,"maxItems":2};
 const schema52 = {"$ref":"#/$defs/node","required":["edge"]};
@@ -1593,7 +1593,7 @@ return errors === 0;
 validate39.evaluated = {"props":{"id":true,"from":true,"to":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 const schema81 = {"description":"One copy of the piece in the garment. mirrored: the mirror image (x -> -x in the piece frame), the other one of a left/right pair; references into it still use the piece's node ids and the piece frame's directions.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mirrored":{"type":"boolean","default":false},"fabric":{"description":"Overrides the garment's fabric for this cut.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"Overrides the garment's appearance for this cut.","$ref":"common.schema.json#/$defs/id"},"placement":{"$ref":"#/$defs/placement"},"layout":{"description":"Where the cut sits in the 2D pattern view (mm, radians). Display only.","type":"object","properties":{"position":{"$ref":"common.schema.json#/$defs/vec2"},"rotation":{"type":"number"}}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","placement"]};
-const schema86 = {"description":"Where the cut starts before sewing. wrap: rolled onto a cylinder around an avatar region. follow: on top of another cut (a pocket on a front), lifted off it.","type":"object","properties":{"type":{"enum":["wrap","follow"]},"region":{"description":"wrap: a region name from the avatar's regions.","type":"string"},"angle":{"description":"Where the piece's centre goes around the axis, radians from the region's zero direction (follow: overrides the followed cut's).","type":"number"},"radius":{"description":"wrap: cylinder radius, mm.","type":"number","exclusiveMinimum":0},"top":{"description":"wrap: position of the piece's top edge along the region's axis, mm from its origin (negative = down a limb).","type":"number"},"rotation":{"description":"In-plane rotation of the piece before wrapping, radians counter-clockwise (after mirroring).","type":"number"},"tube":{"description":"wrap: long sleeves. Below the piece's widest row the radius follows the pattern, tube x width / 2 pi (> 1 leaves a gap so the open edges meet under the arm); above it, it rises linearly to radius at the top edge.","type":"number","exclusiveMinimum":0},"cut":{"description":"follow: the cut to follow (it must not itself follow this one, directly or not).","$ref":"common.schema.json#/$defs/id"},"lift":{"description":"follow: distance off the followed cut, mm.","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type"],"allOf":[{"if":{"properties":{"type":{"const":"wrap"}}},"then":{"required":["region","radius","top"],"properties":{"cut":false,"lift":false}}},{"if":{"properties":{"type":{"const":"follow"}}},"then":{"required":["cut"],"properties":{"region":false,"radius":false,"top":false,"tube":false,"rotation":false}}}]};
+const schema86 = {"description":"Where the cut starts before sewing. wrap: rolled onto a cylinder around an avatar region. follow: on top of another cut (a pocket on a front), lifted off it.","type":"object","properties":{"type":{"enum":["wrap","follow"]},"region":{"description":"wrap: a region name from the avatar's regions.","type":"string"},"angle":{"description":"Where the piece's centre goes around the axis, radians from the region's zero direction (follow: overrides the followed cut's).","type":"number"},"radius":{"description":"wrap: cylinder radius, mm.","type":"number","exclusiveMinimum":0},"top":{"description":"wrap: position of the piece's top edge along the region's axis, mm from its origin (negative = down a limb).","type":"number"},"rotation":{"description":"In-plane rotation of the piece before wrapping, radians counter-clockwise (after mirroring).","type":"number"},"tube":{"description":"wrap: long sleeves. Below the piece's widest row the radius follows the pattern, tube x width / 2 pi (> 1 leaves a gap so the open edges meet under the arm); above it, it rises linearly to radius at the top edge.","type":"number","exclusiveMinimum":0},"offset":{"description":"wrap: further out than the stack puts it, mm. Never negative; absent is 0.","type":"number","minimum":0},"cut":{"description":"follow: the cut to follow (it must not itself follow this one, directly or not).","$ref":"common.schema.json#/$defs/id"},"lift":{"description":"follow: distance off the followed cut, mm.","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type"],"allOf":[{"if":{"properties":{"type":{"const":"wrap"}}},"then":{"required":["region","radius","top"],"properties":{"cut":false,"lift":false}}},{"if":{"properties":{"type":{"const":"follow"}}},"then":{"required":["cut"],"properties":{"region":false,"radius":false,"top":false,"tube":false,"rotation":false,"offset":false}}}]};
 
 function validate42(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -1795,6 +1795,16 @@ vErrors.push(err13);
 }
 errors++;
 }
+if(data.offset !== undefined){
+const err14 = {instancePath:instancePath+"/offset",schemaPath:"#/allOf/1/then/properties/offset/false schema",keyword:"false schema",params:{},message:"boolean schema is false"};
+if(vErrors === null){
+vErrors = [err14];
+}
+else {
+vErrors.push(err14);
+}
+errors++;
+}
 }
 var _valid1 = _errs10 === errors;
 valid4 = _valid1;
@@ -1805,16 +1815,17 @@ props1.radius = true;
 props1.top = true;
 props1.tube = true;
 props1.rotation = true;
+props1.offset = true;
 props1.type = true;
 }
 }
 if(!valid4){
-const err14 = {instancePath,schemaPath:"#/allOf/1/if",keyword:"if",params:{failingKeyword: "then"},message:"must match \"then\" schema"};
+const err15 = {instancePath,schemaPath:"#/allOf/1/if",keyword:"if",params:{failingKeyword: "then"},message:"must match \"then\" schema"};
 if(vErrors === null){
-vErrors = [err14];
+vErrors = [err15];
 }
 else {
-vErrors.push(err14);
+vErrors.push(err15);
 }
 errors++;
 }
@@ -1829,12 +1840,12 @@ Object.assign(props0, props1);
 }
 if(data && typeof data == "object" && !Array.isArray(data)){
 if(data.type === undefined){
-const err15 = {instancePath,schemaPath:"#/required",keyword:"required",params:{missingProperty: "type"},message:"must have required property '"+"type"+"'"};
+const err16 = {instancePath,schemaPath:"#/required",keyword:"required",params:{missingProperty: "type"},message:"must have required property '"+"type"+"'"};
 if(vErrors === null){
-vErrors = [err15];
+vErrors = [err16];
 }
 else {
-vErrors.push(err15);
+vErrors.push(err16);
 }
 errors++;
 }
@@ -1847,27 +1858,16 @@ props0.radius = true;
 props0.top = true;
 props0.rotation = true;
 props0.tube = true;
+props0.offset = true;
 props0.cut = true;
 props0.lift = true;
 props0.extensions = true;
 props0.extras = true;
 }
 if(data.type !== undefined){
-let data9 = data.type;
-if(!((data9 === "wrap") || (data9 === "follow"))){
-const err16 = {instancePath:instancePath+"/type",schemaPath:"#/properties/type/enum",keyword:"enum",params:{allowedValues: schema86.properties.type.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err16];
-}
-else {
-vErrors.push(err16);
-}
-errors++;
-}
-}
-if(data.region !== undefined){
-if(typeof data.region !== "string"){
-const err17 = {instancePath:instancePath+"/region",schemaPath:"#/properties/region/type",keyword:"type",params:{type: "string"},message:"must be string"};
+let data10 = data.type;
+if(!((data10 === "wrap") || (data10 === "follow"))){
+const err17 = {instancePath:instancePath+"/type",schemaPath:"#/properties/type/enum",keyword:"enum",params:{allowedValues: schema86.properties.type.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err17];
 }
@@ -1877,9 +1877,9 @@ vErrors.push(err17);
 errors++;
 }
 }
-if(data.angle !== undefined){
-if(!(typeof data.angle == "number")){
-const err18 = {instancePath:instancePath+"/angle",schemaPath:"#/properties/angle/type",keyword:"type",params:{type: "number"},message:"must be number"};
+if(data.region !== undefined){
+if(typeof data.region !== "string"){
+const err18 = {instancePath:instancePath+"/region",schemaPath:"#/properties/region/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err18];
 }
@@ -1889,11 +1889,9 @@ vErrors.push(err18);
 errors++;
 }
 }
-if(data.radius !== undefined){
-let data12 = data.radius;
-if(typeof data12 == "number"){
-if(data12 <= 0 || isNaN(data12)){
-const err19 = {instancePath:instancePath+"/radius",schemaPath:"#/properties/radius/exclusiveMinimum",keyword:"exclusiveMinimum",params:{comparison: ">", limit: 0},message:"must be > 0"};
+if(data.angle !== undefined){
+if(!(typeof data.angle == "number")){
+const err19 = {instancePath:instancePath+"/angle",schemaPath:"#/properties/angle/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err19];
 }
@@ -1903,8 +1901,11 @@ vErrors.push(err19);
 errors++;
 }
 }
-else {
-const err20 = {instancePath:instancePath+"/radius",schemaPath:"#/properties/radius/type",keyword:"type",params:{type: "number"},message:"must be number"};
+if(data.radius !== undefined){
+let data13 = data.radius;
+if(typeof data13 == "number"){
+if(data13 <= 0 || isNaN(data13)){
+const err20 = {instancePath:instancePath+"/radius",schemaPath:"#/properties/radius/exclusiveMinimum",keyword:"exclusiveMinimum",params:{comparison: ">", limit: 0},message:"must be > 0"};
 if(vErrors === null){
 vErrors = [err20];
 }
@@ -1914,9 +1915,8 @@ vErrors.push(err20);
 errors++;
 }
 }
-if(data.top !== undefined){
-if(!(typeof data.top == "number")){
-const err21 = {instancePath:instancePath+"/top",schemaPath:"#/properties/top/type",keyword:"type",params:{type: "number"},message:"must be number"};
+else {
+const err21 = {instancePath:instancePath+"/radius",schemaPath:"#/properties/radius/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err21];
 }
@@ -1926,9 +1926,9 @@ vErrors.push(err21);
 errors++;
 }
 }
-if(data.rotation !== undefined){
-if(!(typeof data.rotation == "number")){
-const err22 = {instancePath:instancePath+"/rotation",schemaPath:"#/properties/rotation/type",keyword:"type",params:{type: "number"},message:"must be number"};
+if(data.top !== undefined){
+if(!(typeof data.top == "number")){
+const err22 = {instancePath:instancePath+"/top",schemaPath:"#/properties/top/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err22];
 }
@@ -1938,11 +1938,9 @@ vErrors.push(err22);
 errors++;
 }
 }
-if(data.tube !== undefined){
-let data15 = data.tube;
-if(typeof data15 == "number"){
-if(data15 <= 0 || isNaN(data15)){
-const err23 = {instancePath:instancePath+"/tube",schemaPath:"#/properties/tube/exclusiveMinimum",keyword:"exclusiveMinimum",params:{comparison: ">", limit: 0},message:"must be > 0"};
+if(data.rotation !== undefined){
+if(!(typeof data.rotation == "number")){
+const err23 = {instancePath:instancePath+"/rotation",schemaPath:"#/properties/rotation/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err23];
 }
@@ -1952,8 +1950,11 @@ vErrors.push(err23);
 errors++;
 }
 }
-else {
-const err24 = {instancePath:instancePath+"/tube",schemaPath:"#/properties/tube/type",keyword:"type",params:{type: "number"},message:"must be number"};
+if(data.tube !== undefined){
+let data16 = data.tube;
+if(typeof data16 == "number"){
+if(data16 <= 0 || isNaN(data16)){
+const err24 = {instancePath:instancePath+"/tube",schemaPath:"#/properties/tube/exclusiveMinimum",keyword:"exclusiveMinimum",params:{comparison: ">", limit: 0},message:"must be > 0"};
 if(vErrors === null){
 vErrors = [err24];
 }
@@ -1963,11 +1964,8 @@ vErrors.push(err24);
 errors++;
 }
 }
-if(data.cut !== undefined){
-let data16 = data.cut;
-if(typeof data16 === "string"){
-if(!pattern4.test(data16)){
-const err25 = {instancePath:instancePath+"/cut",schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
+else {
+const err25 = {instancePath:instancePath+"/tube",schemaPath:"#/properties/tube/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err25];
 }
@@ -1977,8 +1975,11 @@ vErrors.push(err25);
 errors++;
 }
 }
-else {
-const err26 = {instancePath:instancePath+"/cut",schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(data.offset !== undefined){
+let data17 = data.offset;
+if(typeof data17 == "number"){
+if(data17 < 0 || isNaN(data17)){
+const err26 = {instancePath:instancePath+"/offset",schemaPath:"#/properties/offset/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
 if(vErrors === null){
 vErrors = [err26];
 }
@@ -1988,9 +1989,8 @@ vErrors.push(err26);
 errors++;
 }
 }
-if(data.lift !== undefined){
-if(!(typeof data.lift == "number")){
-const err27 = {instancePath:instancePath+"/lift",schemaPath:"#/properties/lift/type",keyword:"type",params:{type: "number"},message:"must be number"};
+else {
+const err27 = {instancePath:instancePath+"/offset",schemaPath:"#/properties/offset/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err27];
 }
@@ -2000,14 +2000,11 @@ vErrors.push(err27);
 errors++;
 }
 }
-if(data.extensions !== undefined){
-let data18 = data.extensions;
-if(data18 && typeof data18 == "object" && !Array.isArray(data18)){
-for(const key0 in data18){
-const _errs32 = errors;
-if(typeof key0 === "string"){
-if(!pattern9.test(key0)){
-const err28 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key0};
+if(data.cut !== undefined){
+let data18 = data.cut;
+if(typeof data18 === "string"){
+if(!pattern4.test(data18)){
+const err28 = {instancePath:instancePath+"/cut",schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
 if(vErrors === null){
 vErrors = [err28];
 }
@@ -2017,9 +2014,8 @@ vErrors.push(err28);
 errors++;
 }
 }
-var valid10 = _errs32 === errors;
-if(!valid10){
-const err29 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key0},message:"property name must be valid"};
+else {
+const err29 = {instancePath:instancePath+"/cut",schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err29];
 }
@@ -2029,10 +2025,9 @@ vErrors.push(err29);
 errors++;
 }
 }
-for(const key1 in data18){
-let data19 = data18[key1];
-if(!(data19 && typeof data19 == "object" && !Array.isArray(data19))){
-const err30 = {instancePath:instancePath+"/extensions/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(data.lift !== undefined){
+if(!(typeof data.lift == "number")){
+const err30 = {instancePath:instancePath+"/lift",schemaPath:"#/properties/lift/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err30];
 }
@@ -2042,9 +2037,14 @@ vErrors.push(err30);
 errors++;
 }
 }
-}
-else {
-const err31 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(data.extensions !== undefined){
+let data20 = data.extensions;
+if(data20 && typeof data20 == "object" && !Array.isArray(data20)){
+for(const key0 in data20){
+const _errs34 = errors;
+if(typeof key0 === "string"){
+if(!pattern9.test(key0)){
+const err31 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key0};
 if(vErrors === null){
 vErrors = [err31];
 }
@@ -2054,14 +2054,51 @@ vErrors.push(err31);
 errors++;
 }
 }
-}
-else {
-const err32 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+var valid10 = _errs34 === errors;
+if(!valid10){
+const err32 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key0},message:"property name must be valid"};
 if(vErrors === null){
 vErrors = [err32];
 }
 else {
 vErrors.push(err32);
+}
+errors++;
+}
+}
+for(const key1 in data20){
+let data21 = data20[key1];
+if(!(data21 && typeof data21 == "object" && !Array.isArray(data21))){
+const err33 = {instancePath:instancePath+"/extensions/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err33];
+}
+else {
+vErrors.push(err33);
+}
+errors++;
+}
+}
+}
+else {
+const err34 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err34];
+}
+else {
+vErrors.push(err34);
+}
+errors++;
+}
+}
+}
+else {
+const err35 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err35];
+}
+else {
+vErrors.push(err35);
 }
 errors++;
 }
@@ -2823,8 +2860,8 @@ return errors === 0;
 }
 validate25.evaluated = {"props":{"id":true,"name":true,"outline":true,"lines":true,"folds":true,"grain":true,"cuts":true,"source":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
-const schema96 = {"description":"Two sides sewn together, each a chain of runs (a chain may span cuts). The start of a meets the start of b, the end of a the end of b.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"a":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"b":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"pairing":{"description":"nodes: if both sides pass through the same number of nodes, the nodes meet (notches line up) and each stretch in between is matched by length; otherwise as length. length: matched by length along the whole chain.","enum":["nodes","length"],"default":"nodes"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","a","b"]};
-const schema99 = {"description":"A stretch of one cut's outline or internal line, between two of its nodes. On the outline, direction says which way round: ccw (the outline's order) or cw, in the piece frame (also for a mirrored cut). On an internal line, the run goes from 'from' to 'to' along the line.","type":"object","properties":{"cut":{"$ref":"common.schema.json#/$defs/id"},"line":{"description":"Internal line id; absent = the outline.","$ref":"common.schema.json#/$defs/id"},"from":{"$ref":"common.schema.json#/$defs/id"},"to":{"$ref":"common.schema.json#/$defs/id"},"direction":{"enum":["ccw","cw"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["cut","from","to"],"if":{"required":["line"]},"then":{"properties":{"direction":false}},"else":{"required":["direction"]}};
+const schema97 = {"description":"Two sides sewn together, each a chain of runs (a chain may span cuts). The start of a meets the start of b, the end of a the end of b.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"a":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"b":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"pairing":{"description":"nodes: if both sides pass through the same number of nodes, the nodes meet (notches line up) and each stretch in between is matched by length; otherwise as length. length: matched by length along the whole chain.","enum":["nodes","length"],"default":"nodes"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","a","b"]};
+const schema100 = {"description":"A stretch of one cut's outline or internal line, between two of its nodes. On the outline, direction says which way round: ccw (the outline's order) or cw, in the piece frame (also for a mirrored cut). On an internal line, the run goes from 'from' to 'to' along the line.","type":"object","properties":{"cut":{"$ref":"common.schema.json#/$defs/id"},"line":{"description":"Internal line id; absent = the outline.","$ref":"common.schema.json#/$defs/id"},"from":{"$ref":"common.schema.json#/$defs/id"},"to":{"$ref":"common.schema.json#/$defs/id"},"direction":{"enum":["ccw","cw"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["cut","from","to"],"if":{"required":["line"]},"then":{"properties":{"direction":false}},"else":{"required":["direction"]}};
 
 function validate47(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -3057,7 +3094,7 @@ errors++;
 if(data.direction !== undefined){
 let data5 = data.direction;
 if(!((data5 === "ccw") || (data5 === "cw"))){
-const err15 = {instancePath:instancePath+"/direction",schemaPath:"#/properties/direction/enum",keyword:"enum",params:{allowedValues: schema99.properties.direction.enum},message:"must be equal to one of the allowed values"};
+const err15 = {instancePath:instancePath+"/direction",schemaPath:"#/properties/direction/enum",keyword:"enum",params:{allowedValues: schema100.properties.direction.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err15];
 }
@@ -3284,7 +3321,7 @@ errors++;
 if(data.pairing !== undefined){
 let data6 = data.pairing;
 if(!((data6 === "nodes") || (data6 === "length"))){
-const err10 = {instancePath:instancePath+"/pairing",schemaPath:"#/properties/pairing/enum",keyword:"enum",params:{allowedValues: schema96.properties.pairing.enum},message:"must be equal to one of the allowed values"};
+const err10 = {instancePath:instancePath+"/pairing",schemaPath:"#/properties/pairing/enum",keyword:"enum",params:{allowedValues: schema97.properties.pairing.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err10];
 }
@@ -3364,7 +3401,7 @@ return errors === 0;
 }
 validate46.evaluated = {"props":{"id":true,"name":true,"a":true,"b":true,"pairing":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
-const schema112 = {"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"description":"dxf-aama, valentina, ...","type":"string"},"part":{"description":"Path of the original file in the container, if kept.","type":"string"},"fileName":{"type":"string"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type"]};
+const schema113 = {"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"description":"dxf-aama, valentina, ...","type":"string"},"part":{"description":"Path of the original file in the container, if kept.","type":"string"},"fileName":{"type":"string"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type"]};
 
 function validate51(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -3528,7 +3565,7 @@ return errors === 0;
 }
 validate51.evaluated = {"props":{"id":true,"type":true,"part":true,"fileName":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
-const schema116 = {"description":"Who made the thing and under which licence. Kept with the data wherever it is copied.","type":"object","properties":{"title":{"type":"string"},"creator":{"type":"string"},"license":{"description":"An SPDX license expression, or LicenseRef-... for others.","type":"string"},"source":{"description":"Where it comes from (URL).","type":"string"},"notes":{"type":"string"},"extensions":{"$ref":"#/$defs/extensions"},"extras":{"$ref":"#/$defs/extras"}},"required":["license"]};
+const schema117 = {"description":"Who made the thing and under which licence. Kept with the data wherever it is copied.","type":"object","properties":{"title":{"type":"string"},"creator":{"type":"string"},"license":{"description":"An SPDX license expression, or LicenseRef-... for others.","type":"string"},"source":{"description":"Where it comes from (URL).","type":"string"},"notes":{"type":"string"},"extensions":{"$ref":"#/$defs/extensions"},"extras":{"$ref":"#/$defs/extras"}},"required":["license"]};
 
 function validate53(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -3681,7 +3718,7 @@ return errors === 0;
 }
 validate53.evaluated = {"props":{"title":true,"creator":true,"license":true,"source":true,"notes":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
-const schema119 = {"description":"Where a copied entity came from (a library file or a cloud library), so the app can offer updates. The copy is what's used.","type":"object","properties":{"library":{"description":"The source library's id.","$ref":"#/$defs/id"},"entity":{"description":"The entity's id in that library.","$ref":"#/$defs/id"},"revision":{"description":"The library's revision when copied (opaque).","type":"string"},"extensions":{"$ref":"#/$defs/extensions"},"extras":{"$ref":"#/$defs/extras"}},"required":["library","entity"]};
+const schema120 = {"description":"Where a copied entity came from (a library file or a cloud library), so the app can offer updates. The copy is what's used.","type":"object","properties":{"library":{"description":"The source library's id.","$ref":"#/$defs/id"},"entity":{"description":"The entity's id in that library.","$ref":"#/$defs/id"},"revision":{"description":"The library's revision when copied (opaque).","type":"string"},"extensions":{"$ref":"#/$defs/extensions"},"extras":{"$ref":"#/$defs/extras"}},"required":["library","entity"]};
 
 function validate55(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -3899,8 +3936,8 @@ vErrors.push(err3);
 }
 errors++;
 }
-if(data.seams === undefined){
-const err4 = {instancePath,schemaPath:"#/required",keyword:"required",params:{missingProperty: "seams"},message:"must have required property '"+"seams"+"'"};
+if(data.stack === undefined){
+const err4 = {instancePath,schemaPath:"#/required",keyword:"required",params:{missingProperty: "stack"},message:"must have required property '"+"stack"+"'"};
 if(vErrors === null){
 vErrors = [err4];
 }
@@ -3909,11 +3946,8 @@ vErrors.push(err4);
 }
 errors++;
 }
-if(data.id !== undefined){
-let data0 = data.id;
-if(typeof data0 === "string"){
-if(!pattern4.test(data0)){
-const err5 = {instancePath:instancePath+"/id",schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
+if(data.seams === undefined){
+const err5 = {instancePath,schemaPath:"#/required",keyword:"required",params:{missingProperty: "seams"},message:"must have required property '"+"seams"+"'"};
 if(vErrors === null){
 vErrors = [err5];
 }
@@ -3922,9 +3956,11 @@ vErrors.push(err5);
 }
 errors++;
 }
-}
-else {
-const err6 = {instancePath:instancePath+"/id",schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(data.id !== undefined){
+let data0 = data.id;
+if(typeof data0 === "string"){
+if(!pattern4.test(data0)){
+const err6 = {instancePath:instancePath+"/id",schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
 if(vErrors === null){
 vErrors = [err6];
 }
@@ -3934,9 +3970,8 @@ vErrors.push(err6);
 errors++;
 }
 }
-if(data.name !== undefined){
-if(typeof data.name !== "string"){
-const err7 = {instancePath:instancePath+"/name",schemaPath:"common.schema.json#/$defs/name/type",keyword:"type",params:{type: "string"},message:"must be string"};
+else {
+const err7 = {instancePath:instancePath+"/id",schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err7];
 }
@@ -3946,11 +3981,9 @@ vErrors.push(err7);
 errors++;
 }
 }
-if(data.fabric !== undefined){
-let data2 = data.fabric;
-if(typeof data2 === "string"){
-if(!pattern4.test(data2)){
-const err8 = {instancePath:instancePath+"/fabric",schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
+if(data.name !== undefined){
+if(typeof data.name !== "string"){
+const err8 = {instancePath:instancePath+"/name",schemaPath:"common.schema.json#/$defs/name/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err8];
 }
@@ -3960,8 +3993,11 @@ vErrors.push(err8);
 errors++;
 }
 }
-else {
-const err9 = {instancePath:instancePath+"/fabric",schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(data.fabric !== undefined){
+let data2 = data.fabric;
+if(typeof data2 === "string"){
+if(!pattern4.test(data2)){
+const err9 = {instancePath:instancePath+"/fabric",schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
 if(vErrors === null){
 vErrors = [err9];
 }
@@ -3971,11 +4007,8 @@ vErrors.push(err9);
 errors++;
 }
 }
-if(data.appearance !== undefined){
-let data3 = data.appearance;
-if(typeof data3 === "string"){
-if(!pattern4.test(data3)){
-const err10 = {instancePath:instancePath+"/appearance",schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
+else {
+const err10 = {instancePath:instancePath+"/fabric",schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err10];
 }
@@ -3985,13 +4018,27 @@ vErrors.push(err10);
 errors++;
 }
 }
-else {
-const err11 = {instancePath:instancePath+"/appearance",schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(data.appearance !== undefined){
+let data3 = data.appearance;
+if(typeof data3 === "string"){
+if(!pattern4.test(data3)){
+const err11 = {instancePath:instancePath+"/appearance",schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
 if(vErrors === null){
 vErrors = [err11];
 }
 else {
 vErrors.push(err11);
+}
+errors++;
+}
+}
+else {
+const err12 = {instancePath:instancePath+"/appearance",schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err12];
+}
+else {
+vErrors.push(err12);
 }
 errors++;
 }
@@ -4008,29 +4055,7 @@ errors = vErrors.length;
 }
 }
 else {
-const err12 = {instancePath:instancePath+"/pieces",schemaPath:"#/properties/pieces/type",keyword:"type",params:{type: "array"},message:"must be array"};
-if(vErrors === null){
-vErrors = [err12];
-}
-else {
-vErrors.push(err12);
-}
-errors++;
-}
-}
-if(data.seams !== undefined){
-let data6 = data.seams;
-if(Array.isArray(data6)){
-const len1 = data6.length;
-for(let i1=0; i1<len1; i1++){
-if(!(validate46(data6[i1], {instancePath:instancePath+"/seams/" + i1,parentData:data6,parentDataProperty:i1,rootData,dynamicAnchors}))){
-vErrors = vErrors === null ? validate46.errors : vErrors.concat(validate46.errors);
-errors = vErrors.length;
-}
-}
-}
-else {
-const err13 = {instancePath:instancePath+"/seams",schemaPath:"#/properties/seams/type",keyword:"type",params:{type: "array"},message:"must be array"};
+const err13 = {instancePath:instancePath+"/pieces",schemaPath:"#/properties/pieces/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
 vErrors = [err13];
 }
@@ -4040,13 +4065,15 @@ vErrors.push(err13);
 errors++;
 }
 }
-if(data.simulation !== undefined){
-let data8 = data.simulation;
-if(data8 && typeof data8 == "object" && !Array.isArray(data8)){
-if(data8.targetVertices !== undefined){
-let data9 = data8.targetVertices;
-if(!((typeof data9 == "number") && (!(data9 % 1) && !isNaN(data9)))){
-const err14 = {instancePath:instancePath+"/simulation/targetVertices",schemaPath:"#/properties/simulation/properties/targetVertices/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(data.stack !== undefined){
+let data6 = data.stack;
+if(Array.isArray(data6)){
+const len1 = data6.length;
+for(let i1=0; i1<len1; i1++){
+let data7 = data6[i1];
+if(typeof data7 === "string"){
+if(!pattern4.test(data7)){
+const err14 = {instancePath:instancePath+"/stack/" + i1,schemaPath:"common.schema.json#/$defs/id/pattern",keyword:"pattern",params:{pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},message:"must match pattern \""+"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"+"\""};
 if(vErrors === null){
 vErrors = [err14];
 }
@@ -4055,9 +4082,9 @@ vErrors.push(err14);
 }
 errors++;
 }
-if(typeof data9 == "number"){
-if(data9 < 100 || isNaN(data9)){
-const err15 = {instancePath:instancePath+"/simulation/targetVertices",schemaPath:"#/properties/simulation/properties/targetVertices/minimum",keyword:"minimum",params:{comparison: ">=", limit: 100},message:"must be >= 100"};
+}
+else {
+const err15 = {instancePath:instancePath+"/stack/" + i1,schemaPath:"common.schema.json#/$defs/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err15];
 }
@@ -4067,11 +4094,14 @@ vErrors.push(err15);
 errors++;
 }
 }
-}
-if(data8.engine !== undefined){
-let data10 = data8.engine;
-if(!(data10 && typeof data10 == "object" && !Array.isArray(data10))){
-const err16 = {instancePath:instancePath+"/simulation/engine",schemaPath:"#/properties/simulation/properties/engine/type",keyword:"type",params:{type: "object"},message:"must be object"};
+let i2 = data6.length;
+let j0;
+if(i2 > 1){
+outer0:
+for(;i2--;){
+for(j0 = i2; j0--;){
+if(func0(data6[i2], data6[j0])){
+const err16 = {instancePath:instancePath+"/stack",schemaPath:"#/properties/stack/uniqueItems",keyword:"uniqueItems",params:{i: i2, j: j0},message:"must NOT have duplicate items (items ## "+j0+" and "+i2+" are identical)"};
 if(vErrors === null){
 vErrors = [err16];
 }
@@ -4079,13 +4109,14 @@ else {
 vErrors.push(err16);
 }
 errors++;
+break outer0;
 }
 }
-if(data8.collisionBounds !== undefined){
-let data11 = data8.collisionBounds;
-if(data11 && typeof data11 == "object" && !Array.isArray(data11)){
-if(data11.min === undefined){
-const err17 = {instancePath:instancePath+"/simulation/collisionBounds",schemaPath:"#/properties/simulation/properties/collisionBounds/required",keyword:"required",params:{missingProperty: "min"},message:"must have required property '"+"min"+"'"};
+}
+}
+}
+else {
+const err17 = {instancePath:instancePath+"/stack",schemaPath:"#/properties/stack/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
 vErrors = [err17];
 }
@@ -4094,8 +4125,20 @@ vErrors.push(err17);
 }
 errors++;
 }
-if(data11.max === undefined){
-const err18 = {instancePath:instancePath+"/simulation/collisionBounds",schemaPath:"#/properties/simulation/properties/collisionBounds/required",keyword:"required",params:{missingProperty: "max"},message:"must have required property '"+"max"+"'"};
+}
+if(data.seams !== undefined){
+let data8 = data.seams;
+if(Array.isArray(data8)){
+const len2 = data8.length;
+for(let i3=0; i3<len2; i3++){
+if(!(validate46(data8[i3], {instancePath:instancePath+"/seams/" + i3,parentData:data8,parentDataProperty:i3,rootData,dynamicAnchors}))){
+vErrors = vErrors === null ? validate46.errors : vErrors.concat(validate46.errors);
+errors = vErrors.length;
+}
+}
+}
+else {
+const err18 = {instancePath:instancePath+"/seams",schemaPath:"#/properties/seams/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
 vErrors = [err18];
 }
@@ -4104,11 +4147,14 @@ vErrors.push(err18);
 }
 errors++;
 }
-if(data11.min !== undefined){
-let data12 = data11.min;
-if(Array.isArray(data12)){
-if(data12.length > 3){
-const err19 = {instancePath:instancePath+"/simulation/collisionBounds/min",schemaPath:"common.schema.json#/$defs/vec3/maxItems",keyword:"maxItems",params:{limit: 3},message:"must NOT have more than 3 items"};
+}
+if(data.simulation !== undefined){
+let data10 = data.simulation;
+if(data10 && typeof data10 == "object" && !Array.isArray(data10)){
+if(data10.targetVertices !== undefined){
+let data11 = data10.targetVertices;
+if(!((typeof data11 == "number") && (!(data11 % 1) && !isNaN(data11)))){
+const err19 = {instancePath:instancePath+"/simulation/targetVertices",schemaPath:"#/properties/simulation/properties/targetVertices/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
 if(vErrors === null){
 vErrors = [err19];
 }
@@ -4117,8 +4163,9 @@ vErrors.push(err19);
 }
 errors++;
 }
-if(data12.length < 3){
-const err20 = {instancePath:instancePath+"/simulation/collisionBounds/min",schemaPath:"common.schema.json#/$defs/vec3/minItems",keyword:"minItems",params:{limit: 3},message:"must NOT have fewer than 3 items"};
+if(typeof data11 == "number"){
+if(data11 < 100 || isNaN(data11)){
+const err20 = {instancePath:instancePath+"/simulation/targetVertices",schemaPath:"#/properties/simulation/properties/targetVertices/minimum",keyword:"minimum",params:{comparison: ">=", limit: 100},message:"must be >= 100"};
 if(vErrors === null){
 vErrors = [err20];
 }
@@ -4127,10 +4174,12 @@ vErrors.push(err20);
 }
 errors++;
 }
-const len2 = data12.length;
-for(let i2=0; i2<len2; i2++){
-if(!(typeof data12[i2] == "number")){
-const err21 = {instancePath:instancePath+"/simulation/collisionBounds/min/" + i2,schemaPath:"common.schema.json#/$defs/vec3/items/type",keyword:"type",params:{type: "number"},message:"must be number"};
+}
+}
+if(data10.engine !== undefined){
+let data12 = data10.engine;
+if(!(data12 && typeof data12 == "object" && !Array.isArray(data12))){
+const err21 = {instancePath:instancePath+"/simulation/engine",schemaPath:"#/properties/simulation/properties/engine/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err21];
 }
@@ -4140,9 +4189,11 @@ vErrors.push(err21);
 errors++;
 }
 }
-}
-else {
-const err22 = {instancePath:instancePath+"/simulation/collisionBounds/min",schemaPath:"common.schema.json#/$defs/vec3/type",keyword:"type",params:{type: "array"},message:"must be array"};
+if(data10.collisionBounds !== undefined){
+let data13 = data10.collisionBounds;
+if(data13 && typeof data13 == "object" && !Array.isArray(data13)){
+if(data13.min === undefined){
+const err22 = {instancePath:instancePath+"/simulation/collisionBounds",schemaPath:"#/properties/simulation/properties/collisionBounds/required",keyword:"required",params:{missingProperty: "min"},message:"must have required property '"+"min"+"'"};
 if(vErrors === null){
 vErrors = [err22];
 }
@@ -4151,12 +4202,8 @@ vErrors.push(err22);
 }
 errors++;
 }
-}
-if(data11.max !== undefined){
-let data14 = data11.max;
-if(Array.isArray(data14)){
-if(data14.length > 3){
-const err23 = {instancePath:instancePath+"/simulation/collisionBounds/max",schemaPath:"common.schema.json#/$defs/vec3/maxItems",keyword:"maxItems",params:{limit: 3},message:"must NOT have more than 3 items"};
+if(data13.max === undefined){
+const err23 = {instancePath:instancePath+"/simulation/collisionBounds",schemaPath:"#/properties/simulation/properties/collisionBounds/required",keyword:"required",params:{missingProperty: "max"},message:"must have required property '"+"max"+"'"};
 if(vErrors === null){
 vErrors = [err23];
 }
@@ -4165,8 +4212,11 @@ vErrors.push(err23);
 }
 errors++;
 }
-if(data14.length < 3){
-const err24 = {instancePath:instancePath+"/simulation/collisionBounds/max",schemaPath:"common.schema.json#/$defs/vec3/minItems",keyword:"minItems",params:{limit: 3},message:"must NOT have fewer than 3 items"};
+if(data13.min !== undefined){
+let data14 = data13.min;
+if(Array.isArray(data14)){
+if(data14.length > 3){
+const err24 = {instancePath:instancePath+"/simulation/collisionBounds/min",schemaPath:"common.schema.json#/$defs/vec3/maxItems",keyword:"maxItems",params:{limit: 3},message:"must NOT have more than 3 items"};
 if(vErrors === null){
 vErrors = [err24];
 }
@@ -4175,10 +4225,8 @@ vErrors.push(err24);
 }
 errors++;
 }
-const len3 = data14.length;
-for(let i3=0; i3<len3; i3++){
-if(!(typeof data14[i3] == "number")){
-const err25 = {instancePath:instancePath+"/simulation/collisionBounds/max/" + i3,schemaPath:"common.schema.json#/$defs/vec3/items/type",keyword:"type",params:{type: "number"},message:"must be number"};
+if(data14.length < 3){
+const err25 = {instancePath:instancePath+"/simulation/collisionBounds/min",schemaPath:"common.schema.json#/$defs/vec3/minItems",keyword:"minItems",params:{limit: 3},message:"must NOT have fewer than 3 items"};
 if(vErrors === null){
 vErrors = [err25];
 }
@@ -4187,10 +4235,10 @@ vErrors.push(err25);
 }
 errors++;
 }
-}
-}
-else {
-const err26 = {instancePath:instancePath+"/simulation/collisionBounds/max",schemaPath:"common.schema.json#/$defs/vec3/type",keyword:"type",params:{type: "array"},message:"must be array"};
+const len3 = data14.length;
+for(let i4=0; i4<len3; i4++){
+if(!(typeof data14[i4] == "number")){
+const err26 = {instancePath:instancePath+"/simulation/collisionBounds/min/" + i4,schemaPath:"common.schema.json#/$defs/vec3/items/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err26];
 }
@@ -4202,7 +4250,7 @@ errors++;
 }
 }
 else {
-const err27 = {instancePath:instancePath+"/simulation/collisionBounds",schemaPath:"#/properties/simulation/properties/collisionBounds/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err27 = {instancePath:instancePath+"/simulation/collisionBounds/min",schemaPath:"common.schema.json#/$defs/vec3/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
 vErrors = [err27];
 }
@@ -4212,14 +4260,11 @@ vErrors.push(err27);
 errors++;
 }
 }
-if(data8.extensions !== undefined){
-let data16 = data8.extensions;
-if(data16 && typeof data16 == "object" && !Array.isArray(data16)){
-for(const key0 in data16){
-const _errs40 = errors;
-if(typeof key0 === "string"){
-if(!pattern9.test(key0)){
-const err28 = {instancePath:instancePath+"/simulation/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key0};
+if(data13.max !== undefined){
+let data16 = data13.max;
+if(Array.isArray(data16)){
+if(data16.length > 3){
+const err28 = {instancePath:instancePath+"/simulation/collisionBounds/max",schemaPath:"common.schema.json#/$defs/vec3/maxItems",keyword:"maxItems",params:{limit: 3},message:"must NOT have more than 3 items"};
 if(vErrors === null){
 vErrors = [err28];
 }
@@ -4228,10 +4273,8 @@ vErrors.push(err28);
 }
 errors++;
 }
-}
-var valid18 = _errs40 === errors;
-if(!valid18){
-const err29 = {instancePath:instancePath+"/simulation/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key0},message:"property name must be valid"};
+if(data16.length < 3){
+const err29 = {instancePath:instancePath+"/simulation/collisionBounds/max",schemaPath:"common.schema.json#/$defs/vec3/minItems",keyword:"minItems",params:{limit: 3},message:"must NOT have fewer than 3 items"};
 if(vErrors === null){
 vErrors = [err29];
 }
@@ -4240,11 +4283,10 @@ vErrors.push(err29);
 }
 errors++;
 }
-}
-for(const key1 in data16){
-let data17 = data16[key1];
-if(!(data17 && typeof data17 == "object" && !Array.isArray(data17))){
-const err30 = {instancePath:instancePath+"/simulation/extensions/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const len4 = data16.length;
+for(let i5=0; i5<len4; i5++){
+if(!(typeof data16[i5] == "number")){
+const err30 = {instancePath:instancePath+"/simulation/collisionBounds/max/" + i5,schemaPath:"common.schema.json#/$defs/vec3/items/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err30];
 }
@@ -4256,7 +4298,7 @@ errors++;
 }
 }
 else {
-const err31 = {instancePath:instancePath+"/simulation/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err31 = {instancePath:instancePath+"/simulation/collisionBounds/max",schemaPath:"common.schema.json#/$defs/vec3/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
 vErrors = [err31];
 }
@@ -4268,7 +4310,7 @@ errors++;
 }
 }
 else {
-const err32 = {instancePath:instancePath+"/simulation",schemaPath:"#/properties/simulation/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err32 = {instancePath:instancePath+"/simulation/collisionBounds",schemaPath:"#/properties/simulation/properties/collisionBounds/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err32];
 }
@@ -4278,24 +4320,90 @@ vErrors.push(err32);
 errors++;
 }
 }
+if(data10.extensions !== undefined){
+let data18 = data10.extensions;
+if(data18 && typeof data18 == "object" && !Array.isArray(data18)){
+for(const key0 in data18){
+const _errs45 = errors;
+if(typeof key0 === "string"){
+if(!pattern9.test(key0)){
+const err33 = {instancePath:instancePath+"/simulation/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key0};
+if(vErrors === null){
+vErrors = [err33];
+}
+else {
+vErrors.push(err33);
+}
+errors++;
+}
+}
+var valid22 = _errs45 === errors;
+if(!valid22){
+const err34 = {instancePath:instancePath+"/simulation/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key0},message:"property name must be valid"};
+if(vErrors === null){
+vErrors = [err34];
+}
+else {
+vErrors.push(err34);
+}
+errors++;
+}
+}
+for(const key1 in data18){
+let data19 = data18[key1];
+if(!(data19 && typeof data19 == "object" && !Array.isArray(data19))){
+const err35 = {instancePath:instancePath+"/simulation/extensions/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err35];
+}
+else {
+vErrors.push(err35);
+}
+errors++;
+}
+}
+}
+else {
+const err36 = {instancePath:instancePath+"/simulation/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err36];
+}
+else {
+vErrors.push(err36);
+}
+errors++;
+}
+}
+}
+else {
+const err37 = {instancePath:instancePath+"/simulation",schemaPath:"#/properties/simulation/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err37];
+}
+else {
+vErrors.push(err37);
+}
+errors++;
+}
+}
 if(data.sources !== undefined){
-let data19 = data.sources;
-if(Array.isArray(data19)){
-const len4 = data19.length;
-for(let i4=0; i4<len4; i4++){
-if(!(validate51(data19[i4], {instancePath:instancePath+"/sources/" + i4,parentData:data19,parentDataProperty:i4,rootData,dynamicAnchors}))){
+let data21 = data.sources;
+if(Array.isArray(data21)){
+const len5 = data21.length;
+for(let i6=0; i6<len5; i6++){
+if(!(validate51(data21[i6], {instancePath:instancePath+"/sources/" + i6,parentData:data21,parentDataProperty:i6,rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate51.errors : vErrors.concat(validate51.errors);
 errors = vErrors.length;
 }
 }
 }
 else {
-const err33 = {instancePath:instancePath+"/sources",schemaPath:"#/properties/sources/type",keyword:"type",params:{type: "array"},message:"must be array"};
+const err38 = {instancePath:instancePath+"/sources",schemaPath:"#/properties/sources/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
-vErrors = [err33];
+vErrors = [err38];
 }
 else {
-vErrors.push(err33);
+vErrors.push(err38);
 }
 errors++;
 }
@@ -4313,77 +4421,77 @@ errors = vErrors.length;
 }
 }
 if(data.extensions !== undefined){
-let data23 = data.extensions;
-if(data23 && typeof data23 == "object" && !Array.isArray(data23)){
-for(const key2 in data23){
-const _errs53 = errors;
+let data25 = data.extensions;
+if(data25 && typeof data25 == "object" && !Array.isArray(data25)){
+for(const key2 in data25){
+const _errs58 = errors;
 if(typeof key2 === "string"){
 if(!pattern9.test(key2)){
-const err34 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key2};
+const err39 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key2};
 if(vErrors === null){
-vErrors = [err34];
+vErrors = [err39];
 }
 else {
-vErrors.push(err34);
+vErrors.push(err39);
 }
 errors++;
 }
 }
-var valid24 = _errs53 === errors;
-if(!valid24){
-const err35 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key2},message:"property name must be valid"};
+var valid28 = _errs58 === errors;
+if(!valid28){
+const err40 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key2},message:"property name must be valid"};
 if(vErrors === null){
-vErrors = [err35];
+vErrors = [err40];
 }
 else {
-vErrors.push(err35);
+vErrors.push(err40);
 }
 errors++;
 }
 }
-for(const key3 in data23){
-let data24 = data23[key3];
-if(!(data24 && typeof data24 == "object" && !Array.isArray(data24))){
-const err36 = {instancePath:instancePath+"/extensions/" + key3.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
+for(const key3 in data25){
+let data26 = data25[key3];
+if(!(data26 && typeof data26 == "object" && !Array.isArray(data26))){
+const err41 = {instancePath:instancePath+"/extensions/" + key3.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err36];
+vErrors = [err41];
 }
 else {
-vErrors.push(err36);
-}
-errors++;
-}
-}
-}
-else {
-const err37 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err37];
-}
-else {
-vErrors.push(err37);
+vErrors.push(err41);
 }
 errors++;
 }
 }
 }
 else {
-const err38 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err42 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err38];
+vErrors = [err42];
 }
 else {
-vErrors.push(err38);
+vErrors.push(err42);
+}
+errors++;
+}
+}
+}
+else {
+const err43 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err43];
+}
+else {
+vErrors.push(err43);
 }
 errors++;
 }
 validate24.errors = vErrors;
 return errors === 0;
 }
-validate24.evaluated = {"props":{"id":true,"name":true,"fabric":true,"appearance":true,"pieces":true,"seams":true,"simulation":true,"sources":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
+validate24.evaluated = {"props":{"id":true,"name":true,"fabric":true,"appearance":true,"pieces":true,"stack":true,"seams":true,"simulation":true,"sources":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const fabric = validate57;
-const schema126 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/fabric.schema.json","title":"Vitryne format v1: fabrics/<id>.json","description":"A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity (appearance.schema.json) a fabric can name as its default. 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"category":{"description":"Construction. Quality targets differ (docs/history: woven p99 strain < 3%, knit < 8%).","enum":["woven","knit","nonwoven"]},"density":{"description":"Areal density, kg/m² (150 g/m² = 0.15).","type":"number","exclusiveMinimum":0},"thickness":{"description":"Fabric thickness, mm. Optional; not used by the v1 engine (its collision thickness is a simulation setting).","type":"number","exclusiveMinimum":0},"stretch":{"description":"In-plane tensile stiffness, N/m (force per unit width per unit strain). shear: in-plane shear stiffness, N/m.","type":"object","properties":{"warp":{"type":"number","exclusiveMinimum":0},"weft":{"type":"number","exclusiveMinimum":0},"shear":{"type":"number","exclusiveMinimum":0},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["warp","weft","shear"]},"bending":{"description":"Bending rigidity per unit width, N·m (moment per unit width per unit curvature), for bending lines across the warp, across the weft, and on the bias (optional; defaults to the mean of warp and weft).","type":"object","properties":{"warp":{"type":"number","exclusiveMinimum":0},"weft":{"type":"number","exclusiveMinimum":0},"bias":{"type":"number","exclusiveMinimum":0},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["warp","weft"]},"friction":{"description":"Coulomb friction coefficient against the body (dimensionless).","type":"number","minimum":0},"appearance":{"description":"How the fabric looks by default (added in format version 3): the appearance of the cuts that use it and name none of their own. Absent: the app's own.","$ref":"common.schema.json#/$defs/id"},"notes":{"description":"Where the values come from (measurement, datasheet, paper) or that they're placeholders.","type":"string"},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","category","density","stretch","bending","friction"]};
+const schema127 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/fabric.schema.json","title":"Vitryne format v1: fabrics/<id>.json","description":"A fabric's physical behaviour, in SI units, independent of mesh resolution and of the solver. Appearance (colour, texture) is a separate entity (appearance.schema.json) a fabric can name as its default. 'Warp' is the grain line direction of the piece, 'weft' perpendicular to it in the fabric plane.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"category":{"description":"Construction. Quality targets differ (docs/history: woven p99 strain < 3%, knit < 8%).","enum":["woven","knit","nonwoven"]},"density":{"description":"Areal density, kg/m² (150 g/m² = 0.15).","type":"number","exclusiveMinimum":0},"thickness":{"description":"Fabric thickness, mm. Optional; not used by the v1 engine (its collision thickness is a simulation setting).","type":"number","exclusiveMinimum":0},"stretch":{"description":"In-plane tensile stiffness, N/m (force per unit width per unit strain). shear: in-plane shear stiffness, N/m.","type":"object","properties":{"warp":{"type":"number","exclusiveMinimum":0},"weft":{"type":"number","exclusiveMinimum":0},"shear":{"type":"number","exclusiveMinimum":0},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["warp","weft","shear"]},"bending":{"description":"Bending rigidity per unit width, N·m (moment per unit width per unit curvature), for bending lines across the warp, across the weft, and on the bias (optional; defaults to the mean of warp and weft).","type":"object","properties":{"warp":{"type":"number","exclusiveMinimum":0},"weft":{"type":"number","exclusiveMinimum":0},"bias":{"type":"number","exclusiveMinimum":0},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["warp","weft"]},"friction":{"description":"Coulomb friction coefficient against the body (dimensionless).","type":"number","minimum":0},"appearance":{"description":"How the fabric looks by default (added in format version 3): the appearance of the cuts that use it and name none of their own. Absent: the app's own.","$ref":"common.schema.json#/$defs/id"},"notes":{"description":"Where the values come from (measurement, datasheet, paper) or that they're placeholders.","type":"string"},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","category","density","stretch","bending","friction"]};
 
 function validate58(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -4823,7 +4931,7 @@ errors++;
 if(data.category !== undefined){
 let data2 = data.category;
 if(!(((data2 === "woven") || (data2 === "knit")) || (data2 === "nonwoven"))){
-const err10 = {instancePath:instancePath+"/category",schemaPath:"#/properties/category/enum",keyword:"enum",params:{allowedValues: schema126.properties.category.enum},message:"must be equal to one of the allowed values"};
+const err10 = {instancePath:instancePath+"/category",schemaPath:"#/properties/category/enum",keyword:"enum",params:{allowedValues: schema127.properties.category.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err10];
 }
@@ -5366,8 +5474,8 @@ return errors === 0;
 validate57.evaluated = {"props":{"id":true,"name":true,"category":true,"density":true,"thickness":true,"stretch":true,"bending":true,"friction":true,"appearance":true,"notes":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const appearance = validate62;
-const schema144 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/appearance.schema.json","title":"Vitryne format v1: appearances/<id>.json","description":"How a fabric looks, apart from how it behaves (that is the fabric's): its colour for now; textures and print scale are later additions. Added in format version 2. Garments and cuts refer to appearances the way they refer to fabrics.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"color":{"description":"The colour of the right side, sRGB, as #rrggbb (lowercase).","type":"string","pattern":"^#[0-9a-f]{6}$"},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","color"]};
-const pattern58 = new RegExp("^#[0-9a-f]{6}$", "u");
+const schema145 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/appearance.schema.json","title":"Vitryne format v1: appearances/<id>.json","description":"How a fabric looks, apart from how it behaves (that is the fabric's): its colour for now; textures and print scale are later additions. Added in format version 2. Garments and cuts refer to appearances the way they refer to fabrics.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"color":{"description":"The colour of the right side, sRGB, as #rrggbb (lowercase).","type":"string","pattern":"^#[0-9a-f]{6}$"},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","color"]};
+const pattern59 = new RegExp("^#[0-9a-f]{6}$", "u");
 
 function validate63(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -5767,7 +5875,7 @@ errors++;
 if(data.color !== undefined){
 let data2 = data.color;
 if(typeof data2 === "string"){
-if(!pattern58.test(data2)){
+if(!pattern59.test(data2)){
 const err6 = {instancePath:instancePath+"/color",schemaPath:"#/properties/color/pattern",keyword:"pattern",params:{pattern: "^#[0-9a-f]{6}$"},message:"must match pattern \""+"^#[0-9a-f]{6}$"+"\""};
 if(vErrors === null){
 vErrors = [err6];
@@ -5872,9 +5980,9 @@ return errors === 0;
 validate62.evaluated = {"props":{"id":true,"name":true,"color":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const avatar = validate67;
-const schema157 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/avatar.schema.json","title":"Vitryne format v1: avatars/<id>/avatar.json","description":"A body to drape on: its mesh (a glTF binary part, metres, Y up, facing +Z, the wearer's left = +X) and the named regions that pieces are placed around.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mesh":{"description":"Path of the glTF binary part (model/gltf-binary): one mesh, triangles, metres, feet at y = 0.","type":"string"},"pose":{"description":"The rest pose of the mesh: A, T, or another label.","type":"string"},"regions":{"description":"Body regions, keyed by a name from the region vocabulary (FORMAT.md): torso, head, head-over, upper-arm-left/right, arm-left/right, arm-straight-left/right, leg-left/right. Garments refer to these names, so a garment fits any avatar that has the regions it uses.","type":"object","propertyNames":{"pattern":"^[a-z][a-z0-9-]*$"},"additionalProperties":{"$ref":"#/$defs/region"}},"measurements":{"description":"Body measurements, mm, keyed by name (chest, waist, hips, height, ...). Optional; informational in v1.","type":"object","additionalProperties":{"type":"number"}},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","mesh","regions"],"$defs":{"region":{"description":"A frame to wrap pieces around. axis: a straight line through origin along axis (towards the top of the pieces). path: a centreline through points (first = origin), smooth (Catmull-Rom), continuing straight past the last point; straight along the first segment above the origin. zero: the direction of angle 0 around the axis (projected onto the plane normal to the axis).","type":"object","properties":{"type":{"enum":["axis","path"]},"origin":{"$ref":"common.schema.json#/$defs/vec3"},"axis":{"$ref":"common.schema.json#/$defs/vec3"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec3"},"minItems":2},"zero":{"$ref":"common.schema.json#/$defs/vec3"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","zero"],"allOf":[{"if":{"properties":{"type":{"const":"axis"}}},"then":{"required":["origin","axis"]}},{"if":{"properties":{"type":{"const":"path"}}},"then":{"required":["points"]}}]}}};
-const pattern65 = new RegExp("^[a-z][a-z0-9-]*$", "u");
-const schema160 = {"description":"A frame to wrap pieces around. axis: a straight line through origin along axis (towards the top of the pieces). path: a centreline through points (first = origin), smooth (Catmull-Rom), continuing straight past the last point; straight along the first segment above the origin. zero: the direction of angle 0 around the axis (projected onto the plane normal to the axis).","type":"object","properties":{"type":{"enum":["axis","path"]},"origin":{"$ref":"common.schema.json#/$defs/vec3"},"axis":{"$ref":"common.schema.json#/$defs/vec3"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec3"},"minItems":2},"zero":{"$ref":"common.schema.json#/$defs/vec3"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","zero"],"allOf":[{"if":{"properties":{"type":{"const":"axis"}}},"then":{"required":["origin","axis"]}},{"if":{"properties":{"type":{"const":"path"}}},"then":{"required":["points"]}}]};
+const schema158 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/avatar.schema.json","title":"Vitryne format v1: avatars/<id>/avatar.json","description":"A body to drape on: its mesh (a glTF binary part, metres, Y up, facing +Z, the wearer's left = +X) and the named regions that pieces are placed around.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mesh":{"description":"Path of the glTF binary part (model/gltf-binary): one mesh, triangles, metres, feet at y = 0.","type":"string"},"pose":{"description":"The rest pose of the mesh: A, T, or another label.","type":"string"},"regions":{"description":"Body regions, keyed by a name from the region vocabulary (FORMAT.md): torso, head, head-over, upper-arm-left/right, arm-left/right, arm-straight-left/right, leg-left/right. Garments refer to these names, so a garment fits any avatar that has the regions it uses.","type":"object","propertyNames":{"pattern":"^[a-z][a-z0-9-]*$"},"additionalProperties":{"$ref":"#/$defs/region"}},"measurements":{"description":"Body measurements, mm, keyed by name (chest, waist, hips, height, ...). Optional; informational in v1.","type":"object","additionalProperties":{"type":"number"}},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","mesh","regions"],"$defs":{"region":{"description":"A frame to wrap pieces around. axis: a straight line through origin along axis (towards the top of the pieces). path: a centreline through points (first = origin), smooth (Catmull-Rom), continuing straight past the last point; straight along the first segment above the origin. zero: the direction of angle 0 around the axis (projected onto the plane normal to the axis).","type":"object","properties":{"type":{"enum":["axis","path"]},"origin":{"$ref":"common.schema.json#/$defs/vec3"},"axis":{"$ref":"common.schema.json#/$defs/vec3"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec3"},"minItems":2},"zero":{"$ref":"common.schema.json#/$defs/vec3"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","zero"],"allOf":[{"if":{"properties":{"type":{"const":"axis"}}},"then":{"required":["origin","axis"]}},{"if":{"properties":{"type":{"const":"path"}}},"then":{"required":["points"]}}]}}};
+const pattern66 = new RegExp("^[a-z][a-z0-9-]*$", "u");
+const schema161 = {"description":"A frame to wrap pieces around. axis: a straight line through origin along axis (towards the top of the pieces). path: a centreline through points (first = origin), smooth (Catmull-Rom), continuing straight past the last point; straight along the first segment above the origin. zero: the direction of angle 0 around the axis (projected onto the plane normal to the axis).","type":"object","properties":{"type":{"enum":["axis","path"]},"origin":{"$ref":"common.schema.json#/$defs/vec3"},"axis":{"$ref":"common.schema.json#/$defs/vec3"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec3"},"minItems":2},"zero":{"$ref":"common.schema.json#/$defs/vec3"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","zero"],"allOf":[{"if":{"properties":{"type":{"const":"axis"}}},"then":{"required":["origin","axis"]}},{"if":{"properties":{"type":{"const":"path"}}},"then":{"required":["points"]}}]};
 
 function validate68(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -6028,7 +6136,7 @@ errors++;
 if(data.type !== undefined){
 let data2 = data.type;
 if(!((data2 === "axis") || (data2 === "path"))){
-const err9 = {instancePath:instancePath+"/type",schemaPath:"#/properties/type/enum",keyword:"enum",params:{allowedValues: schema160.properties.type.enum},message:"must be equal to one of the allowed values"};
+const err9 = {instancePath:instancePath+"/type",schemaPath:"#/properties/type/enum",keyword:"enum",params:{allowedValues: schema161.properties.type.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err9];
 }
@@ -6762,7 +6870,7 @@ if(data4 && typeof data4 == "object" && !Array.isArray(data4)){
 for(const key0 in data4){
 const _errs13 = errors;
 if(typeof key0 === "string"){
-if(!pattern65.test(key0)){
+if(!pattern66.test(key0)){
 const err9 = {instancePath:instancePath+"/regions",schemaPath:"#/properties/regions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[a-z][a-z0-9-]*$"},message:"must match pattern \""+"^[a-z][a-z0-9-]*$"+"\"",propertyName:key0};
 if(vErrors === null){
 vErrors = [err9];
@@ -6913,7 +7021,7 @@ return errors === 0;
 validate67.evaluated = {"props":{"id":true,"name":true,"mesh":true,"pose":true,"regions":true,"measurements":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const view = validate74;
-const schema177 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/view.schema.json","title":"Vitryne format v1: view.json","description":"How the project was last looked at. Optional, never affects the drape, not part of the cache key.","type":"object","properties":{"camera":{"type":"object","properties":{"target":{"$ref":"common.schema.json#/$defs/vec3"},"distance":{"description":"mm","type":"number","exclusiveMinimum":0},"yaw":{"description":"radians around +Y, 0 = looking at the avatar's front","type":"number"},"pitch":{"description":"radians, positive = looking down","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["target","distance"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}};
+const schema178 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/view.schema.json","title":"Vitryne format v1: view.json","description":"How the project was last looked at. Optional, never affects the drape, not part of the cache key.","type":"object","properties":{"camera":{"type":"object","properties":{"target":{"$ref":"common.schema.json#/$defs/vec3"},"distance":{"description":"mm","type":"number","exclusiveMinimum":0},"yaw":{"description":"radians around +Y, 0 = looking at the avatar's front","type":"number"},"pitch":{"description":"radians, positive = looking down","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["target","distance"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}};
 
 function validate74(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="https://vitryne.app/schema/1/view.schema.json" */;

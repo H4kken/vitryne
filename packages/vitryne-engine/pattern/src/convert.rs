@@ -458,6 +458,7 @@ pub fn convert_with(
                         top: mm(need(ps.place.top, "top")?),
                         rotation: (ps.rotate != 0.0).then(|| radians(ps.rotate)),
                         tube: ps.place.tube.map(exact),
+                        offset: None,
                         other: Map::new(),
                     })
                 }
@@ -591,7 +592,7 @@ pub fn convert_with(
         meta.as_ref().and_then(|f| f.notes.clone()),
     )?;
 
-    let garment = Garment {
+    let mut garment = Garment {
         id: garment_id.clone(),
         name: spec.title.clone().unwrap_or_else(|| spec.name.clone()),
         attribution: spec.attribution.as_ref().map(|a| Attribution {
@@ -617,9 +618,11 @@ pub fn convert_with(
             other: Map::new(),
         }],
         pieces,
+        stack: Vec::new(),
         seams,
         other: Map::new(),
     };
+    garment.stack = garment.default_stack();
     let camera = spec.camera.map(|c| ([c[0], c[1], c[2]], c[3]));
     project_document(
         project_id,

@@ -29,6 +29,10 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Changed
 
+- Project file format version 4: every garment lists its pieces' layer order (`stack`, closest
+  to the body first) and a piece can sit further out (`offset`), the base for a Layers panel.
+  Older files open and are migrated; files with garments saved by this version need this version
+  or newer (a fabric or avatar file still opens in older ones).
 - Start screen: **Import a file** is a slim row above the examples, dragging a file over the
   window shows a full-screen drop zone, and **Start from scratch** has a larger Lucide icon.
 

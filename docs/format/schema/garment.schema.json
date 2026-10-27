@@ -20,6 +20,12 @@
       "type": "array",
       "items": { "$ref": "#/$defs/piece" }
     },
+    "stack": {
+      "description": "Every cut of the garment once, closest to the body first. Where cuts overlap on the body, the one higher in the list starts further out. A cut that goes on another (follow) comes after it.",
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/id" },
+      "uniqueItems": true
+    },
     "seams": {
       "type": "array",
       "items": { "$ref": "#/$defs/seam" }
@@ -58,7 +64,7 @@
     "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
     "extras": { "$ref": "common.schema.json#/$defs/extras" }
   },
-  "required": ["id", "name", "fabric", "pieces", "seams"],
+  "required": ["id", "name", "fabric", "pieces", "stack", "seams"],
   "unevaluatedProperties": false,
   "$defs": {
     "piece": {
@@ -244,6 +250,7 @@
         "top": { "description": "wrap: position of the piece's top edge along the region's axis, mm from its origin (negative = down a limb).", "type": "number" },
         "rotation": { "description": "In-plane rotation of the piece before wrapping, radians counter-clockwise (after mirroring).", "type": "number" },
         "tube": { "description": "wrap: long sleeves. Below the piece's widest row the radius follows the pattern, tube x width / 2 pi (> 1 leaves a gap so the open edges meet under the arm); above it, it rises linearly to radius at the top edge.", "type": "number", "exclusiveMinimum": 0 },
+        "offset": { "description": "wrap: further out than the stack puts it, mm. Never negative; absent is 0.", "type": "number", "minimum": 0 },
         "cut": { "description": "follow: the cut to follow (it must not itself follow this one, directly or not).", "$ref": "common.schema.json#/$defs/id" },
         "lift": { "description": "follow: distance off the followed cut, mm.", "type": "number" },
         "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
@@ -252,7 +259,7 @@
       "required": ["type"],
       "allOf": [
         { "if": { "properties": { "type": { "const": "wrap" } } }, "then": { "required": ["region", "radius", "top"], "properties": { "cut": false, "lift": false } } },
-        { "if": { "properties": { "type": { "const": "follow" } } }, "then": { "required": ["cut"], "properties": { "region": false, "radius": false, "top": false, "tube": false, "rotation": false } } }
+        { "if": { "properties": { "type": { "const": "follow" } } }, "then": { "required": ["cut"], "properties": { "region": false, "radius": false, "top": false, "tube": false, "rotation": false, "offset": false } } }
       ],
       "unevaluatedProperties": false
     },

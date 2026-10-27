@@ -694,6 +694,12 @@ mod tests {
             .unwrap();
         let mut e = again.document().entities();
         e.garments[0]["pieces"] = serde_json::to_value(&a.pieces).unwrap();
+        // The new cuts go on top of the stack, as `addPieces` puts them.
+        e.garments[0]["stack"] = a
+            .pieces
+            .iter()
+            .flat_map(|p| p.cuts.iter().map(|c| c.id.to_string()))
+            .collect();
         e.garments[0]["sources"] = serde_json::to_value([&a.source]).unwrap();
         again
             .set_entities_json(&serde_json::to_string(&e).unwrap())

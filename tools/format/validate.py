@@ -204,6 +204,21 @@ def check(path, validators):
                     seen_chain.add(k)
                     nxt = cuts[k].get("placement", {})
                     k = nxt.get("cut") if nxt.get("type") == "follow" else None
+        stack = g.get("stack", [])
+        position = {}
+        for k, cid in enumerate(stack):
+            if cid not in cuts:
+                errors.append(f"{where}: stack: {cid} isn't a cut of this garment")
+            elif cid in position:
+                errors.append(f"{where}: stack: {cid} is listed twice")
+            else:
+                position[cid] = k
+        for cid, cut in cuts.items():
+            pl = cut.get("placement", {})
+            if cid not in position:
+                errors.append(f"{where}: stack: cut {cut.get('name')} is missing")
+            elif pl.get("type") == "follow" and position.get(pl.get("cut"), -1) > position[cid]:
+                errors.append(f"{where}: stack: cut {cut.get('name')} comes before the cut it goes on")
         for s in g.get("seams", []):
             for side in ("a", "b"):
                 for r in s.get(side, []):

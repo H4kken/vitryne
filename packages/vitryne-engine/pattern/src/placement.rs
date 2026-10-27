@@ -596,6 +596,7 @@ pub fn auto_wrap(
         top: whole_mm(top),
         rotation: None,
         tube,
+        offset: None,
         other: Default::default(),
     })
 }
@@ -635,6 +636,7 @@ pub fn flat_wrap(
         top: whole_mm(top),
         rotation: None,
         tube: None,
+        offset: None,
         other: Default::default(),
     })
 }

@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use vitryne_format::{
-    Document, EXT_CURVES, Edge, Error, FORMAT_VERSION, Kind,
+    Document, EXT_CURVES, Edge, Error, FORMAT_VERSION, GARMENT_MIN_READER_VERSION, Id, Kind,
+    Placement,
     container::{self, Entries},
     glb,
     manifest::Manifest,
@@ -453,6 +454,105 @@ fn past_versions_open() {
         assert_eq!(manifest["formatVersion"], FORMAT_VERSION);
         assert_eq!(manifest["minReaderVersion"], 1);
     }
+}
+
+/// A version 3 garment gets a stack: every cut once, nearest the body first, a cut that goes on
+/// another after it, and the order `Garment::default_stack` makes. A file with garments then
+/// asks for a reader that knows the stack.
+#[test]
+fn old_garments_get_a_stack() {
+    let doc = open_edited("hoodie", |files| {
+        let m = part(files, "manifest.json");
+        m["formatVersion"] = json!(3);
+        m["minReaderVersion"] = json!(1);
+        part(files, "garments/")
+            .as_object_mut()
+            .unwrap()
+            .remove("stack");
+    })
+    .unwrap();
+    let g = &doc.garments[0];
+    let cuts: Vec<&Id> = g.cuts().map(|(_, c)| &c.id).collect();
+    let mut sorted: Vec<&Id> = g.stack.iter().collect();
+    sorted.sort();
+    let mut all = cuts.clone();
+    all.sort();
+    assert_eq!(sorted, all, "every cut once");
+    assert_eq!(g.stack, g.default_stack());
+    let radius = |id: &Id| {
+        let (_, c) = g.cuts().find(|(_, c)| &c.id == id).unwrap();
+        match &c.placement {
+            Placement::Wrap(w) => w.radius,
+            Placement::Follow(_) => f64::NAN,
+        }
+    };
+    let wraps: Vec<f64> = g.stack.iter().map(radius).filter(|r| !r.is_nan()).collect();
+    assert!(wraps.is_sorted(), "{wraps:?}");
+    let at = |id: &Id| g.stack.iter().position(|x| x == id).unwrap();
+    let mut follows = 0;
+    for (_, c) in g.cuts() {
+        if let Placement::Follow(f) = &c.placement {
+            follows += 1;
+            assert!(at(&c.id) > at(&f.cut));
+        }
+    }
+    assert!(follows > 0, "the hoodie has a pocket");
+    let manifest: Value = serde_json::from_slice(&doc.to_entries().unwrap()[1].1).unwrap();
+    assert_eq!(manifest["formatVersion"], FORMAT_VERSION);
+    assert_eq!(manifest["minReaderVersion"], GARMENT_MIN_READER_VERSION);
+}
+
+#[test]
+fn the_stack_is_checked() {
+    let doc = Document::open(&example("hoodie")).unwrap().doc;
+    let g = &doc.garments[0];
+    let (child, parent) = g
+        .cuts()
+        .find_map(|(_, c)| match &c.placement {
+            Placement::Follow(f) => Some((c.id.clone(), f.cut.clone())),
+            _ => None,
+        })
+        .unwrap();
+    let refused = |edit: &dyn Fn(&mut Vec<Value>)| {
+        let mut d = doc.clone();
+        let mut e = d.entities();
+        edit(e.garments[0]["stack"].as_array_mut().unwrap());
+        d.set_entities(e).unwrap_err().to_string()
+    };
+    let last = json!(g.stack.last().unwrap());
+    assert!(refused(&|s| drop(s.pop())).contains("is missing"));
+    assert!(refused(&|s| s.push(last.clone())).contains("listed twice"));
+    assert!(
+        refused(&|s| s.push(json!("01a13cdb-cc02-7000-8000-0000000000ff"))).contains("isn't a cut")
+    );
+    let (c, p) = (json!(child), json!(parent));
+    assert!(
+        refused(&|s| {
+            let (i, j) = (
+                s.iter().position(|x| x == &c).unwrap(),
+                s.iter().position(|x| x == &p).unwrap(),
+            );
+            s.swap(i, j);
+        })
+        .contains("before the cut it goes on")
+    );
+    // An offset can't be negative.
+    let mut d = doc.clone();
+    let mut e = d.entities();
+    let wrap = e.garments[0]["pieces"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .flat_map(|p| p["cuts"].as_array_mut().unwrap())
+        .find(|c| c["placement"]["type"] == "wrap")
+        .unwrap();
+    wrap["placement"]["offset"] = json!(-1.0);
+    assert!(
+        d.set_entities(e)
+            .unwrap_err()
+            .to_string()
+            .contains("offset")
+    );
 }
 
 #[test]

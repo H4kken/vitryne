@@ -115,6 +115,10 @@ export type Placement = {
    */
   tube?: number;
   /**
+   * wrap: further out than the stack puts it, mm. Never negative; absent is 0.
+   */
+  offset?: number;
+  /**
    * A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
    */
   cut?: string;
@@ -162,6 +166,12 @@ export interface Garment {
    * Empty in a garment started from scratch, before its first piece is drawn.
    */
   pieces: Piece[];
+  /**
+   * Every cut of the garment once, closest to the body first. Where cuts overlap on the body, the one higher in the list starts further out. A cut that goes on another (follow) comes after it.
+   *
+   * Items: A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
+   */
+  stack: string[];
   seams: Seam[];
   /**
    * Overrides of the project's simulation settings for this garment.

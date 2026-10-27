@@ -865,6 +865,43 @@ export function findCut(
   return undefined;
 }
 
+/**
+ * The garment's stack with new cuts on top (outermost), in the order given, but a cut that goes
+ * on another never before it (Figma puts a new layer on top the same way).
+ */
+export function stackWith(g: Garment, added: readonly Cut[]): string[] {
+  const out = [...g.stack];
+  const left = [...added];
+  while (left.length) {
+    const k = left.findIndex(
+      (c) =>
+        c.placement.type !== "follow" ||
+        !left.some((o) => o.id === c.placement.cut),
+    );
+    const [c] = left.splice(Math.max(k, 0), 1);
+    if (c) out.push(c.id);
+  }
+  return out;
+}
+
+/**
+ * The stack after `cutId` goes on `onId`: when it (and the cuts placed on it) comes before it,
+ * they move together to just above `onId`, in the order they had; otherwise nothing moves.
+ */
+export function stackAfterFollow(
+  g: Garment,
+  cutId: string,
+  onId: string,
+): string[] {
+  const at = (id: string) => g.stack.indexOf(id);
+  if (at(cutId) > at(onId)) return g.stack;
+  const block = followers(g, cutId);
+  const moved = g.stack.filter((id) => block.has(id));
+  const rest = g.stack.filter((id) => !block.has(id));
+  rest.splice(rest.indexOf(onId) + 1, 0, ...moved);
+  return rest;
+}
+
 /** `cutId` and the cuts placed on it, directly or not: it can't go on top of any of them. */
 export function followers(g: Garment, cutId: string): Set<string> {
   const out = new Set<string>([cutId]);
@@ -949,6 +986,10 @@ export function setPlacement(
     (g) => {
       const [i, j] = cutAt(g, cutId);
       let out = setIn(g, ["pieces", i, "cuts", j, "placement"], placement);
+      if (placement.type === "follow" && placement.cut) {
+        const stack = stackAfterFollow(g, cutId, placement.cut);
+        if (stack !== g.stack) out = setIn(out, ["stack"], stack);
+      }
       if (bounds) out = setIn(out, ["simulation", "collisionBounds"], bounds);
       return out;
     },
@@ -1614,6 +1655,7 @@ export function addPiece(
     garmentId,
     (x) => {
       let out = setIn(x, ["pieces"], [...x.pieces, piece]);
+      out = setIn(out, ["stack"], stackWith(x, piece.cuts));
       if (bounds) out = setIn(out, ["simulation", "collisionBounds"], bounds);
       return out;
     },
@@ -1669,6 +1711,11 @@ export function removeCuts(
     garmentId,
     (x) => {
       let out = setIn(x, ["pieces"], pieces);
+      out = setIn(
+        out,
+        ["stack"],
+        x.stack.filter((id) => !gone.has(id)),
+      );
       if (x.seams) out = setIn(out, ["seams"], seams);
       return out;
     },
@@ -1698,6 +1745,14 @@ export function addPieces(
     garmentId,
     (g) => {
       let out = setIn(g, ["pieces"], [...g.pieces, ...a.pieces]);
+      out = setIn(
+        out,
+        ["stack"],
+        stackWith(
+          g,
+          a.pieces.flatMap((p) => p.cuts),
+        ),
+      );
       if (a.seams.length)
         out = setIn(out, ["seams"], [...(g.seams ?? []), ...a.seams]);
       out = setIn(out, ["sources"], [...(g.sources ?? []), a.source]);
