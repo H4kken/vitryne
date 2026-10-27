@@ -180,6 +180,21 @@ fn the_stack_decides_which_of_two_cuts_on_one_spot_is_outside() {
         [vec![front.clone()], others.clone(), vec![copy_id.clone()]].concat();
     let mut front_on_top = doc.clone();
     front_on_top.garments[0].stack = [vec![copy_id.clone()], others, vec![front.clone()]].concat();
+    // The editor is told how far out each starts: the one on top by a gap, the other not at all.
+    let starts_out = |doc: &Document| {
+        let pg = ProjectGarment::new(doc).unwrap();
+        let edge = pg.edge_for_vertices(4000).unwrap();
+        let (_, placer) = pg.build_with_placer(edge).unwrap();
+        let (ids, out) = (placer.cut_ids(), placer.starts_out().unwrap());
+        let at = |id: &vitryne_format::Id| ids.iter().position(|x| x == id.as_str()).unwrap();
+        (out[at(&front)], out[at(&copy_id)])
+    };
+    let (front_out, copy_out) = starts_out(&copy_on_top);
+    assert_eq!(front_out, 0.0);
+    assert!(copy_out >= 0.012 - 1e-6, "{copy_out}");
+    let (front_out, copy_out) = starts_out(&front_on_top);
+    assert_eq!(copy_out, 0.0);
+    assert!(front_out >= 0.012 - 1e-6, "{front_out}");
     let (a, b) = (build(&copy_on_top), build(&front_on_top));
     assert_eq!(a.len(), b.len());
     assert_ne!(a, b);

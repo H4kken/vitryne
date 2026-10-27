@@ -713,6 +713,16 @@ impl Placer {
         })
     }
 
+    /// How far further out each cut (in panel order) starts than its own radius, m: what the
+    /// stack pushes it out by, its offset, and for a cut that goes on another, the lifts.
+    pub fn starts_out(&self) -> Result<Vec<f32>, String> {
+        let Some(first) = self.cuts.first() else {
+            return Ok(Vec::new());
+        };
+        let Replaced { resolved, .. } = self.resolve(0, &first.placement.clone())?;
+        Ok(resolved.iter().map(Resolved::shift).collect())
+    }
+
     /// Every vertex's start position with cut `cut` (in panel order) placed at `placement`.
     pub fn positions(&self, cut: usize, placement: &Placement) -> Result<Vec<Vec3>, String> {
         let Replaced { resolved, turn, .. } = self.resolve(cut, placement)?;

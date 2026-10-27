@@ -225,6 +225,15 @@ or removes cuts (`addPiece`, `addPieces`, `removeCuts`, `setPlacement` to a foll
 list one entry per cut. The random-edit sessions include reorders and offsets. "Fit to the body
 again" keeps the cut's offset.
 
+**The Layers view** is the second view of the Pieces panel (a Pieces | Layers switch at its top;
+the plain list stays the first view, and the choice stays while other panels are open). It lists
+the stack outermost first (`placement/stackOrder.ts`: the cuts wrapped on the body, each with the
+cuts placed on it nested under it). A drop or an Alt + arrow becomes `moveInStack`; the selected
+row's field is `setOffset`. How far out each cut starts comes from Rust with the drape
+(`PreparedInfo.starts_out_mm`, from `Placer::starts_out`), so the editor never works out
+distances itself. Not there yet: the section drawing of the overlapping cuts that the mock-up
+had.
+
 For the three samples these land within a few cm of the hand-tuned sidecars (docs/PROGRESS.md, Import and placement).
 Then the user adjusts: in the Pieces panel (the place, around, height, distance from the body,
 turn, mirror image, "fit to the body again"), or **with the 3D gizmo**. The gizmo is ours: the

@@ -1037,18 +1037,16 @@ export function setOffset(
 }
 
 /**
- * Moves a cut, and the cuts placed on it, to place `to` of the stack without them (0: closest
- * to the body, the stack's length less theirs: outermost). The cuts placed on it go with it; a
- * cut placed on another has to stay above that one.
+ * The stack with a cut, and the cuts placed on it, moved to place `to` of the stack without them
+ * (0: closest to the body, the stack's length less theirs: outermost). The cuts placed on it go
+ * with it; a cut placed on another has to stay above that one.
  */
-export function moveInStack(
-  e: Entities,
-  garmentId: string,
+export function stackAfterMove(
+  g: Garment,
   cutId: string,
   to: number,
-): Command {
+): string[] {
   const label = "Reorder the pieces";
-  const g = garment(e, garmentId);
   cutAt(g, cutId);
   const block = followers(g, cutId);
   const moved = g.stack.filter((id) => block.has(id));
@@ -1067,9 +1065,19 @@ export function moveInStack(
         `${label}: a piece placed on another stays above it`,
       );
   }
-  const stack = [...rest.slice(0, to), ...moved, ...rest.slice(to)];
+  return [...rest.slice(0, to), ...moved, ...rest.slice(to)];
+}
+
+/** Moves a cut, and the cuts placed on it, to place `to` of the stack without them. */
+export function moveInStack(
+  e: Entities,
+  garmentId: string,
+  cutId: string,
+  to: number,
+): Command {
+  const stack = stackAfterMove(garment(e, garmentId), cutId, to);
   return editGarment(e, garmentId, (x) => setIn(x, ["stack"], stack), {
-    label,
+    label: "Reorder the pieces",
     drape: true,
   });
 }

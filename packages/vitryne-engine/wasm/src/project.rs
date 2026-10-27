@@ -79,6 +79,9 @@ pub struct PreparedInfo {
     pub warnings: Vec<String>,
     /// The cut ids in the drape's panel order (a picked panel is this cut).
     pub cuts: Vec<String>,
+    /// How far further out each cut starts than its own radius, mm, in the same order: what
+    /// the stack pushes it out by, its offset, and for a cut on another, the lifts.
+    pub starts_out_mm: Vec<f64>,
 }
 
 /// A cut moved to another place on the body (`ProjectFile::rewrap`).
@@ -183,6 +186,7 @@ impl ProjectFile {
                     self_collision: settings.self_collision,
                     warnings,
                     cuts: Vec::new(),
+                    starts_out_mm: Vec::new(),
                 },
                 camera: pg.camera(),
                 avatar,
@@ -201,6 +205,11 @@ impl ProjectFile {
                 self_collision: settings.self_collision,
                 warnings,
                 cuts: placer.cut_ids(),
+                starts_out_mm: placer
+                    .starts_out()?
+                    .iter()
+                    .map(|&m| (m as f64 * 1000.0 * 10.0).round() / 10.0)
+                    .collect(),
             },
             camera: pg.camera(),
             avatar,

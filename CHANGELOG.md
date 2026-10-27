@@ -10,6 +10,11 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Added
 
+- Layers: a **Pieces | Layers** switch at the top of the Pieces panel. Layers lists the pieces
+  outermost first, like layers in Figma: drag a piece (or Alt + arrow keys, or Move out and Move
+  in) to change what is outside what, and a piece placed on another is nested under it and moves
+  with it. Each shows how far out it starts, and the selected one can start further out. Fit to
+  the body again keeps that distance.
 - Sewing is easier to read: hovering a suggested seam picks its edges out in the flat view; the
   Sew tool highlights the free edge under the pointer and a header at the top of the flat view
   shows its length (the first edge stays there while you point at the second); the dot in the

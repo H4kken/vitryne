@@ -137,6 +137,15 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     select: selection.select,
   });
   const cutColors = useCutColors(doc.entities, garment);
+  // How far out each cut starts in the drape shown (the Layers view says so).
+  const info = engine.drape?.info;
+  const startsOut = useMemo(
+    () =>
+      new Map(
+        (info?.cuts ?? []).map((id, k) => [id, info?.starts_out_mm[k] ?? 0]),
+      ),
+    [info],
+  );
   const { rewrap, addNewPiece } = usePieceActions({
     session,
     store,
@@ -269,6 +278,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
           onPlaceIn3d={
             placing ? null : () => (view.setShow3d(true), setTool("select"))
           }
+          startsOut={startsOut}
         />
 
         {/* Workspace views: 2D window on the left, 3D on the right */}

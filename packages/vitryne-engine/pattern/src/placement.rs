@@ -439,6 +439,12 @@ impl Resolved {
     pub fn anchor(&self) -> Vec2 {
         self.anchor
     }
+
+    /// How far further out than its own radius the cut starts, m: what the stack pushed it out
+    /// by, its offset, and for a cut that goes on another, the other's and its own lift.
+    pub fn shift(&self) -> f32 {
+        self.shift
+    }
 }
 
 /// Tube radius along a piece (see `Wrap::tube`): `ease` x width / 2 pi below the widest row,
