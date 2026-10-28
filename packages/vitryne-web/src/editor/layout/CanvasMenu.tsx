@@ -8,6 +8,8 @@ import {
   ClipboardPaste,
   Copy,
   CopyPlus,
+  FlipHorizontal2,
+  FlipVertical2,
   SendToBack,
   Trash2,
 } from "lucide-react";
@@ -20,7 +22,7 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { MOD } from "@/lib/keys";
+import { MOD, SHIFT } from "@/lib/keys";
 import type { PickedActions } from "../hooks/usePickedActions";
 
 export type MenuEntry = {
@@ -33,11 +35,13 @@ export function CanvasMenu(props: {
   /** A piece is picked. */
   piece: boolean;
   actions: PickedActions;
+  /** The flat view: pieces can be flipped. */
+  flat?: boolean;
   /** For empty canvas (none: no menu there). */
   empty: MenuEntry[];
   children: ReactNode;
 }) {
-  const { piece, actions, empty } = props;
+  const { piece, actions, empty, flat } = props;
   return (
     <ContextMenu>
       <ContextMenuTrigger
@@ -52,21 +56,6 @@ export function CanvasMenu(props: {
       <ContextMenuContent>
         {piece ? (
           <>
-            <ContextMenuItem
-              disabled={!actions.canStep(1)}
-              onSelect={() => actions.step(1)}
-            >
-              <BringToFront />
-              Move outwards
-            </ContextMenuItem>
-            <ContextMenuItem
-              disabled={!actions.canStep(-1)}
-              onSelect={() => actions.step(-1)}
-            >
-              <SendToBack />
-              Move inwards
-            </ContextMenuItem>
-            <ContextMenuSeparator />
             <ContextMenuItem onSelect={() => actions.copy()}>
               <Copy />
               Copy
@@ -89,6 +78,36 @@ export function CanvasMenu(props: {
               <Trash2 />
               Delete
               <ContextMenuShortcut>⌫</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            {flat && (
+              <>
+                <ContextMenuItem onSelect={() => actions.flip("horizontal")}>
+                  <FlipHorizontal2 />
+                  Flip horizontally
+                  <ContextMenuShortcut>{SHIFT}H</ContextMenuShortcut>
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => actions.flip("vertical")}>
+                  <FlipVertical2 />
+                  Flip vertically
+                  <ContextMenuShortcut>{SHIFT}V</ContextMenuShortcut>
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            )}
+            <ContextMenuItem
+              disabled={!actions.canStep(1)}
+              onSelect={() => actions.step(1)}
+            >
+              <BringToFront />
+              Move outwards
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={!actions.canStep(-1)}
+              onSelect={() => actions.step(-1)}
+            >
+              <SendToBack />
+              Move inwards
             </ContextMenuItem>
           </>
         ) : (

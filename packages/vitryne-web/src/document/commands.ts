@@ -1105,6 +1105,56 @@ export function setMirrored(
   );
 }
 
+/**
+ * Cuts flipped, as one edit: each becomes the mirror image of what it is, with its new layout
+ * (`flipLayouts`) so that it flips in place in the flat view.
+ */
+export function flipCuts(
+  e: Entities,
+  garmentId: string,
+  layouts: Readonly<Record<string, Layout>>,
+): Command {
+  const ids = Object.keys(layouts);
+  if (
+    !ids.length ||
+    !ids.every((id) => {
+      const l = layouts[id] as Layout;
+      return [...l.position, l.rotation].every(Number.isFinite);
+    })
+  )
+    throw new CommandError("a layout must be numbers");
+  return editGarment(
+    e,
+    garmentId,
+    (g) => {
+      for (const id of ids) {
+        const layout = layouts[id] as Layout;
+        const [i, j] = cutAt(g, id);
+        const at = ["pieces", i, "cuts", j] as const;
+        // `false` is the default: store none rather than false.
+        g = setIn(
+          g,
+          [...at, "mirrored"],
+          !g.pieces[i]?.cuts[j]?.mirrored || undefined,
+        );
+        // Unknown members of the layout stay.
+        let l: Record<string, unknown> = {
+          ...(g.pieces[i]?.cuts[j]?.layout ?? {}),
+        };
+        l = setIn(l, ["position"], layout.position);
+        l = setIn(
+          l,
+          ["rotation"],
+          layout.rotation === 0 ? undefined : layout.rotation,
+        );
+        g = setIn(g, [...at, "layout"], l);
+      }
+      return g;
+    },
+    { label: "Flip the pieces", drape: true },
+  );
+}
+
 /** Where a cut sits in the flat view (FORMAT.md, Cuts: display only). */
 export interface Layout {
   position: [number, number];

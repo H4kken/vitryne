@@ -2,11 +2,18 @@
 // What can be done with the picked pieces, for the Delete key and the right-click menus: take them
 // out, or move the picked one a step outwards or inwards in the stack. One edit each.
 
-import { useState } from "react";
-import { findCut, moveInStack, removeCuts } from "@/document/commands";
+import { type RefObject, useState } from "react";
+import {
+  findCut,
+  flipCuts,
+  moveInStack,
+  removeCuts,
+} from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
 import type { Cut, Garment, Piece } from "@/format/schema.gen";
 import type { Selection } from "@/pattern/panel/types";
+import { flipLayouts, type FlipAxis } from "@/pattern/flip";
+import type { PatternView } from "@/pattern/panel/types";
 import { moves, stackRoots, stepPlace } from "@/placement/stackOrder";
 
 /** What Copy took: each picked piece with the cut that was picked. */
@@ -17,12 +24,22 @@ export function usePickedActions(o: {
   garment: Garment | undefined;
   selection: Selection;
   showInfo: (text: string) => void;
+  /** The flat view, which knows where the cuts are. */
+  pattern: RefObject<PatternView | null>;
   /** Pastes what was copied. */
   onPaste: (copied: Copied) => void;
   /** The picked pieces were taken out. */
   onRemoved: () => void;
 }) {
-  const { store, garment: g, selection, showInfo, onRemoved, onPaste } = o;
+  const {
+    store,
+    garment: g,
+    selection,
+    showInfo,
+    onRemoved,
+    onPaste,
+    pattern,
+  } = o;
   /** Kept for the whole editor session, so it can be pasted into another project too. */
   const [copied, setCopied] = useState<Copied>([]);
   /** The picked pieces, each once, with the first cut picked of it. */
@@ -81,6 +98,17 @@ export function usePickedActions(o: {
     }
     return true;
   };
+  /** Flips the picked cuts about the middle of them, in the flat view; false if there are none. */
+  const flip = (axis: FlipAxis): boolean => {
+    if (!g || !selection) return false;
+    const ids = [selection.cutId, ...(selection.also ?? [])].filter(
+      (id) => !!findCut(g, id),
+    );
+    const views = pattern.current?.views(ids) ?? [];
+    if (!views.length) return false;
+    store.execute((e) => flipCuts(e, g.id, flipLayouts(views, axis)));
+    return true;
+  };
   /** Only a lone pick in the stack's roots moves (a piece placed on another goes with it). */
   const lone = !!g && !!selection && !selection.also?.length;
   const id = selection?.cutId;
@@ -102,6 +130,7 @@ export function usePickedActions(o: {
     copy,
     paste,
     duplicate,
+    flip,
     canPaste: copied.length > 0,
   };
 }

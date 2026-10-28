@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The editor's keys: save, open a file, undo and redo, copy, paste and duplicate the picked pieces; Delete takes the picked pieces out;
+// The editor's keys: save, open a file, undo and redo, copy, paste and duplicate the picked pieces; Shift-H and Shift-V flip them in the flat view; Delete takes the picked pieces out;
 // space, F and R pause, speed up and restart the drape; in the flat view V, A, P, M and S pick
 // the Select, Edit points, Draw, Marks and Sew tools; in the 3D view 1 and 2 pick Select and Pinch.
 
@@ -48,6 +48,8 @@ export function useShortcuts(o: {
   copyPicked: () => boolean;
   pastePicked: () => boolean;
   duplicatePicked: () => boolean;
+  /** Flips the picked pieces in the flat view. */
+  flipPicked: (axis: "horizontal" | "vertical") => boolean;
 }) {
   const {
     session,
@@ -65,6 +67,7 @@ export function useShortcuts(o: {
     copyPicked,
     pastePicked,
     duplicatePicked,
+    flipPicked,
   } = o;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -115,6 +118,12 @@ export function useShortcuts(o: {
       const over =
         e.target instanceof Element &&
         !!e.target.closest('[role="dialog"], [role="menu"], [role="listbox"]');
+      // Shift-H and Shift-V flip the picked pieces in the flat view, as in Figma.
+      if (show2d && !over && e.shiftKey && (k === "h" || k === "v")) {
+        if (flipPicked(k === "h" ? "horizontal" : "vertical"))
+          e.preventDefault();
+        return;
+      }
       const tool =
         show2d && !over && !e.shiftKey && garment
           ? FLAT_TOOL_KEYS[k]
@@ -170,5 +179,6 @@ export function useShortcuts(o: {
     copyPicked,
     pastePicked,
     duplicatePicked,
+    flipPicked,
   ]);
 }

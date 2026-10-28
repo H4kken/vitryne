@@ -121,6 +121,8 @@ export function PatternPanel({
   useImperativeHandle(ref, () => ({
     zoom: (factor: number) => zoomAt(1 / factor),
     reset: () => setView(null),
+    views: (ids: readonly string[]) =>
+      cuts.filter((v) => ids.includes(v.cut.id)),
     freeSpot: (): Vec2 =>
       layout.cuts.length
         ? [Math.round(layout.box.maxX + 80), Math.round(layout.box.minY)]

@@ -20,7 +20,7 @@ import { StatusPill } from "./StatusPill";
 import type { SplitView } from "../hooks/useSplitView";
 import type { useSelection } from "../hooks/useSelection";
 import type { useSewing } from "../hooks/useSewing";
-import { Maximize, PenTool, Upload } from "lucide-react";
+import { Maximize, PenTool } from "lucide-react";
 import { CanvasMenu } from "./CanvasMenu";
 import type { PickedActions } from "../hooks/usePickedActions";
 import { FlatToolBar } from "./FlatToolBar";
@@ -97,6 +97,7 @@ export function FlatView(props: {
       )}
     >
       <CanvasMenu
+        flat
         piece={!!shownSelection}
         actions={props.picked}
         empty={
@@ -111,11 +112,6 @@ export function FlatView(props: {
                   label: "Draw a piece",
                   icon: <PenTool />,
                   onSelect: () => setFlatTool("draw"),
-                },
-                {
-                  label: "Import a pattern…",
-                  icon: <Upload />,
-                  onSelect: importFile,
                 },
               ]
             : []

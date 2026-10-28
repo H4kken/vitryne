@@ -196,6 +196,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     garment,
     selection: selection.shown,
     showInfo: files.showInfo,
+    pattern,
     onRemoved: () => selection.setSelection(null),
     onPaste: (copied) =>
       void pasteCopies(copied).catch((e: Error) =>
@@ -218,6 +219,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     copyPicked: picked.copy,
     pastePicked: picked.paste,
     duplicatePicked: picked.duplicate,
+    flipPicked: picked.flip,
   });
 
   const message =
