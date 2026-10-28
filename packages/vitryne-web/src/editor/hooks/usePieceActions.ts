@@ -12,9 +12,11 @@ import {
 import type { DocumentStore } from "@/document/store";
 import type { Garment, Placement, Vec2 } from "@/format/schema.gen";
 
+import { clonePiece } from "@/document/clonePiece";
 import { newPiece } from "@/pattern/draw";
-import { PAIRS, type Pair, type Place } from "@/placement/places";
+import { PAIRS, type Pair, type Place, placeOf } from "@/placement/places";
 import type { EngineSession } from "@/worker/session";
+import type { Copied } from "./usePickedActions";
 import type { NewPiece } from "../dialogs/NewPieceDialog";
 import type { PatternView } from "@/pattern/panel/types";
 
@@ -93,5 +95,42 @@ export function usePieceActions(o: {
     onAdded(placed.id, placed.cuts[0].id);
   };
 
-  return { rewrap, addNewPiece };
+  /**
+   * Copied pieces pasted, each as a new piece with its own cut at the same place of the body (the
+   * front where it had none), in a free spot of the flat view. One edit per piece.
+   */
+  const pasteCopies = async (copied: Copied) => {
+    const g = garment;
+    if (!g) return;
+    let at = pattern.current?.freeSpot() ?? [0, 0];
+    for (const { piece, cut } of copied) {
+      const clone = clonePiece(piece, cut, {
+        id: () => crypto.randomUUID(),
+        name: `${piece.name} copy`,
+      });
+      const place = placeOf(cut.placement) ?? "body-front";
+      const r = JSON.parse(
+        await session.placePiece(JSON.stringify(clone), [place]),
+      ) as { placements: Omit<Placement, "type">[]; bounds: Bounds | null };
+      const cutId = clone.cuts[0].id;
+      const placed = {
+        ...clone,
+        cuts: [
+          {
+            ...clone.cuts[0],
+            placement: { type: "wrap", ...r.placements[0] } as Placement,
+            layout: { ...clone.cuts[0].layout, position: at },
+          },
+        ] as typeof clone.cuts,
+      };
+      if (
+        !store.execute((e) => addPiece(e, g.id, placed, r.bounds ?? undefined))
+      )
+        throw new Error(store.state.refused ?? "the piece could not be pasted");
+      onAdded(placed.id, cutId);
+      at = [at[0] + 80, at[1]];
+    }
+  };
+
+  return { rewrap, addNewPiece, pasteCopies };
 }

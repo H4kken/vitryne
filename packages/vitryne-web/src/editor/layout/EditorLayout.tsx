@@ -147,7 +147,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
       ),
     [info],
   );
-  const { rewrap, addNewPiece } = usePieceActions({
+  const { rewrap, addNewPiece, pasteCopies } = usePieceActions({
     session,
     store,
     garment,
@@ -197,6 +197,10 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     selection: selection.shown,
     showInfo: files.showInfo,
     onRemoved: () => selection.setSelection(null),
+    onPaste: (copied) =>
+      void pasteCopies(copied).catch((e: Error) =>
+        files.showError("Could not paste", e),
+      ),
   });
   useShortcuts({
     session,
@@ -211,6 +215,8 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     onSew: sewTool,
     garment,
     removePicked: picked.remove,
+    copyPicked: picked.copy,
+    pastePicked: picked.paste,
   });
 
   const message =

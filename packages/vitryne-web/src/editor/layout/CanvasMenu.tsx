@@ -12,6 +12,7 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { MOD } from "@/lib/keys";
 import type { PickedActions } from "../hooks/usePickedActions";
 
 export type MenuEntry = { label: string; onSelect: () => void };
@@ -52,6 +53,18 @@ export function CanvasMenu(props: {
               Move inwards
             </ContextMenuItem>
             <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => actions.copy()}>
+              Copy
+              <ContextMenuShortcut>{MOD}C</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={!actions.canPaste}
+              onSelect={() => actions.paste()}
+            >
+              Paste
+              <ContextMenuShortcut>{MOD}V</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
             <ContextMenuItem
               variant="destructive"
               onSelect={() => actions.remove()}
@@ -61,11 +74,19 @@ export function CanvasMenu(props: {
             </ContextMenuItem>
           </>
         ) : (
-          empty.map((m) => (
-            <ContextMenuItem key={m.label} onSelect={m.onSelect}>
-              {m.label}
-            </ContextMenuItem>
-          ))
+          <>
+            {actions.canPaste && (
+              <ContextMenuItem onSelect={() => actions.paste()}>
+                Paste
+                <ContextMenuShortcut>{MOD}V</ContextMenuShortcut>
+              </ContextMenuItem>
+            )}
+            {empty.map((m) => (
+              <ContextMenuItem key={m.label} onSelect={m.onSelect}>
+                {m.label}
+              </ContextMenuItem>
+            ))}
+          </>
         )}
       </ContextMenuContent>
     </ContextMenu>

@@ -10,8 +10,10 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Added
 
-- Right-click menus in the flat and 3D views: on a piece, move it outwards or inwards or delete
-  it; on empty canvas, fit the pieces in view, draw a piece, import a pattern, or restart the drape.
+- Right-click menus in the flat and 3D views: on a piece, move it outwards or inwards, copy it or
+  delete it; on empty canvas, paste, fit the pieces in view, draw a piece, import a pattern, or
+  restart the drape.
+- Copy and paste pieces with ⌘C and ⌘V (Ctrl on Windows and Linux) or from the menu.
 
 ## [0.3.0] - 2026-10-28
 

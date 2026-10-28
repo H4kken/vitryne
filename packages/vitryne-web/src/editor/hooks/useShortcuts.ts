@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The editor's keys: save, open a file, undo and redo; Delete takes the picked pieces out;
+// The editor's keys: save, open a file, undo and redo, copy and paste the picked pieces; Delete takes the picked pieces out;
 // space, F and R pause, speed up and restart the drape; in the flat view V, A, P, M and S pick
 // the Select, Edit points, Draw, Marks and Sew tools; in the 3D view 1 and 2 pick Select and Pinch.
 
@@ -44,6 +44,9 @@ export function useShortcuts(o: {
   garment: Garment | undefined;
   /** Takes the picked pieces out; false if there are none. */
   removePicked: () => boolean;
+  /** Copy and paste the picked pieces; false if there was nothing to do. */
+  copyPicked: () => boolean;
+  pastePicked: () => boolean;
 }) {
   const {
     session,
@@ -58,6 +61,8 @@ export function useShortcuts(o: {
     onSew,
     garment,
     removePicked,
+    copyPicked,
+    pastePicked,
   } = o;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -82,6 +87,12 @@ export function useShortcuts(o: {
         e.preventDefault();
         if (k === "y" || e.shiftKey) store.redo();
         else store.undo();
+        return;
+      }
+      if (mod && !typing && !e.shiftKey && (k === "c" || k === "v")) {
+        // Not over selected text on the page: that copy is the browser's.
+        if (k === "c" && window.getSelection()?.toString()) return;
+        if (k === "c" ? copyPicked() : pastePicked()) e.preventDefault();
         return;
       }
       if (typing || mod || e.altKey) return;
@@ -142,5 +153,7 @@ export function useShortcuts(o: {
     onSew,
     garment,
     removePicked,
+    copyPicked,
+    pastePicked,
   ]);
 }

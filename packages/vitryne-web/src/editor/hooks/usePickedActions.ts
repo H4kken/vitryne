@@ -2,21 +2,55 @@
 // What can be done with the picked pieces, for the Delete key and the right-click menus: take them
 // out, or move the picked one a step outwards or inwards in the stack. One edit each.
 
+import { useState } from "react";
 import { findCut, moveInStack, removeCuts } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
-import type { Garment } from "@/format/schema.gen";
+import type { Cut, Garment, Piece } from "@/format/schema.gen";
 import type { Selection } from "@/pattern/panel/types";
 import { moves, stackRoots, stepPlace } from "@/placement/stackOrder";
+
+/** What Copy took: each picked piece with the cut that was picked. */
+export type Copied = { piece: Piece; cut: Cut }[];
 
 export function usePickedActions(o: {
   store: DocumentStore;
   garment: Garment | undefined;
   selection: Selection;
   showInfo: (text: string) => void;
+  /** Pastes what was copied. */
+  onPaste: (copied: Copied) => void;
   /** The picked pieces were taken out. */
   onRemoved: () => void;
 }) {
-  const { store, garment: g, selection, showInfo, onRemoved } = o;
+  const { store, garment: g, selection, showInfo, onRemoved, onPaste } = o;
+  /** Kept for the whole editor session, so it can be pasted into another project too. */
+  const [copied, setCopied] = useState<Copied>([]);
+  /** Takes the picked pieces (a piece once, with the first cut picked of it); false if none. */
+  const copy = (): boolean => {
+    if (!g || !selection) return false;
+    const seen = new Set<string>();
+    const found: Copied = [];
+    for (const id of [selection.cutId, ...(selection.also ?? [])]) {
+      const f = findCut(g, id);
+      if (f && !seen.has(f.piece.id)) {
+        seen.add(f.piece.id);
+        found.push({ piece: f.piece, cut: f.cut });
+      }
+    }
+    if (!found.length) return false;
+    setCopied(found);
+    showInfo(
+      found.length === 1
+        ? "Copied the piece."
+        : `Copied ${found.length} pieces.`,
+    );
+    return true;
+  };
+  const paste = (): boolean => {
+    if (!g || !copied.length) return false;
+    onPaste(copied);
+    return true;
+  };
   /** Takes the picked pieces out; false if there are none. */
   const remove = (): boolean => {
     if (!g || !selection) return false;
@@ -49,7 +83,7 @@ export function usePickedActions(o: {
     const to = stepPlace(g, id, dir);
     if (to !== null) store.execute((e) => moveInStack(e, g.id, id, to));
   };
-  return { remove, canStep, step };
+  return { remove, canStep, step, copy, paste, canPaste: copied.length > 0 };
 }
 
 export type PickedActions = ReturnType<typeof usePickedActions>;
