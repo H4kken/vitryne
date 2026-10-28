@@ -83,12 +83,12 @@ export function CanvasMenu(props: {
             {flat && (
               <>
                 <ContextMenuItem onSelect={() => actions.flip("horizontal")}>
-                  <FlipHorizontal2 />
+                  <FlipVertical2 />
                   Flip horizontally
                   <ContextMenuShortcut>{SHIFT}H</ContextMenuShortcut>
                 </ContextMenuItem>
                 <ContextMenuItem onSelect={() => actions.flip("vertical")}>
-                  <FlipVertical2 />
+                  <FlipHorizontal2 />
                   Flip vertically
                   <ContextMenuShortcut>{SHIFT}V</ContextMenuShortcut>
                 </ContextMenuItem>
