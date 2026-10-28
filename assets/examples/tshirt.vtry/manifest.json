@@ -1,8 +1,8 @@
 {
   "format": "vitryne",
   "kind": "project",
-  "formatVersion": 3,
-  "minReaderVersion": 1,
+  "formatVersion": 4,
+  "minReaderVersion": 4,
   "generator": "vitryne convert (vitryne-format 0.2.0)",
   "parts": [
     {
@@ -13,7 +13,7 @@
     {
       "path": "garments/01a13cdb-cc02-7e42-aed0-31730c9cee65.json",
       "mediaType": "application/json",
-      "sha256": "9135ecba1fbcd82b2bd4fc6796306e75c1ebdc441b5d9f37a864b1735c4cbc67"
+      "sha256": "22384b6cd0c9a4a50cf7206fff59ffe05417a323d99331e25341aef6d22ddc9d"
     },
     {
       "path": "fabrics/01a13cdb-cc03-7074-8d2d-01dbf48ff1b2.json",

@@ -31,7 +31,9 @@ import {
   renameSeam,
   setFabricValue,
   setLayout,
+  moveInStack,
   setMirrored,
+  setOffset,
   setEdge,
   setGrain,
   setNodeType,
@@ -59,6 +61,8 @@ type Step =
       value: number;
     }
   | { op: "follow"; index: number; on: number }
+  | { op: "reorder"; index: number; to: number }
+  | { op: "offset"; index: number; value: number }
   | { op: "flip"; index: number }
   | { op: "layout"; index: number; x: number; y: number; rot: number }
   // `piece` and `node` pick by index (modulo); offsets in mm.
@@ -136,6 +140,16 @@ const step: fc.Arbitrary<Step> = fc.oneof(
     op: fc.constant("follow" as const),
     index: fc.nat(20),
     on: fc.nat(20),
+  }),
+  fc.record({
+    op: fc.constant("reorder" as const),
+    index: fc.nat(20),
+    to: fc.nat(20),
+  }),
+  fc.record({
+    op: fc.constant("offset" as const),
+    index: fc.nat(20),
+    value: number,
   }),
   fc.record({ op: fc.constant("flip" as const), index: fc.nat(20) }),
   fc.record({
@@ -398,6 +412,8 @@ function build(s: Step, e: Entities, file: RustFile): Command {
       return setSelfCollision(e, s.on);
     case "place":
     case "follow":
+    case "reorder":
+    case "offset":
     case "flip":
     case "layout": {
       const cuts = g.pieces.flatMap((p) => p.cuts);
@@ -408,6 +424,10 @@ function build(s: Step, e: Entities, file: RustFile): Command {
           position: [s.x, s.y],
           rotation: s.rot,
         });
+      // A place past the end of the stack, or a cut placed on another moved below it: refused.
+      if (s.op === "reorder")
+        return moveInStack(e, g.id, cut.id, s.to % (g.stack.length + 1));
+      if (s.op === "offset") return setOffset(e, g.id, cut.id, s.value);
       // Following may make a loop: Rust refuses that, and the store rolls it back.
       if (s.op === "follow")
         return setPlacement(e, g.id, cut.id, {

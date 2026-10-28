@@ -1569,6 +1569,16 @@
       ]
     }
   ],
+  "stack": [
+    "01a13cdb-cc07-7c89-818d-53422ebe655d",
+    "01a13cdb-cc08-700c-9565-ec377588c442",
+    "01a13cdb-cc0a-76e0-87c1-bcea5715edbc",
+    "01a13cdb-cc0b-7ebf-93e4-084ffb129312",
+    "01a13cdb-cc0c-792d-8a7f-9f7e7d87f1bd",
+    "01a13cdb-cc05-7d4b-8fb2-7ff694b1d097",
+    "01a13cdb-cc06-74c7-8c39-d2accbf8e5dc",
+    "01a13cdb-cc09-7cdf-90eb-0ff5a421a062"
+  ],
   "seams": [
     {
       "id": "01a13cdb-cc4f-7c90-942c-4265f16ebad8",

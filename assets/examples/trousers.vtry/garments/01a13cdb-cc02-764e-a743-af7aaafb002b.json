@@ -548,6 +548,12 @@
       ]
     }
   ],
+  "stack": [
+    "01a13cdb-cc05-72c3-af95-f160aff504e7",
+    "01a13cdb-cc06-7240-8268-339acdbe29a4",
+    "01a13cdb-cc07-7252-81cd-2badb1609eef",
+    "01a13cdb-cc08-7da4-96ed-e3f1dff09fa9"
+  ],
   "seams": [
     {
       "id": "01a13cdb-cc15-7e78-80ce-dc0acbf649e9",

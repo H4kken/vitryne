@@ -109,6 +109,11 @@ export function tidy(p: Placement): Placement {
     radius: mm(p.radius),
     top: mm(p.top),
   };
+  if (p.offset !== undefined) {
+    const o = Math.round(p.offset * 10) / 10;
+    if (o === 0) delete out.offset;
+    else out.offset = o;
+  }
   if (p.rotation !== undefined) {
     const r = Math.round(p.rotation * 1e4) / 1e4;
     if (r === 0) delete out.rotation;

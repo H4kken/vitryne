@@ -610,6 +610,10 @@ fn check_garment(
                     r.errors
                         .push(at(format!("cut {}: radius must be positive", cut_name(c))));
                 }
+                if w.offset.is_some_and(|o| o.is_nan() || o < 0.0) {
+                    r.errors
+                        .push(at(format!("cut {}: offset can't be negative", cut_name(c))));
+                }
             }
             Placement::Follow(_) => {
                 let mut chain = BTreeSet::from([cid]);
@@ -634,6 +638,33 @@ fn check_garment(
                         break;
                     }
                     k = &f.cut;
+                }
+            }
+        }
+    }
+    // The stack lists every cut once, and a cut that follows another comes after it.
+    let mut place: HashMap<&Id, usize> = HashMap::new();
+    for (k, id) in g.stack.iter().enumerate() {
+        if !cuts.contains_key(id) {
+            r.errors
+                .push(at(format!("stack: {id} isn't a cut of this garment")));
+        } else if place.insert(id, k).is_some() {
+            r.errors.push(at(format!("stack: {id} is listed twice")));
+        }
+    }
+    for (&cid, &(_, c)) in &cuts {
+        match place.get(cid) {
+            None => r
+                .errors
+                .push(at(format!("stack: cut {} is missing", cut_name(c)))),
+            Some(&k) => {
+                if let Placement::Follow(f) = &c.placement
+                    && place.get(&f.cut).is_some_and(|&under| under > k)
+                {
+                    r.errors.push(at(format!(
+                        "stack: cut {} comes before the cut it goes on",
+                        cut_name(c)
+                    )));
                 }
             }
         }

@@ -16,6 +16,8 @@ export interface DrapeInfo {
   warnings: string[];
   /** The cut ids in the drape's panel order: picks and gizmos name cuts by this index. */
   cuts: string[];
+  /** How far further out each cut starts than its own radius, mm, in the same order. */
+  starts_out_mm: number[];
 }
 
 /** A cut's handles on screen (Rust `GizmoView`), in normalized device coordinates. */

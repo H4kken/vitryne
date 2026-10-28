@@ -3,30 +3,22 @@
 // words. Every change goes through a command (document/commands.ts) on the store.
 
 import { useEffect } from "react";
-import type { Cut, Garment } from "@/format/schema.gen";
+import type { Garment } from "@/format/schema.gen";
 import { cutColor, cutFabric, findCut } from "@/document/commands";
 import type { Entities } from "@/document/entities";
 import type { DocumentStore } from "@/document/store";
 
-import { type Place, PLACES, placeOf } from "@/placement/places";
+import { type Place } from "@/placement/places";
 import { DEFAULT_CLOTH_COLOR } from "@/format/colors";
 import { type Sewing, SeamsSection } from "@/sewing/SeamsSection";
 import { cutName } from "./cutName";
 import { PanelIntro } from "@/components/PanelIntro";
 import { SeamDetails } from "@/sewing/SeamDetails";
 import { CutDetails } from "./pieces/CutDetails";
+import { LayersView } from "./pieces/LayersView";
+import { type PiecesView, PiecesViewSwitch } from "./pieces/PiecesViewSwitch";
+import { whereLabel } from "./pieces/whereLabel";
 import type { Selection } from "@/pattern/panel/types";
-
-/** Where a cut starts, in a few words. */
-function whereLabel(g: Garment, cut: Cut): string {
-  const p = cut.placement;
-  if (p.type === "follow") {
-    const on = p.cut ? findCut(g, p.cut) : undefined;
-    return on ? `On the ${cutName(on.piece, on.cut)}` : "On another piece";
-  }
-  const place = placeOf(p);
-  return place ? PLACES[place].label : (p.region ?? "Somewhere");
-}
 
 export function PiecesPanel(props: {
   store: DocumentStore;
@@ -45,6 +37,11 @@ export function PiecesPanel(props: {
   /** The seam whose page is open, or none. */
   openSeam: string | null;
   sewing: Sewing;
+  /** The list of pieces, the stack of them (Layers) or the seams. */
+  view: PiecesView;
+  onView: (v: PiecesView) => void;
+  /** How far out each cut starts, mm, by cut id, in the drape shown. */
+  startsOut: ReadonlyMap<string, number>;
 }) {
   const { store, garment, selection, onHover, sewing } = props;
   // A piece picked in the views wins over an open seam.
@@ -53,7 +50,9 @@ export function PiecesPanel(props: {
       ? garment?.seams?.find((s) => s.id === props.openSeam)
       : undefined;
   // The list goes away when a cut or a seam is open: nothing stays hovered.
-  const listed = !selection && !seam;
+  const layers = props.view === "layers";
+  const seams = props.view === "seams";
+  const listed = layers || seams ? !seam : !selection && !seam;
   const onHoverSeam = sewing.onHover;
   useEffect(() => {
     if (!listed) {
@@ -67,18 +66,29 @@ export function PiecesPanel(props: {
   }, [listed, onHover, onHoverSeam]);
   if (!garment) return <PanelIntro>This project has no garment.</PanelIntro>;
   const found = selection ? findCut(garment, selection.cutId) : undefined;
-  if (seam)
-    return (
-      <SeamDetails
-        store={store}
-        garment={garment}
-        seam={seam}
-        sewing={sewing}
-      />
-    );
   return (
     <div className="flex flex-col gap-5">
-      {found ? (
+      <PiecesViewSwitch view={props.view} onView={props.onView} />
+      {seam ? (
+        <SeamDetails
+          store={store}
+          garment={garment}
+          seam={seam}
+          sewing={sewing}
+        />
+      ) : layers ? (
+        <LayersView
+          store={store}
+          entities={props.entities}
+          garment={garment}
+          selection={selection}
+          onSelect={props.onSelect}
+          onHover={onHover}
+          startsOut={props.startsOut}
+        />
+      ) : seams ? (
+        <SeamsSection store={store} garment={garment} sewing={sewing} />
+      ) : found ? (
         <CutDetails
           {...props}
           garment={garment}
@@ -143,9 +153,6 @@ export function PiecesPanel(props: {
             )}
           </ul>
         </div>
-      )}
-      {!found && (
-        <SeamsSection store={store} garment={garment} sewing={sewing} />
       )}
     </div>
   );

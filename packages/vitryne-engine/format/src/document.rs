@@ -8,7 +8,8 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    Error, FORMAT_VERSION, GENERATOR, Id, MIN_READER_VERSION, SUPPORTED_EXTENSIONS,
+    Error, FORMAT_VERSION, GARMENT_MIN_READER_VERSION, GENERATOR, Id, MIN_READER_VERSION,
+    SUPPORTED_EXTENSIONS,
     container::{self, Entries},
     json,
     manifest::{Kind, MEDIA_JSON, Manifest, PartEntry, ROLE_CACHE},
@@ -226,7 +227,13 @@ impl Document {
             format: "vitryne".into(),
             kind: self.kind,
             format_version: self.format_version,
-            min_reader_version: self.min_reader_version,
+            // A file with garments needs a reader that keeps their stack in step with the cuts.
+            min_reader_version: if self.garments.is_empty() || self.format_version > FORMAT_VERSION
+            {
+                self.min_reader_version
+            } else {
+                self.min_reader_version.max(GARMENT_MIN_READER_VERSION)
+            },
             generator: self.generator.clone(),
             parts: parts
                 .iter()
@@ -490,6 +497,7 @@ mod tests {
             if p == "manifest.json" {
                 let mut m: Value = serde_json::from_slice(b).unwrap();
                 m["formatVersion"] = 1.into();
+                m["minReaderVersion"] = 1.into();
                 *b = serde_json::to_vec(&m).unwrap();
             }
             if p.starts_with("fabrics/") {

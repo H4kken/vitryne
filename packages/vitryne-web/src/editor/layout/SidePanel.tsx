@@ -24,10 +24,20 @@ export function SidePanel(props: {
   rewrap: (cutId: string, place: Place) => void;
   /** Shows the 3D view with the Select tool, to place pieces there (null: already placing). */
   onPlaceIn3d: (() => void) | null;
+  /** How far out each cut starts, mm, by cut id, in the drape shown. */
+  startsOut: ReadonlyMap<string, number>;
 }) {
-  const { store, doc, garment, loadOthers, rewrap, onPlaceIn3d } = props;
-  const { panel, displayedPanel, setPanel, fabricView, setFabricView } =
-    props.panels;
+  const { store, doc, garment, loadOthers, rewrap, onPlaceIn3d, startsOut } =
+    props;
+  const {
+    panel,
+    displayedPanel,
+    setPanel,
+    fabricView,
+    setFabricView,
+    piecesView,
+    setPiecesView,
+  } = props.panels;
   const {
     shown: shownSelection,
     select,
@@ -92,6 +102,9 @@ export function SidePanel(props: {
                 onRewrap={rewrap}
                 onPlaceIn3d={onPlaceIn3d}
                 openSeam={openSeam}
+                view={piecesView}
+                onView={setPiecesView}
+                startsOut={startsOut}
                 sewing={{
                   differences,
                   proposals,

@@ -10,6 +10,13 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Added
 
+- Layers and Seams: a **Pieces | Layers | Seams** switch at the top of the Pieces panel. Seams
+  moves the list of seams and their suggestions out of the bottom of the pieces list.
+  Layers lists the pieces outermost first, like layers in Figma, beside a rail that says which
+  way is outside: drag a piece, or use its up and down arrows (or Alt + arrow keys), to change
+  what is outside what. A piece placed on another is nested under it and moves with it. Each
+  shows how far out it starts, and the selected one can start further out. Fit to the body again
+  keeps that distance.
 - Sewing is easier to read: hovering a suggested seam picks its edges out in the flat view; the
   Sew tool highlights the free edge under the pointer and a header at the top of the flat view
   shows its length (the first edge stays there while you point at the second); the dot in the
@@ -29,6 +36,14 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Changed
 
+- Project file format version 4: every garment lists its pieces' layer order (`stack`, closest
+  to the body first) and a piece can sit further out (`offset`), the base for a Layers panel.
+  Older files open and are migrated; files with garments saved by this version need this version
+  or newer (a fabric or avatar file still opens in older ones).
+- Pieces that overlap on the body start apart: the one higher in the layer order starts further
+  out than the ones under it (a gap that follows the mesh, at least 12 mm), plus its own offset,
+  so alternative versions of a piece or layers of clothing no longer start inside each other.
+  The sample garments start as before.
 - Start screen: **Import a file** is a slim row above the examples, dragging a file over the
   window shows a full-screen drop zone, and **Start from scratch** has a larger Lucide icon.
 

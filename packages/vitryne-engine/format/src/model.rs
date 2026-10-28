@@ -93,6 +93,11 @@ pub struct Garment {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<Source>,
     pub pieces: Vec<Piece>,
+    /// Every cut once, closest to the body first: which cut is outside which. Where cuts
+    /// overlap on the body, the one higher in the list starts further out (FORMAT.md,
+    /// Placement). A cut that follows another comes after it.
+    #[serde(default)]
+    pub stack: Vec<Id>,
     pub seams: Vec<Seam>,
     #[serde(flatten)]
     pub other: Other,
@@ -431,6 +436,9 @@ pub struct Wrap {
     /// Long sleeves: radius from the pattern width below the widest row (`tube` x width / 2 pi).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tube: Option<f64>,
+    /// Further out than the stack puts it, mm, never negative; absent = 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<f64>,
     #[serde(flatten)]
     pub other: Other,
 }
@@ -514,6 +522,45 @@ impl Garment {
         self.pieces
             .iter()
             .flat_map(|p| p.cuts.iter().map(move |c| (p, c)))
+    }
+
+    /// The stack a garment starts with: its cuts from the one nearest the body outwards (by the
+    /// radius each starts at, `follow`s resolved), ties in file order, a cut that follows another
+    /// never before it. The migration to version 4 makes the same order from the raw JSON.
+    pub fn default_stack(&self) -> Vec<Id> {
+        let cuts: Vec<&Cut> = self.cuts().map(|(_, c)| c).collect();
+        let radius = |start: &Cut| {
+            let (mut c, mut sum, mut hops) = (start, 0.0, 0);
+            loop {
+                match &c.placement {
+                    Placement::Wrap(w) => return sum + w.radius,
+                    Placement::Follow(f) => {
+                        sum += f.lift;
+                        hops += 1;
+                        match cuts.iter().find(|x| x.id == f.cut) {
+                            Some(next) if hops <= cuts.len() => c = next,
+                            _ => return sum,
+                        }
+                    }
+                }
+            }
+        };
+        let mut order: Vec<usize> = (0..cuts.len()).collect();
+        order.sort_by(|&a, &b| radius(cuts[a]).total_cmp(&radius(cuts[b])).then(a.cmp(&b)));
+        let mut out: Vec<usize> = Vec::with_capacity(order.len());
+        let mut left = order;
+        // Place each cut once the cut it follows is in; a follow loop (invalid) goes in as it is.
+        while !left.is_empty() {
+            let ready = left.iter().position(|&i| match &cuts[i].placement {
+                Placement::Follow(f) => cuts
+                    .iter()
+                    .position(|c| c.id == f.cut)
+                    .is_none_or(|p| out.contains(&p)),
+                Placement::Wrap(_) => true,
+            });
+            out.push(left.remove(ready.unwrap_or(0)));
+        }
+        out.into_iter().map(|i| cuts[i].id.clone()).collect()
     }
 
     pub(crate) fn round_lengths(&mut self) {

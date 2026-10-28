@@ -2,9 +2,10 @@
 import { useCallback, useState } from "react";
 import type { FabricView } from "@/properties/FabricPanel";
 import type { PanelId } from "@/properties/panelTitles";
+import type { PiecesView } from "@/properties/pieces/PiecesViewSwitch";
 
 /**
- * The panel the rail opened (or none), and the Fabric panel's page. The last panel shown stays
+ * The panel the rail opened (or none), the Fabric panel's page and the Pieces panel's view. The last panel shown stays
  * displayed while the side panel closes, so it slides away with its content.
  */
 export function usePanel() {
@@ -15,5 +16,15 @@ export function usePanel() {
     if (p) setDisplayedPanel(p);
   }, []);
   const [fabricView, setFabricView] = useState<FabricView>({ kind: "list" });
-  return { panel, displayedPanel, setPanel, fabricView, setFabricView };
+  // Which view of the Pieces panel (the list or the stack) stays while other panels are open.
+  const [piecesView, setPiecesView] = useState<PiecesView>("pieces");
+  return {
+    panel,
+    displayedPanel,
+    setPanel,
+    fabricView,
+    setFabricView,
+    piecesView,
+    setPiecesView,
+  };
 }

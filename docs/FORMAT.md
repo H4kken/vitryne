@@ -211,6 +211,7 @@ garment ── fabric (default for its cuts), appearance? (likewise)
  │   ├─ folds[]:   fold lines, between two outline nodes
  │   ├─ grain
  │   └─ cuts[]:    each copy cut from fabric: mirrored?, fabric?, appearance?, placement, layout
+ ├─ stack[]:       every cut once, closest to the body first
  ├─ seams[]:       side a and side b, each a chain of runs (cut, from node, to node)
  ├─ simulation:    overrides of the project's settings
  ├─ sources[]:     imported originals
@@ -350,6 +351,7 @@ Where a cut starts, before sewing pulls it into place. Two types in v1:
 | `top` | where the piece's top edge goes along the axis, mm from the region's origin (torso: height above the floor; limbs: negative is down the limb) |
 | `rotation` | optional: in-plane rotation of the piece before wrapping, radians counter-clockwise, after mirroring |
 | `tube` | optional, for long sleeves: below the piece's widest row the radius follows the pattern (`tube` × width / 2π); above it, it rises linearly to `radius` at the top edge |
+| `offset` | optional, mm, never negative (absent is 0): further out than the [stack](#the-stack) puts the cut. It belongs to the cut, so reordering keeps it |
 
 The maths: transform the piece's points (mirror, then rotate) and take its **anchor**, the
 centre of its bounding box in x and the top in y. A point p goes to
@@ -361,6 +363,25 @@ at that point of the axis. The reference implementation is `vitryne-pattern` `ga
 **`follow`**: on top of another cut, like a pocket on a front: the same region, anchor, top and
 tube as the followed cut, at its radius plus `lift` (mm), at its angle unless `angle` is given.
 The followed cut must not follow this one, directly or indirectly.
+
+### The stack
+
+`stack` on the garment lists **every cut once, closest to the body first**: which cut is outside
+which. The list is global, not per body place, because technical garments overlap across places
+(a front panel wrapping over the back). A cut that goes on another (`follow`) comes after it. A
+file where a cut is missing or listed twice, or one that goes on another comes before it, is
+refused.
+
+What the order means for the start positions is the app's to work out and not stored: a cut that
+overlaps others on the body starts further out than the ones below it, by a gap that follows the
+mesh resolution (never below 12 mm), plus its own `offset`. Two cuts overlap where their areas
+on the body do; cuts that only meet along an edge don't. The reference implementation is
+`vitryne-pattern` `placement/stacking.rs`; how it works is in
+[ARCHITECTURE.md](ARCHITECTURE.md#import-and-placement).
+
+**Why a list of cuts, not a number per cut:** reordering is one edit to one list and can't leave
+two cuts tied or a gap in the numbers; the list is the same shape as `project.garments`, which is
+in layering order too.
 
 The editor's placement gizmo adjusts these fields themselves (around, along, away from the
 axis, turn): no other placement data was needed.
@@ -646,6 +667,11 @@ produce.
     and may offer read-only viewing.
 - **Migrations are pure JSON-to-JSON functions**, one per version step, never deleted. The test
   suite keeps a fixture file for every past version and checks it migrates and opens.
+- **Version 4 is a breaking change for files with garments** (`minReaderVersion` is 4 for them,
+  still 1 for fabric and avatar files): the `stack` lists every cut, so a version 3 app that
+  added or removed a cut would leave it stale. The migration orders each garment's cuts by the
+  radius they start at (a `follow` at its cut's radius plus `lift`), ties in file order, so a file
+  looks as it did.
 - **A rule for future additive features:** if a new field's meaning depends on other data
   (e.g. per-size node offsets), it must stay valid when an older app edits that data, or the
   change has to be breaking, or it goes in a required extension.

@@ -206,6 +206,34 @@ the piece and the body, never stored rules per garment:
   3 cm above the head for hoods, the shoulder joint for sleeves, centred for a strip over the
   head.
 
+**The stack decides what is outside what** (`placement/stacking.rs`; the garment's `stack`, FORMAT.md).
+Cuts are placed from the bottom of the stack up. Each is sampled every 12 mm over its outline,
+and pushed out, along the whole cut by one amount, until it is a gap past every cut below it
+that it overlaps, plus its own `offset`. The gap is the mesh's edge length, never below 12 mm,
+so layers start clear of the cloth's self-collision radius. Two cuts in one body region overlap
+where their areas do, at any radius, so a coat drawn inside a shirt is pushed out past it; cuts
+in different regions only count where they face the same way within a gap and a half. Two cuts
+that meet along an edge overlap nothing, so the three sample garments start as drawn.
+Overlap is judged before the push, so one pass settles the stack and a reset always gives the
+same arrangement. A cut that goes on another is lifted by its `lift` and not pushed by the cuts
+it goes on. Rust works all of this out; the editor only stores the order and the offsets.
+
+The commands that keep the stack: `moveInStack` (a cut and the cuts placed on it move together to
+a place in the list; a cut placed on another stays above it), `setOffset` (how much further out a
+cut starts, or the lift of a cut placed on another; never negative), and every command that adds
+or removes cuts (`addPiece`, `addPieces`, `removeCuts`, `setPlacement` to a follow), which keep the
+list one entry per cut. The random-edit sessions include reorders and offsets. "Fit to the body
+again" keeps the cut's offset.
+
+**The Layers view** is the second view of the Pieces panel (a Pieces | Layers | Seams switch at
+its top; the plain list stays the first view, the sewn list the third, and the choice stays while other panels are open). It lists
+the stack outermost first (`placement/stackOrder.ts`: the cuts wrapped on the body, each with the
+cuts placed on it nested under it). A drop, a row's up and down arrows or an Alt + arrow become `moveInStack`; the selected
+row's field is `setOffset`. How far out each cut starts comes from Rust with the drape
+(`PreparedInfo.starts_out_mm`, from `Placer::starts_out`), so the editor never works out
+distances itself. Not there yet: the section drawing of the overlapping cuts that the mock-up
+had.
+
 For the three samples these land within a few cm of the hand-tuned sidecars (docs/PROGRESS.md, Import and placement).
 Then the user adjusts: in the Pieces panel (the place, around, height, distance from the body,
 turn, mirror image, "fit to the body again"), or **with the 3D gizmo**. The gizmo is ours: the
@@ -269,7 +297,7 @@ differ). The design, and why:
   `seams.rs` (the project's cuts and node ids, proposals, `join_chains`, per-seam length
   differences); the worker calls `sewing_edges`, `suggest_seams`, `join_edges` and
   `seam_differences`; `document/commands.ts` has `addSeam`, `removeSeam`, `reverseSeam` (so
-  undo, validation and recovery work as for every edit); `sewing/` has the seams section of
+  undo, validation and recovery work as for every edit); `sewing/` has the Seams view of
   the Pieces panel (the sewn list, each seam's page, suggestions); the flat view
   (`pattern/panel/`) draws each seam in a colour on its edges and hosts the Sew tool;
   the 3D view draws the seams on the cloth (`drape-render/shaders/seams.wgsl`, screen-space

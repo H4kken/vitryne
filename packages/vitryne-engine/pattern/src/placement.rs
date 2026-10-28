@@ -18,6 +18,9 @@ use vitryne_format::{Avatar, Region, Wrap};
 
 use crate::{meshing::MeshedPattern, pattern::Pattern};
 
+mod stacking;
+pub use stacking::{Cloud, MIN_GAP, Stacking, default_order, gap_for};
+
 /// A body frame: origin, axis (towards the top of the pieces), and the angle-0 direction.
 /// A bent frame also has a centreline below the origin (dense samples, see `bent`).
 #[derive(Debug, Clone)]
@@ -229,6 +232,8 @@ pub enum PlaceSpec {
         top: f32,
         /// Tube ease (long sleeves), see `tube_profile`.
         tube: Option<f32>,
+        /// Further out than the stack puts it, m (never negative).
+        offset: f32,
     },
     /// On top of panel `of`: its frame, anchor, top and tube profile, at its radius + `lift`,
     /// at its angle unless `angle` is given.
@@ -242,10 +247,15 @@ pub enum PlaceSpec {
 /// Wraps every panel (`specs[i]` for panel i) onto its cylinder: a point p of the pattern goes
 /// to `frame.at(top + (p - anchor).y)` at angle `angle + (p - anchor).x / r` and radius r,
 /// where the anchor is the centre of the panel's bounding box in x and its top in y.
-pub fn place(mp: &mut MeshedPattern, pat: &Pattern, specs: &[PlaceSpec]) -> Result<(), String> {
+pub fn place(
+    mp: &mut MeshedPattern,
+    pat: &Pattern,
+    specs: &[PlaceSpec],
+    stacking: &Stacking,
+) -> Result<(), String> {
     let outlines: Vec<Vec<Vec2>> = pat.panels.iter().map(|p| p.outline()).collect();
     let names: Vec<&str> = pat.panels.iter().map(|p| p.name.as_str()).collect();
-    let resolved = resolve_all(&outlines, &names, specs)?;
+    let resolved = resolve_all(&outlines, &names, specs, stacking)?;
     mp.mesh.pos = positions(&mp.uv, &mp.panel_vertices, &resolved);
     for (pi, r) in resolved.iter().enumerate() {
         // Render-only: front faces point away from the axis (mirrored pieces flip winding).
@@ -267,41 +277,58 @@ pub fn place(mp: &mut MeshedPattern, pat: &Pattern, specs: &[PlaceSpec]) -> Resu
     Ok(())
 }
 
-/// Each panel's wrap, with `follow`s resolved (`outlines`: each panel's, in its pattern
-/// coordinates; `names` for errors).
+/// Each panel's wrap, with `follow`s resolved and the stack applied (`outlines`: each panel's, in
+/// its pattern coordinates; `names` for errors). Cuts are placed from the bottom of the stack up:
+/// each starts where its spec says, plus whatever pushes it out past the cuts below it that it
+/// overlaps (see `stacking`), plus its own offset.
 pub fn resolve_all(
     outlines: &[Vec<Vec2>],
     names: &[&str],
     specs: &[PlaceSpec],
+    stacking: &Stacking,
 ) -> Result<Vec<Resolved>, String> {
-    fn resolve(
-        i: usize,
-        outlines: &[Vec<Vec2>],
-        names: &[&str],
-        specs: &[PlaceSpec],
-        done: &mut Vec<Option<Resolved>>,
-        visiting: &mut Vec<bool>,
-    ) -> Result<Resolved, String> {
-        if let Some(r) = &done[i] {
-            return Ok(r.clone());
+    struct State<'a> {
+        outlines: &'a [Vec<Vec2>],
+        names: &'a [&'a str],
+        specs: &'a [PlaceSpec],
+        done: Vec<Option<Resolved>>,
+        visiting: Vec<bool>,
+        cloud: Cloud,
+    }
+    /// Cut `i` placed, once the cut it goes on is.
+    fn resolve(i: usize, st: &mut State) -> Result<Resolved, String> {
+        if st.visiting[i] {
+            return Err(format!("{}: its placement follows itself", st.names[i]));
         }
-        if visiting[i] {
-            return Err(format!("{}: its placement follows itself", names[i]));
-        }
-        visiting[i] = true;
-        let outline = &outlines[i];
+        st.visiting[i] = true;
+        let outline = &st.outlines[i];
         let (lo, hi) = outline.iter().fold(
             (Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)),
             |(lo, hi), q| (lo.min(*q), hi.max(*q)),
         );
-        let r = match &specs[i] {
+        let (start, on, offset) = match &st.specs[i] {
             PlaceSpec::Follow { of, angle, lift } => {
-                let base = resolve(*of, outlines, names, specs, done, visiting)?;
-                Resolved {
-                    angle: angle.unwrap_or(base.angle),
-                    radius: base.radius + lift,
-                    ..base
+                let base = match &st.done[*of] {
+                    Some(base) => base.clone(),
+                    None => resolve(*of, st)?,
+                };
+                // The cuts it goes on, directly or not: it sits `lift` above them on purpose.
+                let mut chain = vec![*of];
+                while let PlaceSpec::Follow { of, .. } = &st.specs[chain[chain.len() - 1]] {
+                    if chain.contains(of) {
+                        break;
+                    }
+                    chain.push(*of);
                 }
+                (
+                    Resolved {
+                        angle: angle.unwrap_or(base.angle),
+                        shift: base.shift + lift,
+                        ..base
+                    },
+                    chain,
+                    0.0,
+                )
             }
             PlaceSpec::Wrap {
                 frame,
@@ -309,23 +336,46 @@ pub fn resolve_all(
                 radius,
                 top,
                 tube,
-            } => Resolved {
-                frame: frame.clone(),
-                angle: *angle,
-                radius: *radius,
-                top: *top,
-                anchor: Vec2::new(0.5 * (lo.x + hi.x), hi.y),
-                tube: tube.map(|ease| tube_profile(outline, lo.y, hi.y, ease, *radius)),
-            },
+                offset,
+            } => (
+                Resolved {
+                    frame: frame.clone(),
+                    angle: *angle,
+                    radius: *radius,
+                    top: *top,
+                    anchor: Vec2::new(0.5 * (lo.x + hi.x), hi.y),
+                    tube: tube.map(|ease| tube_profile(outline, lo.y, hi.y, ease, *radius)),
+                    shift: 0.0,
+                },
+                Vec::new(),
+                *offset,
+            ),
         };
-        done[i] = Some(r.clone());
+        let push = st.cloud.push(outline, &start, i, &on);
+        let r = Resolved {
+            shift: start.shift + push + offset,
+            ..start
+        };
+        st.cloud.add(outline, &r, i);
+        st.done[i] = Some(r.clone());
+        st.visiting[i] = false;
         Ok(r)
     }
-    let mut done = vec![None; specs.len()];
-    let mut visiting = vec![false; specs.len()];
-    (0..specs.len())
-        .map(|i| resolve(i, outlines, names, specs, &mut done, &mut visiting))
-        .collect()
+    let n = specs.len();
+    let mut st = State {
+        outlines,
+        names,
+        specs,
+        done: vec![None; n],
+        visiting: vec![false; n],
+        cloud: Cloud::new(stacking.gap),
+    };
+    for i in stacking.complete(n) {
+        if st.done[i].is_none() {
+            resolve(i, &mut st)?;
+        }
+    }
+    Ok(st.done.into_iter().flatten().collect())
 }
 
 /// Where every vertex goes (`uv`: its pattern coordinates; `panel_vertices`: each panel's).
@@ -353,19 +403,23 @@ pub struct Resolved {
     anchor: Vec2,
     /// Tube radius by pattern y (lo, step, radii); None = constant `radius`.
     tube: Option<(f32, f32, Vec<f32>)>,
+    /// Added to the radius everywhere: what the stack pushes the cut out by, its offset, and
+    /// (for a cut that goes on another) the other's and its own lift.
+    shift: f32,
 }
 
 impl Resolved {
     /// The cylinder's radius at pattern height `y` (the tube's, or the wrap's).
     pub fn radius_at(&self, y: f32) -> f32 {
-        match &self.tube {
-            Some((lo, step, radii)) => {
-                let x = ((y - lo) / step).clamp(0.0, (radii.len() - 1) as f32);
-                let k = (x.floor() as usize).min(radii.len() - 2);
-                radii[k] + (radii[k + 1] - radii[k]) * (x - k as f32)
+        self.shift
+            + match &self.tube {
+                Some((lo, step, radii)) => {
+                    let x = ((y - lo) / step).clamp(0.0, (radii.len() - 1) as f32);
+                    let k = (x.floor() as usize).min(radii.len() - 2);
+                    radii[k] + (radii[k + 1] - radii[k]) * (x - k as f32)
+                }
+                None => self.radius,
             }
-            None => self.radius,
-        }
     }
 
     /// Where pattern point `p` goes.
@@ -384,6 +438,12 @@ impl Resolved {
 
     pub fn anchor(&self) -> Vec2 {
         self.anchor
+    }
+
+    /// How far further out than its own radius the cut starts, m: what the stack pushed it out
+    /// by, its offset, and for a cut that goes on another, the other's and its own lift.
+    pub fn shift(&self) -> f32 {
+        self.shift
     }
 }
 
@@ -596,6 +656,7 @@ pub fn auto_wrap(
         top: whole_mm(top),
         rotation: None,
         tube,
+        offset: None,
         other: Default::default(),
     })
 }
@@ -635,6 +696,7 @@ pub fn flat_wrap(
         top: whole_mm(top),
         rotation: None,
         tube: None,
+        offset: None,
         other: Default::default(),
     })
 }

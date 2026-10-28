@@ -79,6 +79,9 @@ pub struct PreparedInfo {
     pub warnings: Vec<String>,
     /// The cut ids in the drape's panel order (a picked panel is this cut).
     pub cuts: Vec<String>,
+    /// How far further out each cut starts than its own radius, mm, in the same order: what
+    /// the stack pushes it out by, its offset, and for a cut on another, the lifts.
+    pub starts_out_mm: Vec<f64>,
 }
 
 /// A cut moved to another place on the body (`ProjectFile::rewrap`).
@@ -183,6 +186,7 @@ impl ProjectFile {
                     self_collision: settings.self_collision,
                     warnings,
                     cuts: Vec::new(),
+                    starts_out_mm: Vec::new(),
                 },
                 camera: pg.camera(),
                 avatar,
@@ -201,6 +205,11 @@ impl ProjectFile {
                 self_collision: settings.self_collision,
                 warnings,
                 cuts: placer.cut_ids(),
+                starts_out_mm: placer
+                    .starts_out()?
+                    .iter()
+                    .map(|&m| (m as f64 * 1000.0 * 10.0).round() / 10.0)
+                    .collect(),
             },
             camera: pg.camera(),
             avatar,
@@ -694,6 +703,12 @@ mod tests {
             .unwrap();
         let mut e = again.document().entities();
         e.garments[0]["pieces"] = serde_json::to_value(&a.pieces).unwrap();
+        // The new cuts go on top of the stack, as `addPieces` puts them.
+        e.garments[0]["stack"] = a
+            .pieces
+            .iter()
+            .flat_map(|p| p.cuts.iter().map(|c| c.id.to_string()))
+            .collect();
         e.garments[0]["sources"] = serde_json::to_value([&a.source]).unwrap();
         again
             .set_entities_json(&serde_json::to_string(&e).unwrap())

@@ -710,6 +710,7 @@ impl PatternImport {
             } = self.parts(choices, Some(&g), regions, &facts, ids)?;
             let g = &mut doc.garments[0];
             g.pieces = pieces;
+            g.stack = g.default_stack();
             g.seams = seams;
             let report = doc.validate();
             if !report.errors.is_empty() {
@@ -740,7 +741,7 @@ impl PatternImport {
             Some("knit"),
             Some("The engine's placeholder jersey (Material::cotton), not calibrated.".into()),
         )?;
-        let garment = Garment {
+        let mut garment = Garment {
             id: garment_id,
             name: if name.is_empty() {
                 "Imported pattern".into()
@@ -754,9 +755,11 @@ impl PatternImport {
             simulation: Some(new_garment_simulation(&body)),
             sources: vec![source],
             pieces,
+            stack: Vec::new(),
             seams,
             other: Map::new(),
         };
+        garment.stack = garment.default_stack();
         let doc = project_document(project_id, garment, fabric, body_glb.to_vec(), None, None)?;
         Ok((doc, notes))
     }
@@ -822,7 +825,7 @@ pub fn empty_project(body_glb: &[u8], ids: &mut IdGen) -> Result<Document, Strin
     let body: Vec<Vec3> = mesh.positions.iter().map(|&p| Vec3::from(p)).collect();
     let (project_id, garment_id) = (ids.next_id(), ids.next_id());
     let fabric = vitryne_format::presets::cotton_jersey();
-    let garment = Garment {
+    let mut garment = Garment {
         id: garment_id,
         name: "Untitled".into(),
         attribution: None,
@@ -832,9 +835,11 @@ pub fn empty_project(body_glb: &[u8], ids: &mut IdGen) -> Result<Document, Strin
         simulation: Some(new_garment_simulation(&body)),
         sources: Vec::new(),
         pieces: Vec::new(),
+        stack: Vec::new(),
         seams: Vec::new(),
         other: Map::new(),
     };
+    garment.stack = garment.default_stack();
     project_document(project_id, garment, fabric, body_glb.to_vec(), None, None)
 }
 

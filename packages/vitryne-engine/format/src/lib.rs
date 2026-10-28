@@ -38,9 +38,12 @@ pub use model::*;
 pub use validate::{Report, check_outline_shape};
 
 /// The version this crate reads and writes.
-pub const FORMAT_VERSION: u32 = 3;
+pub const FORMAT_VERSION: u32 = 4;
 /// The `minReaderVersion` it writes: the oldest reader that can open its files correctly.
 pub const MIN_READER_VERSION: u32 = 1;
+/// What a file with garments needs: version 4's `stack` goes stale when an older app adds or
+/// removes a cut without knowing it (FORMAT.md, Versions and migrations).
+pub const GARMENT_MIN_READER_VERSION: u32 = 4;
 /// The extensions this reader implements (a file requiring any other is refused).
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[model::EXT_CURVES];
 pub const GENERATOR: &str = concat!("vitryne-format ", env!("CARGO_PKG_VERSION"));
