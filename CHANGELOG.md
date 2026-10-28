@@ -8,6 +8,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-28
+
 ### Added
 
 - Layers and Seams: a **Pieces | Layers | Seams** switch at the top of the Pieces panel. Seams
@@ -26,7 +28,7 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
   buttons.
 - The 3D view: Cmd (Ctrl) + drag turns the view and Option (Alt) + drag slides it, with any tool;
   two fingers up and down on a trackpad zoom; selecting a piece picks it out in 3D. The Turn view
-  tool is gone (Pinch fabric is the default and dragging empty space still turns the view).
+  tool is gone (with Pinch fabric, dragging empty space no longer turns the view: hold Cmd).
 - Dark mode in the editor: pick Light, Dark or System from the new appearance menu in the top bar
   and on the start screen (the choice is kept in this browser).
 - Import Valentina patterns (`.val`) with their measurements (`.vit`, or a `.vst` size chart and
@@ -44,6 +46,11 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
   out than the ones under it (a gap that follows the mesh, at least 12 mm), plus its own offset,
   so alternative versions of a piece or layers of clothing no longer start inside each other.
   The sample garments start as before.
+- The 3D view starts on Select, and Select only picks a piece while the drape is live; paused, it
+  shows the handles to move the piece. Pinch fabric works only while the drape is live (pressing
+  it on the cloth while paused flashes Play), and Space or Play never changes the tool. Keys `1`
+  and `2` pick Select and Pinch fabric (by key position, so they work on any keyboard layout).
+  Pausing no longer puts the cloth back, and R always restarts from the placement.
 - Start screen: **Import a file** is a slim row above the examples, dragging a file over the
   window shows a full-screen drop zone, and **Start from scratch** has a larger Lucide icon.
 
@@ -102,6 +109,7 @@ The first public beta.
   ([docs/CLOUD.md](docs/CLOUD.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
+[0.3.0]: https://github.com/H4kken/vitryne/releases/tag/v0.3.0
 [0.2.0]: https://github.com/H4kken/vitryne/releases/tag/v0.2.0
 [0.1.1]: https://github.com/H4kken/vitryne/releases/tag/v0.1.1
 [0.1.0]: https://github.com/H4kken/vitryne/releases/tag/v0.1.0
