@@ -277,7 +277,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
         onExport={exportIt}
       />
 
-      <div className="flex min-h-0 grow">
+      <div className="relative flex min-h-0 grow">
         <Rail panel={panels.panel} setPanel={panels.setPanel} />
         <SidePanel
           panels={panels}

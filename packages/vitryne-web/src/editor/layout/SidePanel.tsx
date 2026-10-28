@@ -12,7 +12,7 @@ import type { useOtherFabrics } from "../hooks/useOtherFabrics";
 import type { useSelection } from "../hooks/useSelection";
 import type { useSewing } from "../hooks/useSewing";
 
-/** The panel the rail opened, sliding in beside the canvas: Fabric, Pieces (and seams) or Settings. */
+/** The panel the rail opened, sliding in over the canvas: Fabric, Pieces (and seams) or Settings. */
 export function SidePanel(props: {
   panels: ReturnType<typeof usePanel>;
   store: DocumentStore;
@@ -59,15 +59,13 @@ export function SidePanel(props: {
     <aside
       aria-label={displayedPanel ? PANEL_TITLES[displayedPanel] : "Panel"}
       aria-hidden={!panel}
-      style={{
-        width: panel ? "300px" : "0px",
-      }}
       className={cn(
-        "relative h-full shrink-0 overflow-hidden bg-card",
+        // Over the canvas, from behind the rail, as in Figma: opening it moves nothing under it.
+        "absolute top-0 left-20 z-20 h-full w-[300px] overflow-hidden border-r border-border bg-card shadow-lg",
+        "transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
         panel
-          ? "border-r border-border opacity-100"
-          : "pointer-events-none border-r-0 opacity-0",
-        "transition-[width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          ? "translate-x-0 opacity-100"
+          : "pointer-events-none -translate-x-full opacity-0 shadow-none",
       )}
     >
       <div className="flex h-full w-[300px] shrink-0 flex-col gap-4 overflow-y-auto p-5">

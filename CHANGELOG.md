@@ -8,6 +8,10 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+### Changed
+
+- The side panel opens over the canvas, as in Figma, instead of squeezing the views.
+
 ### Added
 
 - Right-click menus in the flat and 3D views: on a piece, move it outwards or inwards, copy it or
