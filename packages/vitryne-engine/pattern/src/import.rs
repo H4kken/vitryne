@@ -31,7 +31,7 @@ use crate::{
     convert::{ConvertOptions, convert_with, dxf_piece, fabric_entity, project_document},
     garment::Garment as SidecarGarment,
     placement::{BodyFacts, BodyPlace, auto_wrap, default_avatar, flat_wrap},
-    valentina::{self, SizeOption, pieces::Shape},
+    drafting::{self, SizeOption, pieces::Shape},
 };
 
 /// How far a piece placed on another one sits off it, mm (the hoodie's pocket).
@@ -393,7 +393,7 @@ impl PatternImport {
         measurements: Option<&str>,
         size: Option<&[f64]>,
     ) -> Result<Self, String> {
-        let r = valentina::read(pattern, measurements, size)?;
+        let r = drafting::read(pattern, measurements, size)?;
         if r.shapes.is_empty() {
             let why: Vec<String> = r.refused.iter().map(|(n, e)| format!("{n}: {e}")).collect();
             return Err(if why.is_empty() {

@@ -40,7 +40,7 @@ export type Choice =
   | { type: "on"; piece: string }
   | { type: "flat" };
 
-/** Rust `valentina::SizeOption`: one dimension of a size chart. */
+/** Rust `drafting::SizeOption`: one dimension of a size chart. */
 export interface SizeOption {
   label: string;
   values: number[];

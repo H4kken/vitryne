@@ -4,7 +4,7 @@
 # with its measurements file at its base size, and prints per pattern how many pieces were made
 # and why any was refused, then the totals.
 #
-# usage: tools/valentina/corpus.sh
+# usage: tools/drafting/corpus.sh
 #   VALENTINA_REF=<commit>   which Valentina to fetch (default: the one docs/PROGRESS.md reports)
 # The checkout goes to packages/vitryne-engine/target/valentina-corpus/ (git ignores target/).
 set -eu
@@ -22,4 +22,4 @@ git -C "$dir" checkout -q "$ref"
 cd packages/vitryne-engine
 PATH="$HOME/.cargo/bin:$PATH"
 VALENTINA_CORPUS="$(pwd)/target/valentina-corpus/src/app/share" \
-  cargo test -q --release -p vitryne-pattern --test valentina_corpus -- --ignored --nocapture
+  cargo test -q --release -p vitryne-pattern --test drafting_corpus -- --ignored --nocapture

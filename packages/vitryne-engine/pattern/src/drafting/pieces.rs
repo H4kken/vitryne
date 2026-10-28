@@ -713,7 +713,7 @@ impl Shape {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::valentina::xml::Pattern;
+    use crate::drafting::xml::Pattern;
     use roxmltree::Document;
     use std::collections::HashMap;
 
