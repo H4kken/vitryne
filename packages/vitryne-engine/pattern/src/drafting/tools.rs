@@ -703,7 +703,8 @@ impl Draft {
                 self.p(el, "firstPoint")?,
                 self.p(el, "secondPoint")?,
             )?,
-            "pointOfIntersection" => {
+            // Seamly2D calls Valentina's "pointOfIntersection" `intersectXY`.
+            "pointOfIntersection" | "intersectXY" => {
                 let (a, b) = (self.p(el, "firstPoint")?, self.p(el, "secondPoint")?);
                 DVec2::new(a.x, b.y)
             }
@@ -1327,7 +1328,8 @@ mod tests {
             <point type="height" id="8" name="H" basePoint="7" p1Line="1" p2Line="2"/>
             <point type="lineIntersect" id="9" name="I" p1Line1="1" p2Line1="7" p1Line2="2" p2Line2="3"/>
             <point type="lineIntersectAxis" id="10" name="J" basePoint="3" angle="AngleLine_A_B" p1Line="2" p2Line="7"/>
-            <point type="shoulder" id="11" name="K" p1Line="1" p2Line="4" pShoulder="3" length="Line_C_B"/>"##
+            <point type="shoulder" id="11" name="K" p1Line="1" p2Line="4" pShoulder="3" length="Line_C_B"/>
+            <point type="intersectXY" id="12" name="L" firstPoint="2" secondPoint="3"/>"##
         ));
         assert!(d.unavailable.is_empty(), "{:?}", d.unavailable);
         assert!(near(at(&d, 2), DVec2::new(10.0, 0.0)));
@@ -1341,6 +1343,8 @@ mod tests {
         assert!(near(at(&d, 10), DVec2::new(10.0, 10.0)));
         // On A→D beyond D, sqrt(200) from C: x = 10.
         assert!(near(at(&d, 11), DVec2::new(10.0, 0.0)));
+        // Seamly2D's name for the tool at 7.
+        assert!(near(at(&d, 12), DVec2::new(10.0, 10.0)));
     }
 
     #[test]

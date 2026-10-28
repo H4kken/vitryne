@@ -9,41 +9,58 @@ use roxmltree::{Document, Node};
 
 use super::{Unit, child, child_text, version};
 
+/// Which app's names a pattern file uses. Both write a `<pattern>` root; Seamly2D's `.sm2d`
+/// files from before its own names (format 0.4 and older) are Valentina's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dialect {
     Valentina,
+    Seamly,
 }
 
 impl Dialect {
+    /// The dialect of a pattern file's root.
+    fn of(root: Node) -> Self {
+        if root.children().any(|c| c.has_tag_name("draftBlock")) {
+            Dialect::Seamly
+        } else {
+            Dialect::Valentina
+        }
+    }
+
     /// A draft block.
     pub fn block(self) -> &'static str {
         match self {
             Dialect::Valentina => "draw",
+            Dialect::Seamly => "draftBlock",
         }
     }
 
     pub fn pieces(self) -> &'static str {
         match self {
             Dialect::Valentina => "details",
+            Dialect::Seamly => "pieces",
         }
     }
 
     pub fn piece(self) -> &'static str {
         match self {
             Dialect::Valentina => "detail",
+            Dialect::Seamly => "piece",
         }
     }
 
-    /// Pattern-wide named values (`#name`).
-    pub fn increments(self) -> &'static [&'static str] {
+    /// Pattern-wide named values (`#name`): the lists that hold them, and their elements.
+    pub fn increments(self) -> &'static [(&'static str, &'static str)] {
         match self {
-            Dialect::Valentina => &["increments", "previewCalculations"],
-        }
-    }
-
-    pub fn increment(self) -> &'static str {
-        match self {
-            Dialect::Valentina => "increment",
+            Dialect::Valentina => &[
+                ("increments", "increment"),
+                ("previewCalculations", "increment"),
+            ],
+            Dialect::Seamly => &[
+                ("increments", "increment"),
+                ("previewCalculations", "increment"),
+                ("variables", "variable"),
+            ],
         }
     }
 }
@@ -68,7 +85,7 @@ impl<'a, 'i> Pattern<'a, 'i> {
     pub fn read(doc: &'a Document<'i>) -> Result<Self, String> {
         let root = doc.root_element();
         let dialect = match root.tag_name().name() {
-            "pattern" => Dialect::Valentina,
+            "pattern" => Dialect::of(root),
             other => return Err(format!("not a pattern file (<{other}>)")),
         };
         let version = version(root)?;
@@ -86,12 +103,9 @@ impl<'a, 'i> Pattern<'a, 'i> {
             .filter(|p| !p.is_empty())
             .map(str::to_string);
         let mut increments = Vec::new();
-        for tag in dialect.increments() {
-            if let Some(list) = child(root, tag) {
-                for inc in list
-                    .children()
-                    .filter(|c| c.has_tag_name(dialect.increment()))
-                {
+        for (list, element) in dialect.increments() {
+            if let Some(list) = child(root, list) {
+                for inc in list.children().filter(|c| c.has_tag_name(*element)) {
                     if inc.attribute("type") == Some("separator") {
                         continue;
                     }
@@ -191,6 +205,32 @@ mod tests {
         assert_eq!(p.sections("calculation").len(), 2);
         assert_eq!(p.pieces().len(), 1);
         assert_eq!(p.pieces()[0].0, Some("Front"));
+    }
+
+    const SEAMLY: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
+<pattern>
+    <version>0.6.8</version>
+    <unit>mm</unit>
+    <measurements path="Keiko.smis"/>
+    <variables><variable name="#ease" formula="20"/></variables>
+    <draftBlock name="Front">
+        <calculation/><modeling/>
+        <pieces><piece id="9" name="Front"/></pieces>
+    </draftBlock>
+</pattern>"##;
+
+    #[test]
+    fn reads_seamly2d_names() {
+        let doc = Document::parse(SEAMLY).unwrap();
+        let p = Pattern::read(&doc).unwrap();
+        assert_eq!(p.dialect, Dialect::Seamly);
+        assert_eq!(p.measurements_file_name(), Some("Keiko.smis"));
+        assert_eq!(p.increments, vec![("#ease".to_string(), "20".to_string())]);
+        assert_eq!(p.blocks.len(), 1);
+        assert_eq!(p.pieces().len(), 1);
+        // The same names under `<draw>` are Valentina's.
+        let doc = Document::parse(PATTERN).unwrap();
+        assert_eq!(Pattern::read(&doc).unwrap().dialect, Dialect::Valentina);
     }
 
     #[test]

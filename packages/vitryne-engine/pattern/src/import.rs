@@ -29,9 +29,9 @@ use vitryne_solver::constraints::Material;
 use crate::{
     aama::{self, ImportReport},
     convert::{ConvertOptions, convert_with, dxf_piece, fabric_entity, project_document},
+    drafting::{self, SizeOption, pieces::Shape},
     garment::Garment as SidecarGarment,
     placement::{BodyFacts, BodyPlace, auto_wrap, default_avatar, flat_wrap},
-    drafting::{self, SizeOption, pieces::Shape},
 };
 
 /// How far a piece placed on another one sits off it, mm (the hoodie's pocket).

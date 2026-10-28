@@ -5,6 +5,7 @@
 pub mod aama;
 pub mod aama_export;
 pub mod convert;
+pub mod drafting;
 pub mod dxf;
 pub mod export;
 pub mod garment;
@@ -17,4 +18,3 @@ pub mod project;
 pub mod seams;
 pub mod suggest;
 pub mod tshirt;
-pub mod drafting;

@@ -213,23 +213,27 @@ fn read_dimensions(root: Node, unit: Unit) -> Result<Vec<Dimension>, String> {
 }
 
 impl Measurements {
-    /// Reads a `.vit` or `.vst` (told apart by the root element).
+    /// Reads a `.vit` or `.vst`, or Seamly2D's `.smis` or `.smms` (told apart by the root
+    /// element).
     pub fn read(text: &str) -> Result<Self, String> {
         let doc = Document::parse(text).map_err(|e| format!("not a measurements file: {e}"))?;
         let root = doc.root_element();
-        let multisize = match root.tag_name().name() {
-            "vit" => false,
-            "vst" => true,
+        // Valentina's files before 0.4 used other measurement names; Seamly2D forked later.
+        let (multisize, valentina) = match root.tag_name().name() {
+            "vit" => (false, true),
+            "vst" => (true, true),
+            "smis" => (false, false),
+            "smms" => (true, false),
             other => return Err(format!("not a measurements file (<{other}>)")),
         };
         let v = version(root)?;
-        if !multisize && v < (0, 3, 3) {
+        if valentina && !multisize && v < (0, 3, 3) {
             return Err(format!(
                 "this measurements file is from Valentina before 0.4 (format {}.{}.{}); open it in Valentina or Tape and save it again",
                 v.0, v.1, v.2
             ));
         }
-        if multisize && v < (0, 4, 0) {
+        if valentina && multisize && v < (0, 4, 0) {
             return Err(format!(
                 "this size chart is from Valentina before 0.4 (format {}.{}.{}); open it in Tape and save it again",
                 v.0, v.1, v.2
@@ -411,6 +415,19 @@ mod tests {
         assert_eq!(v["@ease"], 2.0);
         let e = m.values(&[171.0, 96.0], Unit::Cm).unwrap_err();
         assert!(e.contains("height 171"), "{e}");
+    }
+
+    /// Seamly2D's files are the same under other roots, and not held to Valentina's floor.
+    #[test]
+    fn seamly2d_files_read_like_valentinas() {
+        let smis = VIT.replace("vit>", "smis>").replace("0.6.2", "0.3.0");
+        let m = Measurements::read(&smis).unwrap();
+        assert!(!m.is_multisize());
+        let v = m.values(&[], Unit::Mm).unwrap();
+        assert_eq!(v["waist_circ"], 720.0);
+        let smms = VST_04.replace("vst>", "smms>");
+        let m = Measurements::read(&smms).unwrap();
+        assert_eq!(m.base_size(), vec![1760.0, 500.0]);
     }
 
     #[test]
