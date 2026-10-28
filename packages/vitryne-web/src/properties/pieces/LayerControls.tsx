@@ -38,7 +38,7 @@ export function LayerControls(props: {
   };
   const by = (mm: number) => set(Math.min(MAX, Math.max(0, value + mm)));
   return (
-    <div className="flex items-center justify-between gap-2 pr-2.5 pb-2.5 pl-[34px]">
+    <div className="flex items-center justify-between gap-2 pr-2.5 pb-2.5 pl-[30px]">
       <label htmlFor={id} className="text-[14px] font-semibold leading-tight">
         {p.type === "follow" ? "Lifted off it" : "Start further out"}
       </label>

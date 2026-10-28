@@ -4,7 +4,7 @@
 // selection) or with Alt + arrow keys; one placed on another goes with it and is nested under it.
 // `children` (the selected row's distance field) sit inside the row's frame, under its header.
 
-import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import type { DragEvent, KeyboardEvent, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -85,15 +85,11 @@ export function LayerRow(p: LayerRowProps) {
           aria-keyshortcuts={p.step ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
           onClick={p.onSelect}
           onKeyDown={onKeyDown}
-          className="flex min-w-0 flex-1 items-start gap-1 rounded-md text-left"
+          className={cn(
+            "flex min-w-0 flex-1 items-start gap-1 rounded-md pl-1.5 text-left",
+            p.drag && "cursor-grab active:cursor-grabbing",
+          )}
         >
-          <GripVertical
-            aria-hidden
-            className={cn(
-              "text-faint mt-0.5 size-4 shrink-0",
-              p.drag ? "cursor-grab" : "invisible",
-            )}
-          />
           <span
             aria-hidden
             className="mt-1 size-3 shrink-0 rounded-full border border-black/10"
