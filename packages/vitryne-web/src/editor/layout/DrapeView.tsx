@@ -18,6 +18,8 @@ import { StatusPill } from "./StatusPill";
 import type { SplitView } from "../hooks/useSplitView";
 import type { useSelection } from "../hooks/useSelection";
 import { useElementSize } from "../hooks/useElementSize";
+import { CanvasMenu } from "./CanvasMenu";
+import type { PickedActions } from "../hooks/usePickedActions";
 import { DrapeToolBar } from "./DrapeToolBar";
 
 export function DrapeView(props: {
@@ -34,6 +36,7 @@ export function DrapeView(props: {
   /** The selected cut in the drape shown, for its handles (-1: none). */
   gizmoIndex: number;
   cards: ReactNode;
+  picked: PickedActions;
 }) {
   const {
     session,
@@ -101,9 +104,17 @@ export function DrapeView(props: {
       )}
     >
       {/* The 3D view stays mounted under hidden/shown state */}
-      <div className="absolute inset-0">
-        <Viewport session={session} tool={tool} />
-      </div>
+      <CanvasMenu
+        piece={!!selected}
+        actions={props.picked}
+        empty={[
+          { label: "Restart the drape", onSelect: () => session.resetDrape() },
+        ]}
+      >
+        <div className="absolute inset-0">
+          <Viewport session={session} tool={tool} />
+        </div>
+      </CanvasMenu>
 
       {placing &&
         engine.gizmo &&

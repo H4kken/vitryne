@@ -8,6 +8,11 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+### Added
+
+- Right-click menus in the flat and 3D views: on a piece, move it outwards or inwards or delete
+  it; on empty canvas, fit the pieces in view, draw a piece, import a pattern, or restart the drape.
+
 ## [0.3.0] - 2026-10-28
 
 ### Added

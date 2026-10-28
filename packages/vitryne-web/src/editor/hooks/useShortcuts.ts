@@ -4,13 +4,12 @@
 // the Select, Edit points, Draw, Marks and Sew tools; in the 3D view 1 and 2 pick Select and Pinch.
 
 import { type RefObject, useEffect } from "react";
-import { findCut, removeCuts } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
 import type { Garment } from "@/format/schema.gen";
 
 import type { PointerTool } from "@/worker/protocol";
 import type { EngineSession } from "@/worker/session";
-import type { FlatTool, Selection } from "@/pattern/panel/types";
+import type { FlatTool } from "@/pattern/panel/types";
 
 /** By physical key (`code`), not the character: on an AZERTY keyboard the digit row types & and é
  * without Shift, so `key` is never "1" or "2" there. */
@@ -33,7 +32,6 @@ export function useShortcuts(o: {
   session: EngineSession;
   store: DocumentStore;
   save: () => void;
-  showInfo: (text: string) => void;
   /** The file input that Cmd-O opens. */
   fileInput: RefObject<HTMLInputElement | null>;
   show2d: boolean;
@@ -44,15 +42,13 @@ export function useShortcuts(o: {
   /** The Sew tool picked (it also opens the seams and clears the selection). */
   onSew: () => void;
   garment: Garment | undefined;
-  selection: Selection;
-  /** The picked pieces were taken out. */
-  onRemoved: () => void;
+  /** Takes the picked pieces out; false if there are none. */
+  removePicked: () => boolean;
 }) {
   const {
     session,
     store,
     save,
-    showInfo,
     fileInput,
     show2d,
     show3d,
@@ -61,8 +57,7 @@ export function useShortcuts(o: {
     setFlatTool,
     onSew,
     garment,
-    selection,
-    onRemoved,
+    removePicked,
   } = o;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -121,23 +116,8 @@ export function useShortcuts(o: {
           (flatTool === "points" || flatTool === "draw" || flatTool === "marks")
         )
       ) {
-        const g = garment;
-        const s = selection;
-        if (!g || !s) return;
+        if (!removePicked()) return;
         e.preventDefault();
-        const ids = [s.cutId, ...(s.also ?? [])].filter(
-          (id) => !!findCut(g, id),
-        );
-        let note: string | undefined;
-        const done = store.execute((x) => {
-          const cmd = removeCuts(x, g.id, ids);
-          note = cmd.note;
-          return cmd;
-        });
-        if (done) {
-          onRemoved();
-          if (note) showInfo(`${note}.`);
-        }
         return;
       }
       const c = session.state.controls;
@@ -153,7 +133,6 @@ export function useShortcuts(o: {
     session,
     store,
     save,
-    showInfo,
     fileInput,
     show2d,
     show3d,
@@ -162,7 +141,6 @@ export function useShortcuts(o: {
     setFlatTool,
     onSew,
     garment,
-    selection,
-    onRemoved,
+    removePicked,
   ]);
 }

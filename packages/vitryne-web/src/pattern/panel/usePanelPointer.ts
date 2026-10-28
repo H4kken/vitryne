@@ -133,6 +133,13 @@ export function usePanelPointer(c: {
         // A pointer the browser no longer tracks: the drag just stops at the panel's edge.
       }
       const p = toPattern(e);
+      // A right click picks the cut under it (or none) for the menu, and starts no drag.
+      if (e.button === 2) {
+        const hit = hitCut(p);
+        if (!hit) selectAll([]);
+        else if (!inGroup.has(hit.cut.id)) selectAll([hit]);
+        return;
+      }
       if (panning) {
         freeze();
         dragRef.current = {

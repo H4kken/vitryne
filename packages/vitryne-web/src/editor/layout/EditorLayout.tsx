@@ -40,6 +40,7 @@ import { useModHeld } from "../hooks/useModHeld";
 import { useNewProject } from "../hooks/useNewProject";
 import { useOtherFabrics } from "../hooks/useOtherFabrics";
 import { usePanel } from "../hooks/usePanel";
+import { usePickedActions } from "../hooks/usePickedActions";
 import { usePieceActions } from "../hooks/usePieceActions";
 import { useSelection } from "../hooks/useSelection";
 import { useSewing } from "../hooks/useSewing";
@@ -190,11 +191,17 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     selection.setOpenSeam(null);
     panels.setPanel("pieces");
   };
+  const picked = usePickedActions({
+    store,
+    garment,
+    selection: selection.shown,
+    showInfo: files.showInfo,
+    onRemoved: () => selection.setSelection(null),
+  });
   useShortcuts({
     session,
     store,
     save: files.save,
-    showInfo: files.showInfo,
     fileInput,
     show2d: view.show2d,
     show3d: view.show3d,
@@ -203,8 +210,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     setFlatTool,
     onSew: sewTool,
     garment,
-    selection: selection.shown,
-    onRemoved: () => selection.setSelection(null),
+    removePicked: picked.remove,
   });
 
   const message =
@@ -312,6 +318,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
             }
             addNewPiece={addNewPiece}
             onSew={sewTool}
+            picked={picked}
           />
           <Splitter view={view} />
           <DrapeView
@@ -326,6 +333,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
             selected={selection.selected}
             gizmoIndex={gizmoIndex}
             cards={cards}
+            picked={picked}
           />
         </section>
       </div>

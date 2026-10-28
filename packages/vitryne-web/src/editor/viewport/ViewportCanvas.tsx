@@ -83,7 +83,8 @@ export function ViewportCanvas({
       y,
       e.clientX,
       e.clientY,
-      phase === "down" ? tool : undefined,
+      // A right click picks the piece under it, whatever the tool: the menu acts on it.
+      phase === "down" ? (e.button === 2 ? "select" : tool) : undefined,
       phase === "down" ? camera : undefined,
     );
   };

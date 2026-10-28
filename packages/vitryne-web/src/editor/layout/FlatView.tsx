@@ -20,6 +20,8 @@ import { StatusPill } from "./StatusPill";
 import type { SplitView } from "../hooks/useSplitView";
 import type { useSelection } from "../hooks/useSelection";
 import type { useSewing } from "../hooks/useSewing";
+import { CanvasMenu } from "./CanvasMenu";
+import type { PickedActions } from "../hooks/usePickedActions";
 import { FlatToolBar } from "./FlatToolBar";
 import type { PatternView, FlatTool } from "@/pattern/panel/types";
 
@@ -47,6 +49,7 @@ export function FlatView(props: {
   onDrawn: (outline: OutlineNode[], origin: Vec2) => void;
   addNewPiece: (n: NewPiece, origin?: Vec2) => Promise<void>;
   onSew: () => void;
+  picked: PickedActions;
 }) {
   const {
     pattern,
@@ -92,71 +95,90 @@ export function FlatView(props: {
           : "transition-[width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
       )}
     >
-      <div className="absolute inset-0">
-        <PatternPanel
-          ref={pattern}
-          garment={garment}
-          selection={shownSelection}
-          onSelect={select}
-          tool={flatTool}
-          panning={modHeld}
-          sewing={{
-            edges,
-            picked: picks ? [...picks.a, ...picks.b] : [],
-            onPick: pickEdge,
-            hovered: hoveredEdge,
-            onHover: setHoveredEdge,
-            suggested: hoveredRuns,
-          }}
-          cutColors={cutColors}
-          highlight={shownHovered}
-          highlightSeam={shownLitSeam}
-          empty={
-            <FirstPieceHint
-              onDraw={() => setFlatTool("draw")}
-              onShape={() => setFlatTool("shape")}
-              onImport={importFile}
-              busy={!!files.busy}
-            />
-          }
-          onDrawn={(outline, origin) => props.onDrawn(outline, origin)}
-          shapeKind={shapeKind}
-          onShape={(outline, origin) =>
-            void addNewPiece(
-              {
-                outline,
-                name: `Piece ${(garment?.pieces.length ?? 0) + 1}`,
-                place: "one:body-front",
-              },
-              origin,
-            ).catch((e: Error) => files.showError("Could not add the shape", e))
-          }
-          onEdit={(build) => {
-            let note: string | undefined;
-            const done = store.execute((e) => {
-              const cmd = build(e);
-              note = cmd.note;
-              return cmd;
-            });
-            if (done && note) files.showInfo(`${note}.`);
-          }}
-          onArrange={(moved) =>
-            garment &&
-            store.execute((e) =>
-              setLayouts(
-                e,
-                garment.id,
-                Object.fromEntries(
-                  [...moved].map(([cutId, t]) => [
-                    cutId,
-                    { position: [t.x, t.y], rotation: t.rot },
-                  ]),
+      <CanvasMenu
+        piece={!!shownSelection}
+        actions={props.picked}
+        empty={
+          garment
+            ? [
+                {
+                  label: "Fit the pieces in view",
+                  onSelect: () => pattern.current?.reset(),
+                },
+                { label: "Draw a piece", onSelect: () => setFlatTool("draw") },
+                { label: "Import a pattern…", onSelect: importFile },
+              ]
+            : []
+        }
+      >
+        <div className="absolute inset-0">
+          <PatternPanel
+            ref={pattern}
+            garment={garment}
+            selection={shownSelection}
+            onSelect={select}
+            tool={flatTool}
+            panning={modHeld}
+            sewing={{
+              edges,
+              picked: picks ? [...picks.a, ...picks.b] : [],
+              onPick: pickEdge,
+              hovered: hoveredEdge,
+              onHover: setHoveredEdge,
+              suggested: hoveredRuns,
+            }}
+            cutColors={cutColors}
+            highlight={shownHovered}
+            highlightSeam={shownLitSeam}
+            empty={
+              <FirstPieceHint
+                onDraw={() => setFlatTool("draw")}
+                onShape={() => setFlatTool("shape")}
+                onImport={importFile}
+                busy={!!files.busy}
+              />
+            }
+            onDrawn={(outline, origin) => props.onDrawn(outline, origin)}
+            shapeKind={shapeKind}
+            onShape={(outline, origin) =>
+              void addNewPiece(
+                {
+                  outline,
+                  name: `Piece ${(garment?.pieces.length ?? 0) + 1}`,
+                  place: "one:body-front",
+                },
+                origin,
+              ).catch((e: Error) =>
+                files.showError("Could not add the shape", e),
+              )
+            }
+            onEdit={(build) => {
+              let note: string | undefined;
+              const done = store.execute((e) => {
+                const cmd = build(e);
+                note = cmd.note;
+                return cmd;
+              });
+              if (done && note) files.showInfo(`${note}.`);
+            }}
+            onArrange={(moved) =>
+              garment &&
+              store.execute((e) =>
+                setLayouts(
+                  e,
+                  garment.id,
+                  Object.fromEntries(
+                    [...moved].map(([cutId, t]) => [
+                      cutId,
+                      { position: [t.x, t.y], rotation: t.rot },
+                    ]),
+                  ),
                 ),
-              ),
-            )
-          }
-        />
-      </div>
+              )
+            }
+          />
+        </div>
+      </CanvasMenu>
 
       {/* 2D Window badge and status (notices shown here when 3D is hidden) */}
       <div
