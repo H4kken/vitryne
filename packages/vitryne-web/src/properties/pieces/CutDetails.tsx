@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { FlipHorizontal2, FlipVertical2 } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
-import { Button } from "@/components/ui/button";
+import { SHIFT } from "@/lib/keys";
 import type { FlipAxis } from "@/pattern/flip";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -36,6 +35,7 @@ import {
 } from "@/placement/places";
 import { cutName } from "../cutName";
 import { TextField } from "../TextField";
+import { FlipButton } from "./FlipButton";
 import { FabricOption } from "./FabricOption";
 import { PanelHeading } from "@/components/PanelHeading";
 import { NumberField } from "../NumberField";
@@ -100,13 +100,36 @@ export function CutDetails(props: {
   return (
     <div className="flex flex-col gap-4">
       <BackLink onClick={() => props.onSelect(null)}>All pieces</BackLink>
-      <TextField
-        label="Piece name"
-        value={piece.name}
-        onCommit={(v) =>
-          store.execute((e) => renamePiece(e, g.id, piece.id, v))
-        }
-      />
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 grow">
+          <TextField
+            label="Piece name"
+            value={piece.name}
+            onCommit={(v) =>
+              store.execute((e) => renamePiece(e, g.id, piece.id, v))
+            }
+          />
+        </div>
+        <FlipButton
+          label="Flip horizontally"
+          keys={`${SHIFT}H`}
+          onClick={() => props.onFlip("horizontal")}
+        >
+          <FlipVertical2 />
+        </FlipButton>
+        <FlipButton
+          label="Flip vertically"
+          keys={`${SHIFT}V`}
+          onClick={() => props.onFlip("vertical")}
+        >
+          <FlipHorizontal2 />
+        </FlipButton>
+      </div>
+      {cut.mirrored && (
+        <span className="-mt-2 w-fit rounded-full bg-secondary px-2.5 py-0.5 text-[13px] font-medium text-secondary-foreground">
+          Mirror image
+        </span>
+      )}
       {piece.cuts.length > 1 && (
         <TextField
           label={`This copy (${piece.cuts.indexOf(cut) + 1} of ${piece.cuts.length})`}
@@ -117,25 +140,6 @@ export function CutDetails(props: {
           }
         />
       )}
-      <div className="flex flex-col gap-2">
-        <Label className="text-[15px] font-semibold">Flip</Label>
-        <span className="text-muted-foreground text-[13px] leading-snug">
-          {cut.mirrored
-            ? "This one is the mirror image of the piece as drawn."
-            : "Turn it over to make the other one of a left and right pair."}
-        </span>
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="outline" onClick={() => props.onFlip("horizontal")}>
-            <FlipHorizontal2 />
-            Horizontally
-          </Button>
-          <Button variant="outline" onClick={() => props.onFlip("vertical")}>
-            <FlipVertical2 />
-            Vertically
-          </Button>
-        </div>
-      </div>
-
       <div className="flex flex-col gap-2 border-t pt-4">
         <PanelHeading>Fabric</PanelHeading>
         <Select
