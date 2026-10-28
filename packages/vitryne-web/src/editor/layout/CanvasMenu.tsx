@@ -3,6 +3,14 @@
 // inwards; on empty canvas, what the view offers (`empty`). The piece is picked by the press that
 // opens the menu, so the menu reads the selection.
 
+import {
+  BringToFront,
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
+  SendToBack,
+  Trash2,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import {
   ContextMenu,
@@ -15,7 +23,11 @@ import {
 import { MOD } from "@/lib/keys";
 import type { PickedActions } from "../hooks/usePickedActions";
 
-export type MenuEntry = { label: string; onSelect: () => void };
+export type MenuEntry = {
+  label: string;
+  icon: ReactNode;
+  onSelect: () => void;
+};
 
 export function CanvasMenu(props: {
   /** A piece is picked. */
@@ -44,16 +56,19 @@ export function CanvasMenu(props: {
               disabled={!actions.canStep(1)}
               onSelect={() => actions.step(1)}
             >
+              <BringToFront />
               Move outwards
             </ContextMenuItem>
             <ContextMenuItem
               disabled={!actions.canStep(-1)}
               onSelect={() => actions.step(-1)}
             >
+              <SendToBack />
               Move inwards
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={() => actions.copy()}>
+              <Copy />
               Copy
               <ContextMenuShortcut>{MOD}C</ContextMenuShortcut>
             </ContextMenuItem>
@@ -61,14 +76,17 @@ export function CanvasMenu(props: {
               disabled={!actions.canPaste}
               onSelect={() => actions.paste()}
             >
+              <ClipboardPaste />
               Paste
               <ContextMenuShortcut>{MOD}V</ContextMenuShortcut>
             </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              variant="destructive"
-              onSelect={() => actions.remove()}
-            >
+            <ContextMenuItem onSelect={() => actions.duplicate()}>
+              <CopyPlus />
+              Duplicate
+              <ContextMenuShortcut>{MOD}D</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => actions.remove()}>
+              <Trash2 />
               Delete
               <ContextMenuShortcut>⌫</ContextMenuShortcut>
             </ContextMenuItem>
@@ -77,12 +95,14 @@ export function CanvasMenu(props: {
           <>
             {actions.canPaste && (
               <ContextMenuItem onSelect={() => actions.paste()}>
+                <ClipboardPaste />
                 Paste
                 <ContextMenuShortcut>{MOD}V</ContextMenuShortcut>
               </ContextMenuItem>
             )}
             {empty.map((m) => (
               <ContextMenuItem key={m.label} onSelect={m.onSelect}>
+                {m.icon}
                 {m.label}
               </ContextMenuItem>
             ))}

@@ -25,9 +25,9 @@ export function usePickedActions(o: {
   const { store, garment: g, selection, showInfo, onRemoved, onPaste } = o;
   /** Kept for the whole editor session, so it can be pasted into another project too. */
   const [copied, setCopied] = useState<Copied>([]);
-  /** Takes the picked pieces (a piece once, with the first cut picked of it); false if none. */
-  const copy = (): boolean => {
-    if (!g || !selection) return false;
+  /** The picked pieces, each once, with the first cut picked of it. */
+  const picked = (): Copied => {
+    if (!g || !selection) return [];
     const seen = new Set<string>();
     const found: Copied = [];
     for (const id of [selection.cutId, ...(selection.also ?? [])]) {
@@ -37,6 +37,11 @@ export function usePickedActions(o: {
         found.push({ piece: f.piece, cut: f.cut });
       }
     }
+    return found;
+  };
+  /** Takes the picked pieces; false if none. */
+  const copy = (): boolean => {
+    const found = picked();
     if (!found.length) return false;
     setCopied(found);
     showInfo(
@@ -44,6 +49,13 @@ export function usePickedActions(o: {
         ? "Copied the piece."
         : `Copied ${found.length} pieces.`,
     );
+    return true;
+  };
+  /** Pastes the picked pieces at once, leaving what was copied alone. */
+  const duplicate = (): boolean => {
+    const found = picked();
+    if (!found.length) return false;
+    onPaste(found);
     return true;
   };
   const paste = (): boolean => {
@@ -83,7 +95,15 @@ export function usePickedActions(o: {
     const to = stepPlace(g, id, dir);
     if (to !== null) store.execute((e) => moveInStack(e, g.id, id, to));
   };
-  return { remove, canStep, step, copy, paste, canPaste: copied.length > 0 };
+  return {
+    remove,
+    canStep,
+    step,
+    copy,
+    paste,
+    duplicate,
+    canPaste: copied.length > 0,
+  };
 }
 
 export type PickedActions = ReturnType<typeof usePickedActions>;

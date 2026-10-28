@@ -217,6 +217,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     removePicked: picked.remove,
     copyPicked: picked.copy,
     pastePicked: picked.paste,
+    duplicatePicked: picked.duplicate,
   });
 
   const message =

@@ -18,6 +18,7 @@ import { StatusPill } from "./StatusPill";
 import type { SplitView } from "../hooks/useSplitView";
 import type { useSelection } from "../hooks/useSelection";
 import { useElementSize } from "../hooks/useElementSize";
+import { RotateCcw } from "lucide-react";
 import { CanvasMenu } from "./CanvasMenu";
 import type { PickedActions } from "../hooks/usePickedActions";
 import { DrapeToolBar } from "./DrapeToolBar";
@@ -108,7 +109,11 @@ export function DrapeView(props: {
         piece={!!selected}
         actions={props.picked}
         empty={[
-          { label: "Restart the drape", onSelect: () => session.resetDrape() },
+          {
+            label: "Restart the drape",
+            icon: <RotateCcw />,
+            onSelect: () => session.resetDrape(),
+          },
         ]}
       >
         <div className="absolute inset-0">
