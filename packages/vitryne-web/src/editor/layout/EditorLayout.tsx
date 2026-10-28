@@ -294,6 +294,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
             placing ? null : () => (view.setShow3d(true), setTool("select"))
           }
           startsOut={startsOut}
+          onFlip={(axis) => void picked.flip(axis)}
         />
 
         {/* Workspace views: 2D window on the left, 3D on the right */}

@@ -2,6 +2,7 @@
 import type { Garment } from "@/format/schema.gen";
 import { type DocState, DocumentStore } from "@/document/store";
 import { cn } from "@/lib/utils";
+import type { FlipAxis } from "@/pattern/flip";
 import { type Place } from "@/placement/places";
 import { FabricPanel } from "@/properties/FabricPanel";
 import { PANEL_TITLES } from "@/properties/panelTitles";
@@ -24,11 +25,21 @@ export function SidePanel(props: {
   rewrap: (cutId: string, place: Place) => void;
   /** Shows the 3D view with the Select tool, to place pieces there (null: already placing). */
   onPlaceIn3d: (() => void) | null;
+  /** Flips the picked pieces in the flat view. */
+  onFlip: (axis: FlipAxis) => void;
   /** How far out each cut starts, mm, by cut id, in the drape shown. */
   startsOut: ReadonlyMap<string, number>;
 }) {
-  const { store, doc, garment, loadOthers, rewrap, onPlaceIn3d, startsOut } =
-    props;
+  const {
+    store,
+    doc,
+    garment,
+    loadOthers,
+    rewrap,
+    onPlaceIn3d,
+    onFlip,
+    startsOut,
+  } = props;
   const {
     panel,
     displayedPanel,
@@ -99,6 +110,7 @@ export function SidePanel(props: {
                 onHover={setHovered}
                 onRewrap={rewrap}
                 onPlaceIn3d={onPlaceIn3d}
+                onFlip={onFlip}
                 openSeam={openSeam}
                 view={piecesView}
                 onView={setPiecesView}

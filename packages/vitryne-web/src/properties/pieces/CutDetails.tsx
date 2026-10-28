@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { FlipHorizontal2, FlipVertical2 } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
+import { Button } from "@/components/ui/button";
+import type { FlipAxis } from "@/pattern/flip";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -11,14 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import type { Cut, Garment, Piece } from "@/format/schema.gen";
 import {
   fabricColor,
   followers,
   renameCut,
   renamePiece,
-  setMirrored,
   setPieceFabric,
   setPlacement,
 } from "@/document/commands";
@@ -61,6 +62,8 @@ export function CutDetails(props: {
   onSelect: (s: Selection) => void;
   onRewrap: (cutId: string, place: Place) => void;
   onPlaceIn3d: (() => void) | null;
+  /** Flips the picked pieces (this one among them) in the flat view. */
+  onFlip: (axis: FlipAxis) => void;
 }) {
   const { store, garment: g, piece, cut } = props;
   const p = cut.placement;
@@ -114,26 +117,27 @@ export function CutDetails(props: {
           }
         />
       )}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-0.5">
-          <Label htmlFor="cut-mirrored" className="text-[15px] font-semibold">
-            Mirror image
-          </Label>
-          <span className="text-muted-foreground text-[13px] leading-snug">
-            The other one of a left and right pair.
-          </span>
+      <div className="flex flex-col gap-2">
+        <Label className="text-[15px] font-semibold">Flip</Label>
+        <span className="text-muted-foreground text-[13px] leading-snug">
+          {cut.mirrored
+            ? "This one is the mirror image of the piece as drawn."
+            : "Turn it over to make the other one of a left and right pair."}
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" onClick={() => props.onFlip("horizontal")}>
+            <FlipHorizontal2 />
+            Horizontally
+          </Button>
+          <Button variant="outline" onClick={() => props.onFlip("vertical")}>
+            <FlipVertical2 />
+            Vertically
+          </Button>
         </div>
-        <Switch
-          id="cut-mirrored"
-          checked={!!cut.mirrored}
-          onCheckedChange={(v) =>
-            store.execute((e) => setMirrored(e, g.id, cut.id, v))
-          }
-        />
       </div>
 
       <div className="flex flex-col gap-2 border-t pt-4">
-        {/* <PanelHeading>Fabric</PanelHeading> */}
+        <PanelHeading>Fabric</PanelHeading>
         <Select
           value={cut.fabric ?? "garment"}
           onValueChange={(val) => {
