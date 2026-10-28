@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { Trash2 } from "lucide-react";
+import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import { removeSeam, renameSeam, reverseSeam } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
@@ -20,13 +21,7 @@ export function SeamDetails(props: {
   const note = differenceNote(sewing.differences[seam.id]);
   return (
     <div className="flex flex-col gap-4">
-      <button
-        type="button"
-        onClick={() => sewing.onOpen(null)}
-        className="text-muted-foreground hover:text-foreground self-start text-sm underline underline-offset-4"
-      >
-        All pieces
-      </button>
+      <BackLink onClick={() => sewing.onOpen(null)}>All seams</BackLink>
       <h2 className="m-0 text-[17px] font-semibold">{seamTitle(g, seam)}</h2>
       <TextField
         label="Description"

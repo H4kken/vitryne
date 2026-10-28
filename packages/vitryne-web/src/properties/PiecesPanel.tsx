@@ -66,21 +66,17 @@ export function PiecesPanel(props: {
   }, [listed, onHover, onHoverSeam]);
   if (!garment) return <PanelIntro>This project has no garment.</PanelIntro>;
   const found = selection ? findCut(garment, selection.cutId) : undefined;
-  if (seam)
-    return (
-      <SeamDetails
-        store={store}
-        garment={garment}
-        seam={seam}
-        sewing={sewing}
-      />
-    );
   return (
     <div className="flex flex-col gap-5">
-      {(layers || seams || !found) && (
-        <PiecesViewSwitch view={props.view} onView={props.onView} />
-      )}
-      {layers ? (
+      <PiecesViewSwitch view={props.view} onView={props.onView} />
+      {seam ? (
+        <SeamDetails
+          store={store}
+          garment={garment}
+          seam={seam}
+          sewing={sewing}
+        />
+      ) : layers ? (
         <LayersView
           store={store}
           entities={props.entities}

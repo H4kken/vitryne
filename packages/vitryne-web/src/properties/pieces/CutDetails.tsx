@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { BackLink } from "@/components/BackLink";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -95,13 +96,7 @@ export function CutDetails(props: {
   };
   return (
     <div className="flex flex-col gap-4">
-      <button
-        type="button"
-        onClick={() => props.onSelect(null)}
-        className="text-muted-foreground hover:text-foreground self-start text-sm underline underline-offset-4"
-      >
-        All pieces
-      </button>
+      <BackLink onClick={() => props.onSelect(null)}>All pieces</BackLink>
       <TextField
         label="Piece name"
         value={piece.name}
