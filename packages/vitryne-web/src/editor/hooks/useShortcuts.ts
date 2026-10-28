@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The editor's keys: save, open a file, undo and redo, copy, paste and duplicate the picked pieces; Shift-H and Shift-V flip them in the flat view; Delete takes the picked pieces out;
+// The editor's keys: save, open a file, undo and redo, copy, paste and duplicate the picked pieces;
+// Shift-H and Shift-V flip them in the flat view; Delete takes them out and Escape unpicks them;
 // space, F and R pause, speed up and restart the drape; in the flat view V, A, P, M and S pick
 // the Select, Edit points, Draw, Marks and Sew tools; in the 3D view 1 and 2 pick Select and Pinch.
 
@@ -50,6 +51,8 @@ export function useShortcuts(o: {
   duplicatePicked: () => boolean;
   /** Flips the picked pieces in the flat view. */
   flipPicked: (axis: "horizontal" | "vertical") => boolean;
+  /** Unpicks the picked pieces; false if there are none. */
+  clearPicked: () => boolean;
 }) {
   const {
     session,
@@ -68,6 +71,7 @@ export function useShortcuts(o: {
     pastePicked,
     duplicatePicked,
     flipPicked,
+    clearPicked,
   } = o;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -118,6 +122,18 @@ export function useShortcuts(o: {
       const over =
         e.target instanceof Element &&
         !!e.target.closest('[role="dialog"], [role="menu"], [role="listbox"]');
+      // Escape unpicks the pieces; the 2D tools that pick points or lines keep it for those.
+      if (
+        e.key === "Escape" &&
+        !over &&
+        !(
+          show2d &&
+          (flatTool === "points" || flatTool === "draw" || flatTool === "marks")
+        )
+      ) {
+        if (clearPicked()) e.preventDefault();
+        return;
+      }
       // Shift-H and Shift-V flip the picked pieces in the flat view, as in Figma.
       if (show2d && !over && e.shiftKey && (k === "h" || k === "v")) {
         if (flipPicked(k === "h" ? "horizontal" : "vertical"))
@@ -180,5 +196,6 @@ export function useShortcuts(o: {
     pastePicked,
     duplicatePicked,
     flipPicked,
+    clearPicked,
   ]);
 }

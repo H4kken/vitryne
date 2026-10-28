@@ -220,6 +220,11 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     pastePicked: picked.paste,
     duplicatePicked: picked.duplicate,
     flipPicked: picked.flip,
+    clearPicked: () => {
+      if (!selection.shown) return false;
+      selection.setSelection(null);
+      return true;
+    },
   });
 
   const message =

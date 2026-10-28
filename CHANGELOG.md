@@ -10,6 +10,7 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Changed
 
+- Escape unpicks the picked pieces.
 - The side panel opens over the canvas, as in Figma, instead of squeezing the views.
 
 ### Added
