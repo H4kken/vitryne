@@ -127,6 +127,8 @@ export function usePanelPointer(c: {
       // here would send their clicks to the view).
       if (e.target !== e.currentTarget && !(e.target instanceof SVGElement))
         return;
+      // A right click starts no drag (and the menu eats its release): `onContextMenu` picks.
+      if (e.button === 2) return;
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {
@@ -270,6 +272,12 @@ export function usePanelPointer(c: {
         moved: false,
         hit,
       };
+    },
+    /** The menu opens on this: the cut under the pointer (or none) is what it acts on. */
+    onContextMenu: (e: React.MouseEvent<HTMLDivElement>) => {
+      const hit = hitCut(toPattern(e));
+      if (!hit) selectAll([]);
+      else if (!inGroup.has(hit.cut.id)) selectAll([hit]);
     },
     onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
       const d = dragRef.current;

@@ -8,6 +8,20 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+### Changed
+
+- Escape unpicks the picked pieces.
+- The side panel opens over the canvas, as in Figma, instead of squeezing the views.
+
+### Added
+
+- Right-click menus in the flat and 3D views: on a piece, move it outwards or inwards, copy it or
+  delete it; on empty canvas, paste, fit the pieces in view, draw a piece, import a pattern, or
+  restart the drape.
+- Flip pieces horizontally or vertically in the flat view (Shift-H, Shift-V, the right-click
+  menu, or the Flip buttons in a piece's panel, which replace the Mirror image switch); a flipped piece is the mirror image, in 3D too.
+- Copy, paste and duplicate pieces with ⌘C, ⌘V and ⌘D (Ctrl on Windows and Linux) or from the menu.
+
 ## [0.3.0] - 2026-10-28
 
 ### Added

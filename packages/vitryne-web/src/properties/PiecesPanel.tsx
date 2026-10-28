@@ -14,6 +14,7 @@ import { type Sewing, SeamsSection } from "@/sewing/SeamsSection";
 import { cutName } from "./cutName";
 import { PanelIntro } from "@/components/PanelIntro";
 import { SeamDetails } from "@/sewing/SeamDetails";
+import type { FlipAxis } from "@/pattern/flip";
 import { CutDetails } from "./pieces/CutDetails";
 import { LayersView } from "./pieces/LayersView";
 import { type PiecesView, PiecesViewSwitch } from "./pieces/PiecesViewSwitch";
@@ -34,6 +35,8 @@ export function PiecesPanel(props: {
   onRewrap: (cutId: string, place: Place) => void;
   /** Switches to placing in 3D (null when already there). */
   onPlaceIn3d: (() => void) | null;
+  /** Flips the picked pieces in the flat view. */
+  onFlip: (axis: FlipAxis) => void;
   /** The seam whose page is open, or none. */
   openSeam: string | null;
   sewing: Sewing;

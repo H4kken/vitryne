@@ -62,6 +62,8 @@ export interface PatternView {
   reset(): void;
   /** Where a new piece's bottom left goes so it sits right of the pieces there (mm). */
   freeSpot(): Vec2;
+  /** The cuts with these ids as the view has them (layout and box), for flipping. */
+  views(ids: readonly string[]): CutView[];
 }
 
 /** A point drag: a node to `to`, or a curve's handle; both from where the pointer went down. */

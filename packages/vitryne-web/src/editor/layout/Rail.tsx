@@ -15,7 +15,7 @@ export function Rail({
   return (
     <nav
       aria-label="Panels"
-      className="flex w-20 shrink-0 flex-col gap-1.5 border-r bg-card px-2 py-3"
+      className="relative z-30 flex w-20 shrink-0 flex-col gap-1.5 border-r bg-card px-2 py-3"
     >
       <RailButton
         id="fabric"

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The editor's keys: save, open a file, undo and redo; Delete takes the picked pieces out;
+// The editor's keys: save, open a file, undo and redo, copy, paste and duplicate the picked pieces;
+// Shift-H and Shift-V flip them in the flat view; Delete takes them out and Escape unpicks them;
 // space, F and R pause, speed up and restart the drape; in the flat view V, A, P, M and S pick
 // the Select, Edit points, Draw, Marks and Sew tools; in the 3D view 1 and 2 pick Select and Pinch.
 
 import { type RefObject, useEffect } from "react";
-import { findCut, removeCuts } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
 import type { Garment } from "@/format/schema.gen";
 
 import type { PointerTool } from "@/worker/protocol";
 import type { EngineSession } from "@/worker/session";
-import type { FlatTool, Selection } from "@/pattern/panel/types";
+import type { FlatTool } from "@/pattern/panel/types";
 
 /** By physical key (`code`), not the character: on an AZERTY keyboard the digit row types & and é
  * without Shift, so `key` is never "1" or "2" there. */
@@ -33,7 +33,6 @@ export function useShortcuts(o: {
   session: EngineSession;
   store: DocumentStore;
   save: () => void;
-  showInfo: (text: string) => void;
   /** The file input that Cmd-O opens. */
   fileInput: RefObject<HTMLInputElement | null>;
   show2d: boolean;
@@ -44,15 +43,21 @@ export function useShortcuts(o: {
   /** The Sew tool picked (it also opens the seams and clears the selection). */
   onSew: () => void;
   garment: Garment | undefined;
-  selection: Selection;
-  /** The picked pieces were taken out. */
-  onRemoved: () => void;
+  /** Takes the picked pieces out; false if there are none. */
+  removePicked: () => boolean;
+  /** Copy and paste the picked pieces; false if there was nothing to do. */
+  copyPicked: () => boolean;
+  pastePicked: () => boolean;
+  duplicatePicked: () => boolean;
+  /** Flips the picked pieces in the flat view. */
+  flipPicked: (axis: "horizontal" | "vertical") => boolean;
+  /** Unpicks the picked pieces; false if there are none. */
+  clearPicked: () => boolean;
 }) {
   const {
     session,
     store,
     save,
-    showInfo,
     fileInput,
     show2d,
     show3d,
@@ -61,8 +66,12 @@ export function useShortcuts(o: {
     setFlatTool,
     onSew,
     garment,
-    selection,
-    onRemoved,
+    removePicked,
+    copyPicked,
+    pastePicked,
+    duplicatePicked,
+    flipPicked,
+    clearPicked,
   } = o;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -89,12 +98,48 @@ export function useShortcuts(o: {
         else store.undo();
         return;
       }
+      if (
+        mod &&
+        !typing &&
+        !e.shiftKey &&
+        (k === "c" || k === "v" || k === "d")
+      ) {
+        // Not over selected text on the page: that copy is the browser's.
+        if (k === "c" && window.getSelection()?.toString()) return;
+        const done =
+          k === "c"
+            ? copyPicked()
+            : k === "v"
+              ? pastePicked()
+              : duplicatePicked();
+        // Cmd-D bookmarks the page otherwise.
+        if (done || k === "d") e.preventDefault();
+        return;
+      }
       if (typing || mod || e.altKey) return;
       // The flat view's tools, one letter each.
       // Not under a dialog or menu, nor with nothing open.
       const over =
         e.target instanceof Element &&
         !!e.target.closest('[role="dialog"], [role="menu"], [role="listbox"]');
+      // Escape unpicks the pieces; the 2D tools that pick points or lines keep it for those.
+      if (
+        e.key === "Escape" &&
+        !over &&
+        !(
+          show2d &&
+          (flatTool === "points" || flatTool === "draw" || flatTool === "marks")
+        )
+      ) {
+        if (clearPicked()) e.preventDefault();
+        return;
+      }
+      // Shift-H and Shift-V flip the picked pieces in the flat view, as in Figma.
+      if (show2d && !over && e.shiftKey && (k === "h" || k === "v")) {
+        if (flipPicked(k === "h" ? "horizontal" : "vertical"))
+          e.preventDefault();
+        return;
+      }
       const tool =
         show2d && !over && !e.shiftKey && garment
           ? FLAT_TOOL_KEYS[k]
@@ -121,23 +166,8 @@ export function useShortcuts(o: {
           (flatTool === "points" || flatTool === "draw" || flatTool === "marks")
         )
       ) {
-        const g = garment;
-        const s = selection;
-        if (!g || !s) return;
+        if (!removePicked()) return;
         e.preventDefault();
-        const ids = [s.cutId, ...(s.also ?? [])].filter(
-          (id) => !!findCut(g, id),
-        );
-        let note: string | undefined;
-        const done = store.execute((x) => {
-          const cmd = removeCuts(x, g.id, ids);
-          note = cmd.note;
-          return cmd;
-        });
-        if (done) {
-          onRemoved();
-          if (note) showInfo(`${note}.`);
-        }
         return;
       }
       const c = session.state.controls;
@@ -153,7 +183,6 @@ export function useShortcuts(o: {
     session,
     store,
     save,
-    showInfo,
     fileInput,
     show2d,
     show3d,
@@ -162,7 +191,11 @@ export function useShortcuts(o: {
     setFlatTool,
     onSew,
     garment,
-    selection,
-    onRemoved,
+    removePicked,
+    copyPicked,
+    pastePicked,
+    duplicatePicked,
+    flipPicked,
+    clearPicked,
   ]);
 }
