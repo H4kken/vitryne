@@ -12,11 +12,11 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 - Layers and Seams: a **Pieces | Layers | Seams** switch at the top of the Pieces panel. Seams
   moves the list of seams and their suggestions out of the bottom of the pieces list.
-  Layers lists the pieces
-  outermost first, like layers in Figma: drag a piece (or Alt + arrow keys, or Move out and Move
-  in) to change what is outside what, and a piece placed on another is nested under it and moves
-  with it. Each shows how far out it starts, and the selected one can start further out. Fit to
-  the body again keeps that distance.
+  Layers lists the pieces outermost first, like layers in Figma, beside a rail that says which
+  way is outside: drag a piece, or use its up and down arrows (or Alt + arrow keys), to change
+  what is outside what. A piece placed on another is nested under it and moves with it. Each
+  shows how far out it starts, and the selected one can start further out. Fit to the body again
+  keeps that distance.
 - Sewing is easier to read: hovering a suggested seam picks its edges out in the flat view; the
   Sew tool highlights the free edge under the pointer and a header at the top of the flat view
   shows its length (the first edge stays there while you point at the second); the dot in the

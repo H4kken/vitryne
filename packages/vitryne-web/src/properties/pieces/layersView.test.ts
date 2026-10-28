@@ -65,7 +65,7 @@ describe("the Layers view", () => {
         stackRoots(g).find((r) => stackChildren(g, r).length)!,
       ),
     ).not.toEqual([]);
-    expect(html).toContain("Next to the body");
+    expect(html).toContain("Body");
   });
 
   it("shows how far out the engine says a cut starts, on cuts on the body", () => {
@@ -79,7 +79,7 @@ describe("the Layers view", () => {
     const [first, second] = stackRoots(g);
     const html = render(first!);
     expect(html).toContain("Start further out");
-    expect(html).toContain("Move out");
+    expect(html).toContain('aria-label="Move out"');
     expect(html.match(/aria-pressed="true"/g)).toHaveLength(1);
     expect(render(null)).not.toContain("Start further out");
     // A cut placed on another has a lift, not an offset, and cannot be stepped.
@@ -89,7 +89,10 @@ describe("the Layers view", () => {
     )[0]!;
     const onPocket = render(pocket);
     expect(onPocket).toContain("Lifted off it");
-    expect(onPocket).not.toContain("Move out");
+    // Only the cuts on the body have arrows (one pair each), never the one placed on another.
+    expect(onPocket.match(/aria-label="Move out"/g)).toHaveLength(
+      stackRoots(g).length,
+    );
     expect(second).toBeDefined();
   });
 });

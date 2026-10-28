@@ -20,6 +20,7 @@ import {
 } from "@/placement/stackOrder";
 import { cutName } from "../cutName";
 import { LayerControls } from "./LayerControls";
+import { DirectionRail } from "./DirectionRail";
 import { LayerRow } from "./LayerRow";
 import { whereLabel } from "./whereLabel";
 
@@ -79,7 +80,15 @@ export function LayersView(props: {
             props.onSelect({ kind: "cut", pieceId: piece.id, cutId: id })
           }
           onHover={(on) => props.onHover(on ? id : null)}
-          onStep={(dir) => step(id, dir)}
+          step={
+            root
+              ? {
+                  out: moves(g, id, stepPlace(g, id, 1)),
+                  in: moves(g, id, stepPlace(g, id, -1)),
+                  onStep: (dir) => step(id, dir),
+                }
+              : undefined
+          }
           drag={
             root
               ? {
@@ -106,23 +115,9 @@ export function LayersView(props: {
                 }
               : undefined
           }
-        />
-        {selected && (
-          <LayerControls
-            store={store}
-            garment={g}
-            cut={cut}
-            step={
-              root
-                ? {
-                    out: moves(g, id, stepPlace(g, id, 1)),
-                    in: moves(g, id, stepPlace(g, id, -1)),
-                    onStep: (dir) => step(id, dir),
-                  }
-                : undefined
-            }
-          />
-        )}
+        >
+          {selected && <LayerControls store={store} garment={g} cut={cut} />}
+        </LayerRow>
         {stackChildren(g, id).length > 0 && (
           <ul className="m-0 flex list-none flex-col gap-1 p-0 pt-1">
             {stackChildren(g, id)
@@ -137,19 +132,21 @@ export function LayersView(props: {
   return (
     <div className="flex flex-col gap-3">
       <PanelIntro>
-        Outermost on top. Drag a piece to change what is outside what. A piece
-        placed on another moves with it.
+        Outermost on top. Drag a piece, or use its arrows, to change what is
+        outside what. A piece placed on another moves with it.
       </PanelIntro>
-      <ul
-        aria-label="Pieces from the outside in"
-        className="m-0 flex list-none flex-col gap-1 p-0"
-        onPointerLeave={() => props.onHover(null)}
-      >
-        {stackRoots(g)
-          .reverse()
-          .map((id) => cutItem(id, 0))}
-      </ul>
-      <p className="text-faint m-0 text-center text-xs">Next to the body</p>
+      <div className="grid grid-cols-[22px_1fr] gap-1.5">
+        <DirectionRail />
+        <ul
+          aria-label="Pieces from the outside in"
+          className="m-0 flex list-none flex-col gap-1 p-0"
+          onPointerLeave={() => props.onHover(null)}
+        >
+          {stackRoots(g)
+            .reverse()
+            .map((id) => cutItem(id, 0))}
+        </ul>
+      </div>
     </div>
   );
 }

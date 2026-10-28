@@ -228,7 +228,7 @@ again" keeps the cut's offset.
 **The Layers view** is the second view of the Pieces panel (a Pieces | Layers | Seams switch at
 its top; the plain list stays the first view, the sewn list the third, and the choice stays while other panels are open). It lists
 the stack outermost first (`placement/stackOrder.ts`: the cuts wrapped on the body, each with the
-cuts placed on it nested under it). A drop or an Alt + arrow becomes `moveInStack`; the selected
+cuts placed on it nested under it). A drop, a row's up and down arrows or an Alt + arrow become `moveInStack`; the selected
 row's field is `setOffset`. How far out each cut starts comes from Rust with the drape
 (`PreparedInfo.starts_out_mm`, from `Placer::starts_out`), so the editor never works out
 distances itself. Not there yet: the section drawing of the overlapping cuts that the mock-up
