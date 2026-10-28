@@ -250,9 +250,9 @@ export function CutDetails(props: {
               onDragEnd={() => store.endGesture()}
             />
             <NumberField
-              label="Distance from the body"
+              label="Distance"
               unit="mm"
-              ends={["Closer", "Further"]}
+              ends={["Closer to the body", "Further out"]}
               value={p.radius ?? 0}
               min={20}
               max={400}
