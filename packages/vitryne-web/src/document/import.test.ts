@@ -65,6 +65,17 @@ const skirtVal = `<?xml version="1.0" encoding="UTF-8"?>
 const skirtVit = `<?xml version="1.0" encoding="UTF-8"?>
 <vit><version>0.6.2</version><read-only>false</read-only><unit>cm</unit><pm_system></pm_system>
 <personal/><body-measurements><m name="hip_circ" value="100"/></body-measurements></vit>`;
+/** The same skirt as Seamly2D writes it: its own names, and a .smis for the measurements. */
+const skirtSm2d = skirtVal
+  .replace("0.9.2", "0.6.8")
+  .replace("skirt.vit", "skirt.smis")
+  .replace('<draw name="Skirt">', '<draftBlock name="Skirt">')
+  .replace("</draw>", "</draftBlock>")
+  .replace("<details>", "<pieces>")
+  .replace("</details>", "</pieces>")
+  .replace("<detail ", "<piece ")
+  .replace("</detail>", "</piece>");
+const skirtSmis = skirtVit.replace(/vit>/g, "smis>").replace("0.6.2", "0.3.4");
 const avatar = () => {
   const { file, entities } = openExample("tshirt");
   file.free();
@@ -113,6 +124,33 @@ describe("import", () => {
     expect(g.pieces[0]!.outline.some((n) => n.edge?.type === "cubic")).toBe(
       true,
     );
+    f.free();
+  });
+
+  it("reads a Seamly2D pattern with its .smis the same way", () => {
+    expect(JSON.parse(wasm.VtryFile.pattern_needs(skirtSm2d))).toEqual({
+      measurements: "skirt.smis",
+    });
+    const source = importSource(
+      { name: "skirt.sm2d", text: skirtSm2d },
+      { name: "mine.smis", text: skirtSmis },
+      null,
+    );
+    const p = JSON.parse(wasm.VtryFile.inspect_import(source)) as Preview;
+    expect(p.pieces.map((x) => x.name)).toEqual(["Skirt front"]);
+    expect(Math.max(...p.pieces[0]!.outline.map((q) => q[0]))).toBe(250);
+    const glb = readFileSync(
+      resolve(repo, "packages/vitryne-web/public/avatar/body.glb"),
+    );
+    const f = wasm.VtryFile.import_new(
+      source,
+      JSON.stringify(suggested(p)),
+      glb,
+      Date.now(),
+      seed,
+    );
+    const g = mainGarment(parseEntities(f.entities()))!;
+    expect(g.sources![0]!.type).toBe("seamly2d");
     f.free();
   });
 

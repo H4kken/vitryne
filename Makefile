@@ -131,7 +131,7 @@ syntax: ## node --check / bash -n on the tools', cloud's and web's scripts
 	git ls-files -z '$(CLOUD)/deploy/*.sh' | xargs -0 -n 1 bash -n
 	echo ok
 
-drafting-corpus: ## Import Valentina's own pattern collection (fetched into target/): pieces made and refused
+drafting-corpus: ## Import Valentina's and Seamly2D's own pattern collections (fetched into target/): pieces made and refused
 	tools/drafting/corpus.sh
 
 examples: ## Rebuild assets/examples/ from the sidecars (commit the result)

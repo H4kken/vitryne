@@ -8,6 +8,12 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+### Added
+
+- Import Seamly2D patterns (`.sm2d`) with their measurements (`.smis`, `.smms`, or the `.vit`/`.vst`
+  they name), like Valentina's. Also `vitryne convert pattern.sm2d out.vtry --measurements m.smis`.
+  Pieces that use the union tool are left out, as in Valentina.
+
 ### Changed
 
 - Escape unpicks the picked pieces.

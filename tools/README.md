@@ -12,7 +12,7 @@ which git ignores.
 | [strain.py](bench/strain.py) | Edge-strain tables from drape and drag JSON (`--regions --groups --seams --hotspots`). |
 | [format/validate.py](format/validate.py) | Checks a Vitryne file (`.vtry` zip or folder) against `docs/format/schema/` and the reference rules of [docs/FORMAT.md](../docs/FORMAT.md). Needs `pip install jsonschema`. |
 | [format/build-examples.sh](format/build-examples.sh) | Regenerates `assets/examples/*.vtry` (folder form) from the sample garments' sidecars with `vitryne convert`, writes the zips to `bench-out/examples/`, and validates both forms. Run it after changing the converter or a sidecar; `make check` fails until you do. |
-| [drafting/corpus.sh](drafting/corpus.sh) | Fetches Valentina's own pattern collection (GPL-3.0, into `packages/vitryne-engine/target/`, never committed) and imports every pattern with its measurements: pieces made and refused, with reasons. `make valentina-corpus`. |
+| [drafting/corpus.sh](drafting/corpus.sh) | Fetches Valentina's and Seamly2D's own pattern collections (GPL-3.0, into `packages/vitryne-engine/target/`, never committed) and imports every pattern with its measurements: pieces made and refused, with reasons. `make valentina-corpus`. |
 | [patterns/](patterns/) | Measures the avatar and drafts the sample garments with FreeSewing into DXF-AAMA (`cd tools/patterns && pnpm install && ./export-all.sh`). |
 
 ## Examples

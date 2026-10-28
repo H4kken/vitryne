@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The measurements a Valentina pattern was drafted with: its points are formulas over them,
-// kept in a separate file (.vit for one person, .vst for a size chart) that the pattern names.
+// kept in a separate file (.vit or .smis for one person, .vst or .smms for a size chart) that the pattern names.
 // The import asks for that file by name, and offers a size chart's sizes.
 
 import { useRef } from "react";
@@ -30,7 +30,7 @@ export function MeasurementsBox(props: {
       <input
         ref={input}
         type="file"
-        accept=".vit,.vst"
+        accept=".vit,.vst,.smis,.smms"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];

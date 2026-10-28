@@ -8,7 +8,7 @@ import type { TextFile } from "./ImportDialog";
 export type ImportSource =
   | { kind: "dxf"; name: string; text: string; sidecar?: string }
   | {
-      kind: "valentina";
+      kind: "drafted";
       name: string;
       text: string;
       measurements?: string;
@@ -20,17 +20,19 @@ export type PatternKind = ImportSource["kind"];
 /** A pattern file's kind, from its name; null if it isn't one. */
 export function patternKind(name: string): PatternKind | null {
   if (/\.dxf$/i.test(name)) return "dxf";
-  if (/\.val$/i.test(name)) return "valentina";
+  if (/\.(val|sm2d)$/i.test(name)) return "drafted";
   return null;
 }
 
 /** The files that can come with a pattern of this kind. */
 export function companionAccept(kind: PatternKind): string {
-  return kind === "dxf" ? ".toml" : ".vit,.vst";
+  return kind === "dxf" ? ".toml" : ".vit,.vst,.smis,.smms";
 }
 
 export function isCompanion(kind: PatternKind, name: string): boolean {
-  return kind === "dxf" ? /\.toml$/i.test(name) : /\.(vit|vst)$/i.test(name);
+  return kind === "dxf"
+    ? /\.toml$/i.test(name)
+    : /\.(vit|vst|smis|smms)$/i.test(name);
 }
 
 /** The source as the worker takes it (JSON). */

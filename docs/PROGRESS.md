@@ -1301,7 +1301,7 @@ what Vitryne adds. Feature 1 of 2 (Seamly2D's `.sm2d` is next; it shares this co
 | Tools | `valentina::{xml, geom, tools}`: the file's layout, and every drafting tool run in order in the app's units (96 dpi px, y down) so its tolerances hold: all point tools, splines and paths (old and current forms), Bézier curves and paths, arcs, cuts and intersections with their halves, rotation/flip/move, modeling copies; the values formulas see (`Line_`, `AngleLine_` through the lines tools register, curve lengths and angles, `_Seg_N`, `CurrentLength`). A failing tool marks only what depends on it. |
 | Pieces | `valentina::pieces`: paths to outlines (curves trimmed between neighbours, `cubic` edges, 15° corners, passmark notches, lines, grain, mirror line unfolded); slits closed and small self-crossings trimmed with a warning; anything else not a simple polygon refused with the reason. `import::PatternImport` (was `DxfImport`) takes a DXF or a Valentina pattern; `vitryne convert x.val`. |
 | Editor | `ImportSource` through wasm and the worker; the dialog asks for the measurements file the pattern names, offers a size chart's sizes; `.val/.vit/.vst` accepted. |
-| Docs | This entry, ARCHITECTURE (Import), FORMAT (Interop), PATENTS (no rule touched), the docs site's Imports page, `tools/valentina/corpus.sh` (`make valentina-corpus`). |
+| Docs | This entry, ARCHITECTURE (Import), FORMAT (Interop), PATENTS (no rule touched), the docs site's Imports page, `tools/valentina/corpus.sh` (`make valentina-corpus`; since M16 `tools/drafting/corpus.sh`, `make drafting-corpus`). |
 
 ### Numbers
 
@@ -1333,4 +1333,37 @@ measurements file it names at its base size):
     real Chrome needs the local stack (`make dev ARGS=--local`, Docker), which wasn't running.
 - Not supported yet: the union-details tool, elliptical arcs, Valentina 1.x parallel and
   graduated curves; labels, seam allowances and layout data are not imported (by design).
-- Feature 2: Seamly2D (`.sm2d` with `.smis`/`.smms`).
+- Feature 2: Seamly2D, below (M16).
+
+## M16 — Import Seamly2D patterns (2026-10-28, waiting for review)
+
+Why: feature 2 of 2 from M15. Seamly2D forked from Valentina in 2017 and writes the same kind of
+file, so the work is a dialect, not a second importer. Branch `feature/seamly2d-import`:
+
+| Step | What |
+|---|---|
+| Rename | `valentina` → `drafting` (module, corpus test, `tools/drafting/`, `make drafting-corpus`): it reads both apps. `ImportSource::Valentina` → `Drafted` (the old `"valentina"` kind still deserializes); stored `sources[].type` stays `valentina`, and is `seamly2d` for a `.sm2d`. |
+| Reader | `drafting::xml::Dialect::Seamly`, chosen by content (a `<draftBlock>`), because both apps write a `<pattern>` root and Seamly2D's files up to format 0.4 are Valentina's own layout: `draftBlock`, `pieces`/`piece`, `variables`. `.smis`/`.smms` are `.vit`/`.vst` under new roots, not held to Valentina's 0.4 floor. The `intersectXY` tool is Valentina's `pointOfIntersection`. |
+| Plumbing | `vitryne convert x.sm2d`; the editor's import accepts `.sm2d`, `.smis`, `.smms`; vitest reads a Seamly skirt through the wasm. |
+| Docs | This entry, ARCHITECTURE (Import), FORMAT (Interop), the Imports page, CHANGELOG. |
+
+### Numbers
+
+`make drafting-corpus`, Seamly2D at `0c17d20b` (patterns with the measurements file each names,
+base size; Seamly's deliberately invalid test inputs and one empty file skipped):
+
+- Shipped samples (`src/app/share`): 8 patterns, **63 pieces made, 3 refused**: the union tool (2
+  pieces, jacket4) and one outline that crosses itself (jacket2).
+- Test collection (`src/test/CollectionTest`): 40 patterns, **145 made, 10 refused**: union tool
+  (3), outlines that cross themselves (6, the same files as in Valentina's corpus), one test
+  input whose formula is an assignment (`max=0`).
+- Valentina's collection is unchanged: 78 patterns, 214 made, 11 refused.
+- Converted by eye: the shipped male shirt (8 pieces placed, valid project).
+
+### Open items
+
+- **Your review**; and Seamly2D itself as the reference (export a sample as DXF-AAMA and compare
+  within 0.1 mm) is still not done, as for Valentina.
+- Not supported: the union tool, elliptical arcs, Seamly2D formulas that are assignments, anything
+  newer than format 0.7.4 (best effort).
+

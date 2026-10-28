@@ -83,7 +83,7 @@ export function StartScreen(props: {
               Drop to import
             </span>
             <span className="text-muted-foreground text-base">
-              A DXF or Valentina pattern, or a .vtry project
+              A DXF, Valentina or Seamly2D pattern, or a .vtry project
             </span>
           </div>
         </div>
@@ -141,8 +141,8 @@ export function StartScreen(props: {
                 Import a file
               </span>
               <span className="text-muted-foreground text-sm">
-                Drop a file here or click to browse. DXF or Valentina pattern,
-                or a .vtry project
+                Drop a file here or click to browse. DXF, Valentina or Seamly2D
+                pattern, or a .vtry project
               </span>
             </span>
           </button>
