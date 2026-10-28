@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from "vitest";
+import type { Cut } from "@/format/schema.gen";
 import { newPiece, shapeOutline } from "@/pattern/draw";
 import { clonePiece } from "./clonePiece";
 
@@ -16,7 +17,7 @@ describe("clonePiece", () => {
     });
     const copy = clonePiece(
       piece,
-      { ...piece.cuts[1], fabric: "f" },
+      { ...(piece.cuts[1] as Cut), fabric: "f" },
       {
         id,
         name: "Panel copy",
