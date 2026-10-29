@@ -11,10 +11,13 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 ### Added
 
 - A privacy policy and terms of service for vitryne.app in the documentation (*Legal*), linked from
-  the help menu and the Cloud dialog.
+  the help menu and the account dialog.
 
 ### Changed
 
+- The account dialog is rebuilt: email first (Google or an address, then the password), one screen to
+  create an account or sign in, the terms and privacy line shown once an email is typed, a clearer
+  account page, and *Check your email* with a resend. The top-bar button says *Sign in* until you have an account.
 - The web image no longer serves a `/privacy.html` template. Whoever runs an instance publishes
   their own policy and terms and sets `PRIVACY_POLICY_URL` and `TERMS_URL`; with none set, the
   editor shows no link.

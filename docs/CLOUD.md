@@ -202,6 +202,10 @@ with their draft.
 
 **Email and password, or Google.**
 
+- **Email first, like most sign-in screens:** Google or an email address, then the password on a
+  second screen. The editor never looks up whether an address has an account (that would tell
+  anyone which emails are registered), so the person picks *Create account* or *Sign in*; creating
+  with an address that has one moves to signing in.
 - **Create an account:** email and password (8 characters or more), both given to the current
   user (anonymous, or a new anonymous one) at once (`updateUser({ email, password })`). Auth
   emails a **link** that confirms the address; until it is opened the user stays anonymous and
@@ -314,7 +318,8 @@ for 29 days and an idle account.
 ## Privacy
 
 - **Network:** the app and its assets (`config.json` included), and the backend only when the
-  person saves, opens or signs in. Never telemetry. Opening an example without changing it sends
+  person saves, opens or signs in (a Google account's picture is loaded from Google when the account
+  dialog opens, without a referrer). Never telemetry. Opening an example without changing it sends
   nothing.
 - **Without an account:** an anonymous user (an id, no email) and their draft, deleted 30 days
   after their last visit. The privacy page says so.

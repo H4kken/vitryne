@@ -79,10 +79,25 @@ interface Row {
   thumbnail: string | null;
 }
 
+/** The picture Google shares, only if it is an https address. A user linked to Google from an anonymous one has it on the identity, not in `user_metadata`. */
+const avatarOf = (u: User): string | null => {
+  const sources = [
+    u.user_metadata,
+    ...(u.identities ?? [])
+      .filter((i) => i.provider === "google")
+      .map((i) => i.identity_data),
+  ] as ({ avatar_url?: unknown; picture?: unknown } | null | undefined)[];
+  for (const m of sources) {
+    const v = m?.avatar_url ?? m?.picture;
+    if (typeof v === "string" && v.startsWith("https://")) return v;
+  }
+  return null;
+};
 const toUser = (u: User): CloudUser => ({
   id: u.id,
   email: u.email || null,
   anonymous: u.is_anonymous ?? !u.email,
+  avatarUrl: avatarOf(u),
 });
 const summary = (r: Row): ProjectSummary => ({
   id: r.id,

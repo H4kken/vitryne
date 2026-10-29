@@ -6,13 +6,11 @@
 // reset by a link too: the editor it opens asks for the new one.
 
 import { useEffect, useState } from "react";
-import { Cloud as CloudIcon, ExternalLink, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -23,20 +21,20 @@ import type { SupabaseBackend } from "./supabase";
 import { deleteAccount, exportAll, moveProjects } from "./projects";
 import type { Cloud } from "./useCloud";
 import { errorMessage } from "./errorMessage";
-import { GoogleIcon } from "./GoogleIcon";
-import { formatBytes } from "./formatBytes";
+import { AccountPanel } from "./AccountPanel";
+import { AuthPanel, type AuthMode, type AuthStage } from "./AuthPanel";
+import { CheckEmailPanel } from "./CheckEmailPanel";
+import { DeletePanel } from "./DeletePanel";
+import { MIN_PASSWORD, PasswordField } from "./PasswordField";
 
+/** Where the dialog is. Creating an account and signing in are `home` (`AuthPanel`'s mode and stage). */
 type Step =
   | { at: "home" }
-  | { at: "sign-in"; email?: string; moving?: boolean }
-  | { at: "create" }
   | { at: "confirm"; email: string }
-  | { at: "reset"; email?: string }
+  | { at: "reset" }
   | { at: "reset-sent"; email: string }
   | { at: "new-password" }
   | { at: "delete" };
-
-const MIN_PASSWORD = 8;
 
 function save(name: string, bytes: ArrayBuffer, type: string) {
   const url = URL.createObjectURL(new Blob([bytes], { type }));
@@ -70,9 +68,12 @@ export function AccountDialog(props: {
 }) {
   const { cloud } = props;
   const user = cloud.user;
-  const [step, setStep] = useState<Step>(
+  const [rawStep, setStep] = useState<Step>(
     props.recovering ? { at: "new-password" } : { at: "home" },
   );
+  const [mode, setMode] = useState<AuthMode>("create");
+  const [stage, setStage] = useState<AuthStage>("email");
+  const [moving, setMoving] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [working, setWorking] = useState<string | null>(null);
@@ -87,8 +88,9 @@ export function AccountDialog(props: {
 
   const { backend } = cloud;
   // The link was opened (here or anywhere): the user is an account now.
-  const confirmed = step.at === "confirm" && !!user && !user.anonymous;
-  const confirmedEmail = step.at === "confirm" ? step.email : "";
+  const confirmed = rawStep.at === "confirm" && !!user && !user.anonymous;
+  const confirmedEmail = rawStep.at === "confirm" ? rawStep.email : "";
+  const step: Step = confirmed ? { at: "home" } : rawStep;
   const { onInfo } = props;
   const { refresh } = cloud;
   useEffect(() => {
@@ -97,9 +99,6 @@ export function AccountDialog(props: {
     onInfo(
       `Account created. Sign in with ${confirmedEmail} on any device to open your projects.`,
     );
-    setError(null);
-    setPassword("");
-    setStep({ at: "home" });
   }, [confirmed, confirmedEmail, refresh, onInfo]);
   useEffect(() => {
     if (user)
@@ -193,421 +192,237 @@ export function AccountDialog(props: {
       props.onOpenChange(false);
     });
 
-  const googleButton = (signIn: boolean) =>
-    google && (
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => props.onGoogle(signIn)}
-      >
-        <GoogleIcon /> Continue with Google
-      </Button>
-    );
+  /** The sign-in form for `email` (a reset was sent, the account was taken). */
+  const toSignIn = (moved = false) => {
+    setMode("in");
+    setStage("password");
+    setMoving(moved);
+    go({ at: "home" });
+  };
 
-  const emailField = (
-    <>
-      <Label htmlFor="cloud-email">Email</Label>
-      <Input
-        id="cloud-email"
-        type="email"
-        required
-        autoComplete="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        autoFocus
-      />
-    </>
-  );
-  const passwordField = (id: string, label: string, autoComplete: string) => (
-    <>
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type="password"
-        required
-        minLength={autoComplete === "new-password" ? MIN_PASSWORD : undefined}
-        autoComplete={autoComplete}
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-    </>
-  );
-  const footer = (back: Step, submit: string, disabled: boolean) => (
-    <DialogFooter>
-      <Button type="button" variant="ghost" onClick={() => go(back)}>
-        Back
-      </Button>
-      <Button type="submit" disabled={!!working || disabled}>
-        {working ?? submit}
-      </Button>
-    </DialogFooter>
-  );
-  const form = (onSubmit: () => void, children: React.ReactNode) => (
-    <form
-      className="flex flex-col gap-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit();
-      }}
-    >
-      {children}
-    </form>
-  );
-
+  let title = "Get started for free";
   let body: React.ReactNode;
-  if (step.at === "sign-in")
-    body = form(
-      () =>
-        void signingIn("Signing in", (b) => b.signIn(email.trim(), password)),
-      <>
-        {step.moving && (
-          <p className="m-0 text-[15px]">
-            This email already has an account. Sign in to it: the projects saved
-            from this browser move to it.
-          </p>
-        )}
-        {emailField}
-        {passwordField("cloud-password", "Password", "current-password")}
-        <button
-          type="button"
-          className="self-start text-sm underline underline-offset-4"
-          onClick={() => go({ at: "reset", email })}
-        >
-          Forgot your password?
-        </button>
-        {footer({ at: "home" }, "Sign in", !email.trim() || !password)}
-      </>,
-    );
-  else if (step.at === "create")
-    body = form(
-      () =>
-        void run("Creating the account", async () => {
-          const to = email.trim();
-          const b = await cloud.backend();
-          const r = await b.createAccount(to, password);
-          setPassword("");
-          setStep(
-            r === "taken"
-              ? { at: "sign-in", moving: true }
-              : { at: "confirm", email: to },
-          );
-        }),
-      <>
-        {emailField}
-        {passwordField(
-          "cloud-password",
-          `Password (${MIN_PASSWORD} characters or more)`,
-          "new-password",
-        )}
-        <p className="text-muted-foreground m-0 text-[13px]">
-          We'll email you a link to confirm the address.
-        </p>
-        {footer(
-          { at: "home" },
-          "Create the account",
-          !email.trim() || password.length < MIN_PASSWORD,
-        )}
-      </>,
-    );
-  else if (step.at === "confirm")
+  if (step.at === "confirm") {
+    title = "Check your email";
     body = (
-      <div className="flex flex-col gap-3 text-[15px]">
-        <p className="m-0 flex items-center gap-2 font-semibold">
-          <MailCheck className="size-5" /> Check your email
-        </p>
-        <p className="m-0">
-          We sent a link to <strong>{step.email}</strong>. Open it to confirm
-          the address and finish creating your account. You can keep working
-          here: this window notices once it's done.
-        </p>
-        <p className="text-muted-foreground m-0 text-[13px]">
-          Nothing arrived? Check your spam folder, or{" "}
-          <button
-            type="button"
-            className="underline underline-offset-4"
-            disabled={!!working}
-            onClick={() =>
-              void run("Sending", async () => {
-                await (await cloud.backend()).resendConfirmation(step.email);
-                props.onInfo(`We sent the link to ${step.email} again.`);
-              })
-            }
-          >
-            send it again
-          </button>
-          .
-        </p>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => go({ at: "create" })}
-          >
-            Use another email
-          </Button>
-        </DialogFooter>
-      </div>
+      <CheckEmailPanel
+        email={step.email}
+        working={!!working}
+        onResend={() =>
+          void run("Sending", async () => {
+            await (await cloud.backend()).resendConfirmation(step.email);
+            props.onInfo(`We sent the link to ${step.email} again.`);
+          })
+        }
+        backLabel="Use another email"
+        onBack={() => {
+          setMode("create");
+          setStage("email");
+          go({ at: "home" });
+        }}
+      >
+        We sent a link to <strong>{step.email}</strong>. Open it to confirm the
+        address and finish creating your account. You can keep working here:
+        this window notices once it's done.
+      </CheckEmailPanel>
     );
-  else if (step.at === "reset")
-    body = form(
-      () =>
-        void run("Sending the link", async () => {
-          const to = email.trim();
-          await (await cloud.backend()).sendPasswordReset(to);
-          setStep({ at: "reset-sent", email: to });
-        }),
-      <>
-        {emailField}
+  } else if (step.at === "reset") {
+    title = "Reset your password";
+    body = (
+      <form
+        className="flex flex-col gap-4 text-[15px]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void run("Sending the link", async () => {
+            const to = email.trim();
+            await (await cloud.backend()).sendPasswordReset(to);
+            setStep({ at: "reset-sent", email: to });
+          });
+        }}
+      >
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="cloud-email">Email</Label>
+          <Input
+            id="cloud-email"
+            type="email"
+            className="h-11 rounded-xl"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+          />
+        </div>
         <p className="text-muted-foreground m-0 text-[13px]">
           We'll email you a link to choose a new password.
         </p>
-        {footer({ at: "sign-in" }, "Send the link", !email.trim())}
-      </>,
+        <Button type="submit" disabled={!!working || !email.trim()}>
+          {working ?? "Send the link"}
+        </Button>
+        <Button type="button" variant="ghost" onClick={() => toSignIn()}>
+          Back to sign in
+        </Button>
+      </form>
     );
-  else if (step.at === "reset-sent")
+  } else if (step.at === "reset-sent") {
+    title = "Check your email";
     body = (
-      <div className="flex flex-col gap-3 text-[15px]">
-        <p className="m-0 flex items-center gap-2 font-semibold">
-          <MailCheck className="size-5" /> Check your email
-        </p>
-        <p className="m-0">
-          If <strong>{step.email}</strong> has an account, we sent it a link.
-          Open it to choose a new password: it opens Vitryne, signed in. Work
-          not saved yet stays in this window.
-        </p>
-        <p className="text-muted-foreground m-0 text-[13px]">
-          Nothing arrived? Check your spam folder, or{" "}
-          <button
-            type="button"
-            className="underline underline-offset-4"
-            disabled={!!working}
-            onClick={() =>
-              void run("Sending", async () => {
-                await (await cloud.backend()).sendPasswordReset(step.email);
-                props.onInfo(`We sent the link to ${step.email} again.`);
-              })
-            }
-          >
-            send it again
-          </button>
-          .
-        </p>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => go({ at: "sign-in", email: step.email })}
-          >
-            Back to sign in
-          </Button>
-        </DialogFooter>
-      </div>
+      <CheckEmailPanel
+        email={step.email}
+        working={!!working}
+        onResend={() =>
+          void run("Sending", async () => {
+            await (await cloud.backend()).sendPasswordReset(step.email);
+            props.onInfo(`We sent the link to ${step.email} again.`);
+          })
+        }
+        backLabel="Back to sign in"
+        onBack={() => toSignIn()}
+      >
+        If <strong>{step.email}</strong> has an account, we sent it a link. Open
+        it to choose a new password: it opens Vitryne, signed in. Work not saved
+        yet stays in this window.
+      </CheckEmailPanel>
     );
-  else if (step.at === "new-password")
-    body = form(
-      () =>
-        void signingIn(
-          "Saving",
-          async (b) => {
-            await b.setPassword(password);
-            props.onInfo("Your new password is saved.");
-          },
-          (b) => {
-            const from = b.recovery?.from ?? null;
-            b.recovery = null;
-            return from;
-          },
-        ),
-      <>
-        <p className="m-0 text-[15px]">
+  } else if (step.at === "new-password") {
+    title = "Choose a new password";
+    body = (
+      <form
+        className="flex flex-col gap-4 text-[15px]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void signingIn(
+            "Saving",
+            async (b) => {
+              await b.setPassword(password);
+              props.onInfo("Your new password is saved.");
+            },
+            (b) => {
+              const from = b.recovery?.from ?? null;
+              b.recovery = null;
+              return from;
+            },
+          );
+        }}
+      >
+        <p className="m-0">
           Choose a new password for <strong>{user?.email}</strong>.
         </p>
-        {passwordField(
-          "cloud-new-password",
-          `New password (${MIN_PASSWORD} characters or more)`,
-          "new-password",
-        )}
-        <DialogFooter>
-          <Button
-            type="submit"
-            disabled={!!working || password.length < MIN_PASSWORD}
-          >
-            {working ?? "Save the password"}
-          </Button>
-        </DialogFooter>
-      </>,
+        <PasswordField
+          id="cloud-new-password"
+          label={`New password (${MIN_PASSWORD} characters or more)`}
+          value={password}
+          onChange={setPassword}
+          autoComplete="new-password"
+          autoFocus
+        />
+        <Button
+          type="submit"
+          disabled={!!working || password.length < MIN_PASSWORD}
+        >
+          {working ?? "Save the password"}
+        </Button>
+      </form>
     );
-  else if (step.at === "delete")
+  } else if (step.at === "delete") {
+    title = "Delete your account?";
     body = (
-      <div className="flex flex-col gap-3 text-[15px]">
-        <p className="m-0">
-          This deletes your account and every project stored with it, for good.
-          Files you exported are not touched. Want a copy first?{" "}
-          <button
-            type="button"
-            className="underline"
-            onClick={() => void exportData()}
-          >
-            Download everything
-          </button>
-          .
-        </p>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => go({ at: "home" })}>
-            Keep my account
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={!!working}
-            onClick={() => void removeAccount()}
-          >
-            {working ?? "Delete everything"}
-          </Button>
-        </DialogFooter>
-      </div>
+      <DeletePanel
+        working={working}
+        onExport={() => void exportData()}
+        onKeep={() => go({ at: "home" })}
+        onDelete={() => void removeAccount()}
+      />
     );
-  else
+  } else if (user && !user.anonymous) {
+    title = "Your account";
     body = (
-      <div className="flex flex-col gap-4 text-[15px]">
-        {googleTaken && (
-          <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
-            <p className="m-0">
-              That Google account already has a Vitryne account. Sign in to it?
-              The projects saved from this browser move to it.
-            </p>
-            <div>
-              <Button onClick={() => props.onGoogle(true)}>
-                <GoogleIcon /> Sign in with Google
-              </Button>
-            </div>
-          </div>
-        )}
-        {props.reason && <p className="m-0 font-semibold">{props.reason}</p>}
-        {!user && (
-          <>
-            <p className="m-0">
-              Without an account you can try everything, and your work is kept
-              as one draft in this browser. A free account keeps all your
-              projects, opens them on any device, and exports them.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => go({ at: "sign-in" })}>Sign in</Button>
-              <Button variant="outline" onClick={() => go({ at: "create" })}>
-                Create an account
-              </Button>
-              {googleButton(false)}
-            </div>
-          </>
-        )}
-        {user?.anonymous && (
-          <>
-            <p className="m-0">
-              Your draft is kept in this browser for now (30 days after your
-              last visit). Create a free account to keep it for good, keep
-              several projects, open them on any device, and export them.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => go({ at: "create" })}>
-                Create an account
-              </Button>
-              {googleButton(false)}
-              <Button variant="ghost" onClick={() => go({ at: "sign-in" })}>
-                I have an account
-              </Button>
-            </div>
-          </>
-        )}
-        {user && !user.anonymous && (
-          <p className="m-0">
-            Signed in as <strong>{user.email}</strong>.
-          </p>
-        )}
-        {user && usage && (
-          <div className="flex flex-col gap-1.5">
-            <div className="h-2 overflow-hidden rounded-full bg-secondary">
-              <div
-                className="bg-primary h-full"
-                style={{
-                  width: `${Math.min(100, (100 * usage.usedBytes) / Math.max(1, usage.quotaBytes))}%`,
-                }}
-              />
-            </div>
-            <span className="text-muted-foreground text-[13px]">
-              {formatBytes(usage.usedBytes)} of {formatBytes(usage.quotaBytes)}{" "}
-              used · {usage.projects} project{usage.projects === 1 ? "" : "s"}
-            </span>
-          </div>
-        )}
-        {user && (
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-            <button
-              type="button"
-              className="underline underline-offset-4"
-              disabled={!!working}
-              onClick={() => void exportData()}
-            >
-              Download all my data
-            </button>
-            {!user.anonymous && (
-              <button
-                type="button"
-                className="underline underline-offset-4"
-                disabled={!!working}
-                onClick={() => void signOut()}
-              >
-                Sign out
-              </button>
-            )}
-            <button
-              type="button"
-              className="text-danger underline underline-offset-4"
-              onClick={() => go({ at: "delete" })}
-            >
-              Delete my account
-            </button>
-          </div>
-        )}
-        {working && (
-          <p className="text-muted-foreground m-0 text-sm">{working}…</p>
-        )}
-      </div>
+      <AccountPanel
+        email={user.email ?? ""}
+        avatarUrl={user.avatarUrl}
+        usage={usage}
+        working={working}
+        onExport={() => void exportData()}
+        onSignOut={() => void signOut()}
+        onDelete={() => go({ at: "delete" })}
+      />
     );
+  } else {
+    if (mode === "in") title = "Welcome back";
+    else if (props.reason || user?.anonymous) title = "Keep your work";
+    body = (
+      <AuthPanel
+        mode={mode}
+        stage={stage}
+        email={email}
+        password={password}
+        working={working}
+        google={google}
+        googleTaken={googleTaken}
+        moving={moving}
+        hasDraft={!!user?.anonymous}
+        privacyPolicy={cloud.config.privacyPolicy}
+        termsOfService={cloud.config.termsOfService}
+        onMode={(m) => {
+          setMode(m);
+          setMoving(false);
+          setError(null);
+        }}
+        onEmail={setEmail}
+        onPassword={setPassword}
+        onStage={(s) => {
+          setStage(s);
+          setMoving(false);
+          setError(null);
+          setPassword("");
+        }}
+        onGoogle={props.onGoogle}
+        onForgot={() => go({ at: "reset" })}
+        onSubmit={() =>
+          mode === "in"
+            ? void signingIn("Signing in", (b) =>
+                b.signIn(email.trim(), password),
+              )
+            : void run("Creating the account", async () => {
+                const to = email.trim();
+                const b = await cloud.backend();
+                const r = await b.createAccount(to, password);
+                setPassword("");
+                if (r === "taken") {
+                  setMode("in");
+                  setMoving(true);
+                } else setStep({ at: "confirm", email: to });
+              })
+        }
+      />
+    );
+  }
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className="max-w-[480px] rounded-[20px] p-6">
+      <DialogContent className="max-w-[440px] rounded-[20px] p-6">
         <DialogHeader>
-          <DialogTitle className="font-display flex items-center gap-2 text-2xl font-bold">
-            <CloudIcon className="size-6" /> Cloud
+          <DialogTitle className="font-display text-2xl font-bold">
+            {title}
           </DialogTitle>
-          <DialogDescription className="text-body-text text-[15px]">
-            Free.{" "}
-            {(
-              [
-                ["Privacy policy", cloud.config.privacyPolicy],
-                ["Terms", cloud.config.termsOfService],
-              ] as const
-            )
-              .flatMap(([label, href]) => (href ? [{ label, href }] : []))
-              .map(({ label, href }, i) => (
-                <span key={label}>
-                  {i > 0 && " · "}
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 underline underline-offset-4"
-                  >
-                    {label}
-                    <ExternalLink className="size-3.5" aria-hidden />
-                  </a>
-                </span>
-              ))}
+          <DialogDescription
+            className={
+              props.reason && step.at === "home"
+                ? "text-body-text text-[15px]"
+                : "sr-only"
+            }
+          >
+            {props.reason && step.at === "home"
+              ? props.reason
+              : "Your Vitryne account"}
           </DialogDescription>
         </DialogHeader>
         {body}
         {error && (
-          <p role="alert" className="m-0 text-sm text-danger">
+          <p
+            role="alert"
+            className="bg-danger-soft text-danger-soft-foreground m-0 rounded-xl px-3 py-2.5 text-sm"
+          >
             {error}
           </p>
         )}
