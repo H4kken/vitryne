@@ -8,6 +8,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-29
+
 ### Added
 
 - Import Seamly2D patterns (`.sm2d`) with their measurements (`.smis`, `.smms`, or the `.vit`/`.vst`
@@ -131,6 +133,7 @@ The first public beta.
   ([docs/CLOUD.md](docs/CLOUD.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
+[0.4.0]: https://github.com/H4kken/vitryne/releases/tag/v0.4.0
 [0.3.0]: https://github.com/H4kken/vitryne/releases/tag/v0.3.0
 [0.2.0]: https://github.com/H4kken/vitryne/releases/tag/v0.2.0
 [0.1.1]: https://github.com/H4kken/vitryne/releases/tag/v0.1.1
