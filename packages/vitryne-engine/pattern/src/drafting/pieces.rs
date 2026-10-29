@@ -24,7 +24,7 @@ use vitryne_format::{
 use super::{
     attr_f64, child, formula,
     geom::{self, Cubic, PX_PER_MM},
-    tools::{Curve, Draft},
+    tools::{Curve, Draft, Object},
 };
 
 /// A turn sharper than this makes a corner, degrees.
@@ -595,8 +595,47 @@ pub fn build(draft: &Draft, el: Node, modeling: &[Node]) -> Result<Shape, String
     // The format's own test: a simple counter-clockwise polygon, as meshed.
     let mut ids = IdGen::new(0, b"check");
     let source = ids.next_id();
-    vitryne_format::check_outline_shape(&shape.to_piece(&source, &mut ids).outline)?;
+    vitryne_format::check_outline_shape(&shape.to_piece(&source, &mut ids).outline)
+        .map_err(|e| name_places(&e, draft, lo))?;
     Ok(shape)
+}
+
+/// The format's refusals give places as `(x, y) mm`; where that is a point the pattern drafts
+/// (within 1 mm, in the piece's frame, `lo` its corner), say which: "point A12 (94.7, 535.0) mm".
+fn name_places(msg: &str, draft: &Draft, lo: DVec2) -> String {
+    let named = |q: DVec2| {
+        draft
+            .objects
+            .values()
+            .filter_map(|o| match o {
+                Object::Point(p) => Some((p, mm(p.p) - lo)),
+                Object::Curve(_) => None,
+            })
+            .map(|(p, at)| (at.distance(q), &p.name))
+            .filter(|(d, _)| *d < 1.0)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, n)| n.clone())
+    };
+    let (mut out, mut rest) = (String::new(), msg);
+    while let Some(i) = rest.find('(') {
+        out.push_str(&rest[..=i]);
+        rest = &rest[i + 1..];
+        // A `(x, y) mm` place; any other parenthesis is just text.
+        let Some((inner, after)) = rest.split_once(')') else {
+            break;
+        };
+        let at = inner
+            .split_once(", ")
+            .and_then(|(x, y)| Some(DVec2::new(x.parse().ok()?, y.parse().ok()?)))
+            .filter(|_| after.starts_with(" mm"));
+        let Some(n) = at.and_then(named) else {
+            continue;
+        };
+        // Label before the opening parenthesis already written.
+        out.pop();
+        out.push_str(&format!("point {n} ("));
+    }
+    out + rest
 }
 
 /// The grainline (mm, y up): from its bottom pin to its top pin, or at its angle through its
@@ -768,6 +807,30 @@ mod tests {
             <nodes><node type="NodePoint" idObject="99"/></nodes>
         </detail>
     </details></draw></pattern>"##;
+
+    /// A refusal's places say which drafted point they are, within a millimetre.
+    #[test]
+    fn refusals_name_the_points() {
+        let doc = Document::parse(SQUARE).unwrap();
+        let p = Pattern::read(&doc).unwrap();
+        let d = Draft::run(&p, HashMap::new());
+        let said = name_places(
+            "the outline crosses itself (near (100.0, 0.0) mm and (3.0, 4.0) mm)",
+            &d,
+            DVec2::ZERO,
+        );
+        assert_eq!(
+            said,
+            "the outline crosses itself (near point B (100.0, 0.0) mm and (3.0, 4.0) mm)"
+        );
+        // In the piece's own frame: its box's corner is at the origin.
+        let said = name_places(
+            "the outline folds back on itself at (0.4, 0.0) mm",
+            &d,
+            DVec2::new(99.6, 0.0),
+        );
+        assert!(said.contains("point B (0.4, 0.0) mm"), "{said}");
+    }
 
     #[test]
     fn outline_corners_notches_and_curves() {
