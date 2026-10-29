@@ -391,17 +391,27 @@ fn edges_cross(vs: &[Vertex], i: usize, j: usize) -> Option<(f64, f64, DVec2)> {
     None
 }
 
+/// What `split_pinches` took out of an outline.
+#[derive(Default)]
+struct Pinches {
+    /// Clockwise loops: holes in the cloth.
+    holes: Vec<Vec<Vertex>>,
+    /// Parts the same way round as the piece that touch it at a point: pieces of their own.
+    parts: Vec<Vec<Vertex>>,
+}
+
 /// An outline that visits one place twice is a pinch: it splits there into two loops. Drafters
 /// draw a dart or a cut-out as a loop joined to the edge by a zero-width cut, so the path goes up
 /// the cut, round the loop and back down it. Splits the outline at every repeat, innermost first,
 /// into its two loops: one with no area (the cut itself) is dropped, a clockwise one (a hole in
-/// the cloth) is returned to be kept as a line, and the outline is left alone when both come
-/// out the same way round (two parts, not a hole). Returns the holes.
-fn split_pinches(vs: &mut Vec<Vertex>) -> Vec<Vec<Vertex>> {
+/// the cloth) goes to `holes`, and where both come out the same way round they are two parts
+/// that touch at a point: the smaller goes to `parts` (if `allow_parts` and it doesn't lie over
+/// the rest). `vs` is left alone, and nothing returned, when it can't be taken apart so.
+fn split_pinches(vs: &mut Vec<Vertex>, allow_parts: bool) -> Pinches {
     let piece_area = area(&flat(vs, true)).abs();
     let tiny = (1e-4 * piece_area).max(1.0);
     let mut rest = vs.clone();
-    let mut holes = Vec::new();
+    let mut out = Pinches::default();
     loop {
         let n = rest.len();
         let pair = (0..n)
@@ -425,23 +435,73 @@ fn split_pinches(vs: &mut Vec<Vertex>) -> Vec<Vec<Vertex>> {
         } else if ao.abs() < tiny {
             rest = inner;
         } else if ai < 0.0 && ao > 0.0 {
-            holes.push(inner);
+            out.holes.push(inner);
             rest = outer;
         } else if ao < 0.0 && ai > 0.0 {
-            holes.push(outer);
+            out.holes.push(outer);
             rest = inner;
+        } else if allow_parts && ai > 0.0 && ao > 0.0 {
+            let (keep, part) = if ai >= ao {
+                (inner, outer)
+            } else {
+                (outer, inner)
+            };
+            out.parts.push(part);
+            rest = keep;
         } else {
-            return Vec::new();
+            return Pinches::default();
         }
         if rest.len() < 3 {
-            return Vec::new();
+            return Pinches::default();
         }
     }
     if rest.len() == vs.len() || area(&flat(&rest, true)) <= 0.0 {
-        return Vec::new();
+        return Pinches::default();
     }
+    // A part may itself be pinched (its own cuts and holes); the holes are the piece's too.
+    let mut all = Vec::new();
+    for mut part in std::mem::take(&mut out.parts) {
+        let inner = split_pinches(&mut part, true);
+        out.holes.extend(inner.holes);
+        all.push(part);
+        all.extend(inner.parts);
+    }
+    // Parts that lie over each other, or over the piece, aren't pieces: refuse them all.
+    let mut shapes: Vec<&Vec<Vertex>> = vec![&rest];
+    shapes.extend(&all);
+    for (k, a) in shapes.iter().enumerate() {
+        for b in &shapes[k + 1..] {
+            if lies_over(a, b) || lies_over(b, a) {
+                return Pinches::default();
+            }
+        }
+    }
+    out.parts = all;
     *vs = rest;
-    holes
+    out
+}
+
+/// Whether a node of `a` is inside `b` (not merely on its edge, where two parts touch).
+fn lies_over(a: &[Vertex], b: &[Vertex]) -> bool {
+    let poly = flat(b, true);
+    let on_edge = |q: DVec2| poly.iter().any(|p| p.distance(q) < 0.5);
+    a.iter().any(|v| {
+        if on_edge(v.p) {
+            return false;
+        }
+        // Even-odd: crossings of a ray towards +x.
+        let n = poly.len();
+        let mut inside = false;
+        for k in 0..n {
+            let (p, q) = (poly[k], poly[(k + 1) % n]);
+            if (p.y > v.p.y) != (q.y > v.p.y)
+                && v.p.x < p.x + (v.p.y - p.y) / (q.y - p.y) * (q.x - p.x)
+            {
+                inside = !inside;
+            }
+        }
+        inside
+    })
 }
 
 /// Cuts off small loops where the outline crosses itself over a few nodes (a line drawn a
@@ -523,7 +583,11 @@ fn unfold(vs: &[Vertex], a: usize) -> (Vec<Vertex>, usize, usize) {
 }
 
 /// Reads one piece.
-pub fn build(draft: &Draft, el: Node, modeling: &[Node]) -> Result<Shape, String> {
+fn build_one(
+    draft: &Draft,
+    el: Node,
+    modeling: &[Node],
+) -> Result<(Shape, DVec2, Vec<Vec<Vertex>>), String> {
     let name = el.attribute("name").unwrap_or("Piece").trim().to_string();
     let mut warnings = Vec::new();
     let nodes = path_nodes(el);
@@ -557,7 +621,7 @@ pub fn build(draft: &Draft, el: Node, modeling: &[Node]) -> Result<Shape, String
             "{name}: a small overlap where its outline crossed itself is trimmed"
         ));
     }
-    let holes = split_pinches(&mut outline);
+    let Pinches { holes, parts } = split_pinches(&mut outline, mirror.is_none());
     if !holes.is_empty() {
         warnings.push(format!(
             "{name}: {} cut-out(s), such as a dart drawn as a hole joined to the edge by a cut, are filled in; their outlines are kept as lines",
@@ -662,7 +726,59 @@ pub fn build(draft: &Draft, el: Node, modeling: &[Node]) -> Result<Shape, String
     let source = ids.next_id();
     vitryne_format::check_outline_shape(&shape.to_piece(&source, &mut ids).outline)
         .map_err(|e| name_places(&e, draft, lo))?;
-    Ok(shape)
+    Ok((shape, lo, parts))
+}
+
+/// Reads one piece of the file: usually one shape, but an outline that is two parts touching at
+/// a point (a panel cut in two by a wedge from the hem to an apex) is the pieces it is, named
+/// "name (1)", "name (2)" from left to right. Their lines and grainline stay with the first.
+pub fn build(draft: &Draft, el: Node, modeling: &[Node]) -> Result<Vec<Shape>, String> {
+    let (shape, lo, parts) = build_one(draft, el, modeling)?;
+    if parts.is_empty() {
+        return Ok(vec![shape]);
+    }
+    let name = shape.name.clone();
+    let mut all = vec![(lo.x, shape)];
+    for mut part in parts {
+        classify(&mut part, true);
+        let at = flat(&part, true)
+            .iter()
+            .fold(DVec2::splat(f64::MAX), |a, p| a.min(*p));
+        let shift = |p: DVec2| DVec2::new(round_mm(p.x - at.x), round_mm(p.y - at.y));
+        for v in &mut part {
+            v.p = shift(v.p);
+            if let Seg::Cubic(a, b) = v.edge {
+                v.edge = Seg::Cubic(shift(a), shift(b));
+            }
+        }
+        let mut ids = IdGen::new(0, b"check");
+        let source = ids.next_id();
+        let shape = Shape {
+            name: name.clone(),
+            quantity: all[0].1.quantity,
+            outline: part,
+            lines: Vec::new(),
+            fold: None,
+            grain: None,
+            warnings: Vec::new(),
+        };
+        vitryne_format::check_outline_shape(&shape.to_piece(&source, &mut ids).outline)
+            .map_err(|e| name_places(&e, draft, at))?;
+        all.push((at.x, shape));
+    }
+    all.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let n = all.len();
+    let mut out = Vec::new();
+    for (k, (_, mut s)) in all.into_iter().enumerate() {
+        s.name = format!("{name} ({})", k + 1);
+        if k == 0 {
+            s.warnings.push(format!(
+                "{name}: two parts that touch at a point are {n} pieces (its lines and grainline are with the first)"
+            ));
+        }
+        out.push(s);
+    }
+    Ok(out)
 }
 
 /// The format's refusals give places as `(x, y) mm`; where that is a point the pattern drafts
@@ -832,7 +948,7 @@ mod tests {
             .collect();
         p.pieces()
             .into_iter()
-            .map(|(_, el)| build(&d, el, &modeling))
+            .map(|(_, el)| build(&d, el, &modeling).map(|mut v| v.remove(0)))
             .collect()
     }
 
@@ -1021,7 +1137,8 @@ mod tests {
             v(50.0, 20.0),
         ];
         let mut vs = square(hole.clone());
-        let holes = split_pinches(&mut vs);
+        let Pinches { holes, parts } = split_pinches(&mut vs, true);
+        assert!(parts.is_empty());
         assert_eq!(vs.len(), 5, "{vs:?}");
         assert_eq!(holes.len(), 1);
         assert!(area(&flat(&vs, true)) > 9_000.0);
@@ -1035,12 +1152,43 @@ mod tests {
             v(50.0, 20.0),
         ]);
         let before = flipped.clone();
-        assert!(split_pinches(&mut flipped).is_empty());
+        let none = split_pinches(&mut flipped, true);
+        assert!(none.holes.is_empty() && none.parts.is_empty());
         assert_eq!(flipped, before);
         // Nothing repeated, nothing to do.
         let mut plain = vec![v(0.0, 0.0), v(100.0, 0.0), v(100.0, 100.0), v(0.0, 100.0)];
-        assert!(split_pinches(&mut plain).is_empty());
+        let none = split_pinches(&mut plain, true);
+        assert!(none.holes.is_empty() && none.parts.is_empty());
         assert_eq!(plain.len(), 4);
+    }
+
+    #[test]
+    fn two_parts_touching_at_a_point_are_two_pieces() {
+        let v = |x: f64, y: f64| Vertex {
+            p: DVec2::new(x, y),
+            kind: NodeType::Point,
+            notch: false,
+            edge: Seg::Line,
+        };
+        // Two 50 mm squares meeting at (50, 50), drawn as one outline through that point twice.
+        let outline = vec![
+            v(50.0, 50.0),
+            v(0.0, 50.0),
+            v(0.0, 0.0),
+            v(50.0, 0.0),
+            v(50.0, 50.0),
+            v(100.0, 50.0),
+            v(100.0, 100.0),
+            v(50.0, 100.0),
+        ];
+        let mut vs = outline.clone();
+        let p = split_pinches(&mut vs, true);
+        assert_eq!((vs.len(), p.parts.len(), p.holes.len()), (4, 1, 0));
+        assert_eq!(p.parts[0].len(), 4);
+        // With a mirror line the outline is one piece: left alone.
+        let mut vs = outline;
+        let p = split_pinches(&mut vs, false);
+        assert!(p.parts.is_empty() && vs.len() == 8);
     }
 
     #[test]

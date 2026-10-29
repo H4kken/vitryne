@@ -1363,17 +1363,21 @@ base size; Seamly's deliberately invalid test inputs and one empty file skipped)
 ### Known gaps (why pieces fail)
 
 Found by dumping and plotting each refused outline (2026-10-29). Counts are over both Seamly2D
-collections; Valentina's corpus hits the same causes (G1, G3, G5). After the fixes below, 10
-Seamly2D pieces and 9 of Valentina's remain refused.
+collections; Valentina's corpus hits the same causes (G1, G3). After the fixes below, 8
+Seamly2D pieces (3 + 5) and 7 of Valentina's remain refused.
 
 | # | Gap | Pieces | Why it fails | Kind |
 |---|---|---|---|---|
 | G1 | **Union tool** (`<tools type="union">`, `unionDetails`) | jacket4 ×2, steampunk trousers' Waist Back | The tool joins two pieces along one edge each (`indexD1`/`indexD2`). We don't run it. The refusal now says so ("the union tool (joining two pieces into one) is not supported"). | Missing feature |
-| G3 | **Outlines that really aren't simple polygons** | jacket2 Detail, moulage Detail, patron_blusa Detalle, gent_jacket Sivupalakainalo | Plotted: jacket2's is a bow-tie (two edges cross; the nodes are in the wrong order), the moulage piece is a fan of 7 spokes through one vertex, Detalle is a lens (a curve and a line between the same two points) and Sivupalakainalo has a node on top of another edge (0.06 to 0.09 mm). Refused, with the points named. **Decided: stay skipped.** | Pattern's own geometry |
+| G3 | **Outlines that really aren't simple polygons** | jacket2 Detail, patron_blusa Detalle, gent_jacket Sivupalakainalo | Plotted: jacket2's is a bow-tie (two edges cross; the nodes are in the wrong order), Detalle is a lens (a curve and a line between the same two points) and Sivupalakainalo has a node on top of another edge (0.06 to 0.09 mm). Refused, with the points named. **Decided: stay skipped.** | Pattern's own geometry |
 | G4 | **`angle1="max=0"`** | seamtest1 | A curve angle written as an assignment to a name that is also a function. Probably invalid in Seamly2D too (it is in its test folder), not confirmed. | Odd input, unconfirmed |
-| G5 | **Two parts joined at one point** | basic block women's FrontPanel1 (also Valentina's) | The outline passes twice through one apex (97, 815) and both halves are the same way round: the left and right halves of the panel touch at a single point. These are two pieces, which `build` (one piece in, one out) can't return yet. | Open design question |
 
-Fixed on the way: `intersectXY` (5 pieces); **G2**, the basic block women's BackPanel1 and 2
+Fixed on the way: `intersectXY` (5 pieces); **G5**, two parts joined at one point (the basic
+block women's FrontPanel1, left and right halves of a panel cut by a wedge from the hem to an
+apex; also the moulage armhole's "Detail", three quadrilaterals fanning from one vertex, which I
+had filed as broken): `build` now returns a list, and such an outline imports as "Name (1)",
+"Name (2)", ... from left to right, unless the parts lie over each other (then still refused) or
+the piece has a mirror line; lines and grainline stay with the first. **G2**, the basic block women's BackPanel1 and 2
 (Valentina's copy too): the waist darts are diamonds joined to the hem by a zero-width cut, so
 the outline went up the cut, round the diamond and back. `pieces::split_pinches` splits an
 outline at every place it visits twice, drops the cut (no area), keeps a clockwise loop (a hole
@@ -1392,16 +1396,16 @@ graduated curves.
    behaviour (not their code, GPL), how the second piece is moved onto the first (which edge
    pairs, which end goes first), then build the merged outline from the two pieces' paths.
    The reference is each app's own DXF export (the check M15 and M16 still owe).
-4. **G5**: let a pattern piece become several (`build` returning a list, names suffixed), or
-   keep refusing.
+4. ~~G5~~ done, as above.
 5. **G4**: read the app's formula parser behaviour for an assignment; if it is a real error
    there, nothing to do.
 
 ### Numbers after the fixes
 
-`make drafting-corpus`: Valentina 78 patterns, **216 made, 9 refused** (was 214 / 11); Seamly2D
-shipped samples 8 patterns, 63 / 3 (unchanged); Seamly2D test collection 40 patterns, **148
-made, 7 refused** (was 145 / 10).
+`make drafting-corpus`: Valentina 78 patterns, **221 made, 7 refused** (was 214 / 11); Seamly2D
+shipped samples 8 patterns, 63 / 3 (unchanged); Seamly2D test collection 40 patterns, **153
+made, 5 refused** (was 145 / 10). "Made" counts pieces, and a pattern piece that is two parts
+counts twice.
 
 ### Open items
 

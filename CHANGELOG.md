@@ -16,6 +16,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 - A pattern piece whose darts are drawn as holes joined to the edge by a cut now imports, with
   the darts filled in and kept as lines (before, it was left out as crossing itself). Pieces left
   out say which tool or points are the cause.
+- A pattern piece that is really two parts touching at one point (a panel cut in two by a wedge
+  from the hem to an apex) now imports as two pieces, "Name (1)" and "Name (2)".
 - Right-click menus in the flat and 3D views: on a piece, move it outwards or inwards, copy it or
   delete it; on empty canvas, paste, fit the pieces in view, draw a piece, import a pattern, or
   restart the drape.
