@@ -329,7 +329,7 @@ export class EngineSession {
     return reply;
   }
 
-  /** The measurements file a pattern needs (Rust `valentina::Needs`, JSON). */
+  /** The measurements file a pattern needs (Rust `drafting::Needs`, JSON). */
   async patternNeeds(text: string): Promise<string> {
     return (await this.need().request("patternNeeds", { text })).needs;
   }

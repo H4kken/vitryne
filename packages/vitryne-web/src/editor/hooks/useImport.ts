@@ -63,7 +63,7 @@ export function useImport(o: {
       files.showError(
         "Not imported",
         new Error(
-          "pick a pattern (DXF-AAMA .dxf, or Valentina .val with its .vit or .vst) or a Vitryne project (.vtry)",
+          "pick a pattern (DXF-AAMA .dxf, or Valentina .val or Seamly2D .sm2d with its measurements file) or a Vitryne project (.vtry)",
         ),
       );
       return;

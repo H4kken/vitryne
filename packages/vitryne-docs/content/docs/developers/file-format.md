@@ -453,7 +453,7 @@ side, write its runs the other way.
   **`collisionBounds`** `{min, max}` (mm, avatar space): the box the cloth can reach, where the
   body's collision field is built. Optional; when absent the engine derives one (see
   [In the engine](#in-the-engine)).
-- `sources[]`: imported originals (`id`, `type` such as `dxf-aama` or `valentina`, `fileName`, optional `part`
+- `sources[]`: imported originals (`id`, `type` such as `dxf-aama`, `valentina` or `seamly2d`, `fileName`, optional `part`
   if the original is kept in the container with role `source`). Pieces point back with
   `source: {source, piece}`. For reference and re-import only: nothing is read from a source when
   opening a file. **Originals stay in the user's own project and are left out of shared copies:**
@@ -740,14 +740,15 @@ Converters, not the format:
   ignored is reported at import and not stored. The original may be kept as a `source` part.
   The importer puts every point on the format's 0.001 mm grid, so an imported piece is exactly
   the piece a saved file holds.
-- **In: Valentina** (`.val` with its `.vit`/`.vst` measurements; `vitryne convert` and the
+- **In: Valentina and Seamly2D** (`.val` or `.sm2d` with its `.vit`/`.vst` or `.smis`/`.smms`
+  measurements; `vitryne convert` and the
   editor's import, placed as for DXF). The pattern's tools are worked out at a chosen size;
   each piece's path → outline in mm, CCW, its curves as `cubic` edges (a spline path's joints as
   `point` nodes), `corner` where it turns over 15°, passmarks as `notch` nodes; internal paths →
   `lines`; grainline → `grain`; mirror line → unfolded outline plus a `fold`; quantity → the
   default number of cuts. The outline is the main path, the sewing line (a piece whose seam
   allowance is built in is imported with a warning). Labels, seam allowances and layout data are
-  not imported. Source `type`: `valentina`.
+  not imported. Source `type`: `valentina` or `seamly2d`.
 - **Out: glTF 2.0 and OBJ**: the draped mesh in metres, UVs from pattern coordinates (the
   `_PATTERN` data of the cache), one material per fabric.
 - **Out: DXF-AAMA** (later): re-folds pieces along their `folds` when the halves are still

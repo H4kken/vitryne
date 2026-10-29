@@ -130,7 +130,7 @@ export interface Requests {
     args: { rev: number; form: FileData["form"] };
     reply: { rev: number; data: FileData };
   };
-  /** What a pattern file needs before it can be read (Rust `valentina::Needs`, JSON). */
+  /** What a pattern file needs before it can be read (Rust `drafting::Needs`, JSON). */
   patternNeeds: {
     args: { text: string };
     reply: { needs: string };

@@ -29,9 +29,9 @@ use vitryne_solver::constraints::Material;
 use crate::{
     aama::{self, ImportReport},
     convert::{ConvertOptions, convert_with, dxf_piece, fabric_entity, project_document},
+    drafting::{self, SizeOption, pieces::Shape},
     garment::Garment as SidecarGarment,
     placement::{BodyFacts, BodyPlace, auto_wrap, default_avatar, flat_wrap},
-    valentina::{self, SizeOption, pieces::Shape},
 };
 
 /// How far a piece placed on another one sits off it, mm (the hoodie's pocket).
@@ -99,8 +99,9 @@ pub enum ImportSource {
         #[serde(default)]
         sidecar: Option<String>,
     },
-    /// A Valentina pattern, its measurements file, and a size of its size chart.
-    Valentina {
+    /// A Valentina or Seamly2D pattern, its measurements file, and a size of its size chart.
+    #[serde(alias = "valentina")]
+    Drafted {
         name: String,
         text: String,
         #[serde(default)]
@@ -118,14 +119,12 @@ impl ImportSource {
                 text,
                 sidecar,
             } => PatternImport::read(name, text, sidecar.as_deref()),
-            ImportSource::Valentina {
+            ImportSource::Drafted {
                 name,
                 text,
                 measurements,
                 size,
-            } => {
-                PatternImport::read_valentina(name, text, measurements.as_deref(), size.as_deref())
-            }
+            } => PatternImport::read_drafted(name, text, measurements.as_deref(), size.as_deref()),
         }
     }
 }
@@ -137,8 +136,8 @@ enum Origin {
         pieces: Vec<aama::Piece>,
         sidecar: Option<Box<SidecarGarment>>,
     },
-    /// A Valentina pattern, drafted with its measurements.
-    Valentina(Vec<Shape>),
+    /// A Valentina or Seamly2D pattern, drafted with its measurements.
+    Drafted(Vec<Shape>),
 }
 
 /// A pattern read for import.
@@ -385,19 +384,19 @@ impl PatternImport {
         })
     }
 
-    /// Reads a Valentina pattern with its measurements file (its text), at `size` of a size
+    /// Reads a Valentina or Seamly2D pattern with its measurements file (its text), at `size` of a size
     /// chart (the chart's base size if `None`).
-    pub fn read_valentina(
+    pub fn read_drafted(
         file_name: &str,
         pattern: &str,
         measurements: Option<&str>,
         size: Option<&[f64]>,
     ) -> Result<Self, String> {
-        let r = valentina::read(pattern, measurements, size)?;
+        let r = drafting::read(pattern, measurements, size)?;
         if r.shapes.is_empty() {
             let why: Vec<String> = r.refused.iter().map(|(n, e)| format!("{n}: {e}")).collect();
             return Err(if why.is_empty() {
-                "the pattern has no pieces (make them in Valentina's Details mode)".into()
+                "the pattern has no pieces (make them in the app's piece mode first)".into()
             } else {
                 format!("no piece could be made: {}", why.join("; "))
             });
@@ -416,7 +415,7 @@ impl PatternImport {
                 warnings,
                 ..ImportReport::default()
             },
-            origin: Origin::Valentina(r.shapes),
+            origin: Origin::Drafted(r.shapes),
             sizes: r.sizes,
         })
     }
@@ -424,7 +423,7 @@ impl PatternImport {
     fn sidecar(&self) -> Option<&SidecarGarment> {
         match &self.origin {
             Origin::Dxf { sidecar, .. } => sidecar.as_deref(),
-            Origin::Valentina(_) => None,
+            Origin::Drafted(_) => None,
         }
     }
 
@@ -451,7 +450,7 @@ impl PatternImport {
                 pieces,
                 sidecar: None,
             } => pieces.iter().map(|p| dxf_offer(p, None)).collect(),
-            Origin::Valentina(shapes) => shapes
+            Origin::Drafted(shapes) => shapes
                 .iter()
                 .map(|s| Offer {
                     name: &s.name,
@@ -498,7 +497,7 @@ impl PatternImport {
                     .filter(|p| !names.contains(&p.name.as_str()))
                     .map(|p| p.name.clone())
                     .collect(),
-                Origin::Valentina(_) => Vec::new(),
+                Origin::Drafted(_) => Vec::new(),
             },
         }
     }
@@ -541,7 +540,10 @@ impl PatternImport {
                     id: ids.next_id(),
                     kind: match self.origin {
                         Origin::Dxf { .. } => "dxf-aama",
-                        Origin::Valentina(_) => "valentina",
+                        Origin::Drafted(_) if self.file_name.to_lowercase().ends_with(".sm2d") => {
+                            "seamly2d"
+                        }
+                        Origin::Drafted(_) => "valentina",
                     }
                     .into(),
                     file_name: Some(self.file_name.clone()),
@@ -733,6 +735,7 @@ impl PatternImport {
             .trim_end_matches(".dxf")
             .trim_end_matches(".DXF")
             .trim_end_matches(".val")
+            .trim_end_matches(".sm2d")
             .to_string();
         let fabric = fabric_entity(
             fabric_id.clone(),
@@ -1053,12 +1056,12 @@ mod tests {
     /// A Valentina pattern becomes a placed, valid project whose curved hip is a cubic edge.
     #[test]
     fn valentina_pattern_imports() {
-        let e = PatternImport::read_valentina("skirt.val", SKIRT_VAL, None, None)
+        let e = PatternImport::read_drafted("skirt.val", SKIRT_VAL, None, None)
             .err()
             .unwrap();
         assert!(e.contains("skirt.vit"), "{e}");
         let imp =
-            PatternImport::read_valentina("skirt.val", SKIRT_VAL, Some(SKIRT_VIT), None).unwrap();
+            PatternImport::read_drafted("skirt.val", SKIRT_VAL, Some(SKIRT_VIT), None).unwrap();
         let preview = imp.preview();
         assert_eq!(preview.pieces.len(), 2);
         assert!(preview.sizes.is_empty());

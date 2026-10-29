@@ -40,7 +40,7 @@ export type Choice =
   | { type: "on"; piece: string }
   | { type: "flat" };
 
-/** Rust `valentina::SizeOption`: one dimension of a size chart. */
+/** Rust `drafting::SizeOption`: one dimension of a size chart. */
 export interface SizeOption {
   label: string;
   values: number[];
@@ -114,7 +114,7 @@ export function ImportDialog(props: {
   const ids = useId();
 
   useEffect(() => {
-    if (!pattern || kind !== "valentina") return;
+    if (!pattern || kind !== "drafted") return;
     let stale = false;
     session.patternNeeds(pattern.text).then(
       (json) =>
@@ -128,7 +128,7 @@ export function ImportDialog(props: {
   }, [pattern, kind, session]);
   // A Valentina pattern can't be read before its measurements are here.
   const waiting =
-    kind === "valentina" && (!needs || (!!needs.measurements && !companion));
+    kind === "drafted" && (!needs || (!!needs.measurements && !companion));
   const key = `${pattern?.name ?? ""}|${companion?.name ?? ""}|${size?.join(",") ?? ""}`;
   useEffect(() => {
     if (!pattern || waiting) return;
@@ -220,7 +220,7 @@ export function ImportDialog(props: {
         </DialogHeader>
 
         <div className="-mx-6 flex min-h-0 grow flex-col gap-5 overflow-y-auto px-6">
-          {kind === "valentina" && needs && (
+          {kind === "drafted" && needs && (
             <MeasurementsBox
               needed={needs.measurements}
               file={companion}
@@ -286,7 +286,7 @@ export function ImportDialog(props: {
           {preview && (
             <div className="flex flex-col gap-2 rounded-2xl bg-hover p-4 text-[14px] leading-snug">
               <span className="font-semibold">Sewing</span>
-              {kind === "valentina" ? (
+              {kind === "drafted" ? (
                 <span className="text-body-text">
                   The pieces are placed but not sewn yet. Once they're in, the
                   seam suggestions sew them.

@@ -1301,7 +1301,7 @@ what Vitryne adds. Feature 1 of 2 (Seamly2D's `.sm2d` is next; it shares this co
 | Tools | `valentina::{xml, geom, tools}`: the file's layout, and every drafting tool run in order in the app's units (96 dpi px, y down) so its tolerances hold: all point tools, splines and paths (old and current forms), Bézier curves and paths, arcs, cuts and intersections with their halves, rotation/flip/move, modeling copies; the values formulas see (`Line_`, `AngleLine_` through the lines tools register, curve lengths and angles, `_Seg_N`, `CurrentLength`). A failing tool marks only what depends on it. |
 | Pieces | `valentina::pieces`: paths to outlines (curves trimmed between neighbours, `cubic` edges, 15° corners, passmark notches, lines, grain, mirror line unfolded); slits closed and small self-crossings trimmed with a warning; anything else not a simple polygon refused with the reason. `import::PatternImport` (was `DxfImport`) takes a DXF or a Valentina pattern; `vitryne convert x.val`. |
 | Editor | `ImportSource` through wasm and the worker; the dialog asks for the measurements file the pattern names, offers a size chart's sizes; `.val/.vit/.vst` accepted. |
-| Docs | This entry, ARCHITECTURE (Import), FORMAT (Interop), PATENTS (no rule touched), the docs site's Imports page, `tools/valentina/corpus.sh` (`make valentina-corpus`). |
+| Docs | This entry, ARCHITECTURE (Import), FORMAT (Interop), PATENTS (no rule touched), the docs site's Imports page, `tools/valentina/corpus.sh` (`make valentina-corpus`; since M16 `tools/drafting/corpus.sh`, `make drafting-corpus`). |
 
 ### Numbers
 
@@ -1333,4 +1333,83 @@ measurements file it names at its base size):
     real Chrome needs the local stack (`make dev ARGS=--local`, Docker), which wasn't running.
 - Not supported yet: the union-details tool, elliptical arcs, Valentina 1.x parallel and
   graduated curves; labels, seam allowances and layout data are not imported (by design).
-- Feature 2: Seamly2D (`.sm2d` with `.smis`/`.smms`).
+- Feature 2: Seamly2D, below (M16).
+
+## M16 — Import Seamly2D patterns (2026-10-28, waiting for review)
+
+Why: feature 2 of 2 from M15. Seamly2D forked from Valentina in 2017 and writes the same kind of
+file, so the work is a dialect, not a second importer. Branch `feature/seamly2d-import`:
+
+| Step | What |
+|---|---|
+| Rename | `valentina` → `drafting` (module, corpus test, `tools/drafting/`, `make drafting-corpus`): it reads both apps. `ImportSource::Valentina` → `Drafted` (the old `"valentina"` kind still deserializes); stored `sources[].type` stays `valentina`, and is `seamly2d` for a `.sm2d`. |
+| Reader | `drafting::xml::Dialect::Seamly`, chosen by content (a `<draftBlock>`), because both apps write a `<pattern>` root and Seamly2D's files up to format 0.4 are Valentina's own layout: `draftBlock`, `pieces`/`piece`, `variables`. `.smis`/`.smms` are `.vit`/`.vst` under new roots, not held to Valentina's 0.4 floor. The `intersectXY` tool is Valentina's `pointOfIntersection`. |
+| Plumbing | `vitryne convert x.sm2d`; the editor's import accepts `.sm2d`, `.smis`, `.smms`; vitest reads a Seamly skirt through the wasm. |
+| Docs | This entry, ARCHITECTURE (Import), FORMAT (Interop), the Imports page, CHANGELOG. |
+
+### Numbers
+
+`make drafting-corpus`, Seamly2D at `0c17d20b` (patterns with the measurements file each names,
+base size; Seamly's deliberately invalid test inputs and one empty file skipped):
+
+- Shipped samples (`src/app/share`): 8 patterns, **63 pieces made, 3 refused**: the union tool (2
+  pieces, jacket4) and one outline that crosses itself (jacket2).
+- Test collection (`src/test/CollectionTest`): 40 patterns, **145 made, 10 refused**: union tool
+  (3), outlines that cross themselves (6, the same files as in Valentina's corpus), one test
+  input whose formula is an assignment (`max=0`).
+- Valentina's collection is unchanged: 78 patterns, 214 made, 11 refused.
+- Converted by eye: the shipped male shirt (8 pieces placed, valid project).
+
+### Known gaps (why pieces fail)
+
+Found by dumping and plotting each refused outline (2026-10-29). Counts are over both Seamly2D
+collections; Valentina's corpus hits the same causes (G1, G3). After the fixes below, 8
+Seamly2D pieces (3 + 5) and 7 of Valentina's remain refused.
+
+| # | Gap | Pieces | Why it fails | Kind |
+|---|---|---|---|---|
+| G1 | **Union tool** (`<tools type="union">`, `unionDetails`) | jacket4 ×2, steampunk trousers' Waist Back | The tool joins two pieces along one edge each (`indexD1`/`indexD2`). We don't run it. The refusal now says so ("the union tool (joining two pieces into one) is not supported"). | Missing feature |
+| G3 | **Outlines that really aren't simple polygons** | jacket2 Detail, patron_blusa Detalle, gent_jacket Sivupalakainalo | Plotted: jacket2's is a bow-tie (two edges cross; the nodes are in the wrong order), Detalle is a lens (a curve and a line between the same two points) and Sivupalakainalo has a node on top of another edge (0.06 to 0.09 mm). Refused, with the points named. **Decided: stay skipped.** | Pattern's own geometry |
+| G4 | **`angle1="max=0"`** | seamtest1 | A curve angle written as an assignment to a name that is also a function. Probably invalid in Seamly2D too (it is in its test folder), not confirmed. | Odd input, unconfirmed |
+
+Fixed on the way: `intersectXY` (5 pieces); **G5**, two parts joined at one point (the basic
+block women's FrontPanel1, left and right halves of a panel cut by a wedge from the hem to an
+apex; also the moulage armhole's "Detail", three quadrilaterals fanning from one vertex, which I
+had filed as broken): `build` now returns a list, and such an outline imports as "Name (1)",
+"Name (2)", ... from left to right, unless the parts lie over each other (then still refused) or
+the piece has a mirror line; lines and grainline stay with the first. **G2**, the basic block women's BackPanel1 and 2
+(Valentina's copy too): the waist darts are diamonds joined to the hem by a zero-width cut, so
+the outline went up the cut, round the diamond and back. `pieces::split_pinches` splits an
+outline at every place it visits twice, drops the cut (no area), keeps a clockwise loop (a hole
+in the cloth) as an internal line and fills it in the outline, with a warning. The darts
+therefore import **closed**: the panel has no wedge to sew (the diamond is kept as a line to
+show where it was). Not supported: a hole that stays a hole (the format has only outlines).
+Also not supported, not seen in these collections: elliptical arcs, Valentina 1.x parallel and
+graduated curves.
+
+### Plan for the gaps
+
+1. ~~Name the cause~~ done: the failed tool and the points are named in the reasons.
+2. ~~G2 zero-width cuts~~ done, as above (the plan said "close the slit"; the real shape was a
+   hole on a cut, not a slit, so the dart is filled).
+3. **G1, union tool**: needs a decision first. Work out, from Seamly2D's and Valentina's
+   behaviour (not their code, GPL), how the second piece is moved onto the first (which edge
+   pairs, which end goes first), then build the merged outline from the two pieces' paths.
+   The reference is each app's own DXF export (the check M15 and M16 still owe).
+4. ~~G5~~ done, as above.
+5. **G4**: read the app's formula parser behaviour for an assignment; if it is a real error
+   there, nothing to do.
+
+### Numbers after the fixes
+
+`make drafting-corpus`: Valentina 78 patterns, **221 made, 7 refused** (was 214 / 11); Seamly2D
+shipped samples 8 patterns, 63 / 3 (unchanged); Seamly2D test collection 40 patterns, **153
+made, 5 refused** (was 145 / 10). "Made" counts pieces, and a pattern piece that is two parts
+counts twice.
+
+### Open items
+
+- **Your review**; and Seamly2D itself as the reference (export a sample as DXF-AAMA and compare
+  within 0.1 mm) is still not done, as for Valentina.
+- Not supported: see the gaps above; anything newer than format 0.7.4 is best effort.
+

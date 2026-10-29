@@ -264,11 +264,36 @@ impl Draft {
                 d.values.insert(name.clone(), v);
             }
         }
+        // Tools that failed, by id: what they were to make (copies in `modeling` name them in
+        // `idTool`) fails with their reason, not as an object the file doesn't make.
+        let mut failed: HashMap<u32, String> = HashMap::new();
         for block in &pattern.blocks {
             for section in ["calculation", "modeling"] {
                 if let Some(s) = super::child(*block, section) {
                     for el in s.children().filter(|c| c.is_element()) {
+                        let by = el
+                            .attribute("idTool")
+                            .and_then(|v| v.trim().parse::<u32>().ok())
+                            .and_then(|t| failed.get(&t));
+                        if let Some(why) = by {
+                            let why = format!("{NEEDS} ({why})");
+                            let made = made_ids(el).into_iter().chain(
+                                el.attribute("idObject")
+                                    .and_then(|v| v.trim().parse::<u32>().ok()),
+                            );
+                            for id in made {
+                                d.unavailable.entry(id).or_insert_with(|| why.clone());
+                            }
+                            continue;
+                        }
                         if let Err(e) = d.tool(el) {
+                            if let Some(id) = el
+                                .attribute("id")
+                                .and_then(|v| v.trim().parse::<u32>().ok())
+                                .filter(|_| el.has_tag_name("tools"))
+                            {
+                                failed.insert(id, e.clone());
+                            }
                             let what = match el.attribute("name") {
                                 Some(n) if !e.starts_with(NEEDS) => format!("{n}: "),
                                 _ => String::new(),
@@ -556,6 +581,9 @@ impl Draft {
             "path" => Ok(()),
             "elArc" if ty == "modeling" => self.copy(el),
             "elArc" => Err("elliptical arcs are not supported yet".into()),
+            "tools" if ty == "union" || ty == "unionDetails" => {
+                Err("the union tool (joining two pieces into one) is not supported".into())
+            }
             "tools" => Err(format!("the \"{ty}\" tool is not supported")),
             other => Err(format!("<{other}> is not supported")),
         }
@@ -703,7 +731,8 @@ impl Draft {
                 self.p(el, "firstPoint")?,
                 self.p(el, "secondPoint")?,
             )?,
-            "pointOfIntersection" => {
+            // Seamly2D calls Valentina's "pointOfIntersection" `intersectXY`.
+            "pointOfIntersection" | "intersectXY" => {
                 let (a, b) = (self.p(el, "firstPoint")?, self.p(el, "secondPoint")?);
                 DVec2::new(a.x, b.y)
             }
@@ -1327,7 +1356,8 @@ mod tests {
             <point type="height" id="8" name="H" basePoint="7" p1Line="1" p2Line="2"/>
             <point type="lineIntersect" id="9" name="I" p1Line1="1" p2Line1="7" p1Line2="2" p2Line2="3"/>
             <point type="lineIntersectAxis" id="10" name="J" basePoint="3" angle="AngleLine_A_B" p1Line="2" p2Line="7"/>
-            <point type="shoulder" id="11" name="K" p1Line="1" p2Line="4" pShoulder="3" length="Line_C_B"/>"##
+            <point type="shoulder" id="11" name="K" p1Line="1" p2Line="4" pShoulder="3" length="Line_C_B"/>
+            <point type="intersectXY" id="12" name="L" firstPoint="2" secondPoint="3"/>"##
         ));
         assert!(d.unavailable.is_empty(), "{:?}", d.unavailable);
         assert!(near(at(&d, 2), DVec2::new(10.0, 0.0)));
@@ -1341,6 +1371,8 @@ mod tests {
         assert!(near(at(&d, 10), DVec2::new(10.0, 10.0)));
         // On A→D beyond D, sqrt(200) from C: x = 10.
         assert!(near(at(&d, 11), DVec2::new(10.0, 0.0)));
+        // Seamly2D's name for the tool at 7.
+        assert!(near(at(&d, 12), DVec2::new(10.0, 10.0)));
     }
 
     #[test]
@@ -1446,5 +1478,20 @@ mod tests {
         assert!(d.unavailable[&6].contains("don't meet"));
         assert!(d.unavailable[&7].contains("elliptical"));
         assert!(d.point(8).is_ok());
+    }
+
+    /// What a failed tool was to make fails with the tool's reason, not as an object the file
+    /// doesn't make (the union tool's result points are named only by `idTool`).
+    #[test]
+    fn what_a_failed_tool_makes_names_the_tool() {
+        let d = draft(&format!(
+            r##"{BASE}
+            <tools id="20" type="unionDetails" indexD1="1" indexD2="2"/>
+            <point type="modeling" id="21" idObject="19" idTool="20"/>"##
+        ));
+        let why = d.point(19).err().unwrap();
+        assert!(why.contains("union tool"), "{why}");
+        assert!(why.starts_with("needs an object that failed"), "{why}");
+        assert!(d.unavailable[&21].contains("union tool"));
     }
 }

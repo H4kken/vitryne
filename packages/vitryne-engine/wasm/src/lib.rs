@@ -314,10 +314,10 @@ impl VtryFile {
         })
     }
 
-    /// What a pattern file needs before it can be read (`valentina::Needs` as JSON): the
+    /// What a pattern file needs before it can be read (`drafting::Needs` as JSON): the
     /// measurements file a Valentina pattern was drafted with, if any.
     pub fn pattern_needs(text: &str) -> Result<String, JsValue> {
-        let n = vitryne_pattern::valentina::needs(text)?;
+        let n = vitryne_pattern::drafting::needs(text)?;
         Ok(serde_json::to_string(&n).expect("needs serialize"))
     }
 

@@ -381,12 +381,13 @@ fn main() {
             let size = take_value(&mut args, "--size");
             let (Some(src), Some(out)) = (args.get(1), args.get(2)) else {
                 eprintln!(
-                    "usage: vitryne convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]\n       vitryne convert <pattern.val> <out.vtry | out.vtry/> [--measurements <file.vit|.vst>] [--size 176,100]"
+                    "usage: vitryne convert <garment.toml> <out.vtry | out.vtry/> [--include-dxf]\n       vitryne convert <pattern.val|.sm2d> <out.vtry | out.vtry/> [--measurements <file.vit|.vst|.smis|.smms>] [--size 176,100]"
                 );
                 std::process::exit(2);
             };
-            if src.to_lowercase().ends_with(".val") {
-                convert_valentina(src, out, measurements.as_deref(), size.as_deref());
+            let lower = src.to_lowercase();
+            if lower.ends_with(".val") || lower.ends_with(".sm2d") {
+                convert_drafted(src, out, measurements.as_deref(), size.as_deref());
             } else {
                 convert(src, out, include_dxf);
             }
@@ -712,9 +713,9 @@ fn save(doc: &Document, out: &str) {
     r.unwrap_or_else(|e| panic!("{out}: {e}"));
 }
 
-/// A Valentina pattern as a project, its pieces placed where the import suggests (those with
+/// A Valentina or Seamly2D pattern as a project, its pieces placed where the import suggests (those with
 /// no suggestion are left out, to place in the editor).
-fn convert_valentina(src: &str, out: &str, measurements: Option<&str>, size: Option<&str>) {
+fn convert_drafted(src: &str, out: &str, measurements: Option<&str>, size: Option<&str>) {
     let text = std::fs::read_to_string(src).unwrap_or_else(|e| panic!("{src}: {e}"));
     let m = measurements.map(|p| std::fs::read_to_string(p).unwrap_or_else(|e| panic!("{p}: {e}")));
     let size: Option<Vec<f64>> = size.map(|s| {
@@ -731,7 +732,7 @@ fn convert_valentina(src: &str, out: &str, measurements: Option<&str>, size: Opt
         .unwrap()
         .to_string_lossy()
         .into_owned();
-    let imp = PatternImport::read_valentina(&name, &text, m.as_deref(), size.as_deref())
+    let imp = PatternImport::read_drafted(&name, &text, m.as_deref(), size.as_deref())
         .unwrap_or_else(|e| panic!("{src}: {e}"));
     let preview = imp.preview();
     for w in &preview.report.warnings {

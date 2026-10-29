@@ -376,7 +376,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
       <input
         ref={fileInput}
         type="file"
-        accept=".dxf,.toml,.val,.vit,.vst,.vtry"
+        accept=".dxf,.toml,.val,.vit,.vst,.sm2d,.smis,.smms,.vtry"
         multiple
         className="hidden"
         onChange={(e) => {

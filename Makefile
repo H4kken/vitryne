@@ -29,7 +29,7 @@ STEP := printf '\n== %s\n'
 .SILENT:
 .NOTPARALLEL:
 .DEFAULT_GOAL := help
-.PHONY: help setup dev dev-app docs-dev docs wasm assets build hygiene fmt fmt-check lint test syntax examples valentina-corpus \
+.PHONY: help setup dev dev-app docs-dev docs wasm assets build hygiene fmt fmt-check lint test syntax examples drafting-corpus \
 	examples-check regress regress-update check-quick check-ci check cloud-test stack stack-down stack-test clean \
 	deps cli fmt-check-rust fmt-check-web fmt-check-docs lint-rust lint-web test-rust test-web
 
@@ -131,8 +131,8 @@ syntax: ## node --check / bash -n on the tools', cloud's and web's scripts
 	git ls-files -z '$(CLOUD)/deploy/*.sh' | xargs -0 -n 1 bash -n
 	echo ok
 
-valentina-corpus: ## Import Valentina's own pattern collection (fetched into target/): pieces made and refused
-	tools/valentina/corpus.sh
+drafting-corpus: ## Import Valentina's and Seamly2D's own pattern collections (fetched into target/): pieces made and refused
+	tools/drafting/corpus.sh
 
 examples: ## Rebuild assets/examples/ from the sidecars (commit the result)
 	tools/format/build-examples.sh

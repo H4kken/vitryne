@@ -111,9 +111,11 @@ pub fn read(
             continue;
         }
         match pieces::build(&draft, el, &modeling) {
-            Ok(mut s) => {
-                warnings.append(&mut s.warnings);
-                shapes.push(s);
+            Ok(made) => {
+                for mut s in made {
+                    warnings.append(&mut s.warnings);
+                    shapes.push(s);
+                }
             }
             Err(e) => refused.push((name, e)),
         }
