@@ -1,0 +1,7 @@
+{
+  "title": "Legal",
+  "description": "Privacy policy and terms of service of vitryne.app",
+  "icon": "Scale",
+  "root": true,
+  "pages": ["privacy", "terms"]
+}

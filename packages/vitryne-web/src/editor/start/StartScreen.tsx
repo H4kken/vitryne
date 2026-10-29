@@ -28,6 +28,8 @@ const TILE =
 
 export function StartScreen(props: {
   examples: Example[];
+  /** Signed in to an account: the "no account needed" note has nothing to say. */
+  signedIn: boolean;
   onPreset: (e: Example) => void;
   /** An empty project. */
   onScratch: () => void;
@@ -88,20 +90,23 @@ export function StartScreen(props: {
           </div>
         </div>
       )}
-      <div className="flex h-16 shrink-0 flex-wrap items-center gap-3 px-8">
+      <div className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 px-8 py-2">
         <Logo />
         <span className="font-display text-xl font-bold tracking-[-0.01em]">
           Vitryne
         </span>
-        <Button variant="ghost" asChild>
+        {/* On a phone the help menu has the documentation: no room for both. */}
+        <Button variant="ghost" className="max-sm:hidden" asChild>
           <a href={DOCS_URL} target="_blank" rel="noreferrer">
             Docs
           </a>
         </Button>
         <span className="grow" />
-        <span className="text-muted-foreground text-sm max-sm:hidden">
-          Free · no account needed to try
-        </span>
+        {!props.signedIn && (
+          <span className="text-muted-foreground text-sm max-sm:hidden">
+            Free · no account needed to try
+          </span>
+        )}
         {props.account}
       </div>
       {props.banner}

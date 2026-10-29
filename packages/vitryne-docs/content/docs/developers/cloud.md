@@ -35,7 +35,8 @@ This page covers the design, running the editor, and developing against a backen
     "url": "https://abcd.supabase.co",
     "publishableKey": "sb_publishable_…"
   },
-  "privacyPolicy": "/privacy.html"
+  "privacyPolicy": "",
+  "termsOfService": ""
 }
 ```
 
@@ -214,6 +215,10 @@ with their draft.
 
 **Email and password, or Google.**
 
+- **Email first, like most sign-in screens:** Google or an email address, then the password on a
+  second screen. The editor never looks up whether an address has an account (that would tell
+  anyone which emails are registered), so the person picks _Create account_ or _Sign in_; creating
+  with an address that has one moves to signing in.
 - **Create an account:** email and password (8 characters or more), both given to the current
   user (anonymous, or a new anonymous one) at once (`updateUser({ email, password })`). Auth
   emails a **link** that confirms the address; until it is opened the user stays anonymous and
@@ -326,7 +331,8 @@ for 29 days and an idle account.
 ## Privacy
 
 - **Network:** the app and its assets (`config.json` included), and the backend only when the
-  person saves, opens or signs in. Never telemetry. Opening an example without changing it sends
+  person saves, opens or signs in (a Google account's picture is loaded from Google when the account
+  dialog opens, without a referrer). Never telemetry. Opening an example without changing it sends
   nothing.
 - **Without an account:** an anonymous user (an id, no email) and their draft, deleted 30 days
   after their last visit. The privacy page says so.
@@ -342,9 +348,13 @@ for 29 days and an idle account.
   `account.json`: art. 15 and 20), _Delete my account_ (parts through the storage API so the files
   go too, then the user and their projects: art. 17). Correction or objection: by email to the
   operator.
-- **Privacy policy:** `packages/vitryne-cloud/deploy/web/privacy.html`, at `/privacy.html` with the
-  operator's details, linked from the account dialog. A draft to review for each instance. On hosted
-  Supabase, Supabase processes the data for the operator: sign its DPA, and say so in the policy.
+- **Privacy policy and terms:** the web image serves none: the operator of an instance is the one
+  responsible for its users' data, so each publishes their own and sets `PRIVACY_POLICY_URL` and
+  `TERMS_URL` on the web container (empty: no link; they show in the help menu and the Cloud
+  dialog). What the software stores is in this section; `config.json` carries the two links.
+  vitryne.app's are in the docs site's _Legal_ section
+  (`packages/vitryne-docs/content/docs/legal/`). On hosted Supabase, Supabase processes the data for
+  the operator: sign its DPA, and say so in the policy.
 
 ## Checking
 

@@ -293,12 +293,12 @@ async function cloud() {
   await a.shot('replace');
   await a.click('Cancel', { exact: true });
   await a.until('still the start screen', `!document.body.innerText.includes('Replace your draft?') && document.body.innerText.includes('What do you want to make?')`);
-  await a.click('Cloud', { exact: true });
-  await a.click('Create an account', { exact: true });
+  await a.click('Sign in', { exact: true });
   await a.type('#cloud-email', email);
+  await a.click('Continue with email');
   await a.type('#cloud-password', password);
   const t = Date.now() - 1000;
-  await a.click('Create the account');
+  await a.click('Create account', { exact: true });
   await a.until('the email asked for', `document.body.innerText.includes('Check your email')`);
   await a.shot('check-email');
   // The link, opened elsewhere (like a phone): this page notices.
@@ -329,6 +329,7 @@ async function cloud() {
   await b.click('Sign in', { exact: true });
   await b.click('Sign in', { exact: true });
   await b.type('#cloud-email', email);
+  await b.click('Continue with email');
   await b.type('#cloud-password', password);
   await b.click('Sign in', { exact: true });
   await b.until('B signed in', `document.body.innerText.includes(${JSON.stringify(email)})`);
@@ -376,8 +377,9 @@ async function reset() {
   await a.until('start screen', `document.body.innerText.includes('What do you want to make?')`);
   await a.click('Sign in', { exact: true });
   await a.click('Sign in', { exact: true });
-  await a.click('Forgot your password?');
   await a.type('#cloud-email', email);
+  await a.click('Continue with email');
+  await a.click('Forgot your password?');
   t = Date.now() - 1000;
   await a.click('Send the link');
   await a.until('the email asked for', `document.body.innerText.includes('Check your email')`);

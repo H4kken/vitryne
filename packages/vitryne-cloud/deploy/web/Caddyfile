@@ -16,21 +16,16 @@
 		-Server
 	}
 
-	# The editor reads this at start: no file (404) means no backend, which it says.
+	# PRIVACY_POLICY_URL and TERMS_URL are the operator's own pages (none by default; vitryne.app:
+	# docs.vitryne.app/legal). The editor reads this at start: no file (404) means no backend, which it says.
 	@cloud expression `{env.SUPABASE_URL} != "" && {env.SUPABASE_PUBLISHABLE_KEY} != ""`
 	handle /config.json {
 		header Cache-Control no-cache
 		handle @cloud {
 			header Content-Type application/json
-			respond `{"backend":{"url":"{$SUPABASE_URL}","publishableKey":"{$SUPABASE_PUBLISHABLE_KEY}"},"privacyPolicy":"/privacy.html"}`
+			respond `{"backend":{"url":"{$SUPABASE_URL}","publishableKey":"{$SUPABASE_PUBLISHABLE_KEY}"},"privacyPolicy":"{$PRIVACY_POLICY_URL}","termsOfService":"{$TERMS_URL}"}`
 		}
 		respond 404
-	}
-	# The operator's details come from the environment.
-	handle /privacy.html {
-		root * /srv/site
-		templates
-		file_server
 	}
 	handle {
 		root * /srv/app

@@ -7,6 +7,8 @@ export interface CloudUser {
   /** Null for an anonymous user (no email yet). */
   email: string | null;
   anonymous: boolean;
+  /** The picture of a Google account (https), if it has one. */
+  avatarUrl?: string | null;
 }
 
 export interface ProjectSummary {
