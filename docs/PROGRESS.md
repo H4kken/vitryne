@@ -1360,39 +1360,48 @@ base size; Seamly's deliberately invalid test inputs and one empty file skipped)
 - Valentina's collection is unchanged: 78 patterns, 214 made, 11 refused.
 - Converted by eye: the shipped male shirt (8 pieces placed, valid project).
 
-### Known gaps (why the 13 pieces fail)
+### Known gaps (why pieces fail)
 
-Found by dumping and plotting each refused outline (2026-10-29). Piece counts are over both
-Seamly2D collections; Valentina's corpus hits the same causes (G1, G3).
+Found by dumping and plotting each refused outline (2026-10-29). Counts are over both Seamly2D
+collections; Valentina's corpus hits the same causes (G1, G3, G5). After the fixes below, 10
+Seamly2D pieces and 9 of Valentina's remain refused.
 
 | # | Gap | Pieces | Why it fails | Kind |
 |---|---|---|---|---|
-| G1 | **Union tool** (`<tools type="union">`) | jacket4 ×2, steampunk trousers' Waist Back | The tool joins two pieces along one edge each (`indexD1`/`indexD2`). We don't run it, so what depends on its result is unavailable. The refusal reads "needs object 314, which the file doesn't make": it doesn't name the tool. | Missing feature, plus a poor message |
-| G2 | **Slits and pinches drawn into an outline** | basic block women: BackPanel1, BackPanel2, FrontPanel1 | The outline runs up a line to a dart apex (535 mm) and straight back, so the path visits 2 to 4 points twice (loops 1 to 2% of the piece). `close_slits` closes only a single out-and-back vertex that arrives along a line; here the legs have several nodes and the pinches also sit on the hem. | Repairable: a limit of our repair |
-| G3 | **Outlines that really aren't simple polygons** | jacket2 Detail, moulage Detail, patron_blusa Detalle, gent_jacket Sivupalakainalo | Plotted: jacket2's is a bow-tie (two edges cross at one point; the nodes are in the wrong order), the moulage piece is a fan of 7 spokes through one vertex, Detalle is a lens (a curve and a line between the same two points) and Sivupalakainalo has a node on top of another edge (0.06 to 0.09 mm). The authors' apps draw them; they can't be cut or meshed as drawn. | Pattern's own geometry; we're right to refuse, but the message gives mm coordinates, not node names |
+| G1 | **Union tool** (`<tools type="union">`, `unionDetails`) | jacket4 ×2, steampunk trousers' Waist Back | The tool joins two pieces along one edge each (`indexD1`/`indexD2`). We don't run it. The refusal now says so ("the union tool (joining two pieces into one) is not supported"). | Missing feature |
+| G3 | **Outlines that really aren't simple polygons** | jacket2 Detail, moulage Detail, patron_blusa Detalle, gent_jacket Sivupalakainalo | Plotted: jacket2's is a bow-tie (two edges cross; the nodes are in the wrong order), the moulage piece is a fan of 7 spokes through one vertex, Detalle is a lens (a curve and a line between the same two points) and Sivupalakainalo has a node on top of another edge (0.06 to 0.09 mm). Refused, with the points named. **Decided: stay skipped.** | Pattern's own geometry |
 | G4 | **`angle1="max=0"`** | seamtest1 | A curve angle written as an assignment to a name that is also a function. Probably invalid in Seamly2D too (it is in its test folder), not confirmed. | Odd input, unconfirmed |
+| G5 | **Two parts joined at one point** | basic block women's FrontPanel1 (also Valentina's) | The outline passes twice through one apex (97, 815) and both halves are the same way round: the left and right halves of the panel touch at a single point. These are two pieces, which `build` (one piece in, one out) can't return yet. | Open design question |
 
-Not seen in these collections but still unsupported: elliptical arcs, Valentina 1.x parallel
-and graduated curves. Fixed on the way: `intersectXY` (5 pieces).
+Fixed on the way: `intersectXY` (5 pieces); **G2**, the basic block women's BackPanel1 and 2
+(Valentina's copy too): the waist darts are diamonds joined to the hem by a zero-width cut, so
+the outline went up the cut, round the diamond and back. `pieces::split_pinches` splits an
+outline at every place it visits twice, drops the cut (no area), keeps a clockwise loop (a hole
+in the cloth) as an internal line and fills it in the outline, with a warning. The darts
+therefore import **closed**: the panel has no wedge to sew (the diamond is kept as a line to
+show where it was). Not supported: a hole that stays a hole (the format has only outlines).
+Also not supported, not seen in these collections: elliptical arcs, Valentina 1.x parallel and
+graduated curves.
 
 ### Plan for the gaps
 
-1. **Name the cause** (small, no risk): a piece that needs an object of a failed tool says which
-   tool and why ("the union tool is not supported"); crossing/touching refusals name the nodes
-   (by point name) instead of mm. Covers G1's message and G3's.
-2. **G2, zero-width slits**: generalise `close_slits` to a path that goes out along several
-   nodes and comes back over the same points within 0.01 mm, and to a touch at a vertex whose
-   loop has no area. The dart is then closed, as slits already are, with the same warning
-   (cut it after draping). Check: the 3 basic-block pieces import, their areas drop by no
-   more than the closed legs, the Valentina corpus numbers don't get worse (214 made).
+1. ~~Name the cause~~ done: the failed tool and the points are named in the reasons.
+2. ~~G2 zero-width cuts~~ done, as above (the plan said "close the slit"; the real shape was a
+   hole on a cut, not a slit, so the dart is filled).
 3. **G1, union tool**: needs a decision first. Work out, from Seamly2D's and Valentina's
    behaviour (not their code, GPL), how the second piece is moved onto the first (which edge
    pairs, which end goes first), then build the merged outline from the two pieces' paths.
    The reference is each app's own DXF export (the check M15 and M16 still owe).
-4. **G3**: keep refusing. Option to decide with you: import the piece "as drawn" with a flag,
-   or offer to skip it in the dialog (it already lists it under *Left out of the file*).
+4. **G5**: let a pattern piece become several (`build` returning a list, names suffixed), or
+   keep refusing.
 5. **G4**: read the app's formula parser behaviour for an assignment; if it is a real error
    there, nothing to do.
+
+### Numbers after the fixes
+
+`make drafting-corpus`: Valentina 78 patterns, **216 made, 9 refused** (was 214 / 11); Seamly2D
+shipped samples 8 patterns, 63 / 3 (unchanged); Seamly2D test collection 40 patterns, **148
+made, 7 refused** (was 145 / 10).
 
 ### Open items
 

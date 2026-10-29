@@ -13,20 +13,20 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 - Import Seamly2D patterns (`.sm2d`) with their measurements (`.smis`, `.smms`, or the `.vit`/`.vst`
   they name), like Valentina's. Also `vitryne convert pattern.sm2d out.vtry --measurements m.smis`.
   Pieces that use the union tool are left out, as in Valentina.
-
-### Changed
-
-- Escape unpicks the picked pieces.
-- The side panel opens over the canvas, as in Figma, instead of squeezing the views.
-
-### Added
-
+- A pattern piece whose darts are drawn as holes joined to the edge by a cut now imports, with
+  the darts filled in and kept as lines (before, it was left out as crossing itself). Pieces left
+  out say which tool or points are the cause.
 - Right-click menus in the flat and 3D views: on a piece, move it outwards or inwards, copy it or
   delete it; on empty canvas, paste, fit the pieces in view, draw a piece, import a pattern, or
   restart the drape.
 - Flip pieces horizontally or vertically in the flat view (Shift-H, Shift-V, the right-click
   menu, or the Flip buttons in a piece's panel, which replace the Mirror image switch); a flipped piece is the mirror image, in 3D too.
 - Copy, paste and duplicate pieces with ⌘C, ⌘V and ⌘D (Ctrl on Windows and Linux) or from the menu.
+
+### Changed
+
+- Escape unpicks the picked pieces.
+- The side panel opens over the canvas, as in Figma, instead of squeezing the views.
 
 ## [0.3.0] - 2026-10-28
 

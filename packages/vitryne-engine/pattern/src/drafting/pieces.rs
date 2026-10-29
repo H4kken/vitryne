@@ -391,6 +391,59 @@ fn edges_cross(vs: &[Vertex], i: usize, j: usize) -> Option<(f64, f64, DVec2)> {
     None
 }
 
+/// An outline that visits one place twice is a pinch: it splits there into two loops. Drafters
+/// draw a dart or a cut-out as a loop joined to the edge by a zero-width cut, so the path goes up
+/// the cut, round the loop and back down it. Splits the outline at every repeat, innermost first,
+/// into its two loops: one with no area (the cut itself) is dropped, a clockwise one (a hole in
+/// the cloth) is returned to be kept as a line, and the outline is left alone when both come
+/// out the same way round (two parts, not a hole). Returns the holes.
+fn split_pinches(vs: &mut Vec<Vertex>) -> Vec<Vec<Vertex>> {
+    let piece_area = area(&flat(vs, true)).abs();
+    let tiny = (1e-4 * piece_area).max(1.0);
+    let mut rest = vs.clone();
+    let mut holes = Vec::new();
+    loop {
+        let n = rest.len();
+        let pair = (0..n)
+            .flat_map(|i| (i + 1..n).map(move |j| (i, j)))
+            .filter(|&(i, j)| rest[i].p.distance(rest[j].p) < SAME_MM)
+            .min_by_key(|&(i, j)| j - i);
+        let Some((i, j)) = pair else { break };
+        let inner: Vec<Vertex> = rest[i..j].to_vec();
+        let outer: Vec<Vertex> = rest[..i].iter().chain(&rest[j..]).cloned().collect();
+        let signed = |vs: &[Vertex]| {
+            if vs.len() < 3 {
+                0.0
+            } else {
+                area(&flat(vs, true))
+            }
+        };
+        let (ai, ao) = (signed(&inner), signed(&outer));
+        // Either side may be the piece: the cut and its holes can come first or last.
+        if ai.abs() < tiny {
+            rest = outer;
+        } else if ao.abs() < tiny {
+            rest = inner;
+        } else if ai < 0.0 && ao > 0.0 {
+            holes.push(inner);
+            rest = outer;
+        } else if ao < 0.0 && ai > 0.0 {
+            holes.push(outer);
+            rest = inner;
+        } else {
+            return Vec::new();
+        }
+        if rest.len() < 3 {
+            return Vec::new();
+        }
+    }
+    if rest.len() == vs.len() || area(&flat(&rest, true)) <= 0.0 {
+        return Vec::new();
+    }
+    *vs = rest;
+    holes
+}
+
 /// Cuts off small loops where the outline crosses itself over a few nodes (a line drawn a
 /// little past the end of a curve): each is cut at the crossing. Returns how many.
 fn trim_loops(vs: &mut Vec<Vertex>) -> usize {
@@ -504,6 +557,13 @@ pub fn build(draft: &Draft, el: Node, modeling: &[Node]) -> Result<Shape, String
             "{name}: a small overlap where its outline crossed itself is trimmed"
         ));
     }
+    let holes = split_pinches(&mut outline);
+    if !holes.is_empty() {
+        warnings.push(format!(
+            "{name}: {} cut-out(s), such as a dart drawn as a hole joined to the edge by a cut, are filled in; their outlines are kept as lines",
+            holes.len()
+        ));
+    }
     let mut fold = None;
     if let Some((m1, m2)) = mirror {
         let (m1, m2) = (mm(m1), mm(m2));
@@ -555,6 +615,11 @@ pub fn build(draft: &Draft, el: Node, modeling: &[Node]) -> Result<Shape, String
                 )),
             }
         }
+    }
+    for mut h in holes {
+        classify(&mut h, true);
+        h.push(h[0].clone());
+        lines.push((None, h));
     }
     let grain = grain(draft, el, &outline);
     let quantity = child(el, "data")
@@ -930,6 +995,52 @@ mod tests {
                 .any(|x| x.p.distance(DVec2::new(100.0, 100.0)) < 1e-9)
         );
         assert_eq!(trim_loops(&mut vs), 0);
+    }
+
+    #[test]
+    fn holes_joined_by_a_cut_are_split_off() {
+        let v = |x: f64, y: f64| Vertex {
+            p: DVec2::new(x, y),
+            kind: NodeType::Point,
+            notch: false,
+            edge: Seg::Line,
+        };
+        // A 100 mm square; from the middle of its bottom a zero-width cut runs up to a diamond
+        // (traversed clockwise, as a hole is) and comes back down the same line.
+        let square = |extra: Vec<Vertex>| {
+            let mut vs = vec![v(0.0, 0.0), v(50.0, 0.0)];
+            vs.extend(extra);
+            vs.extend([v(50.0, 0.0), v(100.0, 0.0), v(100.0, 100.0), v(0.0, 100.0)]);
+            vs
+        };
+        let hole = vec![
+            v(50.0, 20.0),
+            v(40.0, 40.0),
+            v(50.0, 60.0),
+            v(60.0, 40.0),
+            v(50.0, 20.0),
+        ];
+        let mut vs = square(hole.clone());
+        let holes = split_pinches(&mut vs);
+        assert_eq!(vs.len(), 5, "{vs:?}");
+        assert_eq!(holes.len(), 1);
+        assert!(area(&flat(&vs, true)) > 9_000.0);
+        assert!(area(&flat(&holes[0], true)) < 0.0);
+        // The same loop traversed the other way round is a part of its own: left alone.
+        let mut flipped = square(vec![
+            v(50.0, 20.0),
+            v(60.0, 40.0),
+            v(50.0, 60.0),
+            v(40.0, 40.0),
+            v(50.0, 20.0),
+        ]);
+        let before = flipped.clone();
+        assert!(split_pinches(&mut flipped).is_empty());
+        assert_eq!(flipped, before);
+        // Nothing repeated, nothing to do.
+        let mut plain = vec![v(0.0, 0.0), v(100.0, 0.0), v(100.0, 100.0), v(0.0, 100.0)];
+        assert!(split_pinches(&mut plain).is_empty());
+        assert_eq!(plain.len(), 4);
     }
 
     #[test]
