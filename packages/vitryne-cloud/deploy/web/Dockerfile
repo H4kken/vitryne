@@ -32,7 +32,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM caddy:2.10.2-alpine AS serve
 RUN apk add --no-cache postgresql17-client
 COPY packages/vitryne-cloud/deploy/web/Caddyfile /etc/caddy/Caddyfile
-COPY packages/vitryne-cloud/deploy/web/privacy.html /srv/site/privacy.html
 COPY packages/vitryne-cloud/deploy/web/entrypoint.sh /entrypoint.sh
 COPY packages/vitryne-cloud/supabase/migrations /srv/migrations
 ENTRYPOINT ["/entrypoint.sh"]

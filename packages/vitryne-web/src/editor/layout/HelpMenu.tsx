@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { CircleHelp, ExternalLink } from "lucide-react";
+import {
+  BookOpen,
+  CircleHelp,
+  MessageSquareWarning,
+  ScrollText,
+  ShieldCheck,
+} from "lucide-react";
+import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -8,16 +15,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GithubIcon } from "../icons/GithubIcon";
 import { DOCS_URL, FEEDBACK_URL, REPO_URL } from "@/links";
 
-/** The documentation, feedback, the source code and the privacy policy, in the top bar and on the start screen. */
-export function HelpMenu(props: { privacyPolicy: string | null }) {
-  const links: [string, string][] = [
-    ["Documentation", DOCS_URL],
-    ["Send feedback or report a bug", FEEDBACK_URL],
-    ["Source code", REPO_URL],
+/** The documentation, feedback, the source code, the privacy policy and the terms, in the top bar and on the start screen. */
+export function HelpMenu(props: {
+  privacyPolicy: string | null;
+  termsOfService: string | null;
+}) {
+  const links: [string, string, ComponentType][] = [
+    ["Documentation", DOCS_URL, BookOpen],
+    ["Send feedback or report a bug", FEEDBACK_URL, MessageSquareWarning],
+    ["Source code", REPO_URL, GithubIcon],
   ];
-  if (props.privacyPolicy) links.push(["Privacy policy", props.privacyPolicy]);
+  if (props.privacyPolicy)
+    links.push(["Privacy policy", props.privacyPolicy, ShieldCheck]);
+  if (props.termsOfService)
+    links.push(["Terms of service", props.termsOfService, ScrollText]);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -26,11 +40,11 @@ export function HelpMenu(props: { privacyPolicy: string | null }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
-        {links.map(([label, href]) => (
+        {links.map(([label, href, Icon]) => (
           <DropdownMenuItem key={href} asChild>
             <a href={href} target="_blank" rel="noreferrer">
               <span className="grow">{label}</span>
-              <ExternalLink />
+              <Icon />
             </a>
           </DropdownMenuItem>
         ))}

@@ -29,6 +29,8 @@ export interface CloudConfig {
   publishableKey: string;
   /** Where the instance's privacy policy is. */
   privacyPolicy: string | null;
+  /** Where the instance's terms of service are, if it has any. */
+  termsOfService: string | null;
 }
 
 /** Null when there is no usable config.json. */
@@ -51,10 +53,14 @@ export function parseConfig(text: string, base: string): CloudConfig | null {
   )
     return null;
   const p = (j as { privacyPolicy?: unknown }).privacyPolicy;
+  const t = (j as { termsOfService?: unknown }).termsOfService;
+  const link = (v: unknown) =>
+    typeof v === "string" && v ? new URL(v, base).href : null;
   return {
     url: new URL(b.url, base).href.replace(/\/$/, ""),
     publishableKey: b.publishableKey,
-    privacyPolicy: typeof p === "string" && p ? new URL(p, base).href : null,
+    privacyPolicy: link(p),
+    termsOfService: link(t),
   };
 }
 

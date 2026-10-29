@@ -6,7 +6,7 @@
 // reset by a link too: the editor it opens asks for the new one.
 
 import { useEffect, useState } from "react";
-import { Cloud as CloudIcon, MailCheck } from "lucide-react";
+import { Cloud as CloudIcon, ExternalLink, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -582,16 +582,27 @@ export function AccountDialog(props: {
           </DialogTitle>
           <DialogDescription className="text-body-text text-[15px]">
             Free.{" "}
-            {cloud.config.privacyPolicy && (
-              <a
-                href={cloud.config.privacyPolicy}
-                target="_blank"
-                rel="noreferrer"
-                className="underline underline-offset-4"
-              >
-                Privacy policy
-              </a>
-            )}
+            {(
+              [
+                ["Privacy policy", cloud.config.privacyPolicy],
+                ["Terms", cloud.config.termsOfService],
+              ] as const
+            )
+              .flatMap(([label, href]) => (href ? [{ label, href }] : []))
+              .map(({ label, href }, i) => (
+                <span key={label}>
+                  {i > 0 && " · "}
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 underline underline-offset-4"
+                  >
+                    {label}
+                    <ExternalLink className="size-3.5" aria-hidden />
+                  </a>
+                </span>
+              ))}
           </DialogDescription>
         </DialogHeader>
         {body}

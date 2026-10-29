@@ -14,7 +14,19 @@ describe("config.json", () => {
       url: "https://vitryne.example",
       publishableKey: "k",
       privacyPolicy: "https://vitryne.example/app/privacy.html",
+      termsOfService: null,
     });
+  });
+  it("reads the terms of service, empty meaning none", () => {
+    const c = (t: string) =>
+      parseConfig(
+        `{"backend":{"url":"/","publishableKey":"k"},"termsOfService":"${t}"}`,
+        base,
+      );
+    expect(c("https://docs.vitryne.example/terms")?.termsOfService).toBe(
+      "https://docs.vitryne.example/terms",
+    );
+    expect(c("")?.termsOfService).toBeNull();
   });
   it("names no backend when absent, not JSON, or incomplete", () => {
     expect(parseConfig("<!doctype html>", base)).toBeNull();

@@ -24,7 +24,7 @@ This page covers the design, running the editor, and developing against a backen
 **One build serves every instance.** At start the editor fetches `config.json`:
 
 ```json
-{ "backend": { "url": "https://abcd.supabase.co", "publishableKey": "sb_publishable_…" }, "privacyPolicy": "/privacy.html" }
+{ "backend": { "url": "https://abcd.supabase.co", "publishableKey": "sb_publishable_…" }, "privacyPolicy": "", "termsOfService": "" }
 ```
 
 Absent, not JSON (a static host answering with `index.html`), or incomplete: the editor shows a page
@@ -330,9 +330,13 @@ for 29 days and an idle account.
   `account.json`: art. 15 and 20), *Delete my account* (parts through the storage API so the files
   go too, then the user and their projects: art. 17). Correction or objection: by email to the
   operator.
-- **Privacy policy:** `packages/vitryne-cloud/deploy/web/privacy.html`, at `/privacy.html` with the
-  operator's details, linked from the account dialog. A draft to review for each instance. On hosted
-  Supabase, Supabase processes the data for the operator: sign its DPA, and say so in the policy.
+- **Privacy policy and terms:** the web image serves none: the operator of an instance is the one
+  responsible for its users' data, so each publishes their own and sets `PRIVACY_POLICY_URL` and
+  `TERMS_URL` on the web container (empty: no link; they show in the help menu and the Cloud
+  dialog). What the software stores is in this section; `config.json` carries the two links.
+  vitryne.app's are in the docs site's *Legal* section
+  (`packages/vitryne-docs/content/docs/legal/`). On hosted Supabase, Supabase processes the data for
+  the operator: sign its DPA, and say so in the policy.
 
 ## Checking
 

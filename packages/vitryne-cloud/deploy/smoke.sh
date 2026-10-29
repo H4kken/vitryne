@@ -4,7 +4,7 @@
 # docs/CLOUD.md, "Checking"): builds the image
 # from the editor built here (`pnpm run build`, then target from-dist, quick), checks that it
 # refuses to start without a backend, then starts it from docker-compose.yml against the
-# local Supabase stack (started if needed) and checks the isolation headers, the privacy page,
+# local Supabase stack (started if needed) and checks the isolation headers,
 # /config.json, that the migrations at start agree with the CLI's, and runs the backend tests
 # (packages/vitryne-cloud/tests/).
 set -euo pipefail
@@ -48,7 +48,6 @@ wait_up
 headers=$(curl -fsI "$url/")
 grep -qi '^cross-origin-opener-policy: same-origin' <<<"$headers" || fail "no COOP header"
 grep -qi '^cross-origin-embedder-policy: require-corp' <<<"$headers" || fail "no COEP header"
-curl -fs "$url/privacy.html" | grep -q 'Privacy policy' || fail "no privacy page"
 curl -fs "$url/" | grep -q '<div id="root">' || fail "no editor at /"
 curl -fs "$url/config.json" | grep -q "\"url\":\"$api\"" || fail "config.json doesn't name the backend"
 logs=$(compose logs web)

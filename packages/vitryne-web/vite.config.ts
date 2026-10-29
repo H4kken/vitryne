@@ -45,8 +45,8 @@ const benchSink: Plugin = {
   },
 };
 
-// The backend in development (docs/CLOUD.md): SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY, from the
-// environment (`pnpm run dev` sets them for the local stack) or packages/vitryne-web/.env.local, are served as
+// The backend in development (docs/CLOUD.md): SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (and, if
+// set, PRIVACY_POLICY_URL and TERMS_URL for the help menu's links), from the environment (`pnpm run dev` sets them for the local stack) or packages/vitryne-web/.env.local, are served as
 // /config.json, like the web image does in production. Never in a build: dist/ has no
 // config.json.
 const cloudDev: Plugin = {
@@ -55,7 +55,7 @@ const cloudDev: Plugin = {
     const file = loadEnv(
       server.config.mode,
       server.config.envDir || import.meta.dirname,
-      "SUPABASE_",
+      ["SUPABASE_", "PRIVACY_POLICY_", "TERMS_"],
     );
     const url = process.env.SUPABASE_URL || file.SUPABASE_URL;
     const publishableKey =
@@ -66,13 +66,17 @@ const cloudDev: Plugin = {
       );
       return;
     }
+    const privacyPolicy =
+      process.env.PRIVACY_POLICY_URL || file.PRIVACY_POLICY_URL || null;
+    const termsOfService = process.env.TERMS_URL || file.TERMS_URL || null;
     server.config.logger.info(`  backend: ${url}`);
     server.middlewares.use("/config.json", (_req, res) => {
       res.setHeader("Content-Type", "application/json");
       res.end(
         JSON.stringify({
           backend: { url, publishableKey },
-          privacyPolicy: null,
+          privacyPolicy,
+          termsOfService,
         }),
       );
     });

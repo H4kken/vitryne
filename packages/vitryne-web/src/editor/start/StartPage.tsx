@@ -43,7 +43,10 @@ export function StartPage(props: {
       account={
         <>
           <ThemeMenu />
-          <HelpMenu privacyPolicy={cloud.config.privacyPolicy} />
+          <HelpMenu
+            privacyPolicy={cloud.config.privacyPolicy}
+            termsOfService={cloud.config.termsOfService}
+          />
           <CloudButton user={cloud.user} onClick={onAccount} />
         </>
       }

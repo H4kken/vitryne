@@ -176,7 +176,10 @@ export function TopBar(props: {
         </Tooltip>
       </div>
       <ThemeMenu />
-      <HelpMenu privacyPolicy={cloud.config.privacyPolicy} />
+      <HelpMenu
+        privacyPolicy={cloud.config.privacyPolicy}
+        termsOfService={cloud.config.termsOfService}
+      />
       <CloudButton user={cloud.user} onClick={onAccount} />
       <Button
         className="gap-2 px-3.5 font-semibold shadow-xs"
