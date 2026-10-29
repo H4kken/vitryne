@@ -34,6 +34,14 @@ measurements kept in a separate file. So Vitryne needs that file too.
 If the app can't work out a piece in a way Vitryne can follow, the dialog lists it under
 **Left out of the file** with the reason, and the other pieces still import.
 
+Pieces that are left out today:
+
+- **Pieces made with the union tool**, which joins two pieces into one. Not supported yet.
+- **Pieces whose outline crosses or touches itself**, such as a dart drawn as a cut into the
+  edge, or a path whose points are in the wrong order. Vitryne closes simple cuts; anything
+  else can't be cut or draped as drawn.
+- Elliptical arcs.
+
 ## Place the pieces
 
 A pattern opens the **Import a pattern** dialog. It lists every piece with a small drawing and
