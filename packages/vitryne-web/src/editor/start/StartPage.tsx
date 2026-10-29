@@ -33,6 +33,7 @@ export function StartPage(props: {
   const { cloud, hasDraft, onAccount, message } = props;
   return (
     <StartScreen
+      signedIn={!!cloud.user && !cloud.user.anonymous}
       examples={props.examples}
       busy={props.busy}
       onPreset={props.onPreset}

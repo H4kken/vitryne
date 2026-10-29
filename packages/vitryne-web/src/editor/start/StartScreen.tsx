@@ -28,6 +28,8 @@ const TILE =
 
 export function StartScreen(props: {
   examples: Example[];
+  /** Signed in to an account: the "no account needed" note has nothing to say. */
+  signedIn: boolean;
   onPreset: (e: Example) => void;
   /** An empty project. */
   onScratch: () => void;
@@ -99,9 +101,11 @@ export function StartScreen(props: {
           </a>
         </Button>
         <span className="grow" />
-        <span className="text-muted-foreground text-sm max-sm:hidden">
-          Free · no account needed to try
-        </span>
+        {!props.signedIn && (
+          <span className="text-muted-foreground text-sm max-sm:hidden">
+            Free · no account needed to try
+          </span>
+        )}
         {props.account}
       </div>
       {props.banner}
