@@ -24,6 +24,7 @@ export function CloudButton(props: {
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
+          aria-label={account ? undefined : "Sign in"}
           className="max-w-[220px] gap-1.5 px-3 font-medium"
           onClick={props.onClick}
         >

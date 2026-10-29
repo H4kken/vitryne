@@ -90,12 +90,13 @@ export function StartScreen(props: {
           </div>
         </div>
       )}
-      <div className="flex h-16 shrink-0 flex-wrap items-center gap-3 px-8">
+      <div className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 px-8 py-2">
         <Logo />
         <span className="font-display text-xl font-bold tracking-[-0.01em]">
           Vitryne
         </span>
-        <Button variant="ghost" asChild>
+        {/* On a phone the help menu has the documentation: no room for both. */}
+        <Button variant="ghost" className="max-sm:hidden" asChild>
           <a href={DOCS_URL} target="_blank" rel="noreferrer">
             Docs
           </a>
