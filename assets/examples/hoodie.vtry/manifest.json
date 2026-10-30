@@ -1,7 +1,7 @@
 {
   "format": "vitryne",
   "kind": "project",
-  "formatVersion": 4,
+  "formatVersion": 5,
   "minReaderVersion": 4,
   "generator": "vitryne convert (vitryne-format 0.5.0)",
   "parts": [
@@ -28,7 +28,7 @@
     {
       "path": "view.json",
       "mediaType": "application/json",
-      "sha256": "a9a876d08550ddf01b8b851d470d7b63492e1b9ef3bda2ddddb4a3ea68caf6df"
+      "sha256": "1688fafd479521de620657fdc6637aafe806bc3541e8eb3860b1dd3648ab77a5"
     },
     {
       "path": "avatars/01a13cdb-cc04-728e-9afd-3f992133737d/body.glb",

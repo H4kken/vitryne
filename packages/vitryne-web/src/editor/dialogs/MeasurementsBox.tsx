@@ -3,8 +3,6 @@
 // kept in a separate file (.vit or .smis for one person, .vst or .smms for a size chart) that the pattern names.
 // The import asks for that file by name, and offers a size chart's sizes.
 
-import { useRef } from "react";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -12,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CompanionPicker } from "./CompanionPicker";
 import type { SizeOption, TextFile } from "./ImportDialog";
 
 export function MeasurementsBox(props: {
@@ -24,29 +23,13 @@ export function MeasurementsBox(props: {
   size: number[] | null;
   onSize: (size: number[]) => void;
 }) {
-  const input = useRef<HTMLInputElement>(null);
   const pick = (
-    <>
-      <input
-        ref={input}
-        type="file"
-        accept=".vit,.vst,.smis,.smms"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (f)
-            void f.text().then((text) => props.onFile({ name: f.name, text }));
-        }}
-      />
-      <Button
-        variant={props.file ? "ghost" : "outline"}
-        size="sm"
-        onClick={() => input.current?.click()}
-      >
-        {props.file ? "Replace…" : `Add ${props.needed ?? "measurements"}…`}
-      </Button>
-    </>
+    <CompanionPicker
+      kind="drafted"
+      variant={props.file ? "ghost" : "outline"}
+      label={props.file ? "Replace…" : `Add ${props.needed ?? "measurements"}…`}
+      onFile={props.onFile}
+    />
   );
   const current = props.size ?? props.sizes.map((d) => d.base);
   return (
@@ -61,7 +44,8 @@ export function MeasurementsBox(props: {
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-body-text grow">
             This pattern is drafted from the measurements in{" "}
-            <strong>{props.needed}</strong>. Add that file to see its pieces.
+            <strong>{props.needed}</strong>. Drop that file here or choose it to
+            see its pieces.
           </span>
           {pick}
         </div>

@@ -155,6 +155,28 @@ export function renameProject(e: Entities, name: string): Command {
   });
 }
 
+/**
+ * The drape's controls as the project is left (`view.json`). The view may not exist yet (an
+ * import). Not an edit of the design: the store applies it with `executeQuiet`.
+ */
+export function setDrapeView(
+  e: Entities,
+  drape: { paused: boolean; fast: boolean },
+): Command {
+  const before = e.view;
+  const after = { ...before, drape };
+  const problems = schemaErrors("view", after);
+  if (problems.length)
+    throw new CommandError(`Drape controls: ${problems.join("; ")}`);
+  if (deepEqual(before, after))
+    throw new CommandError("Drape controls: nothing changes");
+  return {
+    label: "Drape controls",
+    drape: false,
+    changes: [{ slot: { kind: "view" }, before, after }],
+  };
+}
+
 function indexOf<T extends { id: string }>(
   list: readonly T[] | undefined,
   id: string,

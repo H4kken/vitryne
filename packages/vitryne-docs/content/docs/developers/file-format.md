@@ -664,7 +664,9 @@ later) gets a format-level name.
 ## View
 
 `view.json`, optional: `camera` (`target` in mm, `distance` in mm, optional `yaw`/`pitch` in
-radians). It never affects the drape and isn't part of the cache key
+radians), and `drape` (`paused`, `fast`): the drape's controls as the project was left, so a
+project left paused opens paused (version 5; absent means the drape waits for Play, not fast). It
+never affects the drape's result and isn't part of the cache key
 ([schema](https://github.com/H4kken/vitryne/blob/main/docs/format/schema/view.schema.json)).
 
 ## Simulation cache
@@ -729,6 +731,7 @@ produce.
   added or removed a cut would leave it stale. The migration orders each garment's cuts by the
   radius they start at (a `follow` at its cut's radius plus `lift`), ties in file order, so a file
   looks as it did.
+- **Version 5 is additive:** `view.json` gained `drape`. The migration is a no-op.
 - **A rule for future additive features:** if a new field's meaning depends on other data
   (e.g. per-size node offsets), it must stay valid when an older app edits that data, or the
   change has to be breaking, or it goes in a required extension.

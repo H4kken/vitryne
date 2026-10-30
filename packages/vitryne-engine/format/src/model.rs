@@ -775,6 +775,21 @@ impl Fabric {
 pub struct View {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera: Option<Camera>,
+    /// The drape's controls as the project was left.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drape: Option<DrapeView>,
+    #[serde(flatten)]
+    pub other: Other,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct DrapeView {
+    /// The drape waits for Play (absent: it does).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paused: Option<bool>,
+    /// The drape runs several steps per frame (absent: it doesn't).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fast: Option<bool>,
     #[serde(flatten)]
     pub other: Other,
 }

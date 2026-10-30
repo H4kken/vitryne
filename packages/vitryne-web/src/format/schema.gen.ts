@@ -756,6 +756,26 @@ export interface View {
       [k: string]: unknown | undefined;
     };
   };
+  /**
+   * The drape's controls as the project was left (format version 5).
+   */
+  drape?: {
+    /**
+     * The drape waits for Play. Absent: it does.
+     */
+    paused?: boolean;
+    /**
+     * Several steps per frame. Absent: no.
+     */
+    fast?: boolean;
+    extensions?: Extensions;
+    /**
+     * Application-specific data with no meaning in the format. Preserved, never interpreted.
+     */
+    extras?: {
+      [k: string]: unknown | undefined;
+    };
+  };
   extensions?: Extensions;
   /**
    * Application-specific data with no meaning in the format. Preserved, never interpreted.

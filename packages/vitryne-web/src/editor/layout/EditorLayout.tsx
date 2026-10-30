@@ -57,6 +57,7 @@ import { Rail } from "./Rail";
 import { RecoveryBanner } from "./RecoveryBanner";
 import { SidePanel } from "./SidePanel";
 import { Splitter } from "./Splitter";
+import { useDrapeMemory } from "../hooks/useDrapeMemory";
 import { TopBar } from "./TopBar";
 import type { FlatTool, PatternView } from "@/pattern/panel/types";
 
@@ -67,6 +68,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
   const disk = useMemo(() => new DiskFiles(), []);
   const doc = useDocument(store);
   const files = useFiles(session, store, disk, doc, cloud);
+  useDrapeMemory(session, store, doc, engine);
   const ready = useStarted(files.started);
   useFollowOpen(files, doc.empty, ready);
   const navigate = useNavigate();

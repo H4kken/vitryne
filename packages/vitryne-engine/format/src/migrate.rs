@@ -19,7 +19,7 @@ pub struct Raw {
 pub type Migration = fn(&mut Raw) -> Result<(), String>;
 
 /// Every migration, in order: `MIGRATIONS[k]` takes a file from version k + 1 to k + 2.
-pub const MIGRATIONS: &[Migration] = &[v1_to_v2, v2_to_v3, v3_to_v4];
+pub const MIGRATIONS: &[Migration] = &[v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5];
 
 /// Version 2 added appearances (`appearances/<id>.json`, `appearance` on garments and cuts,
 /// `project.appearances`), all optional: a v1 file is already a valid v2 file.
@@ -46,6 +46,12 @@ fn v3_to_v4(raw: &mut Raw) -> Result<(), String> {
         let stack = stack_of(part).map_err(|e| format!("{path}: {e}"))?;
         part["stack"] = Value::Array(stack.into_iter().map(Value::String).collect());
     }
+    Ok(())
+}
+
+/// Version 5 added `drape` to `view.json` (whether the drape was paused or fast when the project
+/// was left), optional: a v4 file is already a valid v5 file.
+fn v4_to_v5(_: &mut Raw) -> Result<(), String> {
     Ok(())
 }
 

@@ -2,10 +2,10 @@
 // Importing a pattern (packages/vitryne-docs/content/docs/developers/architecture.md, Import and placement), a DXF-AAMA file or a
 // Valentina pattern: what the file holds and what was left out of it, then where each piece goes
 // on the body (suggested from its name, the user decides), an optional garment.toml for a DXF's
-// sewing or the measurements a Valentina pattern is drafted from (and its size), and whether the
-// pieces make a new project or join the open one.
+// sewing or the measurements a Valentina pattern is drafted from (and its size; either file can
+// be dropped anywhere on the dialog), and whether the pieces make a new project or join the open one.
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,16 +15,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
-import { PlaceSelect } from "@/placement/PlaceSelect";
 import type { EngineSession } from "@/worker/session";
-import { chooseFor } from "./chooseFor";
 import { encodeChoice } from "./encodeChoice";
 import { leftOut } from "./leftOut";
 import { decodeChoice } from "./decodeChoice";
-import { ImportThumb } from "./ImportThumb";
+import { CompanionDropZone } from "./CompanionDropZone";
+import { ImportPieces } from "./ImportPieces";
+import { ImportSewing } from "./ImportSewing";
+import { ImportTarget } from "./ImportTarget";
 import { importSource, patternKind } from "./importSource";
 import { MeasurementsBox } from "./MeasurementsBox";
+import { useCompanionDrop } from "./useCompanionDrop";
 
 /** A text file the user picked or dropped. */
 export interface TextFile {
@@ -110,8 +111,6 @@ export function ImportDialog(props: {
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [into, setInto] = useState<"new" | "add">("new");
   const [busy, setBusy] = useState(false);
-  const tomlInput = useRef<HTMLInputElement>(null);
-  const ids = useId();
 
   useEffect(() => {
     if (!pattern || kind !== "drafted") return;
@@ -157,16 +156,6 @@ export function ImportDialog(props: {
   const preview = current?.preview ?? null;
   const error = runError ?? current?.error ?? null;
 
-  /** Whether `a` already goes on `b`, directly or through other pieces: `b` can't go on it. */
-  const sitsOn = (a: string, b: string): boolean => {
-    for (let k = 0, at = a; k <= Object.keys(choices).length; k++) {
-      const c = choices[at];
-      if (!c?.startsWith("on:")) return false;
-      at = c.slice(3);
-      if (at === b) return true;
-    }
-    return false;
-  };
   const missing = preview?.pieces.filter((x) => !choices[x.name]) ?? [];
   const placed =
     preview?.pieces.filter(
@@ -197,6 +186,8 @@ export function ImportDialog(props: {
       setBusy(false);
     }
   };
+
+  const dragging = useCompanionDrop(kind, setCompanion, setRunError);
 
   return (
     <Dialog
@@ -232,109 +223,20 @@ export function ImportDialog(props: {
           )}
 
           {preview && (
-            <ul className="m-0 flex list-none flex-col gap-2 p-0">
-              {preview.pieces.map((x) => {
-                const fixed = x.cuts;
-                const others = preview.pieces
-                  .filter(
-                    (o) =>
-                      o.name !== x.name &&
-                      !sitsOn(o.name, x.name) &&
-                      choices[o.name] !== "leave",
-                  )
-                  .map((o) => ({ key: o.name, label: o.name }));
-                return (
-                  <li
-                    key={x.name}
-                    className="flex items-center gap-3 rounded-2xl border border-border p-2.5"
-                  >
-                    <ImportThumb outline={x.outline} />
-                    <div className="flex min-w-0 grow flex-col gap-0.5">
-                      <label
-                        htmlFor={`${ids}-${x.name}`}
-                        className="truncate text-[15px] font-semibold"
-                      >
-                        {x.name}
-                      </label>
-                      <span className="text-muted-foreground text-[13px]">
-                        {fixed
-                          ? `Cut ${fixed === 2 ? "twice" : "once"} (sewing file)`
-                          : `Cut ×${x.quantity} in the file`}
-                      </span>
-                    </div>
-                    <PlaceSelect
-                      id={`${ids}-${x.name}`}
-                      className="h-11 w-[230px] shrink-0 rounded-[10px] border-[1.5px] border-border-strong bg-card text-[14px]"
-                      value={choices[x.name] ?? null}
-                      options={{
-                        one: fixed !== 2,
-                        pairs: fixed !== 1,
-                        on: fixed === 2 ? [] : others,
-                        flat: fixed !== 2,
-                        leave: true,
-                      }}
-                      onChange={(v) =>
-                        setChoices((c) => chooseFor(c, x.name, v))
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
+            <ImportPieces
+              preview={preview}
+              choices={choices}
+              onChoices={setChoices}
+            />
           )}
 
           {preview && (
-            <div className="flex flex-col gap-2 rounded-2xl bg-hover p-4 text-[14px] leading-snug">
-              <span className="font-semibold">Sewing</span>
-              {kind === "drafted" ? (
-                <span className="text-body-text">
-                  The pieces are placed but not sewn yet. Once they're in, the
-                  seam suggestions sew them.
-                </span>
-              ) : sidecar ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="grow">
-                    From {sidecar.name}: {preview.sewing?.seams ?? 0} seams (
-                    {preview.sewing?.title}).
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCompanion(null)}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-body-text grow">
-                    The pieces are placed but not sewn yet. A garment.toml
-                    written for this pattern can sew them.
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => tomlInput.current?.click()}
-                  >
-                    Add a garment.toml…
-                  </Button>
-                  <input
-                    ref={tomlInput}
-                    type="file"
-                    accept=".toml"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      e.target.value = "";
-                      if (f)
-                        void f
-                          .text()
-                          .then((text) => setCompanion({ name: f.name, text }));
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+            <ImportSewing
+              kind={kind}
+              preview={preview}
+              sidecar={sidecar}
+              onSidecar={setCompanion}
+            />
           )}
 
           {preview && (
@@ -364,28 +266,11 @@ export function ImportDialog(props: {
           )}
 
           {preview && props.projectName && (
-            <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-              <legend className="mb-2 text-[14px] font-semibold">
-                Import into
-              </legend>
-              <div className="flex gap-1 rounded-xl bg-hover p-1">
-                {(["new", "add"] as const).map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    aria-pressed={into === k}
-                    onClick={() => setInto(k)}
-                    className={cn(
-                      "h-10 flex-1 rounded-[9px] px-3 text-[15px] font-semibold",
-                      into === k &&
-                        "bg-card shadow-[0_1px_3px_rgba(20,24,31,.15)]",
-                    )}
-                  >
-                    {k === "new" ? "A new project" : `${props.projectName}`}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <ImportTarget
+              projectName={props.projectName}
+              value={into}
+              onChange={setInto}
+            />
           )}
 
           {error && (
@@ -419,6 +304,7 @@ export function ImportDialog(props: {
           </div>
         </DialogFooter>
       </DialogContent>
+      {dragging && kind && <CompanionDropZone kind={kind} />}
     </Dialog>
   );
 }

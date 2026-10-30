@@ -7021,7 +7021,7 @@ return errors === 0;
 validate67.evaluated = {"props":{"id":true,"name":true,"mesh":true,"pose":true,"regions":true,"measurements":true,"attribution":true,"libraryRef":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const view = validate74;
-const schema178 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/view.schema.json","title":"Vitryne format v1: view.json","description":"How the project was last looked at. Optional, never affects the drape, not part of the cache key.","type":"object","properties":{"camera":{"type":"object","properties":{"target":{"$ref":"common.schema.json#/$defs/vec3"},"distance":{"description":"mm","type":"number","exclusiveMinimum":0},"yaw":{"description":"radians around +Y, 0 = looking at the avatar's front","type":"number"},"pitch":{"description":"radians, positive = looking down","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["target","distance"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}};
+const schema178 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/view.schema.json","title":"Vitryne format v1: view.json","description":"How the project was last looked at. Optional, never affects the drape, not part of the cache key.","type":"object","properties":{"camera":{"type":"object","properties":{"target":{"$ref":"common.schema.json#/$defs/vec3"},"distance":{"description":"mm","type":"number","exclusiveMinimum":0},"yaw":{"description":"radians around +Y, 0 = looking at the avatar's front","type":"number"},"pitch":{"description":"radians, positive = looking down","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["target","distance"]},"drape":{"description":"The drape's controls as the project was left (format version 5).","type":"object","properties":{"paused":{"description":"The drape waits for Play. Absent: it does.","type":"boolean"},"fast":{"description":"Several steps per frame. Absent: no.","type":"boolean"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}};
 
 function validate74(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="https://vitryne.app/schema/1/view.schema.json" */;
@@ -7221,14 +7221,12 @@ vErrors.push(err14);
 errors++;
 }
 }
-if(data.extensions !== undefined){
-let data9 = data.extensions;
+if(data.drape !== undefined){
+let data9 = data.drape;
 if(data9 && typeof data9 == "object" && !Array.isArray(data9)){
-for(const key2 in data9){
-const _errs25 = errors;
-if(typeof key2 === "string"){
-if(!pattern9.test(key2)){
-const err15 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key2};
+if(data9.paused !== undefined){
+if(typeof data9.paused !== "boolean"){
+const err15 = {instancePath:instancePath+"/drape/paused",schemaPath:"#/properties/drape/properties/paused/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
 if(vErrors === null){
 vErrors = [err15];
 }
@@ -7238,9 +7236,9 @@ vErrors.push(err15);
 errors++;
 }
 }
-var valid10 = _errs25 === errors;
-if(!valid10){
-const err16 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key2},message:"property name must be valid"};
+if(data9.fast !== undefined){
+if(typeof data9.fast !== "boolean"){
+const err16 = {instancePath:instancePath+"/drape/fast",schemaPath:"#/properties/drape/properties/fast/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
 if(vErrors === null){
 vErrors = [err16];
 }
@@ -7250,10 +7248,14 @@ vErrors.push(err16);
 errors++;
 }
 }
-for(const key3 in data9){
-let data10 = data9[key3];
-if(!(data10 && typeof data10 == "object" && !Array.isArray(data10))){
-const err17 = {instancePath:instancePath+"/extensions/" + key3.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(data9.extensions !== undefined){
+let data12 = data9.extensions;
+if(data12 && typeof data12 == "object" && !Array.isArray(data12)){
+for(const key2 in data12){
+const _errs31 = errors;
+if(typeof key2 === "string"){
+if(!pattern9.test(key2)){
+const err17 = {instancePath:instancePath+"/drape/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key2};
 if(vErrors === null){
 vErrors = [err17];
 }
@@ -7263,9 +7265,9 @@ vErrors.push(err17);
 errors++;
 }
 }
-}
-else {
-const err18 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+var valid11 = _errs31 === errors;
+if(!valid11){
+const err18 = {instancePath:instancePath+"/drape/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key2},message:"property name must be valid"};
 if(vErrors === null){
 vErrors = [err18];
 }
@@ -7275,9 +7277,10 @@ vErrors.push(err18);
 errors++;
 }
 }
-}
-else {
-const err19 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+for(const key3 in data12){
+let data13 = data12[key3];
+if(!(data13 && typeof data13 == "object" && !Array.isArray(data13))){
+const err19 = {instancePath:instancePath+"/drape/extensions/" + key3.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err19];
 }
@@ -7286,7 +7289,97 @@ vErrors.push(err19);
 }
 errors++;
 }
+}
+}
+else {
+const err20 = {instancePath:instancePath+"/drape/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err20];
+}
+else {
+vErrors.push(err20);
+}
+errors++;
+}
+}
+}
+else {
+const err21 = {instancePath:instancePath+"/drape",schemaPath:"#/properties/drape/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err21];
+}
+else {
+vErrors.push(err21);
+}
+errors++;
+}
+}
+if(data.extensions !== undefined){
+let data15 = data.extensions;
+if(data15 && typeof data15 == "object" && !Array.isArray(data15)){
+for(const key4 in data15){
+const _errs39 = errors;
+if(typeof key4 === "string"){
+if(!pattern9.test(key4)){
+const err22 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key4};
+if(vErrors === null){
+vErrors = [err22];
+}
+else {
+vErrors.push(err22);
+}
+errors++;
+}
+}
+var valid15 = _errs39 === errors;
+if(!valid15){
+const err23 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key4},message:"property name must be valid"};
+if(vErrors === null){
+vErrors = [err23];
+}
+else {
+vErrors.push(err23);
+}
+errors++;
+}
+}
+for(const key5 in data15){
+let data16 = data15[key5];
+if(!(data16 && typeof data16 == "object" && !Array.isArray(data16))){
+const err24 = {instancePath:instancePath+"/extensions/" + key5.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err24];
+}
+else {
+vErrors.push(err24);
+}
+errors++;
+}
+}
+}
+else {
+const err25 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err25];
+}
+else {
+vErrors.push(err25);
+}
+errors++;
+}
+}
+}
+else {
+const err26 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err26];
+}
+else {
+vErrors.push(err26);
+}
+errors++;
+}
 validate74.errors = vErrors;
 return errors === 0;
 }
-validate74.evaluated = {"props":{"camera":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
+validate74.evaluated = {"props":{"camera":true,"drape":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};

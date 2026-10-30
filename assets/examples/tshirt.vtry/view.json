@@ -2,5 +2,8 @@
   "camera": {
     "target": [0.0, 1120.0, 30.0],
     "distance": 1500.0
+  },
+  "drape": {
+    "paused": false
   }
 }

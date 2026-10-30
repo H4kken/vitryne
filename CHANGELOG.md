@@ -8,6 +8,18 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+### Changed
+
+- A project opens with the drape paused and waits for Play, so an imported pattern isn't dropped
+  on the body before it is placed and sewn. Whether the drape was paused or fast is saved with the
+  project (file format version 5: `drape` in `view.json`), and the example projects still open
+  draping.
+
+### Added
+
+- The file that comes with an imported pattern (the measurements of a Valentina or Seamly2D
+  pattern, a garment.toml for a DXF) can be dropped anywhere on the import dialog.
+
 ## [0.5.0] - 2026-10-30
 
 ### Added
