@@ -28,7 +28,7 @@ const TILE =
 
 export function StartScreen(props: {
   examples: Example[];
-  /** The instance's legal pages (docs/CLOUD.md): linked in plain sight at the foot of the page. */
+  /** The instance's legal pages (packages/vitryne-docs/content/docs/developers/cloud.md): linked in plain sight at the foot of the page. */
   privacyPolicy: string | null;
   termsOfService: string | null;
   /** Signed in to an account: the "no account needed" note has nothing to say. */

@@ -44,7 +44,7 @@ pub struct Document {
     pub extensions_used: Vec<String>,
     pub extensions_required: Vec<String>,
     /// The versions written: this crate's, or a newer file's own, kept as they were
-    /// (FORMAT.md, Versions and migrations).
+    /// (file-format.md, Versions and migrations).
     pub format_version: u32,
     pub min_reader_version: u32,
     /// Unknown members of the manifest, and of each part's manifest entry.
@@ -142,7 +142,7 @@ impl Document {
         self.avatar(&self.project.as_ref()?.avatar)
     }
 
-    /// Checks the rules the schemas can't express (FORMAT.md): references, unique ids, what each
+    /// Checks the rules the schemas can't express (file-format.md): references, unique ids, what each
     /// kind holds. Writing refuses a document with errors; reading refuses a file with errors.
     pub fn validate(&self) -> Report {
         validate::check(self)

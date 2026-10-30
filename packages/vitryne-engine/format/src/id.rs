@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Identifiers (FORMAT.md, Identifiers): UUIDs, lowercase and hyphenated, unique within a file.
+//! Identifiers (file-format.md, Identifiers): UUIDs, lowercase and hyphenated, unique within a file.
 //! Writers create version 7 (time-ordered); readers accept any version.
 
 use serde::{Deserialize, Deserializer, Serialize};

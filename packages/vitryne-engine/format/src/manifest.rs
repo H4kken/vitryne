@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `manifest.json` and the four kinds of file (FORMAT.md, Files and kinds, Container).
+//! `manifest.json` and the four kinds of file (file-format.md, Files and kinds, Container).
 
 use serde::{Deserialize, Serialize};
 

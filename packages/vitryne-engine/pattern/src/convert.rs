@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! garment.toml + DXF-AAMA -> a Vitryne project (FORMAT.md, From garment.toml).
+//! garment.toml + DXF-AAMA -> a Vitryne project (file-format.md, From garment.toml).
 //!
 //! Each DXF piece the sidecar uses becomes a piece: its landmarks become outline nodes (turn
 //! points `corner`, notches `notch`, fold and internal-line ends `point`), the fractional
@@ -636,7 +636,7 @@ pub fn convert_with(
     )
 }
 
-/// A fabric from the engine's material (FORMAT.md, From garment.toml: Y = 2k/√3, shear 3Y/8,
+/// A fabric from the engine's material (file-format.md, From garment.toml: Y = 2k/√3, shear 3Y/8,
 /// the default friction). `category`: woven | knit (default) | nonwoven.
 pub(crate) fn fabric_entity(
     id: Id,

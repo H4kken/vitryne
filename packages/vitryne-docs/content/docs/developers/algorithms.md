@@ -4,8 +4,6 @@ icon: Sigma
 description: "Every solver component, where it is implemented, and the published method it follows."
 ---
 
-<!-- Copied from docs/ALGORITHMS.md. -->
-
 Every solver component, where it is implemented, and the published method it follows. Rule 5 of
 the plan: published methods only, cited here and in a comment where they are implemented.
 "Own" marks a design decision of ours that no paper prescribes, with the reasoning, so it can

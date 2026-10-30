@@ -4,10 +4,8 @@ icon: Blocks
 description: "How Vitryne is put together, and the rules that keep it that way."
 ---
 
-<!-- Copied from docs/ARCHITECTURE.md. -->
-
 How Vitryne is put together, and the rules that keep it that way. For the solver itself see
-[ALGORITHMS.md](/developers/algorithms); for the file format, [FORMAT.md](/developers/file-format).
+[Algorithms](/developers/algorithms); for the file format, [File format](/developers/file-format).
 
 ## Layout
 
@@ -84,7 +82,7 @@ pieces, with a status pill, a hint, zoom and a floating tool bar. Its colours, r
 the tokens in `packages/vitryne-web/src/index.css` (light only); the fonts, Bricolage Grotesque and
 DM Sans (OFL), are bundled from `@fontsource`, never fetched from another site. The 3D scene's
 colours go to the renderer as a `vitryne_render::Style`; a garment or piece with a colour (an
-appearance, FORMAT.md) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour
+appearance, the File format page) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour
 edits don't re-drape: after every document update the worker calls `Viewport::set_looks`, which
 recolours the drape shown and its export materials. The 3D tool bar has the concept's Select, Turn
 view and Pinch fabric; the flat one its Select and Move, then the pattern tools (below) and
@@ -178,7 +176,7 @@ the second mirrored: arms, legs front or back, hood sides, body sides), on top o
 (a pocket: `follow`, 12 mm off it), or left out. Each piece comes with a suggestion **from its
 name only** ("sleeve" → arms, "front" cut twice → legs, "hoodSide" → hood sides, facings,
 bindings, cuffs and bands get none), which the user sees and can change: no learned placement
-(PATENTS.md, rule 4). A `garment.toml` given with the DXF supplies the cuts, names and seams
+(the Patent warnings page, rule 4). A `garment.toml` given with the DXF supplies the cuts, names and seams
 (`vitryne convert`'s path); only its placements are replaced by the user's choices. The pieces
 become a new project (the test avatar, a placeholder jersey, self-collision on, the import
 collision box) or are added to the open project's garment as one undoable edit.
@@ -217,6 +215,34 @@ the piece and the body, never stored rules per garment:
   3 cm above the head for hoods, the shoulder joint for sleeves, centred for a strip over the
   head.
 
+**The stack decides what is outside what** (`placement/stacking.rs`; the garment's `stack`, the File format page).
+Cuts are placed from the bottom of the stack up. Each is sampled every 12 mm over its outline,
+and pushed out, along the whole cut by one amount, until it is a gap past every cut below it
+that it overlaps, plus its own `offset`. The gap is the mesh's edge length, never below 12 mm,
+so layers start clear of the cloth's self-collision radius. Two cuts in one body region overlap
+where their areas do, at any radius, so a coat drawn inside a shirt is pushed out past it; cuts
+in different regions only count where they face the same way within a gap and a half. Two cuts
+that meet along an edge overlap nothing, so the three sample garments start as drawn.
+Overlap is judged before the push, so one pass settles the stack and a reset always gives the
+same arrangement. A cut that goes on another is lifted by its `lift` and not pushed by the cuts
+it goes on. Rust works all of this out; the editor only stores the order and the offsets.
+
+The commands that keep the stack: `moveInStack` (a cut and the cuts placed on it move together to
+a place in the list; a cut placed on another stays above it), `setOffset` (how much further out a
+cut starts, or the lift of a cut placed on another; never negative), and every command that adds
+or removes cuts (`addPiece`, `addPieces`, `removeCuts`, `setPlacement` to a follow), which keep the
+list one entry per cut. The random-edit sessions include reorders and offsets. "Fit to the body
+again" keeps the cut's offset.
+
+**The Layers view** is the second view of the Pieces panel (a Pieces | Layers | Seams switch at
+its top; the plain list stays the first view, the sewn list the third, and the choice stays while other panels are open). It lists
+the stack outermost first (`placement/stackOrder.ts`: the cuts wrapped on the body, each with the
+cuts placed on it nested under it). A drop, a row's up and down arrows or an Alt + arrow become `moveInStack`; the selected
+row's field is `setOffset`. How far out each cut starts comes from Rust with the drape
+(`PreparedInfo.starts_out_mm`, from `Placer::starts_out`), so the editor never works out
+distances itself. Not there yet: the section drawing of the overlapping cuts that the mock-up
+had.
+
 For the three samples these land within a few cm of the hand-tuned sidecars (docs/PROGRESS.md, Import and placement).
 Then the user adjusts: in the Pieces panel (the place, around, height, distance from the body,
 turn, mirror image, "fit to the body again"), or **with the 3D gizmo**. The gizmo is ours: the
@@ -249,14 +275,14 @@ still covers it with 5 cm to spare, growing it only when it doesn't.
 by side in rows. Select picks a cut and turns it by a round handle above it (Shift: 15° steps);
 Move drags cuts. One drag is one edit (`Arrange the pieces`); the layout is display only.
 
-**Patents** (other companies' claims we design around, docs/PATENTS.md; its rules override the
-plan). No sewing is derived from placement, and no learned placement (PATENTS.md, rules 3
+**Patents** (other companies' claims we design around, the Patent warnings page; its rules override the
+plan). No sewing is derived from placement, and no learned placement (the Patent warnings page, rules 3
 and 4): suggestions come from names, every one shown to the user; the wrap is geometry from the
 piece and the avatar's own regions.
 
 ### Sewing
 
-Sewing is the part of the editor most constrained by [PATENTS.md](/developers/patents) (patents held by
+Sewing is the part of the editor most constrained by [Patent warnings](/developers/patents) (patents held by
 other companies; we avoid the designs they claim, and its rules override the plan where the two
 differ). The design, and why:
 
@@ -275,12 +301,12 @@ differ). The design, and why:
   adds edges to a side. Nothing is measured, snapped or coloured while picking.
 - **A length difference is shown only for a seam that exists**, as a sentence in the seam list
   ("Side two is 8% longer than side one"), never while picking and never in a colour that
-  changes with the difference. This is the "passive" case PATENTS.md marks for counsel's review.
+  changes with the difference. This is the "passive" case the Patent warnings page marks for counsel's review.
 - **Where the logic lives.** `packages/vitryne-engine/pattern/src/suggest.rs` (edges, scoring) and
   `seams.rs` (the project's cuts and node ids, proposals, `join_chains`, per-seam length
   differences); the worker calls `sewing_edges`, `suggest_seams`, `join_edges` and
   `seam_differences`; `document/commands.ts` has `addSeam`, `removeSeam`, `reverseSeam` (so
-  undo, validation and recovery work as for every edit); `sewing/` has the seams section of
+  undo, validation and recovery work as for every edit); `sewing/` has the Seams view of
   the Pieces panel (the sewn list, each seam's page, suggestions); the flat view
   (`pattern/panel/`) draws each seam in a colour on its edges and hosts the Sew tool;
   the 3D view draws the seams on the cloth (`packages/vitryne-engine/render/shaders/seams.wgsl`, screen-space
@@ -332,7 +358,7 @@ view.
   (`NewPieceDialog`); Rust wraps it there (`VtryFile.place_piece`: `rewrap` per cut and the
   collision box it needs) and `addPiece` adds it as one undo step. Body places start at the
   neck; a bottom is lowered with the placement's Height.
-- **Patents** ([PATENTS.md](/developers/patents)). Lengths and angles are shown and typed for one edge
+- **Patents** ([Patent warnings](/developers/patents)). Lengths and angles are shown and typed for one edge
   of the piece being edited or drawn, never across pieces. The pen snaps to the grid, to 15°
   steps and to the drawn piece's own points only: nothing snaps to another piece's edge length.
   An edited edge keeps its whole-edge seams. Drawn pieces have no named corners, so the seam
@@ -379,7 +405,7 @@ The native CLI uses the same key for its cache in `packages/vitryne-engine/targe
 
 ### Storage
 
-Projects live in the backend ([CLOUD.md](/developers/cloud), `packages/vitryne-web/src/cloud/`) and save by
+Projects live in the backend ([Cloud backend](/developers/cloud), `packages/vitryne-web/src/cloud/`) and save by
 themselves; nothing is written to disk. A project is a `FileRef` with a `cloud` field (id, revision,
 the part hashes the backend holds). `useFiles` saves it by asking the worker for the folder form,
 and `cloud/projects.ts` turns that into content-addressed parts and a row. Only a document Rust

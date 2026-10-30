@@ -62,7 +62,7 @@ const FABRIC_UI: {
     max: 5.0,
     step: 0.05,
   },
-  // Stored in N/m (FORMAT.md), shown in kN/m: a woven's are in the thousands, not the millions.
+  // Stored in N/m (file-format.md), shown in kN/m: a woven's are in the thousands, not the millions.
   {
     field: "stretchWarp",
     label: "Stretch along the grain",

@@ -413,7 +413,7 @@ decays through the 0.005 m/s threshold slowly, so a 0.1 mm difference moves the 
 
 ### Also in this milestone
 
-- `docs/ALGORITHMS.md`: one entry per solver component with its paper (XPBD, small steps,
+- `packages/vitryne-docs/content/docs/developers/algorithms.md`: one entry per solver component with its paper (XPBD, small steps,
   isometric bending, graph colouring, SDF and pseudo-normals, contact velocity filter, hashing,
   untangling, long range, strain limiting), what's ours and why, and how to reproduce M1.
 - `tools/check_drapes.py` is gone (the suite replaces it); `CONTRIBUTING.md` and
@@ -442,7 +442,7 @@ decays through the 0.005 m/s threshold slowly, so a 0.1 mm difference moves the 
 
 | Path | What |
 |---|---|
-| [docs/FORMAT.md](FORMAT.md) | The spec, with the rationale for each choice, the mapping from `garment.toml`, and what M5 has to change in the engine. |
+| [File format](../packages/vitryne-docs/content/docs/developers/file-format.md) | The spec, with the rationale for each choice, the mapping from `garment.toml`, and what M5 has to change in the engine. |
 | [docs/format/schema/](format/schema/) | JSON Schema (2020-12) per part: manifest, project, garment, fabric, avatar, view, plus shared definitions. |
 | [assets/examples/tshirt.vtry/](../assets/examples/tshirt.vtry/) | The T-shirt project, in folder form: 3 pieces (31 nodes, 732 outline points), 4 cuts, 10 seams, the cotton placeholder fabric, the MakeHuman avatar (`body.glb`, generated from the OBJ and committed). |
 | [tools/format/](../tools/format/) | `validate.py` (schemas plus reference rules), `obj2glb.py`, `build-examples.sh`. |
@@ -479,7 +479,7 @@ field, a run without direction, a placement loop); a well-formed extension passe
 - **The example was generated, not converted.** A throwaway script took the geometry from the
   importer (`aama::read`) and the names, seams and placement from the sidecar by hand. M5's
   converter must reproduce it, up to ids.
-- **M5 engine work** (end of FORMAT.md): `Material` from physical fabric values
+- **M5 engine work** (end of file-format.md): `Material` from physical fabric values
   (k = (√3/2)·Y), body regions from the avatar instead of `Frame::named`, one fabric per garment
   until M9, collision bounds from the file, and `.vtry` drapes matching the `garment.toml` path.
 - **Not in M4, raised during review:** the hosted instance (self-hosted Supabase, anonymous users,
@@ -582,9 +582,9 @@ Checked in Chrome on the M2 (real GPU, driven over CDP), and by hand in Safari o
 | [packages/vitryne-engine/render](../packages/vitryne-engine/render/) | The renderer, out of drape-core (which now has no rendering). |
 | `packages/vitryne-engine/wasm` | `VtryFile` (open zip or folder, entities out and in with validation, checked saves), `PreparedScene`, `Viewport`. |
 | `vitryne-format` | `Document::entities` / `set_entities` (atomic, validated), `to_zip_checked` / `to_entries_checked`, physical range checks, exact float parsing (`float_roundtrip`). |
-| [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/HOSTING.md](HOSTING.md) | How the editor is built and its guardrails; the COOP/COEP headers for nginx, Caddy and static hosts. |
+| [Architecture](../packages/vitryne-docs/content/docs/developers/architecture.md), [docs/HOSTING.md](HOSTING.md) | How the editor is built and its guardrails; the COOP/COEP headers for nginx, Caddy and static hosts. |
 
-The guardrails (details in ARCHITECTURE.md): the document is deep-frozen in development and
+The guardrails (details in architecture.md): the document is deep-frozen in development and
 tests; commands record whole entities before and after, so undo is exact; a command checks the
 JSON Schema of what it produces before it exists; Rust validates every new state in the worker
 and a refusal rolls back with the reason; a save waits for Rust, is read back in Rust and then
@@ -680,8 +680,8 @@ pocket on the front, long sleeves) imports and drapes the same way. Not checked 
 | `drape export-app-assets` | Also the test avatar's mesh (`packages/vitryne-web/public/avatar/body.glb`) and the SDF of the import box (74 MB), so a first import never bakes. |
 | `app/` | Start screen card "Import your own pattern" (or drop a DXF, with its garment.toml, anywhere); the import dialog; Select in the 3D tool bar (placing: the drape waits at the start, a click picks a piece, its gizmo moves it up and down, around, away, and turns it); the Pieces panel per cut (place, around, height, distance, turn, mirror image, fit again, on top of another piece); the flat view per cut with `cut.layout` (Select with a turn handle, Move); "Import a pattern" in the menu. An imported project is unsaved until saved (the recovery copy knows). |
 
-Design notes in [docs/ARCHITECTURE.md](ARCHITECTURE.md), "Import and placement". No format
-change: the gizmo edits the wrap's own fields; FORMAT.md now defines `cut.layout`.
+Design notes in [Architecture](../packages/vitryne-docs/content/docs/developers/architecture.md), "Import and placement". No format
+change: the gizmo edits the wrap's own fields; file-format.md now defines `cut.layout`.
 
 ### Numbers
 
@@ -733,9 +733,9 @@ T-shirt and met with manual picks for the other two, not from suggestions alone.
 by the author; not run in Safari or Firefox.
 
 **The plan changed in one place, on purpose:** the plan's "notch-to-notch segments" became
-**whole edges** (docs/PATENTS.md, rule 1: the patents are another company's, and its rules
+**whole edges** (packages/vitryne-docs/content/docs/developers/patents.md, rule 1: the patents are another company's, and its rules
 override the plan). Suggestions may propose a chain of whole edges (a sleeve cap against two
-armholes); the user only accepts or rejects them. See ARCHITECTURE.md, "Sewing (M8)".
+armholes); the user only accepts or rejects them. See architecture.md, "Sewing (M8)".
 
 ### What's there
 
@@ -779,7 +779,7 @@ armholes); the user only accepts or rejects them. See ARCHITECTURE.md, "Sewing (
   the piece's drawing), not derived from placement. A pattern drafted the other way round needs
   "Flip direction" or a mirrored cut. A chain over a junction orients by height (the shoulder of
   an upright piece) and is paired by length, so it sews even if the junction is guessed wrong.
-- **Counsel review is still open** (docs/PATENTS.md): the static length-difference sentence on
+- **Counsel review is still open** (packages/vitryne-docs/content/docs/developers/patents.md): the static length-difference sentence on
   an existing seam, Shift-click chains of whole edges, and suggestions that emit chains.
 - **Not in M8:** seams on internal lines in suggestions (the hoodie's pocket); a chain across
   three or more cuts is picked by hand; no seam allowance; the 3D view shows seams but picking
@@ -799,13 +799,13 @@ armholes); the user only accepts or rejects them. See ARCHITECTURE.md, "Sewing (
 
 ## M9 — Fabric presets (2026-10-14)
 
-**Done-when:** "switching fabrics visibly changes the drape in a plausible way on all three garments, and the regression suite covers one woven and one knit." Met: five physical presets calibrated against published textile data documented in `docs/FABRICS.md`, per-cut and garment-level fabric picker in the UI with instant re-drape, and multi-fabric simulation support in `drape-core`. Regression suite covers knit (`tshirt`) and woven (`trousers`), bit-identical golden drapes confirmed.
+**Done-when:** "switching fabrics visibly changes the drape in a plausible way on all three garments, and the regression suite covers one woven and one knit." Met: five physical presets calibrated against published textile data documented in `packages/vitryne-docs/content/docs/developers/fabrics.md`, per-cut and garment-level fabric picker in the UI with instant re-drape, and multi-fabric simulation support in `drape-core`. Regression suite covers knit (`tshirt`) and woven (`trousers`), bit-identical golden drapes confirmed.
 
 ### What's there
 
 | Path | What |
 |---|---|
-| `docs/FABRICS.md` | Comprehensive documentation of the 5 presets (Cotton jersey, Denim, Poplin shirting, Fleece, Wool suiting), literature citations (Kawabata 1980 KES-F, FAST, Wang et al. 2011, Miguel et al. 2012, Clyde et al. 2017), physical conversion equations ($Y = 2k/\sqrt{3}$, XPBD compliance $\alpha = A/(6B)$, lumped vertex masses), and M2 strain target criteria. |
+| `packages/vitryne-docs/content/docs/developers/fabrics.md` | Comprehensive documentation of the 5 presets (Cotton jersey, Denim, Poplin shirting, Fleece, Wool suiting), literature citations (Kawabata 1980 KES-F, FAST, Wang et al. 2011, Miguel et al. 2012, Clyde et al. 2017), physical conversion equations ($Y = 2k/\sqrt{3}$, XPBD compliance $\alpha = A/(6B)$, lumped vertex masses), and M2 strain target criteria. |
 | `packages/vitryne-engine/format/src/presets.rs` | Standard preset definitions with canonical UUIDv7 identifiers, lookup functions (`find_preset`, `presets`), and schema validation tests. |
 | `packages/vitryne-engine/solver` | Multi-material and per-panel mass support: `Constraints::build_with_panel_materials` (per-panel stretch & bend compliance), `ClothMesh::masses_per_panel` & `inv_masses_per_panel` (panel-weighted lumped masses), `Solver::new_with_inv_mass`, `Garment::load_with_materials`. |
 | `packages/vitryne-engine/pattern` | Multi-fabric project loading: `ProjectGarment::panel_materials()` and `ProjectGarment::panel_fabrics()`, per-cut fabric override resolution against document fabrics. |
@@ -960,7 +960,7 @@ Measured on Apple M2 (integrated GPU, macOS Darwin 27), 20 substeps, 3 stretch s
 
 ### Known Weak Spots & Limitations (Honest Catalog)
 
-1. **Whole-Edge Seams Only:** Free-hand partial edge splits or notch-to-notch segment sewing in the UI are deliberately omitted to avoid proprietary competitor patent claims ([docs/PATENTS.md](PATENTS.md)). Seams pair entire boundary edges between vertices.
+1. **Whole-Edge Seams Only:** Free-hand partial edge splits or notch-to-notch segment sewing in the UI are deliberately omitted to avoid proprietary competitor patent claims ([Patent warnings](../packages/vitryne-docs/content/docs/developers/patents.md)). Seams pair entire boundary edges between vertices.
 2. **Single-Layer Garments:** Each piece is represented as a single 2D triangular manifold. Linings, fusible canvas, and layered pocket flaps are not yet modeled.
 3. **Rigid Body SDF Collider:** The avatar is a static collision mesh baked to an SDF. Posed avatars and dynamic skeletal animations will be addressed in future milestones.
 4. **Woven Strain Target:** On high-tension woven items (Trousers), p99 edge strain settles at 5.4% against the theoretical 3% woven target under 1 solver iteration per substep.
@@ -1031,7 +1031,7 @@ our own secrets script and Mailpit. Reworked after review to follow Twenty's mod
 | `packages/vitryne-web/src/cloud/` | `config.ts`, `backend.ts`, `supabase.ts` (lazy chunk), `projects.ts` (content-addressed save/open/download/export/delete/move), `zip.ts`, `useCloud.ts`, `CloudDialogs.tsx`; tests `projects.test.ts`, `config.test.ts` (13, on an in-memory backend and the worker's Rust). |
 | `packages/vitryne-web/src/editor/` | Cloud button, *Save to the cloud* / *Save a copy* / *Open from the cloud…*, "Your cloud projects" on the start screen; cloud projects save back to themselves; the recovery copy remembers them. |
 | `app/` | `pnpm run dev:cloud`, `pnpm run supabase …`; `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY` serve `/config.json` in dev. |
-| `docs/CLOUD.md` | Modes, running, backend setup (hosted steps), developing, design, security, privacy, checks, publishing. HOSTING, FORMAT, ARCHITECTURE and README point to it. |
+| `packages/vitryne-docs/content/docs/developers/cloud.md` | Modes, running, backend setup (hosted steps), developing, design, security, privacy, checks, publishing. HOSTING, FORMAT, ARCHITECTURE and README point to it. |
 
 ### Decisions
 
@@ -1044,7 +1044,7 @@ our own secrets script and Mailpit. Reworked after review to follow Twenty's mod
 - **Revision check on save:** a save from another tab or browser in between is reported, never
   overwritten.
 - **Parts up to 50 MB:** the hosted free plan's per-file limit.
-- **Growth metrics: none in the browser** (docs/CLOUD.md, Privacy). **For your review.**
+- **Growth metrics: none in the browser** (packages/vitryne-docs/content/docs/developers/cloud.md, Privacy). **For your review.**
 
 ### Plan rules this changes
 
@@ -1120,7 +1120,7 @@ our own secrets script and Mailpit. Reworked after review to follow Twenty's mod
   and named in the dialog; a sidecar recreates them.
 - **No seam allowance:** the outline is the sewing line until `VTRY_seam_allowance` exists; said
   in the dialog's notes and in each piece's "Annotation:".
-- **No patent question:** export joins, places, measures and grades nothing (docs/PATENTS.md).
+- **No patent question:** export joins, places, measures and grades nothing (packages/vitryne-docs/content/docs/developers/patents.md).
 
 ### Numbers
 
@@ -1153,7 +1153,7 @@ project is in one place rather than passed around as files.
 | Autosave, never to disk | **Met**: ~2 s after the last confirmed edit and when the tab is hidden; retried while offline (the title says the changes are kept in this browser), saved once back (real Chrome, offline emulation). No Save, Save as or per-project download. |
 | One tab per project; another browser is a conflict | **Met**: a second tab asks before taking over, the first is told (real Chrome, two tabs); a save over a newer revision stops with *open the other version* / *keep mine* (as a copy for an account). |
 | With an account: every project, any device, export, duplicate | **Met**: the draft becomes the account's (same user), Duplicate makes "(copy)", a fresh browser B signs in, lists both and opens the original with its edit (real Chrome). |
-| Stale anonymous users cleaned up | **Met locally**: the `clean-anonymous` Edge Function, daily via pg_cron; `cleanup.test.mjs` (31 days idle: gone with draft and parts; 29 days, or an account: kept; no secret: refused). **On your hosted project: your step** (deploy the function, two Vault secrets, CLOUD.md step 6). |
+| Stale anonymous users cleaned up | **Met locally**: the `clean-anonymous` Edge Function, daily via pg_cron; `cleanup.test.mjs` (31 days idle: gone with draft and parts; 29 days, or an account: kept; no secret: refused). **On your hosted project: your step** (deploy the function, two Vault secrets, cloud.md step 6). |
 | No backend | **Met**: the editor says so (`browser.mjs none`); the web image doesn't start (`smoke.sh`). |
 | `make check`, cloud tests, smoke | **Met**: all passed (61 app tests, golden drapes unchanged); `packages/vitryne-cloud/tests/` 17/17; `deploy/smoke.sh` ok. |
 
@@ -1164,7 +1164,7 @@ project is in one place rather than passed around as files.
 | 1/4 anonymous drafts | Migration (draft limit by the owner's state, limits only on the caller's own rows, `stale_anonymous_users`, pg_cron + Vault call), `supabase/functions/clean-anonymous`, Edge Functions on locally, `duplicateProject`, `CloudError` kind `account`, tests, privacy page (30 days). |
 | 2/4 autosave | `packages/vitryne-web/src/cloud/autosave.ts` (fake-timer tests), `lock.ts` (Web Locks), `useFiles` saving by itself, recovery copies of open tabs not offered and put back at start when nobody saved since, conflict and account cards, `moveProjects` returning new ids so an open draft follows a sign-in. |
 | 3/4 cloud only | No local mode (`App.tsx` no-backend page, entrypoint refuses), `storage.ts` only opens files (`DiskFiles`; a file opens as a new project), export and duplicate gated, replace-draft question, start screen, project list without download; `pnpm run dev` starts the backend (`--local` forces the local stack), `dev:app` for the bench. |
-| 4/4 docs | CLOUD.md (the backend, accounts, privacy, checks), ARCHITECTURE (storage), FORMAT, README, CONTRIBUTING, CLAUDE.md rule 7. |
+| 4/4 docs | cloud.md (the backend, accounts, privacy, checks), ARCHITECTURE (storage), FORMAT, README, CONTRIBUTING, CLAUDE.md rule 7. |
 
 ### Decisions
 
@@ -1181,7 +1181,7 @@ project is in one place rather than passed around as files.
 ### Open
 
 - Your hosted project: push the migration, deploy `clean-anonymous`, set the two Vault secrets
-  (CLOUD.md, Setting up the backend, step 6).
+  (cloud.md, Setting up the backend, step 6).
 - Google sign-in still untested end to end (as in M12).
 - Sharing a project with someone else is the next step this prepares; not started.
 
@@ -1196,7 +1196,7 @@ folds and grain, and this wrap-up.
 | From a blank project, two drawn rectangles plus the suggested side seams drape as a skirt (Chrome and the golden) | **Met**, with two findings fixed on the way (below). Golden: `packages/vitryne-engine/tests/skirt.vtry`, made by the editor's own commands in `packages/vitryne-web/src/document/skirt.test.ts`, drapes at rest (frame 163) with no penetration and no self-intersections. Real Chrome against the local stack (`node packages/vitryne-cloud/tests/browser.mjs draw`): *Start from scratch*, two 450 × 400 mm rectangles from *Add a shape* on the body front and back, Height 1000 mm, *Suggest seams* lists the bottoms, the tops and the two side pairs, *Sew* on the two sides, and the 3D view shows the same skirt as the native golden; no console errors. |
 | Curves survive save, reopen and DXF export; the examples' bytes don't change | **Met.** Phase 1's Rust tests (curve round trip, deterministic flattening, DXF export of a curved piece); the examples and goldens are byte-identical (`make check` diffs `examples/` against `drape convert`). In Chrome an ellipse (four cubic edges) is autosaved to the local backend and comes back after a reload. |
 | Every new command applies, is accepted by Rust, and reverts to identical JSON | **Met.** Per-command tests (`outline.test.ts`, `draw.test.ts`, `marks.test.ts`), and a second fast-check run per example that mixes the eleven M14 commands with the settings edits (40 sessions of up to 30 steps): Rust holds the UI's document after every step, accepts every state the UI let through, and undoing everything saves the original bytes. |
-| No interaction measures across pieces or snaps to another piece's length | **Met** by design and review: lengths and angles are of one edge of the piece being edited or drawn; snapping is to the grid, 15° and the drawn piece's own points (docs/PATENTS.md, the new M14 table). |
+| No interaction measures across pieces or snaps to another piece's length | **Met** by design and review: lengths and angles are of one edge of the piece being edited or drawn; snapping is to the grid, 15° and the drawn piece's own points (packages/vitryne-docs/content/docs/developers/patents.md, the new M14 table). |
 | `make check` | **Met**: all passed in 80 s (Rust, both clippys, 111 app tests in 16 files, web build, examples unchanged, four golden drapes: the three samples at 0.00 mm shape difference, and the skirt). |
 
 ### What changed
@@ -1252,7 +1252,7 @@ folds and grain, and this wrap-up.
 
 ### Open items
 
-- **Your review**, and counsel's on the PATENTS.md M14 table with the earlier open items.
+- **Your review**, and counsel's on the patents.md M14 table with the earlier open items.
 - The draft notice keeps the project name it had when first saved ("Untitled is saved as your
   draft…" after a rename): cosmetic, from the MVP fixes.
 - Not in this Chrome check: DXF export of a curved piece (export needs an account; covered by

@@ -4,7 +4,7 @@
 //! A piece's main path lists points and curves in order. A curve runs between its neighbours:
 //! from the point before it if that point lies on it (else from where the curve before it
 //! crosses it, else from its start) to the point after it, the way the apps cut it. The
-//! outline is the sewing line (FORMAT.md, Pieces), counter-clockwise, in mm with y up:
+//! outline is the sewing line (file-format.md, Pieces), counter-clockwise, in mm with y up:
 //!   - a curve becomes `cubic` edges (`VTRY_curves`), a spline path's joints `point` nodes;
 //!   - a node is a `corner` where the outline turns more than 15° (the DXF importer's rule),
 //!     else a `notch` if it carries a passmark, else a `point`;

@@ -8,7 +8,7 @@
 set -eu
 
 if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]; then
-  echo "web: SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are needed: projects are saved to that backend (docs/CLOUD.md)" >&2
+  echo "web: SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are needed: projects are saved to that backend (packages/vitryne-docs/content/docs/developers/cloud.md)" >&2
   exit 1
 fi
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The editor's view of its backend (docs/CLOUD.md): null when the instance names none (no usable
+// The editor's view of its backend (packages/vitryne-docs/content/docs/developers/cloud.md): null when the instance names none (no usable
 // config.json), undefined while the config is loading. The backend code loads on first use, or at
 // start when this browser has a session from an earlier visit.
 

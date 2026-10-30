@@ -33,10 +33,10 @@ What only a person can check:
   run `make regress` on the branch (`gh pr checkout <n>`, or fetch the fork's branch), or check
   that the author did and explained any re-recorded goldens.
 - **Patents.** Anything that joins pieces, places them, measures a pattern or resizes a garment
-  follows [PATENTS.md](PATENTS.md) (CLAUDE.md, "Patents").
+  follows [patents.md](../packages/vitryne-docs/content/docs/developers/patents.md) (CLAUDE.md, "Patents").
 - **Project rules.** WebGPU core only, the engine and the UI separate, published methods cited
-  in [ALGORITHMS.md](ALGORITHMS.md), no telemetry (CONTRIBUTING.md, "Rules for engine changes";
-  [CLOUD.md](CLOUD.md#privacy)).
+  in [algorithms.md](../packages/vitryne-docs/content/docs/developers/algorithms.md), no telemetry (CONTRIBUTING.md, "Rules for engine changes";
+  [cloud.md](../packages/vitryne-docs/content/docs/developers/cloud.md#privacy)).
 - **The squash message.** The title is the PR's title in the history's form
   (`type(scope): summary`); keep the `Signed-off-by:` lines GitHub puts in the body.
 - **The changelog.** A line under Unreleased in [CHANGELOG.md](../CHANGELOG.md) when people

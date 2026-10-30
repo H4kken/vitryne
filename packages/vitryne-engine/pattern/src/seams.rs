@@ -2,7 +2,7 @@
 //! Sewing in the editor, on a project's garment: which whole edges are still free, suggested
 //! seams (`suggest`), and the seam a user's two picks make.
 //!
-//! Patents (docs/PATENTS.md): everything here works on **whole edges**, the stretch of a cut's
+//! Patents (packages/vitryne-docs/content/docs/developers/patents.md): everything here works on **whole edges**, the stretch of a cut's
 //! outline between two corners. `join` refuses anything else (rule 1), takes two picks and shows
 //! nothing while the user picks (rule 2), and suggestions come from piece geometry only
 //! (rule 3). Direction and cut choices below follow the pieces' own drawing frames (which side
@@ -505,7 +505,7 @@ fn orient_side(g: &Garment, conv: &Converted, all: &[Edge], picks: &[(usize, &Id
 
 /// The seam made of one or more picked whole edges on each side (a sleeve cap against a front
 /// and a back armhole). Two single edges are `join`. Every pick must be a whole edge of its cut
-/// (docs/PATENTS.md, rule 1); a chain is a list of whole edges, never a part of one.
+/// (packages/vitryne-docs/content/docs/developers/patents.md, rule 1); a chain is a list of whole edges, never a part of one.
 pub fn join_chains(g: &Garment, a: &[EdgePick], b: &[EdgePick]) -> Result<SeamProposal, String> {
     if a.is_empty() || b.is_empty() {
         return Err("a seam needs edges on both sides".into());
@@ -589,7 +589,7 @@ fn run_length_mm(g: &Garment, r: &Run) -> Option<f64> {
 }
 
 /// Each seam's length difference, percent of side `a` (side `b` longer is positive), for the
-/// seam list. Shown only once a seam exists, as plain text (docs/PATENTS.md, "passive").
+/// seam list. Shown only once a seam exists, as plain text (packages/vitryne-docs/content/docs/developers/patents.md, "passive").
 pub fn seam_differences(g: &Garment) -> Vec<(Id, f32)> {
     g.seams
         .iter()

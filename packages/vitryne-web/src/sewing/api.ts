@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // What Rust's sewing calls return (packages/vitryne-engine/pattern/src/seams.rs), and plain-language labels
-// for them. Whole edges only (docs/PATENTS.md, rule 1): an edge is the outline between two of
+// for them. Whole edges only (packages/vitryne-docs/content/docs/developers/patents.md, rule 1): an edge is the outline between two of
 // a cut's corners, named by those corners.
 
 import type { Garment, Seam } from "@/format/schema.gen";
@@ -68,7 +68,7 @@ function nodeName(g: Garment, cutId: string, nodeId: string): string {
 /**
  * Where an outline run sits in its piece as the flat view draws it (a mirrored cut mirrored):
  * "the left side", "the top", ...; null near the middle, or for a line. For pieces whose
- * corners have no names (drawn ones). Within one piece only (docs/PATENTS.md, rule 5).
+ * corners have no names (drawn ones). Within one piece only (packages/vitryne-docs/content/docs/developers/patents.md, rule 5).
  */
 function runPlace(g: Garment, r: Run): string | null {
   if (r.line !== undefined) return null;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Initial placement (FORMAT.md, Placement): each panel is wrapped on a cylinder around one of
+//! Initial placement (file-format.md, Placement): each panel is wrapped on a cylinder around one of
 //! the avatar's regions, before sewing pulls it into place. Pieces are drawn as seen from
 //! outside, right side up, so the piece's x runs around the cylinder and its y along the axis.
 //!
@@ -187,7 +187,7 @@ pub fn default_avatar() -> &'static Avatar {
     })
 }
 
-/// garment.toml frame names, mapped to the region vocabulary (FORMAT.md, Regions).
+/// garment.toml frame names, mapped to the region vocabulary (file-format.md, Regions).
 pub const SIDECAR_REGIONS: [(&str, &str); 11] = [
     ("torso", "torso"),
     ("head", "head"),
@@ -484,7 +484,7 @@ fn tube_profile(
     (lo, step, radii)
 }
 
-// ---- the editor's places (docs/ARCHITECTURE.md, Placement) --------------------------------
+// ---- the editor's places (packages/vitryne-docs/content/docs/developers/architecture.md, Placement) --------------------------------
 
 /// Where the editor offers to start a cut, as people say it: a region and a side of it. Each
 /// is a region name and an angle; `auto_wrap` works out the rest. "Left" is the wearer's left.
@@ -596,7 +596,7 @@ impl BodyFacts {
     }
 }
 
-/// The starting wrap for a piece at `place` (docs/ARCHITECTURE.md, Placement): the cylinder
+/// The starting wrap for a piece at `place` (packages/vitryne-docs/content/docs/developers/architecture.md, Placement): the cylinder
 /// is the piece's own circumference with some ease (a front and a back each make half of it, a
 /// sleeve all of it), never closer to the body than `CLEARANCE` where the body is measured;
 /// the top edge goes where that kind of piece usually starts (the base of the neck, the waist,

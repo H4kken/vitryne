@@ -2,7 +2,7 @@
 // The pen tool's bar, over the flat view: how to draw, then the edge being drawn's length and
 // angle (typing either and pressing Enter puts the next point there), Undo point, Close and
 // Cancel. The length is of the piece being drawn only: nothing here compares pieces or snaps to
-// another piece's length (docs/PATENTS.md).
+// another piece's length (packages/vitryne-docs/content/docs/developers/patents.md).
 
 import { Check, Undo2, X } from "lucide-react";
 import { useState } from "react";

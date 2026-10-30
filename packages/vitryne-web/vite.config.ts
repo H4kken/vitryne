@@ -45,7 +45,7 @@ const benchSink: Plugin = {
   },
 };
 
-// The backend in development (docs/CLOUD.md): SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (and, if
+// The backend in development (packages/vitryne-docs/content/docs/developers/cloud.md): SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (and, if
 // set, PRIVACY_POLICY_URL and TERMS_URL for the help menu's links), from the environment (`pnpm run dev` sets them for the local stack) or packages/vitryne-web/.env.local, are served as
 // /config.json, like the web image does in production. Never in a build: dist/ has no
 // config.json.

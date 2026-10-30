@@ -708,7 +708,7 @@ export interface Avatar {
    */
   pose?: string;
   /**
-   * Body regions, keyed by a name from the region vocabulary (FORMAT.md): torso, head, head-over, upper-arm-left/right, arm-left/right, arm-straight-left/right, leg-left/right. Garments refer to these names, so a garment fits any avatar that has the regions it uses.
+   * Body regions, keyed by a name from the region vocabulary (file-format.md): torso, head, head-over, upper-arm-left/right, arm-left/right, arm-straight-left/right, leg-left/right. Garments refer to these names, so a garment fits any avatar that has the regions it uses.
    */
   regions: {
     [k: string]: Region | undefined;

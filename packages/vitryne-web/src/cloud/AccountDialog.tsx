@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The account dialog (docs/CLOUD.md). No sign-up wall: anyone can try the editor, and their
+// The account dialog (packages/vitryne-docs/content/docs/developers/cloud.md). No sign-up wall: anyone can try the editor, and their
 // work is kept as one draft (an anonymous user); a free account keeps every project, opens them
 // anywhere, and exports. A new account is confirmed by a link in an email: this dialog waits and
 // notices, so the work here stays put while the link opens elsewhere. A forgotten password is

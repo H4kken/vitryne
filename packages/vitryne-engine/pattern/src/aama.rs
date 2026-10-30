@@ -79,7 +79,7 @@ pub struct ImportReport {
     pub warnings: Vec<String>,
 }
 
-/// A point on the project format's grid (0.001 mm, FORMAT.md, Numbers and JSON), so a piece
+/// A point on the project format's grid (0.001 mm, file-format.md, Numbers and JSON), so a piece
 /// imported here is exactly the piece a saved project holds, and drapes the same.
 pub fn on_grid(p: DVec2) -> Vec2 {
     ((p * 1e6).round() / 1e6).as_vec2()

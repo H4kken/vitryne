@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migrations (FORMAT.md, Versions and migrations): pure JSON-to-JSON functions, one per
+//! Migrations (file-format.md, Versions and migrations): pure JSON-to-JSON functions, one per
 //! version step, run on the raw JSON of a file before it is parsed into types, so the types
 //! only ever exist for the current version. Never delete one; the tests keep a fixture file for
 //! every past version.

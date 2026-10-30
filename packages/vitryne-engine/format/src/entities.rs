@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! A document's entities as plain JSON, for an editor that holds the file's own JSON and edits
-//! it (docs/ARCHITECTURE.md, Document model): `entities` gives it out, `set_entities` takes an
+//! it (packages/vitryne-docs/content/docs/developers/architecture.md, Document model): `entities` gives it out, `set_entities` takes an
 //! edited copy back, parses and validates it, and replaces the entities only if it is valid.
 //! Everything that isn't an entity (binary parts, manifest members, versions) stays here.
 //!

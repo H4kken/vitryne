@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The backend by configuration (docs/CLOUD.md): a `config.json` next to index.html names it, so
+// The backend by configuration (packages/vitryne-docs/content/docs/developers/cloud.md): a `config.json` next to index.html names it, so
 // one build serves every instance and self-hosters never rebuild. Without one the editor says so
 // and stops (projects are saved to the backend).
 

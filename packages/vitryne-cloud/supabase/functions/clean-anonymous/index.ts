@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Deletes anonymous users nobody came back to (packages/vitryne-cloud/supabase/migrations/…_anonymous_drafts.sql,
-// docs/CLOUD.md): their parts through the Storage API (SQL can't remove the files), then the user,
+// packages/vitryne-docs/content/docs/developers/cloud.md): their parts through the Storage API (SQL can't remove the files), then the user,
 // which takes their draft with it. Called once a day by pg_cron with the `x-cleanup-secret`
 // header; anything else is refused. A user whose parts fail to go is kept for the next run.
 

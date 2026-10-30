@@ -4,6 +4,10 @@
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
+    "sync": "node scripts/sync-contributing.mjs",
+    "predev": "pnpm run sync",
+    "prebuild": "pnpm run sync",
+    "precheck": "pnpm run sync",
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",

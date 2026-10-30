@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
--- Anonymous drafts (docs/CLOUD.md, Accounts): anyone can try the editor without an account, and
+-- Anonymous drafts (packages/vitryne-docs/content/docs/developers/cloud.md, Accounts): anyone can try the editor without an account, and
 -- their work is kept as one draft. Keeping more projects (and exporting) needs a free account. A
 -- draft left alone for `anonymous_days` goes, with its user: the `clean-anonymous` Edge Function
 -- deletes the parts through the Storage API (SQL can't remove the files), then the user, and
@@ -74,7 +74,7 @@ revoke all on function public.stale_anonymous_users() from public, anon, authent
 grant execute on function public.stale_anonymous_users() to service_role;
 
 -- The daily call. The function's URL and its secret are kept in Vault by the operator
--- (docs/CLOUD.md); without them (the local stack, a new project) this does nothing.
+-- (packages/vitryne-docs/content/docs/developers/cloud.md); without them (the local stack, a new project) this does nothing.
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
 

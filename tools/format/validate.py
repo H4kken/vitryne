@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Checks a Vitryne file (a .vtry zip, or the same layout as a folder) against
-docs/format/schema/ and the reference rules of docs/FORMAT.md that a schema can't express.
+docs/format/schema/ and the reference rules of packages/vitryne-docs/content/docs/developers/file-format.md that a schema can't express.
 
 usage: tools/format/validate.py <file.vtry | folder> ...      (needs: pip install jsonschema)
 
@@ -111,7 +111,7 @@ def check(path, validators):
             "fabric": len(fabrics) >= 1 and not garments and not avatars and not appearances and project is None,
             "avatar": len(avatars) == 1 and not garments and not appearances and project is None}
     if not need.get(kind, False):
-        errors.append(f"contents don't match kind {kind!r} (FORMAT.md, File kinds)")
+        errors.append(f"contents don't match kind {kind!r} (file-format.md, File kinds)")
 
     # Ids are unique across the file.
     seen = {}

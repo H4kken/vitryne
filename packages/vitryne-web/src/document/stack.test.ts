@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The stack (FORMAT.md, The stack): new cuts go on top, a cut that goes on another is never
+// The stack (file-format.md, The stack): new cuts go on top, a cut that goes on another is never
 // before it. (Taking cuts out is covered by the random edit sessions in property.test.ts.)
 import { describe, expect, it } from "vitest";
 import type { Cut, Garment, Placement } from "@/format/schema.gen";

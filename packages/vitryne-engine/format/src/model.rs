@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The entities of a file, one type per JSON part (FORMAT.md, Project to View), in the units
+//! The entities of a file, one type per JSON part (file-format.md, Project to View), in the units
 //! of the format: mm for every length, radians, SI for physics.
 //!
 //! Every struct keeps the members it doesn't know in `other` (unknown fields, `extensions`,
@@ -22,7 +22,7 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
-/// Rounds a length to 0.001 mm, as writers do (FORMAT.md, Numbers and JSON); `+ 0.0` turns
+/// Rounds a length to 0.001 mm, as writers do (file-format.md, Numbers and JSON); `+ 0.0` turns
 /// -0 into 0.
 pub fn round_mm(x: f64) -> f64 {
     (x * 1000.0).round() / 1000.0 + 0.0
@@ -94,7 +94,7 @@ pub struct Garment {
     pub sources: Vec<Source>,
     pub pieces: Vec<Piece>,
     /// Every cut once, closest to the body first: which cut is outside which. Where cuts
-    /// overlap on the body, the one higher in the list starts further out (FORMAT.md,
+    /// overlap on the body, the one higher in the list starts further out (file-format.md,
     /// Placement). A cut that follows another comes after it.
     #[serde(default)]
     pub stack: Vec<Id>,
@@ -213,7 +213,7 @@ pub struct Node {
 
 pub const EDGE_POLYLINE: &str = "polyline";
 pub const EDGE_CUBIC: &str = "cubic";
-/// The extension a file with a `cubic` edge uses and requires (FORMAT.md, Edges); writers add
+/// The extension a file with a `cubic` edge uses and requires (file-format.md, Edges); writers add
 /// it, or leave it out, by what the file holds.
 pub const EXT_CURVES: &str = "VTRY_curves";
 /// How far a flattened curve may stray from the true one, mm.
@@ -412,7 +412,7 @@ pub struct Layout {
     pub other: Other,
 }
 
-/// Where a cut starts before sewing (FORMAT.md, Placement).
+/// Where a cut starts before sewing (file-format.md, Placement).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Placement {
@@ -668,7 +668,7 @@ pub struct Bending {
 
 // ---- appearances/<id>.json ----------------------------------------------------------------
 
-/// How a fabric looks (FORMAT.md, Appearance): its colour for now.
+/// How a fabric looks (file-format.md, Appearance): its colour for now.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Appearance {
@@ -724,7 +724,7 @@ pub struct Avatar {
     pub other: Other,
 }
 
-/// A frame to wrap pieces around (FORMAT.md, Regions). Positions in mm; directions unitless.
+/// A frame to wrap pieces around (file-format.md, Regions). Positions in mm; directions unitless.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Region {

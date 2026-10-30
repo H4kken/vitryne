@@ -4,8 +4,6 @@ icon: FileCode
 description: "The .vtry project file format: layout, parts, validation and migrations."
 ---
 
-<!-- Copied from docs/FORMAT.md. -->
-
 **Status: approved design (2026-10-13), implemented by
 [packages/vitryne-engine/format](https://github.com/H4kken/vitryne/tree/main/packages/vitryne-engine/format) (reading, writing, validation,
 migrations) and `vitryne-pattern` (`project`: a file to the engine; `convert`: `garment.toml` + DXF
@@ -229,6 +227,7 @@ garment ── fabric (default for its cuts), appearance? (likewise)
  │   ├─ folds[]:   fold lines, between two outline nodes
  │   ├─ grain
  │   └─ cuts[]:    each copy cut from fabric: mirrored?, fabric?, appearance?, placement, layout
+ ├─ stack[]:       every cut once, closest to the body first
  ├─ seams[]:       side a and side b, each a chain of runs (cut, from node, to node)
  ├─ simulation:    overrides of the project's settings
  ├─ sources[]:     imported originals
@@ -378,6 +377,7 @@ Where a cut starts, before sewing pulls it into place. Two types in v1:
 | `top`      | where the piece's top edge goes along the axis, mm from the region's origin (torso: height above the floor; limbs: negative is down the limb)                          |
 | `rotation` | optional: in-plane rotation of the piece before wrapping, radians counter-clockwise, after mirroring                                                                   |
 | `tube`     | optional, for long sleeves: below the piece's widest row the radius follows the pattern (`tube` × width / 2π); above it, it rises linearly to `radius` at the top edge |
+| `offset`   | optional, mm, never negative (absent is 0): further out than the [stack](#the-stack) puts the cut. It belongs to the cut, so reordering keeps it                       |
 
 The maths: transform the piece's points (mirror, then rotate) and take its **anchor**, the
 centre of its bounding box in x and the top in y. A point p goes to
@@ -390,13 +390,32 @@ at that point of the axis. The reference implementation is `vitryne-pattern` `ga
 tube as the followed cut, at its radius plus `lift` (mm), at its angle unless `angle` is given.
 The followed cut must not follow this one, directly or indirectly.
 
+### The stack
+
+`stack` on the garment lists **every cut once, closest to the body first**: which cut is outside
+which. The list is global, not per body place, because technical garments overlap across places
+(a front panel wrapping over the back). A cut that goes on another (`follow`) comes after it. A
+file where a cut is missing or listed twice, or one that goes on another comes before it, is
+refused.
+
+What the order means for the start positions is the app's to work out and not stored: a cut that
+overlaps others on the body starts further out than the ones below it, by a gap that follows the
+mesh resolution (never below 12 mm), plus its own `offset`. Two cuts overlap where their areas
+on the body do; cuts that only meet along an edge don't. The reference implementation is
+`vitryne-pattern` `placement/stacking.rs`; how it works is in
+[Architecture](/developers/architecture#import-and-placement).
+
+**Why a list of cuts, not a number per cut:** reordering is one edit to one list and can't leave
+two cuts tied or a gap in the numbers; the list is the same shape as `project.garments`, which is
+in layering order too.
+
 The editor's placement gizmo adjusts these fields themselves (around, along, away from the
 axis, turn): no other placement data was needed.
 
 **Why regions by name:** a garment file has to fit any avatar. Garments say "torso" and
 "upper-arm-left", and each avatar defines where those are. The region coordinates used to be
 hard-coded in Rust for one avatar; they move into the avatar. **Patents:** placement is data the
-user sets. Under [PATENTS.md](/developers/patents) rule 3, auto-join must not use it as an input, and that
+user sets. Under [Patent warnings](/developers/patents) rule 3, auto-join must not use it as an input, and that
 is an app rule, not a format rule.
 
 ### Seams
@@ -440,7 +459,7 @@ A seam sews **side `a`** to **side `b`**. Each side is a chain of **runs**, and 
   there. That's how the T-shirt sleeve's cap top (no notch in the pattern) works: a named point
   at half the length between the two cap notches.
 - **The format doesn't restrict which nodes a seam may use** (whole edges, notch to notch, or any
-  two points). The interaction rules in [PATENTS.md](/developers/patents) (designs to avoid because other
+  two points). The interaction rules in [Patent warnings](/developers/patents) (designs to avoid because other
   companies' patents claim them) constrain how the editor lets people create seams, not what a
   file may contain.
 
@@ -507,7 +526,7 @@ which appearance it has by default:
 | `attribution`, `libraryRef`      | for fabrics from a library                                                            |       |
 
 **Why these quantities:** they're the ones fabric testing reports (tensile, shear and bending
-tests, like KES-F or FAST), and the ones the published presets (`docs/FABRICS.md`) cite.
+tests, like KES-F or FAST), and the ones the published presets (the Fabric & textile page) cite.
 They're independent of mesh resolution and of the solver. Anisotropy (warp ≠ weft) is in the
 format from the start, even though the v1 engine is isotropic (see [In the engine](#in-the-engine)).
 **Why appearance isn't here:** colour and texture change per colourway while the physics stays
@@ -694,6 +713,11 @@ produce.
     and may offer read-only viewing.
 - **Migrations are pure JSON-to-JSON functions**, one per version step, never deleted. The test
   suite keeps a fixture file for every past version and checks it migrates and opens.
+- **Version 4 is a breaking change for files with garments** (`minReaderVersion` is 4 for them,
+  still 1 for fabric and avatar files): the `stack` lists every cut, so a version 3 app that
+  added or removed a cut would leave it stale. The migration orders each garment's cuts by the
+  radius they start at (a `follow` at its cut's radius plus `lift`), ties in file order, so a file
+  looks as it did.
 - **A rule for future additive features:** if a new field's meaning depends on other data
   (e.g. per-size node offsets), it must stay valid when an older app edits that data, or the
   change has to be breaking, or it goes in a required extension.
@@ -719,7 +743,7 @@ How the planned features fit, without breaking v1 files:
 
 | Feature                       | How it's added                                                                                                                                                                                                                                                              |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sizes and grading**         | Per-size offsets of outline **nodes** (by id), the way grade rules work in industry formats. The ids are why nodes exist. A `sizes` list on the garment plus per-node deltas. (Watch [PATENTS.md](/developers/patents) rule 6 for automatic grading.)                       |
+| **Sizes and grading**         | Per-size offsets of outline **nodes** (by id), the way grade rules work in industry formats. The ids are why nodes exist. A `sizes` list on the garment plus per-node deltas. (Watch [Patent warnings](/developers/patents) rule 6 for automatic grading.)                  |
 | **Colourways and textures**   | Appearances exist since version 2 (colour only), and fabrics name a default one since version 3. Next: texture parts and print scale on the appearance, and `colourways` on the garment mapping cuts to appearances. Physics stays in fabrics, so nothing existing changes. |
 | **Multi-garment outfits**     | Already there: `project.garments` is in layering order. Per-garment visibility or grouping are additions.                                                                                                                                                                   |
 | **Avatars from measurements** | `avatar.source = {generator, measurements}`, with `body.glb` as the generated (and regenerable) mesh.                                                                                                                                                                       |
@@ -799,7 +823,7 @@ mesh of equilateral triangles, springs of stiffness k act like a membrane with t
 Y = 2k/√3 and Poisson's ratio 1/3, so shear stiffness Y / (2(1 + ν)) = 3Y/8, whatever the edge
 length. The engine converts back with k = (√3/2) · Y. The cotton placeholder's k = 10⁴ N/m becomes
 Y = 11,547 N/m; the trousers' k = 10⁶ N/m becomes 1.155 × 10⁶ N/m. These are the same
-placeholders under a physical name, not calibrated values (those are the presets, `docs/FABRICS.md`).
+placeholders under a physical name, not calibrated values (those are the presets, the Fabric & textile page).
 
 **The T-shirt, worked through:** 3 pieces (front and back cut on the fold, unfolded with 12 nodes
 each; sleeve with 6 nodes plus the cap-top `point`), 4 cuts (the left sleeve mirrored), 10 seams.
@@ -823,7 +847,7 @@ by its SHA-256. That gives, for free:
 The editor saves projects to its backend, never to disk (since the MVP fixes): a `.vtry` file is
 what the CLI writes, what _Download all my data_ gives, and what the editor opens as a new
 project. How accounts and storage work is an app concern, not a format one: see
-[CLOUD.md](/developers/cloud). There, parts are deduplicated per person rather than across people
+[Cloud backend](/developers/cloud). There, parts are deduplicated per person rather than across people
 (an avatar is stored once per person, whatever the number of their projects), so that knowing a
 hash never gives access to someone else's part.
 

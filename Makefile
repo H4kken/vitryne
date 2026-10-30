@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# The entry point for building and checking Vitryne (docs/REPO_PLAN.md). `make` lists the
-# targets. `make check` must pass before every pull request; CI runs `make check-ci`, the same
+# The entry point for building and checking Vitryne. `make` lists the targets. `make check` must pass before every pull request; CI runs `make check-ci`, the same
 # without the drapes (GitHub's runners have no GPU; .github/workflows/ci.yml). It needs cargo
 # with clippy + rustfmt, the wasm32-unknown-unknown target, wasm-bindgen-cli 0.2.129, Node 22+
 # with pnpm 10, python3, and a GPU for the drapes (CONTRIBUTING.md).
@@ -72,7 +71,7 @@ cli: ## Native CLI and viewer in packages/vitryne-engine/target/release/vitryne 
 
 # Checks, one target per step; `check-quick` and `check` run them in order.
 
-hygiene: ## SPDX headers, no file over 1 MiB outside Git LFS
+hygiene: ## SPDX headers, no file over 1 MiB outside Git LFS, no broken markdown link
 	$(STEP) 'repository hygiene'
 	tools/check/hygiene.sh
 
@@ -121,7 +120,7 @@ test-web: deps
 	cd $(WEB) && pnpm run check
 
 # The backend and the web image are checked by `make cloud-test` (Docker and the local
-# Supabase stack; docs/CLOUD.md, Checking); here, only that the scripts parse.
+# Supabase stack; packages/vitryne-docs/content/docs/developers/cloud.md, Checking); here, only that the scripts parse.
 syntax: ## node --check / bash -n on the tools', cloud's and web's scripts
 	$(STEP) 'tools: syntax check'
 	git ls-files -z 'tools/*.mjs' | xargs -0 -n 1 node --check

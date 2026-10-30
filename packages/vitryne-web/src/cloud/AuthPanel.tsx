@@ -12,7 +12,7 @@ export type AuthMode = "create" | "in";
 export type AuthStage = "email" | "password";
 
 /**
- * Creating an account or signing in, email first (docs/CLOUD.md): Google or an email address,
+ * Creating an account or signing in, email first (packages/vitryne-docs/content/docs/developers/cloud.md): Google or an email address,
  * then the password on a second screen. Whether the address has an account is never looked up
  * (that would tell anyone which emails are registered), so the person says which they want.
  */

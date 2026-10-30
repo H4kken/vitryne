@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! A Vitryne file (docs/FORMAT.md) to the engine: the garment meshed and placed
+//! A Vitryne file (packages/vitryne-docs/content/docs/developers/file-format.md) to the engine: the garment meshed and placed
 //! (`GarmentDesc`), its fabric (`Material`), and the simulation settings it overrides.
 //!
 //! Each cut becomes a panel (pieces in order, their cuts in order), its outline split into
 //! edges at every node; seams become chains of those edges. Lengths go from mm to metres.
-//! What the v1 engine can't do yet (FORMAT.md, In the engine): fabrics
+//! What the v1 engine can't do yet (file-format.md, In the engine): fabrics
 //! are isotropic (the mean of warp and weft is used, with a warning when they differ), and a
 //! garment has one fabric (cuts with their own fabric are refused).
 
@@ -83,7 +83,7 @@ pub struct ProjectGarment<'a> {
     pub warnings: Vec<String>,
 }
 
-/// Every cut of `garment` (cut order) with its appearance, the nearest one set (FORMAT.md,
+/// Every cut of `garment` (cut order) with its appearance, the nearest one set (file-format.md,
 /// Appearance): the cut's own, else its own fabric's, else the garment's, else the garment
 /// fabric's, else none.
 pub fn cut_appearances<'a>(
@@ -171,7 +171,7 @@ impl<'a> ProjectGarment<'a> {
     }
 
     /// The default garment fabric as the engine takes it: per-edge stiffness k = (√3/2)·Y from
-    /// the membrane stiffness Y (FORMAT.md, From garment.toml), means of warp and weft.
+    /// the membrane stiffness Y (file-format.md, From garment.toml), means of warp and weft.
     pub fn material(&self) -> Material {
         fabric_to_material(self.fabric)
     }
@@ -641,7 +641,7 @@ impl ProjectGarment<'_> {
 }
 
 /// What placing a meshed garment again needs, without meshing it again: the editor moves a
-/// cut and sees it move at once (docs/ARCHITECTURE.md, Placement).
+/// cut and sees it move at once (packages/vitryne-docs/content/docs/developers/architecture.md, Placement).
 #[derive(Clone)]
 pub struct Placer {
     uv: Vec<Vec2>,

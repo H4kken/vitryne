@@ -4,18 +4,18 @@ Open-source (AGPL-3.0-or-later) garment design in the browser: a GPU cloth solve
 WebGPU, native and wasm) and a beginner-friendly editor (`packages/vitryne-web/`, early). See
 [README.md](README.md) for what works today, [docs/PROGRESS.md](docs/PROGRESS.md) for milestones
 with their numbers, [CONTRIBUTING.md](CONTRIBUTING.md) for build and check commands,
-[docs/ALGORITHMS.md](docs/ALGORITHMS.md) for every solver component and its paper, and
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the editor is built and its guardrails.
+[Algorithms](packages/vitryne-docs/content/docs/developers/algorithms.md) for every solver component and its paper, and
+[Architecture](packages/vitryne-docs/content/docs/developers/architecture.md) for how the editor is built and its guardrails.
 
 ## Patents: read before touching joins, placement, measuring or grading
 
 CLO Virtual Fashion (a competitor, **not us**) holds and enforces patents on free-sewing UIs, 2D
 pattern measuring and automatic grading, and has pending applications on automatic sewing-line
-detection and ML placement. `docs/PATENTS.md` lists those patents so we **avoid the designs they
+detection and ML placement. `packages/vitryne-docs/content/docs/developers/patents.md` lists those patents so we **avoid the designs they
 claim**; its design rules are binding (e.g. seams are whole edges, not notch-to-notch
 segments). Before designing or building any feature that joins pattern pieces, places pieces
 around a body, measures a pattern, or resizes a garment, read
-[docs/PATENTS.md](docs/PATENTS.md) and follow its design rules. Do not add such features
+[Patent warnings](packages/vitryne-docs/content/docs/developers/patents.md) and follow its design rules. Do not add such features
 without checking them against that file, and say so when a request conflicts with it.
 
 ## Where things are
@@ -28,19 +28,19 @@ without checking them against that file, and say so when a request conflicts wit
 | `packages/vitryne-engine/solver` | `vitryne-solver`: the solver and the public API. `engine.rs` is the entry point (`Engine`, `Body`, `Garment`, `GarmentDesc`, `Simulation`); `sim.rs` has `SimSettings` (every tunable) and `Solver`; `shaders/*.wgsl` are the solver's shaders (native and browser share them). Also: `bench.rs`, `dragbench.rs`, `regress.rs`, `strain.rs`, `longrange.rs`, `selfcol.rs`, `untangle.rs`, `body.rs` (BVH, SDF). |
 | `packages/vitryne-engine/render` | `vitryne-render`: viewport rendering, out of the solver: `Renderer` (GPU normals, lit cloth and collider), `OrbitCamera`, `pick`/`drag_target` for cloth drags, the smoke-test triangle; its own `shaders/`. |
 | `packages/vitryne-engine/format` | `vitryne-format`: the project file format (`.vtry` family): types, read/write (zip or folder), validation, migrations, unknown data kept. No engine dependency. |
-| `packages/vitryne-engine/pattern` | `vitryne-pattern`: DXF-AAMA import and export (`aama.rs`, `aama_export.rs`), `garment.toml` sidecar, meshing, placement (`placement.rs`, regions from `assets/body/avatar.json`); `project.rs` turns a `.vtry` into a `GarmentDesc`, `convert.rs` a sidecar into a `.vtry`; `suggest.rs` + `seams.rs` are sewing in the editor (whole edges only, docs/PATENTS.md); `drafting/` reads Valentina and Seamly2D patterns (formulas, measurements, drafting tools, pieces) for `import.rs`. Its `garment::Garment` is the DXF garment, not the engine's (`vitryne_solver::engine::Garment`); alias one of them on import. |
+| `packages/vitryne-engine/pattern` | `vitryne-pattern`: DXF-AAMA import and export (`aama.rs`, `aama_export.rs`), `garment.toml` sidecar, meshing, placement (`placement.rs`, regions from `assets/body/avatar.json`); `project.rs` turns a `.vtry` into a `GarmentDesc`, `convert.rs` a sidecar into a `.vtry`; `suggest.rs` + `seams.rs` are sewing in the editor (whole edges only, packages/vitryne-docs/content/docs/developers/patents.md); `drafting/` reads Valentina and Seamly2D patterns (formulas, measurements, drafting tools, pieces) for `import.rs`. Its `garment::Garment` is the DXF garment, not the engine's (`vitryne_solver::engine::Garment`); alias one of them on import. |
 | `packages/vitryne-engine/cli` | `vitryne-cli`: the `vitryne` CLI and the winit viewer (`view`, `bench`, `bench-drag`, `regress`, `frames`, `convert`, `export-app-assets`, `export-bench-assets`, ...). Default paths are relative to the repo root. |
 | `packages/vitryne-engine/wasm` | `vitryne-wasm`: the wasm build: the editor worker's API (`project.rs`: `VtryFile` open/validate/save, `PreparedScene`; `viewport.rs`: `Viewport` on an OffscreenCanvas) and the bench page's (`run_bench`, ...). |
 | `packages/vitryne-engine/tests/` | Golden results for `vitryne regress`, and `skirt.vtry`: a skirt drawn with the editor's commands (`packages/vitryne-web/src/document/skirt.test.ts` makes it and fails if it differs). |
-| `packages/vitryne-web/` | The editor (TypeScript, React, Tailwind + shadcn/ui, Vite) and `bench.html`. `src/routes/` (one screen per URL: `/`, `/design/$id`, `/example/$name`, `/new`), `src/editor/` (`layout/` the frame, which owns the engine and stays mounted across URLs; `hooks/`, `dialogs/`, `start/`, `viewport/`, `icons/`), `src/worker/` (protocol, worker, session with restarts), `src/document/` (the file's JSON, commands, store; tests), `src/format/*.gen.*` (generated from the schemas: `pnpm run gen:format`), `src/pattern/` (2D SVG; `panel/` the flat view, one hook per tool), `src/properties/`, `src/storage/` (files from disk, recovery copy), `src/cloud/` (backend config, autosave, one tab per project, content-addressed projects, dialogs), `src/bench/`. One component or hook per file (docs/ARCHITECTURE.md, Files). |
-| `packages/vitryne-docs/` | The documentation website (Astro + Fumadocs UI as React islands, static): one sidebar in sections (`content/docs/meta.json`): an introduction, guides for people designing garments (`guide/`, `imports_exports/`), and `developers/` (copies of `docs/*.md` plus `docker-stack.mdx`); search covers every page, the editor's colours and fonts in `src/styles/global.css`; `make docs-dev`, `make docs` (in `check-ci`). |
+| `packages/vitryne-web/` | The editor (TypeScript, React, Tailwind + shadcn/ui, Vite) and `bench.html`. `src/routes/` (one screen per URL: `/`, `/design/$id`, `/example/$name`, `/new`), `src/editor/` (`layout/` the frame, which owns the engine and stays mounted across URLs; `hooks/`, `dialogs/`, `start/`, `viewport/`, `icons/`), `src/worker/` (protocol, worker, session with restarts), `src/document/` (the file's JSON, commands, store; tests), `src/format/*.gen.*` (generated from the schemas: `pnpm run gen:format`), `src/pattern/` (2D SVG; `panel/` the flat view, one hook per tool), `src/properties/`, `src/storage/` (files from disk, recovery copy), `src/cloud/` (backend config, autosave, one tab per project, content-addressed projects, dialogs), `src/bench/`. One component or hook per file (packages/vitryne-docs/content/docs/developers/architecture.md, Files). |
+| `packages/vitryne-docs/` | The documentation website (Astro + Fumadocs UI as React islands, static): one sidebar in sections (`content/docs/meta.json`): an introduction, guides for people designing garments (`guide/`, `imports_exports/`), and `developers/` (the architecture, algorithms, cloud, fabrics, file format and patents pages: the one copy, edit them there; `contributing.md` is generated from the root `CONTRIBUTING.md`; plus `docker-stack.mdx`); search covers every page, the editor's colours and fonts in `src/styles/global.css`; `make docs-dev`, `make docs` (in `check-ci`). |
 | `packages/vitryne-cloud/supabase/` | The backend schema and local stack: `migrations/` (projects, parts bucket, RLS, limits, anonymous drafts), `functions/clean-anonymous` (deletes stale anonymous users, daily via pg_cron), `templates/` (emails), `config.toml` (the Supabase CLI's `--workdir` is `packages/vitryne-cloud`). |
-| `packages/vitryne-cloud/deploy/` | The web image and plug-and-go compose ([docs/CLOUD.md](docs/CLOUD.md)): `docker-compose.yml` (one `web` service, the release image `ghcr.io/h4kken/vitryne-web:${VITRYNE_VERSION:-latest}`, its backend from `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY`, required), `docker-compose.build.yml` (override: build from the checkout), `web/` (Caddyfile, Dockerfile with `from-source`/`from-dist`, `entrypoint.sh` running migrations when `SUPABASE_DB_URL` is set, privacy page), `smoke.sh`. `deploy/.env` is git-ignored. |
+| `packages/vitryne-cloud/deploy/` | The web image and plug-and-go compose ([Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md)): `docker-compose.yml` (one `web` service, the release image `ghcr.io/h4kken/vitryne-web:${VITRYNE_VERSION:-latest}`, its backend from `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY`, required), `docker-compose.build.yml` (override: build from the checkout), `web/` (Caddyfile, Dockerfile with `from-source`/`from-dist`, `entrypoint.sh` running migrations when `SUPABASE_DB_URL` is set, privacy page), `smoke.sh`. `deploy/.env` is git-ignored. |
 | `packages/vitryne-cloud/dev/` | Everything in Docker for contributors (`make stack`, `make stack-test`, `make stack-down`): the editor built from the checkout (`deploy/web/Dockerfile` `from-source`) and a local Supabase with the CLI's images and settings; `gateway.Caddyfile` stands in for Kong (CORS, apikey as bearer), `db.sql` sets passwords and the cleanup's Vault secrets on first start. Supabase's public demo keys, ports on 127.0.0.1, the CLI stack's ports (one or the other). |
 | `packages/vitryne-cloud/tests/` | Backend tests (RLS, accounts, cleanup, thumbnails) and `browser.mjs` (real Chrome). |
 | `assets/` | Avatar (CC0 MakeHuman), three FreeSewing garments with their licences. `tools/patterns` re-drafts them (`./export-all.sh`; the T-shirt is at chest ease 18%, on purpose). |
 | `assets/examples/` | The three sample projects in folder form (`tshirt.vtry/`, `trousers.vtry/`, `hoodie.vtry/`): `vitryne convert` output, regenerated by `make examples`. Don't edit them by hand; edit the sidecar or the converter. |
-| `docs/FORMAT.md`, `docs/format/schema/` | The project file format (`.vtry` family): spec with rationale, and a JSON Schema per part. `vitryne-format` implements it. |
+| `packages/vitryne-docs/content/docs/developers/file-format.md` (the File format page), `docs/format/schema/` | The project file format (`.vtry` family): spec with rationale, and a JSON Schema per part. `vitryne-format` implements it. |
 | `.github/` | CI (`workflows/ci.yml`: `make check-ci` and the DCO check on every PR), releases (`workflows/release.yml`, on a `vX.Y.Z` tag: GHCR image + GitHub release), the shared toolchain setup (`actions/setup`), rulesets to import, templates, CODEOWNERS. How PRs are merged and releases made: [docs/MAINTAINING.md](docs/MAINTAINING.md); release notes come from [CHANGELOG.md](CHANGELOG.md). |
 | `tools/` | `check/` (the Makefile's hygiene, examples and DCO steps), `release/notes.sh`, `bench/` (`run.sh` drape/drag matrices, native or Chrome, `summary.py`, `compare.py`, `strain.py`, `chrome-check.mjs`; output in `bench-out/`, git-ignored), `format/` (`build-examples.sh`, `validate.py`), `patterns/`. |
 
@@ -81,14 +81,14 @@ shell here doesn't have it: `export PATH="$HOME/.cargo/bin:$PATH"` before callin
 - After changing the converter, the importer or a sidecar: `make examples` and commit
   `assets/examples/` (`make check` diffs them against `vitryne convert`).
 
-## Rules (from the MVP plan, now done; where one conflicts with docs/PATENTS.md, PATENTS.md wins)
+## Rules (from the MVP plan, now done; where one conflicts with packages/vitryne-docs/content/docs/developers/patents.md, patents.md wins)
 
 1. WebGPU core only: `Features::empty()`, `Limits::default()`, one set of WGSL; only the profiling
    mode may request `timestamp-query`.
 2. Engine and UI stay separate; the UI uses the public API and the worker protocol only.
 3. Never loosen a quality criterion to make it pass; a target change is its own commit with the
    reasoning in docs/PROGRESS.md.
-4. Published methods only for the solver; cite them in `docs/ALGORITHMS.md` and where implemented.
+4. Published methods only for the solver; cite them in `packages/vitryne-docs/content/docs/developers/algorithms.md` and where implemented.
 5. Design our own editor interactions (see the patents note).
 6. Every commit is signed off (`git commit -s`, identity `Mathis Grimberg
 <mathis.grimberg@protonmail.com>`); end a milestone with a commit, docs/PROGRESS.md numbers, and a
@@ -98,7 +98,7 @@ shell here doesn't have it: `export PATH="$HOME/.cargo/bin:$PATH"` before callin
    backend is required, projects autosave there, nothing is saved to disk. Anyone can try the
    editor without an account (one draft); keeping more projects and exporting need a free
    account. Network calls only for the app, its assets and what the person does (save, open,
-   sign in); never telemetry, and no identifier to count people (docs/CLOUD.md, Privacy).
+   sign in); never telemetry, and no identifier to count people (packages/vitryne-docs/content/docs/developers/cloud.md, Privacy).
 
 ## State and things that surprise
 
@@ -136,7 +136,7 @@ shell here doesn't have it: `export PATH="$HOME/.cargo/bin:$PATH"` before callin
 - Defaults that matter (`SimSettings::default()`): 20 substeps, 3 stretch sweeps, stretch
   damping 1e-4 s (Rayleigh, `gamma = beta / h`), long-range limits on, strain limiting off.
   Configured as in the spike (`--stretch-iterations 1 --long-range 0 --long-range-cross 0`, damping
-  `1e-5 * compliance / h^2`) the engine reproduces the spike's numbers (docs/ALGORITHMS.md).
+  `1e-5 * compliance / h^2`) the engine reproduces the spike's numbers (packages/vitryne-docs/content/docs/developers/algorithms.md).
 - `Simulation` methods take `&self`; `encode_step` writes a frame into the caller's encoder,
   `step(n)` submits per frame (per-frame parameters are queue writes, which apply at submit).
 - Garment SDF boxes are per garment (`garment.toml [sdf]`); the SDF bake takes seconds, so it is

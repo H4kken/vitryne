@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The stack of cuts (FORMAT.md, The stack): where cuts overlap on the body, the one higher in
+//! The stack of cuts (file-format.md, The stack): where cuts overlap on the body, the one higher in
 //! the stack starts further out. Cuts are resolved from the bottom of the stack up; each is
 //! sampled over its outline, and pushed out (its radius grows by one amount along the whole cut)
 //! until it is a gap past every cut below it that it overlaps.

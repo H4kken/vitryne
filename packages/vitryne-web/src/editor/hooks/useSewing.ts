@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Sewing: the whole edges and each seam's length difference, asked of Rust whenever the
 // pieces or seams change and something shows them; suggestions when the person asks; and the
-// edges picked in the flat view for a seam being made (whole edges only, docs/PATENTS.md).
+// edges picked in the flat view for a seam being made (whole edges only, packages/vitryne-docs/content/docs/developers/patents.md).
 
 import { useCallback, useEffect, useState } from "react";
 import { addSeam } from "@/document/commands";

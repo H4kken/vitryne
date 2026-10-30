@@ -44,6 +44,7 @@ const remarkPlugins = [
 const rehypePlugins = [rehypeKatex, [rehypeCode, { fallbackLanguage: "text" }]];
 
 export default defineConfig({
+  site: "https://docs.vitryne.app",
   markdown: {
     syntaxHighlight: false,
     processor: unified({ remarkPlugins, rehypePlugins }),

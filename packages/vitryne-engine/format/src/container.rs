@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The container: a zip archive, or the same layout as a folder (FORMAT.md, Container). This
+//! The container: a zip archive, or the same layout as a folder (file-format.md, Container). This
 //! module only moves named byte blobs in and out; `Document` gives them meaning.
 
 use std::io::{Cursor, Read, Write};

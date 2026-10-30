@@ -1,11 +1,11 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
--- Cloud storage (docs/FORMAT.md, "Cloud storage"; docs/CLOUD.md): a project is a row holding its
+-- Cloud storage (packages/vitryne-docs/content/docs/developers/file-format.md, "Cloud storage"; packages/vitryne-docs/content/docs/developers/cloud.md): a project is a row holding its
 -- manifest, and its parts are objects named <owner>/<sha256> in the private `parts` bucket. Every
 -- table and the bucket are behind row-level security: a person reaches only their own rows and
 -- objects. Applied by the Supabase CLI (`supabase db push` to a hosted project, `supabase start`
 -- locally), or by the web image at start when SUPABASE_DB_URL is set (packages/vitryne-cloud/deploy/web/entrypoint.sh).
 
--- Settings the operator controls (change them with SQL, docs/CLOUD.md) and the helpers the
+-- Settings the operator controls (change them with SQL, packages/vitryne-docs/content/docs/developers/cloud.md) and the helpers the
 -- policies call. Nothing in this schema is reachable through the REST API.
 create schema vitryne_private;
 revoke all on schema vitryne_private from public;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // A zip writer for the few zips the cloud side makes without the worker: a cloud project
 // downloaded as a .vtry, and the "download my data" archive. Entries are stored (no compression),
-// which FORMAT.md allows; give `mimetype` first for a .vtry. No ZIP64: each zip stays under 4 GB.
+// which file-format.md allows; give `mimetype` first for a .vtry. No ZIP64: each zip stays under 4 GB.
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);

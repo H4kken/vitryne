@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The Vitryne file format, version 2: the specification is [docs/FORMAT.md], the JSON Schemas
+//! The Vitryne file format, version 2: the specification is [packages/vitryne-docs/content/docs/developers/file-format.md], the JSON Schemas
 //! in docs/format/schema/ check what this crate writes.
 //!
 //! ```ignore
@@ -16,7 +16,7 @@
 //! extensions) so a newer file survives a round trip. Nothing here knows about the engine:
 //! `vitryne-pattern` turns a document into something to simulate.
 //!
-//! [docs/FORMAT.md]: ../../../docs/FORMAT.md
+//! [packages/vitryne-docs/content/docs/developers/file-format.md]: ../../../docs/FORMAT.md
 
 pub mod container;
 mod document;
@@ -42,7 +42,7 @@ pub const FORMAT_VERSION: u32 = 4;
 /// The `minReaderVersion` it writes: the oldest reader that can open its files correctly.
 pub const MIN_READER_VERSION: u32 = 1;
 /// What a file with garments needs: version 4's `stack` goes stale when an older app adds or
-/// removes a cut without knowing it (FORMAT.md, Versions and migrations).
+/// removes a cut without knowing it (file-format.md, Versions and migrations).
 pub const GARMENT_MIN_READER_VERSION: u32 = 4;
 /// The extensions this reader implements (a file requiring any other is refused).
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[model::EXT_CURVES];

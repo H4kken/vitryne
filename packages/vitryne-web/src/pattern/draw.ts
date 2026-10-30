@@ -2,7 +2,7 @@
 // Drawing new pieces: the pen tool's points turned into an outline, ready shapes with typed
 // sizes (rectangle, ellipse, tube), and the snapping the pen uses. Snapping is to the grid, to
 // 15° steps and to the drawn piece's own points only: never to another piece, and never to make
-// an edge as long as another piece's (docs/PATENTS.md). Every coordinate written is on the
+// an edge as long as another piece's (packages/vitryne-docs/content/docs/developers/patents.md). Every coordinate written is on the
 // format's 0.001 mm grid.
 
 import type {
@@ -68,7 +68,7 @@ export function penOutline(
 }
 
 /**
- * The pen's open path as an internal line (`lines[]`, FORMAT.md): plain points, each with the
+ * The pen's open path as an internal line (`lines[]`, file-format.md): plain points, each with the
  * edge to the next but the last.
  */
 export function penLine(
