@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,7 @@ import { encodeChoice } from "./encodeChoice";
 import { leftOut } from "./leftOut";
 import { decodeChoice } from "./decodeChoice";
 import { CompanionDropZone } from "./CompanionDropZone";
-import { ImportPieces } from "./ImportPieces";
+import { ImportPlacement } from "./ImportPlacement";
 import { ImportSewing } from "./ImportSewing";
 import { ImportTarget } from "./ImportTarget";
 import { importSource, patternKind } from "./importSource";
@@ -109,6 +110,8 @@ export function ImportDialog(props: {
   } | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [choices, setChoices] = useState<Record<string, string>>({});
+  /** Pieces whose place was guessed from their name and not yet confirmed. */
+  const [unchecked, setUnchecked] = useState<ReadonlySet<string>>(new Set());
   const [into, setInto] = useState<"new" | "add">("new");
   const [busy, setBusy] = useState(false);
 
@@ -143,6 +146,9 @@ export function ImportDialog(props: {
               x.suggestion ? [[x.name, encodeChoice(x.suggestion)]] : [],
             ),
           ),
+        );
+        setUnchecked(
+          new Set(p.pieces.filter((x) => x.suggestion).map((x) => x.name)),
         );
       },
       (e: Error) => !stale && setReading({ key, error: e.message }),
@@ -194,14 +200,19 @@ export function ImportDialog(props: {
       open={!!pattern}
       onOpenChange={(open) => !open && !busy && props.onClose()}
     >
-      <DialogContent className="flex max-h-[calc(100vh-32px)] flex-col gap-5 rounded-[20px] p-6 sm:max-w-[640px]">
+      <DialogContent
+        className={cn(
+          "flex max-h-[calc(100vh-32px)] flex-col gap-5 rounded-[20px] p-6 sm:max-w-[640px]",
+          preview && "sm:max-w-[900px]",
+        )}
+      >
         <DialogHeader>
           <DialogTitle className="font-display text-2xl font-bold">
             Import a pattern
           </DialogTitle>
           <DialogDescription className="text-body-text text-[15px]">
             {preview
-              ? `${pattern?.name}: ${preview.pieces.length} piece${preview.pieces.length === 1 ? "" : "s"}. Choose where each one goes on the body; you can move them afterwards.`
+              ? `${pattern?.name}: ${preview.pieces.length} piece${preview.pieces.length === 1 ? "" : "s"}. Put each one where it goes on the body; you can move them afterwards.`
               : error
                 ? `${pattern?.name} could not be read.`
                 : waiting && needs
@@ -223,10 +234,16 @@ export function ImportDialog(props: {
           )}
 
           {preview && (
-            <ImportPieces
+            <ImportPlacement
               preview={preview}
               choices={choices}
               onChoices={setChoices}
+              unchecked={unchecked}
+              onChecked={(names) =>
+                setUnchecked(
+                  (u) => new Set([...u].filter((n) => !names.includes(n))),
+                )
+              }
             />
           )}
 

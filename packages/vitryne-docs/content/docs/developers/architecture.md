@@ -181,7 +181,9 @@ A DXF-AAMA file (picked, or dropped on the start screen or the canvas) is read i
 the worker (`vitryne_pattern::import`, the same importer as `vitryne convert`). The import dialog
 shows its pieces with a thumbnail, what was left out of the file (layers the importer doesn't
 use, blocks with no outline, entity types it doesn't read, arcs taken as chords, pieces a
-sidecar doesn't use), and asks where each piece goes: one place, a pair of places (two cuts,
+sidecar doesn't use), and asks where each piece goes (a body map, front and back, to drop pieces on, or click; the
+list on each card has every place; `bodyZones.ts` maps the zones to the places and reads nothing
+about seams, patent rule 3): one place, a pair of places (two cuts,
 the second mirrored: arms, legs front or back, hood sides, body sides), on top of another piece
 (a pocket: `follow`, 12 mm off it), or left out. Each piece comes with a suggestion **from its
 name only** ("sleeve" → arms, "front" cut twice → legs, "hoodSide" → hood sides, facings,

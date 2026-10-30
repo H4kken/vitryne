@@ -17,6 +17,9 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Added
 
+- Importing a pattern: drag each piece onto the body (front and back side by side), or click the
+  piece and then a part of the body, instead of choosing from a list. Places guessed from a
+  piece's name are marked "Check" until you confirm them, one by one or all at once.
 - The file that comes with an imported pattern (the measurements of a Valentina or Seamly2D
   pattern, a garment.toml for a DXF) can be dropped anywhere on the import dialog.
 - The start screen shows placeholder cards while your projects load, instead of an empty gap.
