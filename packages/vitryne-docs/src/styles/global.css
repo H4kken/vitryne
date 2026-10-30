@@ -104,3 +104,19 @@
     outline-offset: 2px;
   }
 }
+
+/* Astro's router cross-fades the whole page on each navigation, and the sidebar, which stays
+   where it is, fades with it (a flash in dark mode, where the two layers add up). Switch
+   straight to the new page instead. */
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* See layout.astro: while the page is being swapped, the sidebar's folders must not replay their
+   opening animation. Long enough to outlast it, so it is over when this rule stops applying. */
+html.is-navigating [data-state] {
+  animation-duration: 0s !important;
+}

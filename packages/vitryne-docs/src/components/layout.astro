@@ -25,6 +25,11 @@ const { lang } = Astro.props;
         const to = event.newDocument.documentElement;
         to.className = from.className;
         to.style.colorScheme = from.style.colorScheme;
+        // The sidebar island is moved into the new document, and a moved element starts its CSS
+        // animations again: a folder the reader opened would collapse and open again. Folder
+        // animations run in zero time (global.css) until the move is over.
+        to.classList.add("is-navigating");
+        setTimeout(() => to.classList.remove("is-navigating"), 600);
       });
     </script>
     <slot name="head" />
