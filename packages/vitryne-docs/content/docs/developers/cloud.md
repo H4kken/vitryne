@@ -350,7 +350,7 @@ for 29 days and an idle account.
   operator.
 - **Privacy policy and terms:** the web image serves none: the operator of an instance is the one
   responsible for its users' data, so each publishes their own and sets `PRIVACY_POLICY_URL` and
-  `TERMS_URL` on the web container (empty: no link; they show in the help menu and the Cloud
+  `TERMS_URL` on the web container (empty: no link; they show at the foot of the start screen and in the account
   dialog). What the software stores is in this section; `config.json` carries the two links.
   vitryne.app's are in the docs site's _Legal_ section
   (`packages/vitryne-docs/content/docs/legal/`). On hosted Supabase, Supabase processes the data for
@@ -390,7 +390,5 @@ node packages/vitryne-cloud/tests/browser.mjs none <url>
 - **Sharing a project** with someone else, and real-time editing together: the reason projects
   stay in the cloud. Until then one tab edits a project at a time, and another browser's save is
   a conflict the person settles.
-- **Google sign-in is untested end to end:** it needs an OAuth client; the redirect, the linking
-  of an anonymous user and the return handling were written against Supabase's API but not run.
 - **Changing the account's email** in the editor (Auth supports it; write to the operator for now).
 - **Workspaces:** later; nothing in the schema prevents them.

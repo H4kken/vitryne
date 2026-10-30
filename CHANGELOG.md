@@ -11,7 +11,17 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 ### Added
 
 - A privacy policy and terms of service for vitryne.app in the documentation (*Legal*), linked from
-  the help menu and the account dialog.
+  the foot of the start screen and the account dialog.
+- Right-clicking a project on the start screen opens a menu: open, open in a new tab, rename,
+  duplicate (with an account), export and delete (after a confirmation). The ⋯ button has the same
+  entries.
+- The privacy policy and terms are linked at the foot of the start screen, not only in the help
+  menu.
+
+### Fixed
+
+- Opening or reloading a project's address (`/design/<id>`) on the web image no longer gives a 404:
+  it serves the editor, like the static hosting examples do.
 
 ### Changed
 

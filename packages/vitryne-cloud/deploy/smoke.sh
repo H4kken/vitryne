@@ -49,6 +49,7 @@ headers=$(curl -fsI "$url/")
 grep -qi '^cross-origin-opener-policy: same-origin' <<<"$headers" || fail "no COOP header"
 grep -qi '^cross-origin-embedder-policy: require-corp' <<<"$headers" || fail "no COEP header"
 curl -fs "$url/" | grep -q '<div id="root">' || fail "no editor at /"
+curl -fs "$url/design/some-project" | grep -q '<div id="root">' || fail "a project's address doesn't open the editor"
 curl -fs "$url/config.json" | grep -q "\"url\":\"$api\"" || fail "config.json doesn't name the backend"
 logs=$(compose logs web)
 grep -q 'migrate: up to date' <<<"$logs" || fail "the migrations at start didn't run"

@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import {
-  BookOpen,
-  CircleHelp,
-  MessageSquareWarning,
-  ScrollText,
-  ShieldCheck,
-} from "lucide-react";
+import { BookOpen, CircleHelp, MessageSquareWarning } from "lucide-react";
 import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,20 +12,13 @@ import {
 import { GithubIcon } from "../icons/GithubIcon";
 import { DOCS_URL, FEEDBACK_URL, REPO_URL } from "@/links";
 
-/** The documentation, feedback, the source code, the privacy policy and the terms, in the top bar and on the start screen. */
-export function HelpMenu(props: {
-  privacyPolicy: string | null;
-  termsOfService: string | null;
-}) {
+/** The documentation, feedback and the source code, in the top bar and on the start screen. */
+export function HelpMenu() {
   const links: [string, string, ComponentType][] = [
     ["Documentation", DOCS_URL, BookOpen],
     ["Send feedback or report a bug", FEEDBACK_URL, MessageSquareWarning],
     ["Source code", REPO_URL, GithubIcon],
   ];
-  if (props.privacyPolicy)
-    links.push(["Privacy policy", props.privacyPolicy, ShieldCheck]);
-  if (props.termsOfService)
-    links.push(["Terms of service", props.termsOfService, ScrollText]);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

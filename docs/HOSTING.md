@@ -60,6 +60,7 @@ vitryne.example {
     header Cross-Origin-Opener-Policy "same-origin"
     header Cross-Origin-Embedder-Policy "require-corp"
     encode zstd gzip
+    try_files {path} /index.html
     file_server
 }
 ```

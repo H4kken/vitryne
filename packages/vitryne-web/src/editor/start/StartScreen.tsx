@@ -28,6 +28,9 @@ const TILE =
 
 export function StartScreen(props: {
   examples: Example[];
+  /** The instance's legal pages (docs/CLOUD.md): linked in plain sight at the foot of the page. */
+  privacyPolicy: string | null;
+  termsOfService: string | null;
   /** Signed in to an account: the "no account needed" note has nothing to say. */
   signedIn: boolean;
   onPreset: (e: Example) => void;
@@ -230,6 +233,31 @@ export function StartScreen(props: {
         </section>
 
         {props.projects}
+
+        {(props.privacyPolicy || props.termsOfService) && (
+          <footer className="text-muted-foreground border-border flex flex-wrap gap-x-5 gap-y-1 border-t pt-6 text-sm">
+            {props.privacyPolicy && (
+              <a
+                href={props.privacyPolicy}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-foreground underline underline-offset-4"
+              >
+                Privacy policy
+              </a>
+            )}
+            {props.termsOfService && (
+              <a
+                href={props.termsOfService}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-foreground underline underline-offset-4"
+              >
+                Terms
+              </a>
+            )}
+          </footer>
+        )}
       </div>
     </div>
   );
