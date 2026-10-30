@@ -87,7 +87,7 @@ the claims above, but confirm it with counsel before shipping it.
 
 ## How the editor follows these rules
 
-Where each rule is implemented, so a reviewer can check it. See the Architecture page, "Sewing" and
+Where each rule is implemented, so a reviewer can check it. See the [Architecture](/developers/architecture) page, "Sewing" and
 "Pattern tools".
 
 | Rule                           | In the code                                                                                                                                                                                       |

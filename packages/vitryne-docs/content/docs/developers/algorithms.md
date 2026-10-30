@@ -4,8 +4,12 @@ icon: Sigma
 description: "Every solver component, where it is implemented, and the published method it follows."
 ---
 
-Every solver component, where it is implemented, and the published method it follows. Rule 5 of
-the plan: published methods only, cited here and in a comment where they are implemented.
+**In short:** the solver is XPBD on the GPU, in small steps, with a signed-distance body, a spatial
+hash for self-collision, and long-range limits against stretch. Use this page to find where a
+component lives and the paper behind it.
+
+Every solver component, where it is implemented, and the published method it follows. The rule is
+published methods only, cited here and in a comment where they are implemented.
 "Own" marks a design decision of ours that no paper prescribes, with the reasoning, so it can
 be checked against the literature before the public announcement.
 
