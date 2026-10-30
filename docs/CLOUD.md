@@ -67,7 +67,7 @@ says so and doesn't start.
 
 | Setting | What |
 |---|---|
-| `VITRYNE_VERSION` | The release to run (`0.1.0`); empty: the compose file's default. `VITRYNE_IMAGE` replaces `ghcr.io/h4kken/vitryne-web` (a mirror, or your own build). |
+| `VITRYNE_VERSION` | The release to run (`0.4.0`); empty: the compose file's default. `VITRYNE_IMAGE` replaces `ghcr.io/h4kken/vitryne-web` (a mirror, or your own build). |
 | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Required: the project's URL and publishable key (`sb_publishable_…`, Project Settings, API Keys). **Never a secret key**: the browser gets these. |
 | `SUPABASE_DB_URL` | Optional: the container applies `packages/vitryne-cloud/supabase/migrations/` at start, like Twenty's server does. Use the project's *Session pooler* connection string (on the free plan the direct one is IPv6 only). Without it, run `pnpm run supabase db push` after a schema change. |
 | `HTTP_PORT` | The port on the host, `8000` by default. Plain HTTP: on a server, an HTTPS proxy goes in front (below). |

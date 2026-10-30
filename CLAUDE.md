@@ -12,11 +12,11 @@ with their numbers, [CONTRIBUTING.md](CONTRIBUTING.md) for build and check comma
 CLO Virtual Fashion (a competitor, **not us**) holds and enforces patents on free-sewing UIs, 2D
 pattern measuring and automatic grading, and has pending applications on automatic sewing-line
 detection and ML placement. `docs/PATENTS.md` lists those patents so we **avoid the designs they
-claim**; its design rules are binding and **override `VITRYNE_MVP_PLAN.md`** where they differ
-(e.g. seams are whole edges, not notch-to-notch segments). Before designing or building any feature that joins pattern pieces, places pieces
+claim**; its design rules are binding (e.g. seams are whole edges, not notch-to-notch
+segments). Before designing or building any feature that joins pattern pieces, places pieces
 around a body, measures a pattern, or resizes a garment, read
 [docs/PATENTS.md](docs/PATENTS.md) and follow its design rules. Do not add such features
-without checking them against that file, and say so when a request or the plan conflicts with it.
+without checking them against that file, and say so when a request conflicts with it.
 
 ## Where things are
 
@@ -81,7 +81,7 @@ shell here doesn't have it: `export PATH="$HOME/.cargo/bin:$PATH"` before callin
 - After changing the converter, the importer or a sidecar: `make examples` and commit
   `assets/examples/` (`make check` diffs them against `vitryne convert`).
 
-## Rules (from the MVP plan, VITRYNE_MVP_PLAN.md, which is not committed; where it conflicts with docs/PATENTS.md, PATENTS.md wins)
+## Rules (from the MVP plan, now done; where one conflicts with docs/PATENTS.md, PATENTS.md wins)
 
 1. WebGPU core only: `Features::empty()`, `Limits::default()`, one set of WGSL; only the profiling
    mode may request `timestamp-query`.
@@ -92,8 +92,8 @@ shell here doesn't have it: `export PATH="$HOME/.cargo/bin:$PATH"` before callin
 5. Design our own editor interactions (see the patents note).
 6. Every commit is signed off (`git commit -s`, identity `Mathis Grimberg
 <mathis.grimberg@protonmail.com>`); end a milestone with a commit, docs/PROGRESS.md numbers, and a
-   stop for review. The only branch is `main` (remote `origin`); the user pushes (admins bypass
-   the ruleset; contributors' PRs are squash-merged, docs/MAINTAINING.md).
+   stop for review. Work on `feature/<name>` (or `fix/<name>`), not `main`; the user pushes and
+   merges (admins bypass the ruleset; PRs are merged with a `Merge(#n)` commit, docs/MAINTAINING.md).
 7. Projects live in the backend, like Figma or Canva (changed in the MVP fixes, docs/PROGRESS.md): a
    backend is required, projects autosave there, nothing is saved to disk. Anyone can try the
    editor without an account (one draft); keeping more projects and exporting need a free
@@ -102,16 +102,19 @@ shell here doesn't have it: `export PATH="$HOME/.cargo/bin:$PATH"` before callin
 
 ## State and things that surprise
 
-- **Done:** M0 repo, M1 low-end check (accepted qualitatively; no integrated-GPU or Firefox
-  numbers), M2 stretch, M3 API + settings + regression, M4 file format design (`docs/FORMAT.md`),
-  M5 format implementation (`vitryne-format`, `vitryne convert`, `.vtry` in the CLI and goldens),
-  M6 editor shell (worker + OffscreenCanvas, document model with guardrails, 2D panel,
-  properties, storage and save; accepted after a manual Safari check), M7 import and placement
-  (DXF import dialog, placement by body place + automatic wrap + 3D gizmo, flat layout;
-  waiting for review), M8 sewing in the UI (whole-edge seams: suggestions from geometry, two-click picking,
-  seam list, seams in 2D and 3D; waiting for review), M9 fabric presets (5 physical presets in docs/FABRICS.md,
-  multi-fabric solver support, per-piece and garment fabric picker with re-drape; waiting for review), M10 export (glTF 2.0 and OBJ export with 2D pattern UVs, multi-fabric PBR materials, avatar node, native CLI and editor UI; waiting for review), M11 demo readiness and report (start from example screen, first-load & SDF analysis, README with animated GIF & quickstart, benchmark & browser matrix in docs/PROGRESS.md; waiting for review), M12 cloud backend and self-hosting (plug-and-go `web` container + a Supabase project, schema in `packages/vitryne-cloud/supabase/`, anonymous-first accounts (email + password with emailed codes, or Google), content-addressed parts per person, RLS tests, local mode unchanged; waiting for review), M13 DXF-AAMA export (`aama_export.rs`: cut-on-fold pieces re-folded when exact, round trip through the sample sidecars in `tests/aama_round_trip.rs`, CLI `vitryne export x.vtry --out x.dxf`; the editor's *Export… → Pattern (.dxf)* is removed until seam allowance exists; waiting for review and your Seamly2D/LibreCAD check). MVP fixes in progress: projects in the cloud (autosave, anonymous drafts, an account to export or keep more projects, no local mode; 4 commits, waiting for review). M14 pattern tools (curved edges `VTRY_curves`, start from scratch, edit points, pen and ready shapes, lines/notches/folds/grain, the drawn-skirt golden; 6 commits, waiting for review). Repository layout (`packages/`, the Makefile, a README per package; 4 commits, waiting for review). M15 Valentina import (`.val` + `.vit`/`.vst` in the editor and `vitryne convert`; merged, #6). M16 Seamly2D import (`.sm2d` + `.smis`/`.smms`, the same `pattern/src/drafting/` core with a dialect; darts drawn as holes are filled, a piece that is two parts becomes two pieces; known gaps in docs/PROGRESS.md; branch `feature/seamly2d-import`, 7 commits, waiting for review). **Next:** the remaining MVP fixes, then the rest of the architecture refactor.
-- **The plan says `.vitryne`; the extension is `.vtry`** (`.vit` is taken by Seamly2D), with
+- **Done:** M0 to M16, all merged (details and numbers in docs/PROGRESS.md; the entries still
+  say "waiting for review" for M7 to M16, the history of how they were reviewed): the solver, the
+  engine API and regression goldens, the `.vtry` format, the editor (worker + OffscreenCanvas,
+  document model with guardrails, 2D pattern panel, properties), import and placement, whole-edge
+  sewing, fabric presets, glTF/OBJ export, cloud backend and self-hosting, DXF-AAMA export in the
+  CLI (the editor's *Pattern (.dxf)* export is removed until seam allowance exists), pattern
+  tools, Valentina and Seamly2D import. Since then, released as v0.1.0 to v0.4.0 (CHANGELOG.md):
+  the docs website, dark mode, layers (format v4), right-click menus, copy/paste/flip, the
+  email-first account dialog, legal pages and the project right-click menu on the start screen
+  (#12). M1 was accepted on a qualitative check (no integrated-GPU or Firefox numbers); M2 only
+  partly met its targets (see Known and accepted below). The MVP is done; ask the user what is
+  next.
+- **The extension is `.vtry`, not `.vitryne`** (`.vit` is taken by Seamly2D), with
   `.vtryg`/`.vtryf`/`.vtrya` for garment, fabric and avatar files.
 - **The `.vtry` and `garment.toml` paths give bit-identical garments** (test
   `project_matches_sidecar`; `vitryne regress --toml` uses the same goldens). That relies on the
