@@ -19,6 +19,7 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 - The file that comes with an imported pattern (the measurements of a Valentina or Seamly2D
   pattern, a garment.toml for a DXF) can be dropped anywhere on the import dialog.
+- The start screen shows placeholder cards while your projects load, instead of an empty gap.
 
 ## [0.5.0] - 2026-10-30
 
