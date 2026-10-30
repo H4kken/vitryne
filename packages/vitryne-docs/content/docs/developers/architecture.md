@@ -4,6 +4,12 @@ icon: Blocks
 description: "How Vitryne is put together, and the rules that keep it that way."
 ---
 
+**In short:** the engine is Rust (a GPU cloth solver, patterns, the file format) and the editor is
+TypeScript and React. The editor runs the engine as wasm in a Web Worker; the document is the file's
+JSON, changed only through commands, and Rust validates every state. Read this page before changing
+the editor or the worker protocol; the [guardrails](#commands-and-the-guardrails) are the rules that
+keep both sides honest.
+
 How Vitryne is put together, and the rules that keep it that way. For the solver itself see
 [Algorithms](/developers/algorithms); for the file format, [File format](/developers/file-format).
 
@@ -34,6 +40,8 @@ How Vitryne is put together, and the rules that keep it that way. For the solver
  │ useFiles: open, autosave     │
  └──────────────────────────────┘
 ```
+
+### Two threads
 
 **The engine runs in a Web Worker** and draws into an `OffscreenCanvas`, so the UI never
 freezes while the cloth simulates. The worker also holds the file: the browser opens `.vtry`
@@ -82,7 +90,7 @@ pieces, with a status pill, a hint, zoom and a floating tool bar. Its colours, r
 the tokens in `packages/vitryne-web/src/index.css` (light only); the fonts, Bricolage Grotesque and
 DM Sans (OFL), are bundled from `@fontsource`, never fetched from another site. The 3D scene's
 colours go to the renderer as a `vitryne_render::Style`; a garment or piece with a colour (an
-appearance, the File format page) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour
+appearance, see the [file format](/developers/file-format#appearance)) overrides the cloth colour per panel (`Renderer::set_panel_colors`). Colour
 edits don't re-drape: after every document update the worker calls `Viewport::set_looks`, which
 recolours the drape shown and its export materials. The 3D tool bar has the concept's Select, Turn
 view and Pinch fabric; the flat one its Select and Move, then the pattern tools (below) and
@@ -167,7 +175,9 @@ bytes.
 
 ### Import and placement
 
-**Import.** A DXF-AAMA file (picked, or dropped on the start screen or the canvas) is read in
+#### Importing a pattern
+
+A DXF-AAMA file (picked, or dropped on the start screen or the canvas) is read in
 the worker (`vitryne_pattern::import`, the same importer as `vitryne convert`). The import dialog
 shows its pieces with a thumbnail, what was left out of the file (layers the importer doesn't
 use, blocks with no outline, entity types it doesn't read, arcs taken as chords, pieces a
@@ -176,12 +186,14 @@ the second mirrored: arms, legs front or back, hood sides, body sides), on top o
 (a pocket: `follow`, 12 mm off it), or left out. Each piece comes with a suggestion **from its
 name only** ("sleeve" → arms, "front" cut twice → legs, "hoodSide" → hood sides, facings,
 bindings, cuffs and bands get none), which the user sees and can change: no learned placement
-(the Patent warnings page, rule 4). A `garment.toml` given with the DXF supplies the cuts, names and seams
+([patent rules](/developers/patents), rule 4). A `garment.toml` given with the DXF supplies the cuts, names and seams
 (`vitryne convert`'s path); only its placements are replaced by the user's choices. The pieces
 become a new project (the test avatar, a placeholder jersey, self-collision on, the import
 collision box) or are added to the open project's garment as one undoable edit.
 
-**Valentina and Seamly2D patterns** (`.val`, `.sm2d`) take the same dialog
+#### Valentina and Seamly2D patterns
+
+Patterns from these two apps (`.val`, `.sm2d`) take the same dialog
 (`vitryne_pattern::drafting`). Such a
 file stores no shapes: it lists drafting tools (a point at a distance and angle, along a line,
 where two circles meet, a spline, a rotation, ...) whose numbers are formulas over body
@@ -202,7 +214,9 @@ its `intersectXY` tool is Valentina's `pointOfIntersection`): `drafting::xml::Di
 names from the file's content, since both write a `<pattern>` root and Seamly2D's older files are
 Valentina's.
 
-**Placement is a wrap, chosen from a list and then adjusted.** Every place is a region of the
+#### Placement
+
+Placement is a wrap, chosen from a list and then adjusted. Every place is a region of the
 avatar and an angle (`BodyPlace`). The starting wrap (`placement::auto_wrap`) is worked out from
 the piece and the body, never stored rules per garment:
 
@@ -215,7 +229,9 @@ the piece and the body, never stored rules per garment:
   3 cm above the head for hoods, the shoulder joint for sleeves, centred for a strip over the
   head.
 
-**The stack decides what is outside what** (`placement/stacking.rs`; the garment's `stack`, the File format page).
+#### The stack
+
+The stack decides what is outside what (`placement/stacking.rs`; the garment's `stack`, see the [file format](/developers/file-format#the-stack)).
 Cuts are placed from the bottom of the stack up. Each is sampled every 12 mm over its outline,
 and pushed out, along the whole cut by one amount, until it is a gap past every cut below it
 that it overlaps, plus its own `offset`. The gap is the mesh's edge length, never below 12 mm,
@@ -234,7 +250,9 @@ or removes cuts (`addPiece`, `addPieces`, `removeCuts`, `setPlacement` to a foll
 list one entry per cut. The random-edit sessions include reorders and offsets. "Fit to the body
 again" keeps the cut's offset.
 
-**The Layers view** is the second view of the Pieces panel (a Pieces | Layers | Seams switch at
+#### The Layers view
+
+The Layers view is the second view of the Pieces panel (a Pieces | Layers | Seams switch at
 its top; the plain list stays the first view, the sewn list the third, and the choice stays while other panels are open). It lists
 the stack outermost first (`placement/stackOrder.ts`: the cuts wrapped on the body, each with the
 cuts placed on it nested under it). A drop, a row's up and down arrows or an Alt + arrow become `moveInStack`; the selected
@@ -253,11 +271,15 @@ screen and how far each one's point moves per unit of what it changes; the UI tu
 those units. Dragging shows the piece moving at once (`Placer`, below); letting go is one edit.
 Nothing new in the format: the gizmo edits the wrap's own fields.
 
-**Placing mode.** With Select in 3D, the drape waits at the start state (`Viewport::set_placing`):
+#### Placing mode
+
+With Select in 3D, the drape waits at the start state (`Viewport::set_placing`):
 what's shown is where pieces start, so their handles sit on them. A click picks a cut (the
 worker picks a vertex and names its panel); any other tool, or Play, drapes from there.
 
-**Preview without meshing again.** `ProjectGarment::build_with_placer` keeps the meshed
+#### Preview without meshing again
+
+`ProjectGarment::build_with_placer` keeps the meshed
 pattern's coordinates and panels (`Placer`). Moving a cut re-places every vertex
 (`placement::resolve_all` and `positions`, about 10k points, under a millisecond) and writes
 them as the start state (`Simulation::place_at`). A move gives exactly the positions a full
@@ -265,19 +287,25 @@ rebuild would (tested bit for bit); a turn turns the meshed piece, where a rebui
 turned pattern (the same place on the body to well under 1 mm, other triangles). The edit then
 re-drapes as any edit does, after 250 ms.
 
-**Collision box.** The body's SDF is baked over the garment's `collisionBounds`; a box that
+#### Collision box
+
+The body's SDF is baked over the garment's `collisionBounds`; a box that
 followed the pieces would change its key, and bake again, on every move. So an imported garment
 gets one fixed box (the body's own, with room behind the back and above the head; bundled with
 the app for the test avatar), and moving a cut asks Rust (`rewrap`) whether the garment's box
 still covers it with 5 cm to spare, growing it only when it doesn't.
 
-**The flat view** draws every cut (a mirrored cut mirrored) where `cut.layout` puts it, else side
+#### The flat view
+
+The flat view draws every cut (a mirrored cut mirrored) where `cut.layout` puts it, else side
 by side in rows. Select picks a cut and turns it by a round handle above it (Shift: 15° steps);
 Move drags cuts. One drag is one edit (`Arrange the pieces`); the layout is display only.
 
-**Patents** (other companies' claims we design around, the Patent warnings page; its rules override the
-plan). No sewing is derived from placement, and no learned placement (the Patent warnings page, rules 3
-and 4): suggestions come from names, every one shown to the user; the wrap is geometry from the
+#### Patents
+
+Other companies' claims, which we design around ([Patent warnings](/developers/patents); its rules
+override the plan). No sewing is derived from placement, and no learned placement (rules 3 and 4):
+suggestions come from names, every one shown to the user; the wrap is geometry from the
 piece and the avatar's own regions.
 
 ### Sewing
@@ -301,7 +329,7 @@ differ). The design, and why:
   adds edges to a side. Nothing is measured, snapped or coloured while picking.
 - **A length difference is shown only for a seam that exists**, as a sentence in the seam list
   ("Side two is 8% longer than side one"), never while picking and never in a colour that
-  changes with the difference. This is the "passive" case the Patent warnings page marks for counsel's review.
+  changes with the difference. This is the "passive" case the [patent notes](/developers/patents) mark for counsel's review.
 - **Where the logic lives.** `packages/vitryne-engine/pattern/src/suggest.rs` (edges, scoring) and
   `seams.rs` (the project's cuts and node ids, proposals, `join_chains`, per-seam length
   differences); the worker calls `sewing_edges`, `suggest_seams`, `join_edges` and

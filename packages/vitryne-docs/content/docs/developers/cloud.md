@@ -4,6 +4,11 @@ icon: Cloud
 description: "How accounts, projects and storage work in the backend: the design, security, privacy and tests."
 ---
 
+**In short:** projects live in a Supabase project (accounts, a projects table, a storage bucket)
+and the editor is static files in front of it. Read [Running the editor](#running-the-editor) to
+host it, [Setting up the backend](#setting-up-the-backend) to create the backend, and
+[Developing](#developing) to work on it locally.
+
 Like Figma or Canva, projects live in the cloud and save by themselves; nothing is saved to disk.
 The editor is static files plus a backend, a **Supabase project** (hosted by Supabase, or one you
 run), which holds **accounts** and **projects**. Anyone can try the editor without an account: their

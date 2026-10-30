@@ -4,6 +4,17 @@ icon: FileCode
 description: "The .vtry project file format: layout, parts, validation and migrations."
 ---
 
+**In short:** a `.vtry` file is a zip (or a folder) holding a JSON manifest and one JSON part per
+thing: the project, its garments (pieces, seams, placement), fabrics, appearances, the avatar and
+an optional cached drape. Every state is validated by Rust and by JSON Schemas. Where to start:
+
+- **Reading or writing a file:** [Container](#container), [Conventions](#conventions), then
+  [Project](#project) and [Garment](#garment).
+- **Fabrics, colours, the avatar:** [Fabric](#fabric), [Appearance](#appearance), [Avatar](#avatar).
+- **Changing the format:** [Versions and migrations](#versions-and-migrations) and
+  [Extensions and future features](#extensions-and-future-features).
+- **Why it is this way:** [Principles](#principles) and [Decisions](#decisions).
+
 **Status: approved design (2026-10-13), implemented by
 [packages/vitryne-engine/format](https://github.com/H4kken/vitryne/tree/main/packages/vitryne-engine/format) (reading, writing, validation,
 migrations) and `vitryne-pattern` (`project`: a file to the engine; `convert`: `garment.toml` + DXF
@@ -526,7 +537,7 @@ which appearance it has by default:
 | `attribution`, `libraryRef`      | for fabrics from a library                                                            |       |
 
 **Why these quantities:** they're the ones fabric testing reports (tensile, shear and bending
-tests, like KES-F or FAST), and the ones the published presets (the Fabric & textile page) cite.
+tests, like KES-F or FAST), and the ones the published presets ([Fabric & textile](/developers/fabrics)) cite.
 They're independent of mesh resolution and of the solver. Anisotropy (warp ≠ weft) is in the
 format from the start, even though the v1 engine is isotropic (see [In the engine](#in-the-engine)).
 **Why appearance isn't here:** colour and texture change per colourway while the physics stays
@@ -823,7 +834,7 @@ mesh of equilateral triangles, springs of stiffness k act like a membrane with t
 Y = 2k/√3 and Poisson's ratio 1/3, so shear stiffness Y / (2(1 + ν)) = 3Y/8, whatever the edge
 length. The engine converts back with k = (√3/2) · Y. The cotton placeholder's k = 10⁴ N/m becomes
 Y = 11,547 N/m; the trousers' k = 10⁶ N/m becomes 1.155 × 10⁶ N/m. These are the same
-placeholders under a physical name, not calibrated values (those are the presets, the Fabric & textile page).
+placeholders under a physical name, not calibrated values (those are the [presets](/developers/fabrics)).
 
 **The T-shirt, worked through:** 3 pieces (front and back cut on the fold, unfolded with 12 nodes
 each; sleeve with 6 nodes plus the cap-top `point`), 4 cuts (the left sleeve mirrored), 10 seams.

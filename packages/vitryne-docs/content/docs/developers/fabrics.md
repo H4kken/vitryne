@@ -4,18 +4,34 @@ icon: Shirt
 description: "The five physical fabric presets, their calibrated values and where they come from."
 ---
 
-This document defines the 5 physical fabric presets in Vitryne, their calibrated values,
-how they map to the XPBD solver, and the literature and measurement standards they come from.
+**In short:** five presets (cotton jersey, denim, poplin, fleece, wool suiting), each a set of
+physical values in SI units that the solver turns into stretch, shear and bending compliance. Use
+this page to see what a preset means, or to add one.
+
+This page defines the five presets, their calibrated values, how they map to the XPBD solver, and
+the literature and measurement standards they come from.
 
 ## The 5 presets at a glance
 
-| Preset                | Category | Weight (g/m²) | Thickness (mm) | Stretch Y (warp / weft, N/m) | Shear (N/m) | Bending B (warp / weft, µN·m) | Friction | Target strain (p99) |
-| --------------------- | -------- | ------------- | -------------- | ---------------------------- | ----------- | ----------------------------- | -------- | ------------------- |
-| **Cotton jersey**     | `knit`   | 150           | 0.45           | 14,000 / 9,000               | 3,500       | 6.0 / 4.0                     | 0.30     | < 8% ✅             |
-| **Denim**             | `woven`  | 420           | 0.85           | 1,400,000 / 1,000,000        | 400,000     | 140 / 100                     | 0.42     | < 3% ✅             |
-| **Poplin (shirting)** | `woven`  | 125           | 0.22           | 1,100,000 / 800,000          | 300,000     | 18 / 12                       | 0.25     | < 3% ✅             |
-| **Fleece**            | `knit`   | 280           | 2.20           | 28,000 / 18,000              | 7,500       | 75 / 55                       | 0.38     | < 8% ✅             |
-| **Wool suiting**      | `woven`  | 250           | 0.48           | 850,000 / 650,000            | 200,000     | 32 / 24                       | 0.32     | < 3% ✅             |
+What each one is:
+
+| Preset                | Category | Weight (g/m²) | Thickness (mm) | Friction | Target strain (p99) |
+| --------------------- | -------- | ------------- | -------------- | -------- | ------------------- |
+| **Cotton jersey**     | `knit`   | 150           | 0.45           | 0.30     | < 8% ✅             |
+| **Denim**             | `woven`  | 420           | 0.85           | 0.42     | < 3% ✅             |
+| **Poplin (shirting)** | `woven`  | 125           | 0.22           | 0.25     | < 3% ✅             |
+| **Fleece**            | `knit`   | 280           | 2.20           | 0.38     | < 8% ✅             |
+| **Wool suiting**      | `woven`  | 250           | 0.48           | 0.32     | < 3% ✅             |
+
+How it stretches and bends (warp / weft where two numbers are given):
+
+| Preset                | Stretch Y (N/m)       | Shear (N/m) | Bending B (µN·m) |
+| --------------------- | --------------------- | ----------- | ---------------- |
+| **Cotton jersey**     | 14,000 / 9,000        | 3,500       | 6.0 / 4.0        |
+| **Denim**             | 1,400,000 / 1,000,000 | 400,000     | 140 / 100        |
+| **Poplin (shirting)** | 1,100,000 / 800,000   | 300,000     | 18 / 12          |
+| **Fleece**            | 28,000 / 18,000       | 7,500       | 75 / 55          |
+| **Wool suiting**      | 850,000 / 650,000     | 200,000     | 32 / 24          |
 
 All quantities use the Vitryne project format definitions ([File format](/developers/file-format)).
 
@@ -51,7 +67,7 @@ All quantities use the Vitryne project format definitions ([File format](/develo
   $$
   1\text{ gf}\cdot\text{cm}^2/\text{cm} = 9.80665 \times 10^{-7}\text{ N}\cdot\text{m} \approx 0.981\ \mu\text{N}\cdot\text{m}
   $$
-- In the engine, isometric bending constraints (Bergou et al. 2006, the Algorithms page) use the mean
+- In the engine, isometric bending constraints (Bergou et al. 2006, see [Algorithms](/developers/algorithms)) use the mean
   bending rigidity $B = \frac{1}{2}(B_{\text{warp}} + B_{\text{weft}})$ with XPBD compliance:
   $$
   \alpha_{\text{bend}} = \frac{A_{\text{tri1}} + A_{\text{tri2}}}{6 B}
