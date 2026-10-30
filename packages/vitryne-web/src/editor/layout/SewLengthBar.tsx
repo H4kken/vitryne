@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The header of the flat view while the Sew tool is on: what to do, and the whole edge under the
 // pointer with its length (the first edge once it is picked, then the second). Each length is
-// shown on its own, with no difference between them and no colour for "matches": that live
-// comparison is what packages/vitryne-docs/content/docs/developers/patents.md rule 1 rules out.
+// shown on its own, with no difference between them and no colour for "matches". A live
+// comparison would be allowed without a snap (packages/vitryne-docs/content/docs/developers/patents.md
+// rule 1); this is the stricter design choice.
 
 import type { Garment } from "@/format/schema.gen";
 import { type CutEdge, cutLabel, formatLength, sameEdge } from "@/sewing/api";

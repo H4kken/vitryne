@@ -3,7 +3,8 @@
 //! seams (`suggest`), and the seam a user's two picks make.
 //!
 //! Patents (packages/vitryne-docs/content/docs/developers/patents.md): everything here works on **whole edges**, the stretch of a cut's
-//! outline between two corners. `join` refuses anything else (rule 1), takes two picks and shows
+//! outline between two corners (a design choice, stricter than the rules need). `join` refuses
+//! anything else, so no seam end can snap to an equal length (rule 1), takes two picks and shows
 //! nothing while the user picks (rule 2), and suggestions come from piece geometry only
 //! (rule 3). Direction and cut choices below follow the pieces' own drawing frames (which side
 //! of the piece an edge is on, whether a cut is mirrored), never where a cut is placed.
@@ -505,7 +506,7 @@ fn orient_side(g: &Garment, conv: &Converted, all: &[Edge], picks: &[(usize, &Id
 
 /// The seam made of one or more picked whole edges on each side (a sleeve cap against a front
 /// and a back armhole). Two single edges are `join`. Every pick must be a whole edge of its cut
-/// (packages/vitryne-docs/content/docs/developers/patents.md, rule 1); a chain is a list of whole edges, never a part of one.
+/// (packages/vitryne-docs/content/docs/developers/patents.md, rule 1, and the whole-edge design choice); a chain is a list of whole edges, never a part of one.
 pub fn join_chains(g: &Garment, a: &[EdgePick], b: &[EdgePick]) -> Result<SeamProposal, String> {
     if a.is_empty() || b.is_empty() {
         return Err("a seam needs edges on both sides".into());

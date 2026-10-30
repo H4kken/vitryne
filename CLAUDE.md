@@ -10,10 +10,10 @@ with their numbers, [CONTRIBUTING.md](CONTRIBUTING.md) for build and check comma
 ## Patents: read before touching joins, placement, measuring or grading
 
 CLO Virtual Fashion (a competitor, **not us**) holds and enforces patents on free-sewing UIs, 2D
-pattern measuring and automatic grading, and has pending applications on automatic sewing-line
-detection and ML placement. `packages/vitryne-docs/content/docs/developers/patents.md` lists those patents so we **avoid the designs they
-claim**; its design rules are binding (e.g. seams are whole edges, not notch-to-notch
-segments). Before designing or building any feature that joins pattern pieces, places pieces
+pattern measuring and automatic grading, has a granted patent on a piece-combining guide, and has pending applications on automatic
+sewing-line detection, ML placement and automatic sewing. `packages/vitryne-docs/content/docs/developers/patents.md` lists those patents so we **avoid the designs they
+claim**; its design rules are binding (e.g. never snap a seam end to an equal length,
+never feed placement into sewing; the editor also keeps seams to whole edges). Before designing or building any feature that joins pattern pieces, places pieces
 around a body, measures a pattern, or resizes a garment, read
 [Patent warnings](packages/vitryne-docs/content/docs/developers/patents.md) and follow its design rules. Do not add such features
 without checking them against that file, and say so when a request conflicts with it.
