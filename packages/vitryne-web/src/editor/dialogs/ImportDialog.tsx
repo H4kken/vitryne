@@ -169,7 +169,7 @@ export function ImportDialog(props: {
     ) ?? [];
   const lines = preview ? leftOut(preview) : [];
 
-  const run = async () => {
+  const run = async (skip = false) => {
     if (!pattern || !preview) return;
     setBusy(true);
     setRunError(null);
@@ -181,7 +181,11 @@ export function ImportDialog(props: {
         choices: Object.fromEntries(
           preview.pieces.map((x) => [
             x.name,
-            decodeChoice(choices[x.name] ?? "leave"),
+            decodeChoice(
+              choices[x.name] ??
+                // Skipping: the suggestion, else as it is (a piece cut twice can't be, so it waits out).
+                (skip && x.cuts !== 2 ? "flat" : "leave"),
+            ),
           ]),
         ),
         into: props.projectName ? into : "new",
@@ -259,8 +263,8 @@ export function ImportDialog(props: {
           {preview && (
             <details className="text-[14px] leading-snug">
               <summary className="cursor-pointer font-semibold">
-                {lines.length
-                  ? `Left out of the file (${lines.length})`
+                {lines.length + preview.report.warnings.length
+                  ? `Left out of the file (${lines.length + preview.report.warnings.length})`
                   : "Nothing in the file was left out"}
               </summary>
               <ul className="text-body-text mt-2 mb-0 flex flex-col gap-1 pl-5">
@@ -309,6 +313,14 @@ export function ImportDialog(props: {
           <div className="flex gap-2">
             <Button variant="ghost" onClick={props.onClose} disabled={busy}>
               Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void run(true)}
+              disabled={!preview || busy}
+              title="Open the pieces with their suggested places; the rest start flat in front of the chest"
+            >
+              Skip and import
             </Button>
             <Button
               onClick={() => void run()}
