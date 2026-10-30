@@ -1,12 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The person's projects on the start screen, as cards: a thumbnail of the drape (the project's
 // own image, made by the editor once a drape settled), the name and when it was last edited.
-// A click opens the project; the ⋯ menu renames, duplicates and exports (an account) or
-// deletes it. An anonymous user's one draft is a card like any other.
+// A click opens the project; the ⋯ menu, or a right click on the card, opens it (here or in a
+// new tab), renames, duplicates and exports (an account) or deletes it. An anonymous user's one draft is a card like any other.
 
-import { useRef, useState } from "react";
-import { Ellipsis } from "lucide-react";
+import { Fragment, useRef, useState } from "react";
+import {
+  ChevronDown,
+  Copy,
+  Download,
+  Ellipsis,
+  ExternalLink,
+  FolderOpen,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
   Dialog,
   DialogContent,
@@ -53,9 +69,9 @@ export function ProjectGrid(props: {
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
-  /** Rename was picked: once the menu has closed, the focus goes to the name field. */
   const renameField = useRef<HTMLInputElement | null>(null);
-  const toRename = useRef(false);
+  const deleteButton = useRef<HTMLButtonElement | null>(null);
+  const [focusRename, setFocusRename] = useState(false);
 
   const act = async (
     p: ProjectSummary,
@@ -86,6 +102,73 @@ export function ProjectGrid(props: {
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     });
 
+  /** What the ⋯ menu and the right-click menu offer for `p`. */
+  const entries = (p: ProjectSummary) => {
+    const items: {
+      label: string;
+      icon: React.ReactNode;
+      onSelect: () => void;
+      destructive?: boolean;
+      /** A separator comes first. */
+      apart?: boolean;
+    }[] = [
+      {
+        label: "Open",
+        icon: <FolderOpen />,
+        onSelect: () => props.onOpen(p.id),
+      },
+      {
+        label: "Open in a new tab",
+        icon: <ExternalLink />,
+        onSelect: () =>
+          void window.open(`/design/${p.id}`, "_blank", "noopener"),
+      },
+      {
+        label: "Rename",
+        icon: <Pencil />,
+        onSelect: () => {
+          setFocusRename(true);
+          setRenaming(p.id);
+        },
+      },
+    ];
+    // An anonymous user keeps one project: nothing to duplicate into, nothing to export.
+    if (account)
+      items.push(
+        {
+          label: "Duplicate",
+          icon: <Copy />,
+          onSelect: () =>
+            void act(
+              p,
+              "duplicate",
+              async () =>
+                void (await duplicateProject(await cloud.backend(), p.id)),
+            ),
+        },
+        {
+          label: "Export (.vtry)",
+          icon: <Download />,
+          onSelect: () => void exportFile(p),
+        },
+      );
+    items.push({
+      label: "Delete…",
+      icon: <Trash2 />,
+      onSelect: () => setDeleting(p),
+      destructive: true,
+      apart: true,
+    });
+    return items;
+  };
+  /** Rename was picked: once the menu has closed, the focus goes to the name field. */
+  const afterClose = (e: Event) => {
+    if (!focusRename) return;
+    setFocusRename(false);
+    e.preventDefault();
+    renameField.current?.focus();
+  };
+
   const list =
     sort === "name"
       ? [...props.projects].sort((a, b) => a.name.localeCompare(b.name))
@@ -99,14 +182,21 @@ export function ProjectGrid(props: {
         {props.projects.length > 1 && (
           <label className="text-muted-foreground flex items-center gap-1.5 text-sm">
             Sort by
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as "edited" | "name")}
-              className="text-foreground rounded-lg border border-border-strong bg-card px-2 py-1 text-sm font-medium"
-            >
-              <option value="edited">Last edited</option>
-              <option value="name">Name</option>
-            </select>
+            <span className="relative">
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as "edited" | "name")}
+                // The browser's own arrow sits against the edge: draw one with room.
+                className="text-foreground appearance-none rounded-lg border border-border-strong bg-card py-1 pr-8 pl-3 text-sm font-medium"
+              >
+                <option value="edited">Last edited</option>
+                <option value="name">Name</option>
+              </select>
+              <ChevronDown
+                aria-hidden
+                className="text-muted-foreground pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2"
+              />
+            </span>
           </label>
         )}
       </div>
@@ -119,124 +209,110 @@ export function ProjectGrid(props: {
       )}
       <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4 p-0">
         {list.map((p) => (
-          <li
-            key={p.id}
-            className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card transition-[transform,box-shadow] duration-150 focus-within:shadow-[0_10px_24px_rgba(20,24,31,.10)] hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)]"
-          >
-            <button
-              type="button"
-              aria-label={`Open ${p.name}`}
-              disabled={props.busy || working === p.id}
-              onClick={() => props.onOpen(p.id)}
-              // Pointing at a project starts its download, so the click opens it sooner.
-              onPointerEnter={() =>
-                void cloud.backend().then(
-                  (b) => fetchAhead(b, p.id),
-                  () => undefined,
-                )
-              }
-              onFocus={() =>
-                void cloud.backend().then(
-                  (b) => fetchAhead(b, p.id),
-                  () => undefined,
-                )
-              }
-              className="block cursor-pointer outline-none disabled:cursor-default disabled:opacity-60"
+          <ContextMenu key={p.id}>
+            <ContextMenuTrigger
+              asChild
+              // Ctrl-click on a Mac is a right click too; a busy card has no menu.
+              onContextMenu={(e) => {
+                if (working !== null) e.preventDefault();
+              }}
             >
-              <ProjectThumbnail cloud={cloud} sha={p.thumbnail} />
-            </button>
-            <div className="flex items-start gap-1 px-4 pt-3 pb-3.5">
-              <div className="flex min-w-0 grow flex-col gap-0.5">
-                {renaming === p.id ? (
-                  <RenameField
-                    ref={renameField}
-                    name={p.name}
-                    onDone={(name) => {
-                      setRenaming(null);
-                      if (name && name !== p.name)
-                        void act(p, "rename", async () =>
-                          renameProject(await cloud.backend(), p.id, name),
-                        );
-                    }}
-                  />
-                ) : (
-                  <span
-                    className="truncate text-[15px] font-semibold"
-                    title={p.name}
-                  >
-                    {p.name}
-                  </span>
-                )}
-                <span className="text-muted-foreground text-xs">
-                  {working === p.id ? "Working…" : editedAgo(p.updatedAt)}
-                </span>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`More for ${p.name}`}
-                    disabled={working !== null}
-                    className="-mr-1.5 shrink-0"
-                  >
-                    <Ellipsis className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-48"
-                  onCloseAutoFocus={(e) => {
-                    if (!toRename.current) return;
-                    toRename.current = false;
-                    e.preventDefault();
-                    renameField.current?.focus();
-                  }}
+              <li className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card transition-[transform,box-shadow] duration-150 focus-within:shadow-[0_10px_24px_rgba(20,24,31,.10)] hover:-translate-y-[3px] hover:shadow-[0_10px_24px_rgba(20,24,31,.10)]">
+                <button
+                  type="button"
+                  aria-label={`Open ${p.name}`}
+                  disabled={props.busy || working === p.id}
+                  onClick={() => props.onOpen(p.id)}
+                  // Pointing at a project starts its download, so the click opens it sooner.
+                  onPointerEnter={() =>
+                    void cloud.backend().then(
+                      (b) => fetchAhead(b, p.id),
+                      () => undefined,
+                    )
+                  }
+                  onFocus={() =>
+                    void cloud.backend().then(
+                      (b) => fetchAhead(b, p.id),
+                      () => undefined,
+                    )
+                  }
+                  className="block cursor-pointer outline-none disabled:cursor-default disabled:opacity-60"
                 >
-                  <DropdownMenuItem onSelect={() => props.onOpen(p.id)}>
-                    Open
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      toRename.current = true;
-                      setRenaming(p.id);
-                    }}
-                  >
-                    Rename
-                  </DropdownMenuItem>
-                  {account && (
-                    <>
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          void act(
-                            p,
-                            "duplicate",
-                            async () =>
-                              void (await duplicateProject(
-                                await cloud.backend(),
-                                p.id,
-                              )),
-                          )
-                        }
+                  <ProjectThumbnail cloud={cloud} sha={p.thumbnail} />
+                </button>
+                <div className="flex items-start gap-1 px-4 pt-3 pb-3.5">
+                  <div className="flex min-w-0 grow flex-col gap-0.5">
+                    {renaming === p.id ? (
+                      <RenameField
+                        ref={renameField}
+                        name={p.name}
+                        onDone={(name) => {
+                          setRenaming(null);
+                          if (name && name !== p.name)
+                            void act(p, "rename", async () =>
+                              renameProject(await cloud.backend(), p.id, name),
+                            );
+                        }}
+                      />
+                    ) : (
+                      <span
+                        className="truncate text-[15px] font-semibold"
+                        title={p.name}
                       >
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => void exportFile(p)}>
-                        Export (.vtry)
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() => setDeleting(p)}
+                        {p.name}
+                      </span>
+                    )}
+                    <span className="text-muted-foreground text-xs">
+                      {working === p.id ? "Working…" : editedAgo(p.updatedAt)}
+                    </span>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`More for ${p.name}`}
+                        disabled={working !== null}
+                        className="-mr-1.5 shrink-0"
+                      >
+                        <Ellipsis className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-52"
+                      onCloseAutoFocus={afterClose}
+                    >
+                      {entries(p).map((m) => (
+                        <Fragment key={m.label}>
+                          {m.apart && <DropdownMenuSeparator />}
+                          <DropdownMenuItem
+                            variant={m.destructive ? "destructive" : "default"}
+                            onSelect={m.onSelect}
+                          >
+                            {m.icon} {m.label}
+                          </DropdownMenuItem>
+                        </Fragment>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </li>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-52" onCloseAutoFocus={afterClose}>
+              {entries(p).map((m) => (
+                <Fragment key={m.label}>
+                  {m.apart && <ContextMenuSeparator />}
+                  <ContextMenuItem
+                    variant={m.destructive ? "destructive" : "default"}
+                    onSelect={m.onSelect}
                   >
-                    Delete…
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </li>
+                    {m.icon} {m.label}
+                  </ContextMenuItem>
+                </Fragment>
+              ))}
+            </ContextMenuContent>
+          </ContextMenu>
         ))}
       </ul>
       {error && (
@@ -246,7 +322,14 @@ export function ProjectGrid(props: {
       )}
 
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <DialogContent className="rounded-[20px] p-6">
+        <DialogContent
+          className="rounded-[20px] p-6"
+          // Enter confirms: the dialog starts on Delete, not on the first button.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            deleteButton.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="font-display text-2xl font-bold">
               Delete {deleting?.name}?
@@ -260,6 +343,7 @@ export function ProjectGrid(props: {
               Keep it
             </Button>
             <Button
+              ref={deleteButton}
               variant="destructive"
               onClick={() => {
                 const p = deleting;

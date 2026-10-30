@@ -33,6 +33,8 @@ export function StartPage(props: {
   const { cloud, hasDraft, onAccount, message } = props;
   return (
     <StartScreen
+      privacyPolicy={cloud.config.privacyPolicy}
+      termsOfService={cloud.config.termsOfService}
       signedIn={!!cloud.user && !cloud.user.anonymous}
       examples={props.examples}
       busy={props.busy}
@@ -44,10 +46,7 @@ export function StartPage(props: {
       account={
         <>
           <ThemeMenu />
-          <HelpMenu
-            privacyPolicy={cloud.config.privacyPolicy}
-            termsOfService={cloud.config.termsOfService}
-          />
+          <HelpMenu />
           <CloudButton user={cloud.user} onClick={onAccount} />
         </>
       }
