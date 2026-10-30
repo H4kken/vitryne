@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Fabric colours (appearances, docs/FORMAT.md, Appearance): the swatches the editor offers, and
+// Fabric colours (appearances, packages/vitryne-docs/content/docs/developers/file-format.md, Appearance): the swatches the editor offers, and
 // the colour cloth has without one (the 3D view's, sceneStyle).
 
 /** The cloth colour of a garment or piece that has no appearance. */

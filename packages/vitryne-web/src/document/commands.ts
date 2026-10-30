@@ -197,7 +197,7 @@ export function renameCut(
   const g = garment(e, garmentId);
   const i = indexOf(g.pieces, pieceId, "piece");
   const j = indexOf(g.pieces[i]?.cuts, cutId, "cut");
-  // An empty name falls back to the piece's (FORMAT.md): store none rather than "".
+  // An empty name falls back to the piece's (file-format.md): store none rather than "".
   return setValue(
     e,
     { kind: "garment", id: garmentId },
@@ -281,7 +281,7 @@ export function setFabricValue(
   );
 }
 
-// ---- fabrics: how a piece hangs and what colour it is (FORMAT.md, Fabric and Appearance) ----
+// ---- fabrics: how a piece hangs and what colour it is (file-format.md, Fabric and Appearance) ----
 //
 // The editor's fabric is one thing to pick: a fabric part and the appearance it names
 // (`fabric.appearance`). Pieces pick fabrics, never colours: a cut's or garment's own appearance
@@ -314,7 +314,7 @@ export function cutFabric(
 }
 
 /**
- * The colour a cut shows, the nearest one set (FORMAT.md, Appearance): its own appearance, its
+ * The colour a cut shows, the nearest one set (file-format.md, Appearance): its own appearance, its
  * own fabric's, the garment's appearance, the garment fabric's; else none (the app's).
  */
 export function cutColor(
@@ -545,7 +545,7 @@ export interface FabricSource {
 
 /**
  * Copies a fabric (and its appearance) from another project: new ids, and a `libraryRef` saying
- * where it came from (FORMAT.md, common: the copy is what's used).
+ * where it came from (file-format.md, common: the copy is what's used).
  */
 export function importFabric(
   e: Entities,
@@ -763,7 +763,7 @@ export function setPieceFabric(
   );
 }
 
-// ---- simulation settings: the garment's value wins over the project's (FORMAT.md) ----------
+// ---- simulation settings: the garment's value wins over the project's (file-format.md) ----------
 
 interface SimulationLike {
   targetVertices?: number;
@@ -1155,7 +1155,7 @@ export function flipCuts(
   );
 }
 
-/** Where a cut sits in the flat view (FORMAT.md, Cuts: display only). */
+/** Where a cut sits in the flat view (file-format.md, Cuts: display only). */
 export interface Layout {
   position: [number, number];
   rotation: number;
@@ -1217,7 +1217,7 @@ export function setLayouts(
 
 type Run = Seam["a"][number];
 
-/** The same stretch of outline, walked the other way (FORMAT.md: to reverse a side, write its runs the other way). */
+/** The same stretch of outline, walked the other way (file-format.md: to reverse a side, write its runs the other way). */
 function reversedRuns(runs: readonly Run[]): [Run, ...Run[]] {
   const out = [...runs].reverse().map((r) => {
     const flipped: Run = { ...r, from: r.to, to: r.from };
@@ -1230,7 +1230,7 @@ function reversedRuns(runs: readonly Run[]): [Run, ...Run[]] {
 
 /**
  * A seam the user accepted, or two whole edges they picked (Rust's `seams::SeamProposal`, which
- * only ever holds whole edges of one cut or chains of them). docs/PATENTS.md: nothing here is
+ * only ever holds whole edges of one cut or chains of them). packages/vitryne-docs/content/docs/developers/patents.md: nothing here is
  * built from a point the user placed on an edge.
  */
 export interface SeamDraft {
@@ -1349,7 +1349,7 @@ function seamTitle(s: Seam): string {
 }
 
 /**
- * Seams whose pairing changes from `before` to `after` (FORMAT.md, Seams: with `nodes`
+ * Seams whose pairing changes from `before` to `after` (file-format.md, Seams: with `nodes`
  * pairing, sides through the same number of points meet point to point, else by length).
  */
 function pairingNotes(before: Garment, after: Garment): string[] {
@@ -1370,7 +1370,7 @@ function pairingNotes(before: Garment, after: Garment): string[] {
 }
 
 /**
- * The piece's outline replaced, checked as Rust will (FORMAT.md: a simple, counter-clockwise
+ * The piece's outline replaced, checked as Rust will (file-format.md: a simple, counter-clockwise
  * polygon, its folds still inside it; folds whose ends went are the caller's to remove).
  */
 function withOutline(

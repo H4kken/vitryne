@@ -14,7 +14,7 @@ native viewer. One Cargo workspace; its `target/` is here.
 | `vitryne-cli` | [cli/](cli/) | The `vitryne` binary: viewer, `bench`, `regress`, `convert`, `export`, ... (usage at the top of [cli/src/main.rs](cli/src/main.rs)). |
 | | [tests/](tests/) | The golden drapes `vitryne regress` compares against, and the drawn skirt it drapes. |
 
-Every component of the solver and the paper it comes from: [docs/ALGORITHMS.md](../../docs/ALGORITHMS.md).
+Every component of the solver and the paper it comes from: [Algorithms](../vitryne-docs/content/docs/developers/algorithms.md).
 
 ## Build and check
 
@@ -38,9 +38,9 @@ packages/vitryne-engine/target/release/vitryne bench --garment assets/examples/t
 ## Rules
 
 - WebGPU core only: `Features::empty()`, `Limits::default()`, one set of WGSL for every target.
-- Published methods only in the solver, cited where implemented and in docs/ALGORITHMS.md.
+- Published methods only in the solver, cited where implemented and in packages/vitryne-docs/content/docs/developers/algorithms.md.
 - The editor uses the engine only through its public API and the wasm bindings.
-- Joins, placement, measuring and grading: read [docs/PATENTS.md](../../docs/PATENTS.md) first.
+- Joins, placement, measuring and grading: read [Patent warnings](../vitryne-docs/content/docs/developers/patents.md) first.
 
 More in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 

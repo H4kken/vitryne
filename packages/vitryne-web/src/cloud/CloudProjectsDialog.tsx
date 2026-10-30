@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The person's cloud projects, in a dialog (docs/CLOUD.md).
+// The person's cloud projects, in a dialog (packages/vitryne-docs/content/docs/developers/cloud.md).
 
 import { useEffect } from "react";
 import {

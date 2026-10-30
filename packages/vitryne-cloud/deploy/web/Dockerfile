@@ -7,7 +7,7 @@
 # of memory and 10-20 minutes the first time; later builds reuse the layers. Target `from-dist`
 # packages a packages/vitryne-web/dist built on the host (`cd packages/vitryne-web && pnpm run
 # build`) in seconds: for ../smoke.sh, releases (.github/workflows/release.yml builds the image
-# on GHCR this way), or a server too small to build (docs/CLOUD.md).
+# on GHCR this way), or a server too small to build (packages/vitryne-docs/content/docs/developers/cloud.md).
 
 FROM rust:1.99-bookworm AS build
 RUN rustup target add wasm32-unknown-unknown \

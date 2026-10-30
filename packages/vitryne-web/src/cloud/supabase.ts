@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The backend on Supabase (packages/vitryne-cloud/deploy/, docs/CLOUD.md). Loaded with a dynamic import once the person
+// The backend on Supabase (packages/vitryne-cloud/deploy/, packages/vitryne-docs/content/docs/developers/cloud.md). Loaded with a dynamic import once the person
 // saves or opens a project or their account (or has a session from an earlier visit), so trying
 // an example doesn't download it. The session is kept in localStorage: it is what the
 // requested feature needs, nothing else is stored.

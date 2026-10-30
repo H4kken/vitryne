@@ -9,7 +9,7 @@ Where Vitryne projects live and how it is served: the Supabase backend and the w
 | [dev/](dev/) | Everything in Docker for contributors: the editor built from the checkout and a local Supabase (the CLI's images and settings, a Caddy gateway in place of Kong, Mailpit, Studio); `make stack`. Demo keys, localhost only. |
 | [tests/](tests/) | Backend tests (RLS, accounts, cleanup, thumbnails) and `browser.mjs`, which drives real Chrome. |
 
-How it fits together, privacy and self-hosting: [docs/CLOUD.md](../../docs/CLOUD.md).
+How it fits together, privacy and self-hosting: [Cloud backend](../vitryne-docs/content/docs/developers/cloud.md).
 
 ## Run and check
 
@@ -30,7 +30,7 @@ this folder as its workdir (Studio on :54323, emails on :54324). A schema change
 in `supabase/migrations/` (`pnpm run supabase migration new <name>`), tested with
 `pnpm run supabase db reset` and `make cloud-test`.
 
-Never send telemetry or an identifier that counts people (docs/CLOUD.md, Privacy).
+Never send telemetry or an identifier that counts people (packages/vitryne-docs/content/docs/developers/cloud.md, Privacy).
 
 ## Who to ask
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The Layers view of the Pieces panel: the garment's stack (FORMAT.md, The stack) outermost
+// The Layers view of the Pieces panel: the garment's stack (file-format.md, The stack) outermost
 // first, as Figma lists layers. Dragging a row changes what is outside what; a cut placed on
 // another is nested under it and goes with it. Every change is a command on the store.
 

@@ -10,9 +10,10 @@ export function NoBackend() {
       </p>
       <p className="text-body-text m-0 text-[17px] leading-normal">
         If you run it, set <code>SUPABASE_URL</code> and{" "}
-        <code>SUPABASE_PUBLISHABLE_KEY</code> (docs/CLOUD.md). In development,
-        start it with <code>pnpm run dev</code>, which starts the local backend
-        too.
+        <code>SUPABASE_PUBLISHABLE_KEY</code>{" "}
+        (packages/vitryne-docs/content/docs/developers/cloud.md). In
+        development, start it with <code>pnpm run dev</code>, which starts the
+        local backend too.
       </p>
     </InfoPage>
   );

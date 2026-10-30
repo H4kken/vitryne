@@ -13,5 +13,5 @@ history (`feat(web): …`, `fix(solver): …`, `docs: …`). See CONTRIBUTING.md
 - [ ] Solver, mesher or importer changed: `make regress` passes on my GPU, or I re-recorded the
       goldens with `make regress-update` and say why in the commit (or: not touched)
 - [ ] Joining pieces, placement, measuring or resizing: checked against
-      [docs/PATENTS.md](../docs/PATENTS.md) (or: not touched)
+      [Patent warnings](../packages/vitryne-docs/content/docs/developers/patents.md) (or: not touched)
 - [ ] A line under **Unreleased** in [CHANGELOG.md](../CHANGELOG.md) if people will notice it

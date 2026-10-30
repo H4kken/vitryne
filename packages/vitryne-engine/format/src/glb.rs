@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Just enough glTF 2.0 binary for avatar meshes (FORMAT.md, Avatar): triangles, positions in
+//! Just enough glTF 2.0 binary for avatar meshes (file-format.md, Avatar): triangles, positions in
 //! metres, optional indices. Reading takes every triangle primitive of the first mesh and
 //! ignores node transforms (an avatar mesh is already in avatar space).
 

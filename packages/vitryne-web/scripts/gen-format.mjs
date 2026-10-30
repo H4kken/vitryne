@@ -5,7 +5,7 @@
 // usage: node scripts/gen-format.mjs [--check]   --check: fail if the files are stale (make check)
 //
 // Unknown members: the schemas close every object (unevaluatedProperties: false), but readers
-// keep what they don't know (FORMAT.md) and Rust validates the whole document after every edit.
+// keep what they don't know (file-format.md) and Rust validates the whole document after every edit.
 // So the app's validators drop that one keyword: they check what a command can get wrong
 // (types, ranges, required members) and let a newer file's extra members through.
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";

@@ -65,7 +65,7 @@ curl -fsSL https://github.com/H4kken/vitryne/releases/latest/download/env.exampl
 docker compose up -d
 ```
 
-Setting up the backend, updates and the other ways to run it: [docs/CLOUD.md](docs/CLOUD.md).
+Setting up the backend, updates and the other ways to run it: [Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md).
 
 <br />
 

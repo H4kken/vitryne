@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # The smoke test of the web image (not in CI: it needs Docker and the local Supabase stack;
-# docs/CLOUD.md, "Checking"): builds the image
+# packages/vitryne-docs/content/docs/developers/cloud.md, "Checking"): builds the image
 # from the editor built here (`pnpm run build`, then target from-dist, quick), checks that it
 # refuses to start without a backend, then starts it from docker-compose.yml against the
 # local Supabase stack (started if needed) and checks the isolation headers,

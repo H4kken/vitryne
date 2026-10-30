@@ -4,8 +4,6 @@ icon: Shirt
 description: "The five physical fabric presets, their calibrated values and where they come from."
 ---
 
-<!-- Copied from docs/FABRICS.md. -->
-
 This document defines the 5 physical fabric presets in Vitryne, their calibrated values,
 how they map to the XPBD solver, and the literature and measurement standards they come from.
 
@@ -19,7 +17,7 @@ how they map to the XPBD solver, and the literature and measurement standards th
 | **Fleece**            | `knit`   | 280           | 2.20           | 28,000 / 18,000              | 7,500       | 75 / 55                       | 0.38     | < 8% ✅             |
 | **Wool suiting**      | `woven`  | 250           | 0.48           | 850,000 / 650,000            | 200,000     | 32 / 24                       | 0.32     | < 3% ✅             |
 
-All quantities use the Vitryne project format definitions ([docs/FORMAT.md](/developers/file-format)).
+All quantities use the Vitryne project format definitions ([File format](/developers/file-format)).
 
 ---
 
@@ -53,7 +51,7 @@ All quantities use the Vitryne project format definitions ([docs/FORMAT.md](/dev
   $$
   1\text{ gf}\cdot\text{cm}^2/\text{cm} = 9.80665 \times 10^{-7}\text{ N}\cdot\text{m} \approx 0.981\ \mu\text{N}\cdot\text{m}
   $$
-- In the engine, isometric bending constraints (Bergou et al. 2006, ALGORITHMS.md) use the mean
+- In the engine, isometric bending constraints (Bergou et al. 2006, the Algorithms page) use the mean
   bending rigidity $B = \frac{1}{2}(B_{\text{warp}} + B_{\text{weft}})$ with XPBD compliance:
   $$
   \alpha_{\text{bend}} = \frac{A_{\text{tri1}} + A_{\text{tri2}}}{6 B}

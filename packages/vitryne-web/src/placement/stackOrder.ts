@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The stack as the Layers view shows it (FORMAT.md, The stack): the cuts that are wrapped on the
+// The stack as the Layers view shows it (file-format.md, The stack): the cuts that are wrapped on the
 // body, outermost first, each with the cuts placed on it nested under it. Where a drop or a step
 // lands is a place in the stack (`moveInStack`); Rust says what the order means for distances.
 

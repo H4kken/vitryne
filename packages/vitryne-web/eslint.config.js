@@ -29,7 +29,7 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser, ...globals.worker } },
   },
   {
-    // One component per file (docs/ARCHITECTURE.md, "Files"); shadcn's generated ones excepted.
+    // One component per file (packages/vitryne-docs/content/docs/developers/architecture.md, "Files"); shadcn's generated ones excepted.
     files: ["src/**/*.tsx"],
     ignores: ["src/components/ui/**"],
     plugins: { react },

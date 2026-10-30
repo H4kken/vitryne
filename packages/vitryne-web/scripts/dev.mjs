@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// `pnpm run dev`: the editor against its backend (docs/CLOUD.md). With SUPABASE_URL and
+// `pnpm run dev`: the editor against its backend (packages/vitryne-docs/content/docs/developers/cloud.md). With SUPABASE_URL and
 // SUPABASE_PUBLISHABLE_KEY (the environment or packages/vitryne-web/.env.local) that one; otherwise, or with
 // `--local` (tests: never a real project), the local Supabase stack, started if it isn't running (Docker; the first start downloads ~4 GB). Then the
 // dev server (`pnpm run dev:app`, which alone serves the bench page and no backend). Studio:

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! How writers lay out JSON (FORMAT.md, Numbers and JSON): 2-space indent, and arrays of
+//! How writers lay out JSON (file-format.md, Numbers and JSON): 2-space indent, and arrays of
 //! numbers (points, vectors) on one line, so a diff shows one changed point as one line.
 
 use serde_json::Value;

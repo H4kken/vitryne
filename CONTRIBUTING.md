@@ -28,7 +28,7 @@ The commits imported from the spike (before the first signed-off commit) predate
 
 1. **Say what you plan first** for anything bigger than a fix: an issue, or a comment on one.
    Some features have to be designed around a competitor's patents (joining pieces, placement,
-   measuring, resizing: [docs/PATENTS.md](docs/PATENTS.md)), and it's better to know before
+   measuring, resizing: [Patent warnings](packages/vitryne-docs/content/docs/developers/patents.md)), and it's better to know before
    you write the code.
 2. **Fork, then branch from `main`**, named after the change: `fix/seam-flip`,
    `feat/fabric-presets`, `docs/hosting-nginx`. One topic per pull request; a refactor and a
@@ -109,7 +109,7 @@ installed; `make stack-test` runs the backend tests against it and `make stack-d
 It's described in [packages/vitryne-cloud/dev/](packages/vitryne-cloud/dev/docker-compose.yml).
 
 The editor (`packages/vitryne-web/`) is TypeScript, React, Tailwind and shadcn/ui; how it is
-built, and the rules it follows, are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). After
+built, and the rules it follows, are in [Architecture](packages/vitryne-docs/content/docs/developers/architecture.md). After
 changing `docs/format/schema/`, run `pnpm run gen:format` in `packages/vitryne-web/` to
 regenerate the types and validators.
 
@@ -158,7 +158,7 @@ It checks, one step after another (each is also a target of its own: `make hygie
 - **Engine and UI stay separate.** Engine crates have no UI code. The UI talks to the engine
   only through its public API and the worker message protocol.
 - **Published methods only** in the solver. Cite the paper in a comment where it's implemented,
-  and in `docs/ALGORITHMS.md`.
+  and in `packages/vitryne-docs/content/docs/developers/algorithms.md`.
 - **Don't loosen a quality criterion to make it pass.** If a target is wrong, change it in its
   own commit, with the reasoning in `docs/PROGRESS.md`, before the run it affects.
 

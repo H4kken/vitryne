@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Autosave (docs/CLOUD.md, Storage): once the document has been still for a moment, what Rust
+// Autosave (packages/vitryne-docs/content/docs/developers/cloud.md, Storage): once the document has been still for a moment, what Rust
 // accepted is saved to the cloud. One save at a time; edits made during a save are saved after
 // it. A network failure retries with a growing delay (the recovery copy keeps the changes
 // meanwhile); a conflict, a refusal that needs an account, or another refusal stops until the

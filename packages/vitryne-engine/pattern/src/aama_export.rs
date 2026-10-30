@@ -11,7 +11,7 @@
 //!   8  internal lines (open POLYLINE)
 //!
 //! The boundary is the sewing line: there is no seam allowance until the format has
-//! `VTRY_seam_allowance` (FORMAT.md, Extensions), and the report says so.
+//! `VTRY_seam_allowance` (file-format.md, Extensions), and the report says so.
 //!
 //! **Cut on the fold.** A piece with one fold is written as its half from the fold's start,
 //! with the mirror line, when the other half is the mirror image within 0.01 mm (vertices, node
@@ -593,7 +593,7 @@ fn write_block(out: &mut String, block: &str, piece: &Piece, s: &Shape, material
     match &piece.grain {
         Some(g) => w.line("7", v(g.from), v(g.to)),
         None => {
-            // Absent means +y (FORMAT.md); cutting tools want one drawn.
+            // Absent means +y (file-format.md); cutting tools want one drawn.
             let (lo, hi) = bounds(&s.boundary);
             let c = (lo + hi) * 0.5;
             let h = (hi.y - lo.y) * 0.3;

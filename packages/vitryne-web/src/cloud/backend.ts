@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// What the cloud side of the editor needs from a backend (docs/CLOUD.md). `supabase.ts` is the
+// What the cloud side of the editor needs from a backend (packages/vitryne-docs/content/docs/developers/cloud.md). `supabase.ts` is the
 // real one; tests use an in-memory one. Parts are named `<owner id>/<sha256>`.
 
 export interface CloudUser {

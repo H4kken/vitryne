@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Projects in the cloud, as FORMAT.md's "Cloud storage" describes: a row holding the manifest,
+// Projects in the cloud, as file-format.md's "Cloud storage" describes: a row holding the manifest,
 // and each part an object named by its SHA-256 under the owner's id. A save uploads only the
 // parts the backend doesn't have (an avatar shared by every project is stored once per person),
 // then writes the row, so an interrupted save leaves the previous manifest whole. An open

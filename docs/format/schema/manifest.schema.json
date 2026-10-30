@@ -65,7 +65,7 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "role": {
-          "description": "cache: derived data, safe to delete (see FORMAT.md, Simulation cache). source: an imported original, kept for reference. Absent: a regular part.",
+          "description": "cache: derived data, safe to delete (see file-format.md, Simulation cache). source: an imported original, kept for reference. Absent: a regular part.",
           "enum": ["cache", "source"]
         },
         "extensions": { "$ref": "common.schema.json#/$defs/extensions" },

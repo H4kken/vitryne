@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # The editor's static build with the cross-origin isolation headers it needs (docs/HOSTING.md).
 # Plain HTTP on :80; HTTPS is the proxy's in front (Coolify, Traefik, nginx). The backend
-# (docs/CLOUD.md) is SUPABASE_URL; entrypoint.sh doesn't start without it.
+# (packages/vitryne-docs/content/docs/developers/cloud.md) is SUPABASE_URL; entrypoint.sh doesn't start without it.
 {
 	admin off
 }

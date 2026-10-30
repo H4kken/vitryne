@@ -10,6 +10,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Added
 
+- The documentation site publishes `llms.txt` (an index of every page), `llms-full.txt` (every page in one
+  file) and a markdown version of each page (add `.md` to its address), for language models.
 - A privacy policy and terms of service for vitryne.app in the documentation (*Legal*), linked from
   the foot of the start screen and the account dialog.
 - Right-clicking a project on the start screen opens a menu: open, open in a new tab, rename,
@@ -154,7 +156,7 @@ The first public beta.
 - Projects in the cloud, saved as you work: try it without an account (one draft), or keep every
   project and export with a free account. No telemetry.
 - Self-hosting: one container (`ghcr.io/h4kken/vitryne-web`) and a Supabase project
-  ([docs/CLOUD.md](docs/CLOUD.md)).
+  ([Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
 [0.4.0]: https://github.com/H4kken/vitryne/releases/tag/v0.4.0

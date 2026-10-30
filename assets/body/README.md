@@ -9,7 +9,7 @@ Y up, facing +Z, A-pose. 13,380 vertices, 26,756 triangles, 1.67 m tall.
   its copyright holders (Data Collection AB, Joel Palmius, Jonas Hauquier).
 - Regenerate: `python3 assets/body/convert.py base.obj assets/body/makehuman_body_m.obj`
 
-`avatar.json`: this avatar as a project file's avatar entity (docs/FORMAT.md, Avatar): name,
+`avatar.json`: this avatar as a project file's avatar entity (packages/vitryne-docs/content/docs/developers/file-format.md, Avatar): name,
 attribution, and the **regions** garments are wrapped around (torso, arms, legs, head; mm),
 measured on this mesh. `vitryne convert` copies it into every project with the mesh as `body.glb`,
 and the `garment.toml` path places pieces with the same regions.

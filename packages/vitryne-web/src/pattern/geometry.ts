@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Cheap 2D geometry for drawing the pattern (docs/ARCHITECTURE.md: TypeScript only draws;
+// Cheap 2D geometry for drawing the pattern (packages/vitryne-docs/content/docs/developers/architecture.md: TypeScript only draws;
 // anything algorithmic is asked of the worker). Pattern coordinates are mm, +y up.
 
 import type {
@@ -171,7 +171,7 @@ export function pathData(pts: readonly P[], closed: boolean): string {
 /**
  * Where a cut sits in the flat view: its points (mirrored first, for a mirrored cut) are
  * turned by `rot` (radians, counter-clockwise) about the piece's origin, then moved by
- * (`x`, `y`) mm. The file's `cut.layout` is this (FORMAT.md, Cuts).
+ * (`x`, `y`) mm. The file's `cut.layout` is this (file-format.md, Cuts).
  */
 export interface Transform {
   x: number;

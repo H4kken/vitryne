@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Standard fabric presets (docs/FABRICS.md): 5 physical presets covering knit and woven
+//! Standard fabric presets (packages/vitryne-docs/content/docs/developers/fabrics.md): 5 physical presets covering knit and woven
 //! garments, calibrated against textile literature (KES-F / FAST data).
 
 use serde_json::Map;

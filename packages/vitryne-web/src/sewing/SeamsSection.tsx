@@ -2,7 +2,7 @@
 // The Seams view of the Pieces panel: a list of what is sewn (hover picks a seam out in 2D and 3D,
 // a click opens it) and suggestions to accept or skip; the flat view's Sew tool picks edges by
 // hand. Plain words (the target is someone who has never drafted a pattern).
-// Design rules from docs/PATENTS.md: whole edges only; two picks, no readout while picking; a
+// Design rules from packages/vitryne-docs/content/docs/developers/patents.md: whole edges only; two picks, no readout while picking; a
 // length difference is shown only on a seam that exists, as a sentence.
 
 import { Trash2 } from "lucide-react";

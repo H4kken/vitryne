@@ -2,7 +2,7 @@
 // The point tool's bar, over the flat view: for a selected point, its type and Delete; for a
 // selected edge, straight or curve, its length and angle (a straight edge's length can be
 // typed: its end point moves along it) and Add point. Lengths are of this piece's own edge
-// only: nothing here compares pieces (docs/PATENTS.md, rule 5).
+// only: nothing here compares pieces (packages/vitryne-docs/content/docs/developers/patents.md, rule 5).
 
 import { Plus, Trash2 } from "lucide-react";
 import type { OutlineNode } from "@/format/schema.gen";

@@ -4,8 +4,6 @@ icon: Scale
 description: "Patents held by other companies, and the designs Vitryne avoids because of them."
 ---
 
-<!-- Copied from docs/PATENTS.md. -->
-
 > **What this file is, in one paragraph.** These are patents held by **other companies** (CLO
 > Virtual Fashion, mostly), not by us and not ours to use. The file lists what their claims cover
 > so that Vitryne can **avoid those designs**. "Avoid" means: do not build the interaction the
@@ -89,7 +87,7 @@ the claims above, but confirm it with counsel before shipping it.
 
 ## How the editor follows these rules
 
-Where each rule is implemented, so a reviewer can check it. See ARCHITECTURE.md, "Sewing" and
+Where each rule is implemented, so a reviewer can check it. See the Architecture page, "Sewing" and
 "Pattern tools".
 
 | Rule                           | In the code                                                                                                                                                                                       |

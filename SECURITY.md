@@ -10,11 +10,11 @@ in the advisory if you'd like it.
 In scope: the editor, the web image and its Caddy configuration
 (`packages/vitryne-cloud/deploy/`), and the backend's schema and row-level security
 (`packages/vitryne-cloud/supabase/`): one person reaching another's projects, files or account
-is the most serious kind of problem. [docs/CLOUD.md](docs/CLOUD.md#security) describes what the
+is the most serious kind of problem. [Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md#security) describes what the
 backend guarantees. A problem in Supabase itself goes to
 [Supabase](https://supabase.com/.well-known/security.txt).
 
 ## Supported versions
 
 The latest release, and vitryne.app. Self-hosted instances get fixes by updating to a new
-release (docs/CLOUD.md, Running the editor).
+release (packages/vitryne-docs/content/docs/developers/cloud.md, Running the editor).

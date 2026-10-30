@@ -6,7 +6,7 @@
 // takes one out) or every cut a box dragged out touches, drags cuts (a group of picked cuts
 // together), and turns a lone pick by its round handle; the shape tool drags out a ready shape (a click: its starting size); the
 // sew tool picks whole edges to sew (two clicks, edge
-// then edge: nothing is measured or shown while picking, docs/PATENTS.md). Sewn edges are drawn
+// then edge: nothing is measured or shown while picking, packages/vitryne-docs/content/docs/developers/patents.md). Sewn edges are drawn
 // in a colour per seam. The point tool edits a piece's outline: drag a point or a curve's
 // handle, double-click an edge to add a point, Delete removes one; a drag that would make the
 // outline cross itself shows red and is dropped, so Rust never has to refuse it. The pen tool

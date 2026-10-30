@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
--- Project thumbnails (docs/CLOUD.md, Projects): a small image of the drape, shown on the start
+-- Project thumbnails (packages/vitryne-docs/content/docs/developers/cloud.md, Projects): a small image of the drape, shown on the start
 -- screen's project cards. The image is a part like any other (<owner>/<sha256> in the `parts`
 -- bucket, so the quota counts it and the same policies guard it); the row names its hash. It is
 -- not in the project's manifest: it follows the drape, not the document, so changing it is not

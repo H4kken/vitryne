@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The rules of FORMAT.md that a JSON Schema can't express: what each kind holds, unique ids,
+//! The rules of file-format.md that a JSON Schema can't express: what each kind holds, unique ids,
 //! references between entities, run ends on the right nodes, placement chains without loops.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -40,7 +40,7 @@ pub(crate) fn check(doc: &Document) -> Report {
         err(
             &mut r,
             format!(
-                "a {:?} file can't hold {} project, {g} garments, {f} fabrics, {looks} appearances, {a} avatars (FORMAT.md, Files and kinds)",
+                "a {:?} file can't hold {} project, {g} garments, {f} fabrics, {looks} appearances, {a} avatars (file-format.md, Files and kinds)",
                 doc.kind,
                 if project { "a" } else { "no" }
             ),
@@ -281,7 +281,7 @@ fn finite(v: &[f64]) -> bool {
 /// Two outline nodes closer than this are in the same place, mm.
 const SAME_PLACE_MM: f64 = 0.01;
 
-/// An outline is a simple polygon, counter-clockwise (FORMAT.md, Pieces and outlines): no two
+/// An outline is a simple polygon, counter-clockwise (file-format.md, Pieces and outlines): no two
 /// consecutive nodes in the same place, no edge crossing or touching another. The polygon is the
 /// outline as meshed (`outline_points`, curves flattened).
 pub fn check_outline_shape(outline: &[Node]) -> Result<(), String> {
@@ -422,7 +422,7 @@ fn dist_to_segment(p: Vec2, (a, b): (Vec2, Vec2)) -> f64 {
     (p[0] - a[0] - t * dx).hypot(p[1] - a[1] - t * dy)
 }
 
-/// A fold is the straight line between two outline nodes `a` and `b` (FORMAT.md, Cut on the
+/// A fold is the straight line between two outline nodes `a` and `b` (file-format.md, Cut on the
 /// fold): it must run inside the piece, touching the outline only at its ends. `poly`: the
 /// outline as meshed.
 fn check_fold(poly: &[Vec2], a: Vec2, b: Vec2) -> Result<(), String> {
