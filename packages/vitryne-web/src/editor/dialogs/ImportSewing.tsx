@@ -13,15 +13,12 @@ export function ImportSewing(props: {
   onSidecar: (f: TextFile | null) => void;
 }) {
   const { kind, preview, sidecar } = props;
+  // A drafted pattern has no sewing in it; the editor's suggestions come after the import.
+  if (kind === "drafted") return null;
   return (
     <div className="flex flex-col gap-2 rounded-2xl bg-hover p-4 text-[14px] leading-snug">
       <span className="font-semibold">Sewing</span>
-      {kind === "drafted" ? (
-        <span className="text-body-text">
-          The pieces are placed but not sewn yet. Once they're in, the seam
-          suggestions sew them.
-        </span>
-      ) : sidecar ? (
+      {sidecar ? (
         <div className="flex flex-wrap items-center gap-3">
           <span className="grow">
             From {sidecar.name}: {preview.sewing?.seams ?? 0} seams (

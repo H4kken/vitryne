@@ -168,6 +168,7 @@ export function ImportDialog(props: {
       (x) => choices[x.name] && choices[x.name] !== "leave",
     ) ?? [];
   const lines = preview ? leftOut(preview) : [];
+  const leftOutCount = lines.length + (preview?.report.warnings.length ?? 0);
 
   const run = async (skip = false) => {
     if (!pattern || !preview) return;
@@ -260,12 +261,12 @@ export function ImportDialog(props: {
             />
           )}
 
-          {preview && (
+          {preview && (leftOutCount > 0 || kind === "dxf") && (
             <details className="text-[14px] leading-snug">
               <summary className="cursor-pointer font-semibold">
-                {lines.length + preview.report.warnings.length
-                  ? `Left out of the file (${lines.length + preview.report.warnings.length})`
-                  : "Nothing in the file was left out"}
+                {leftOutCount
+                  ? `Left out of the file (${leftOutCount})`
+                  : "File details"}
               </summary>
               <ul className="text-body-text mt-2 mb-0 flex flex-col gap-1 pl-5">
                 {lines.map((l) => (
@@ -314,14 +315,15 @@ export function ImportDialog(props: {
             <Button variant="ghost" onClick={props.onClose} disabled={busy}>
               Cancel
             </Button>
-            <Button
-              variant="outline"
+            <button
+              type="button"
               onClick={() => void run(true)}
               disabled={!preview || busy}
               title="Open the pieces with their suggested places; the rest start flat in front of the chest"
+              className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent px-2 text-[14px] hover:underline disabled:pointer-events-none disabled:opacity-50"
             >
               Skip and import
-            </Button>
+            </button>
             <Button
               onClick={() => void run()}
               disabled={
