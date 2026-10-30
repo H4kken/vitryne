@@ -8,6 +8,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-30
+
 ### Added
 
 - The documentation site publishes `llms.txt` (an index of every page), `llms-full.txt` (every page in one
@@ -159,6 +161,7 @@ The first public beta.
   ([Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
+[0.5.0]: https://github.com/H4kken/vitryne/releases/tag/v0.5.0
 [0.4.0]: https://github.com/H4kken/vitryne/releases/tag/v0.4.0
 [0.3.0]: https://github.com/H4kken/vitryne/releases/tag/v0.3.0
 [0.2.0]: https://github.com/H4kken/vitryne/releases/tag/v0.2.0
