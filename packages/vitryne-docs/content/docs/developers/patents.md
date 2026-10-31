@@ -134,10 +134,22 @@ Where each rule is implemented, so a reviewer can check it. See the [Architectur
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 no equal-length snap             | `seams.rs` `find_edge` / `join_chains` refuse any pick that is not an outline stretch between two corners; the UI offers only whole edges to click. There is no end point to snap.                          |
 | 2 no replica, two clicks           | The flat view's Sew tool: edge, then edge, and nothing moves or is drawn while picking. Shift-click adds more whole edges to one side (a chain of whole edges, not a part of one); on the list for counsel. |
-| 3 geometry-derived suggestions     | `suggest.rs`: lengths, notches, curvature, side of the piece, middle line. No placement, body place, name or role. Placement zones in the import are positions only.                                        |
+| 3 geometry-derived suggestions     | `suggest.rs`: lengths, notches, curvature, side of the piece, middle line. No placement, body place, name or role. Placement zones (the body map, the 3D drop, the finer places) are positions only.                                     |
 | 4 no ML                            | Hand-set scores and name rules; nothing learned.                                                                                                                                                            |
 | 5 no cross-piece length correction | There is no cross-piece measure tool. The seam list shows a length difference of an existing seam only, as text.                                                                                            |
 | 6 parametric fit                   | Not touched.                                                                                                                                                                                                |
+
+The import flow (since 2026-10-31) places pieces by dropping them on a body map or the avatar,
+and keeps pieces off the body with a cut `state` (`unplaced`, `set-aside`; format version 6). How
+it meets rule 3:
+
+- A zone, a finer place (`Landmark`: it only changes a wrap's `top`) and `state` are positions and
+  flags the person sets. No code in `suggest.rs` or `seams.rs` reads them: sewing uses the whole
+  document, while only the 3D drape leaves out unplaced and set-aside cuts (`project::for_drape`).
+- The Seams tab opens with suggestions once the last waiting piece is placed. That is the order
+  of the screens, not an input: the suggestions are the same whenever they are asked for.
+- Piece names suggest a place (rule 4: fixed name rules). They are never read by sewing, and no
+  piece type drives automatic sewing.
 
 Importing a Valentina pattern joins nothing and places pieces as a DXF import does (the user's
 choice of place, suggested from names, rule 4); its sewing comes from the same suggestions and
@@ -173,4 +185,7 @@ Drawing and editing pieces is not covered by any listed claim. Where it meets th
 - [ ] Ask counsel whether the seam list's static length-difference sentence is outside the '773/'355 claims, and whether Shift-click chains of whole edges are.
 - [ ] Ask counsel whether suggestions that emit chains or mid-edge points (decision above) stay outside the claims.
 - [ ] Ask counsel whether the placement zones of the import (positions chosen by the person, suggested from names) stay outside US20240411956A1's "pattern block" and "sewing tag".
+- [ ] Ask counsel whether the order of the new import (place the pieces, then the Seams tab opens
+      with suggestions that don't read placement) can be read as US20210227912A1's or
+      US20240411956A1's "based on placement information", though no placement is an input.
 - [ ] Decide whether to ask counsel about a prior-art search on the '773 family.
