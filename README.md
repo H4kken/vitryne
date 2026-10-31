@@ -67,9 +67,13 @@ docker compose up -d
 # then open http://localhost:8000
 ```
 
-The [self-hosting guide](packages/vitryne-docs/content/docs/self-hosting/index.mdx) covers HTTPS for a
-server, email, settings, updates, backups, and running one container with a
-[Supabase](https://supabase.com) project of your own instead.
+The [self-hosting guide](https://docs.vitryne.app/self-hosting) has the full
+[quick start](https://docs.vitryne.app/self-hosting/quick-start), [HTTPS on a server](https://docs.vitryne.app/self-hosting/https),
+[email and other settings](https://docs.vitryne.app/self-hosting/settings),
+[updates and backups](https://docs.vitryne.app/self-hosting/operations) and
+[troubleshooting](https://docs.vitryne.app/self-hosting/troubleshooting). It also covers running one
+container with a [Supabase](https://supabase.com) project of your own instead
+([how](https://docs.vitryne.app/self-hosting/supabase)).
 
 <br />
 
