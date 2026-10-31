@@ -44,9 +44,36 @@ export function zonesIn(view: View): ZoneBox[] {
 
 export const zoneKey = (view: View, zone: Zone) => `${view}:${zone}`;
 
-export function parseZoneKey(key: string): [View, Zone] {
-  const [view, zone] = key.split(":");
-  return [view as View, zone as Zone];
+/** Where on an arm or a leg a piece's top edge can start (Rust `placement::Landmark`). */
+export type Landmark = "upper-arm" | "forearm" | "wrist" | "knee" | "ankle";
+
+/**
+ * The finer places of a limb, top to bottom, as parts of its zone's height. `landmark` null: the
+ * limb's usual start (the shoulder, the waist).
+ */
+export const LANDMARKS: Partial<
+  Record<Zone, { landmark: Landmark | null; label: string; share: number }[]>
+> = {
+  "arm-right": [
+    { landmark: null, label: "Shoulder", share: 0.2 },
+    { landmark: "upper-arm", label: "Upper arm", share: 0.25 },
+    { landmark: "forearm", label: "Forearm", share: 0.3 },
+    { landmark: "wrist", label: "Wrist", share: 0.25 },
+  ],
+  "leg-right": [
+    { landmark: null, label: "Thigh", share: 0.45 },
+    { landmark: "knee", label: "Knee", share: 0.3 },
+    { landmark: "ankle", label: "Ankle", share: 0.25 },
+  ],
+};
+LANDMARKS["arm-left"] = LANDMARKS["arm-right"];
+LANDMARKS["leg-left"] = LANDMARKS["leg-right"];
+
+/** A zone key's view and zone, and the finer place if it has one (`front:arm-left#wrist`). */
+export function parseZoneKey(key: string): [View, Zone, Landmark | null] {
+  const [base = "", landmark] = key.split("#");
+  const [view, zone] = base.split(":");
+  return [view as View, zone as Zone, (landmark as Landmark) || null];
 }
 
 /**

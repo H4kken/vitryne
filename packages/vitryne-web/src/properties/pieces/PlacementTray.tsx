@@ -14,10 +14,16 @@ import { choiceAt, parseZoneKey } from "@/editor/dialogs/bodyZones";
 import { ImportThumb } from "@/editor/dialogs/ImportThumb";
 import { PlacementCard, type CardPiece } from "@/editor/dialogs/PlacementCard";
 import type { PickPart } from "@/editor/hooks/useBodyPick";
+import { RefinePalette } from "./RefinePalette";
 import { PAIRS, type Pair, type Place } from "@/placement/places";
 import { outlinePoints } from "@/pattern/geometry";
 import { cutName } from "../cutName";
 import { ON_TOP_LIFT_MM } from "./CutDetails";
+
+/** How long a piece is held over a limb before its finer places show, ms. */
+const HOLD_MS = 1000;
+/** How long the finer places stay after the pointer leaves the limb, ms. */
+const GRACE_MS = 500;
 
 interface Item {
   piece: Piece;
@@ -29,7 +35,7 @@ export function PlacementTray(props: {
   store: DocumentStore;
   garment: Garment;
   /** Asks Rust for a fresh wrap of the cut at `place`, then makes it an edit. */
-  onRewrap: (cutId: string, place: Place) => void;
+  onRewrap: (cutId: string, place: Place, at?: string) => void;
   onHover: (cutId: string | null) => void;
   /** The part of the body under a screen point of the 3D view. */
   pickPart: PickPart;
@@ -46,6 +52,50 @@ export function PlacementTray(props: {
   const [over3d, setOver3d] = useState<string | null>(null);
   const asked = useRef(0);
   const [note, setNote] = useState<string | null>(null);
+  /** The limb a piece has been held over for a second: its finer places show beside the pointer. */
+  const [refine, setRefine] = useState<{
+    zone: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const refineNow = useRef<string | null>(null);
+  const timers = useRef<{ open?: number; close?: number; zone: string | null }>(
+    { zone: null },
+  );
+  const hold = (over: string | null, at: { x: number; y: number }) => {
+    const zone = over?.split("#")[0] ?? null;
+    const t = timers.current;
+    if (zone && zone === refineNow.current) {
+      window.clearTimeout(t.close);
+      t.close = undefined;
+      return;
+    }
+    if (zone === t.zone) return;
+    window.clearTimeout(t.open);
+    t.zone = zone;
+    // Leaving the limb takes its finer places away, after a moment to reach them.
+    if (refineNow.current && t.close === undefined)
+      t.close = window.setTimeout(() => {
+        refineNow.current = null;
+        t.close = undefined;
+        setRefine(null);
+      }, GRACE_MS);
+    if (zone && /arm|leg/.test(zone))
+      t.open = window.setTimeout(() => {
+        window.clearTimeout(t.close);
+        t.close = undefined;
+        refineNow.current = zone;
+        setRefine({ zone, ...at });
+      }, HOLD_MS);
+  };
+  const stopHold = () => {
+    const t = timers.current;
+    window.clearTimeout(t.open);
+    window.clearTimeout(t.close);
+    timers.current = { zone: null };
+    refineNow.current = null;
+    setRefine(null);
+  };
 
   const items = useMemo(
     () =>
@@ -83,7 +133,8 @@ export function PlacementTray(props: {
     const both =
       x.piece.cuts.length === 2 &&
       x.piece.cuts.every((c) => c.state === "unplaced");
-    const [view, zone] = parseZoneKey(key);
+    const [view, zone, landmark] = parseZoneKey(key);
+    const at = landmark ?? undefined;
     const choice = choiceAt(view, zone, both);
     if (!choice) {
       setNote("A piece cut twice goes on both arms or both legs.");
@@ -92,8 +143,10 @@ export function PlacementTray(props: {
     setNote(null);
     if (choice.startsWith("pair:")) {
       const places = PAIRS[choice.slice(5) as Pair].places;
-      x.piece.cuts.forEach((c, k) => props.onRewrap(c.id, places[k] as Place));
-    } else props.onRewrap(id, choice.slice(4) as Place);
+      x.piece.cuts.forEach((c, k) =>
+        props.onRewrap(c.id, places[k] as Place, at),
+      );
+    } else props.onRewrap(id, choice.slice(4) as Place, at);
   };
 
   const card = (x: Item): ReactNode => (
@@ -115,11 +168,19 @@ export function PlacementTray(props: {
       }}
       onDrag={(at) => {
         setDrag(at && { id: x.cut.id, ...at });
-        if (!at) setOver3d(null);
-        else if (!at.over && performance.now() - asked.current > 100) {
+        if (!at) {
+          setOver3d(null);
+          stopHold();
+        } else if (at.over) {
+          setOver3d(null);
+          hold(at.over, at);
+        } else if (performance.now() - asked.current > 100) {
           asked.current = performance.now();
-          void props.pickPart(at.x, at.y).then(setOver3d);
-        } else if (at.over) setOver3d(null);
+          void props.pickPart(at.x, at.y).then((k) => {
+            setOver3d(k);
+            hold(k, at);
+          });
+        }
       }}
       onDrop={(z, at) => {
         if (z) drop(x.cut.id, z);
@@ -184,6 +245,14 @@ export function PlacementTray(props: {
           </ul>
         </>
       }
+      {drag && refine && (
+        <RefinePalette
+          zone={refine.zone}
+          x={refine.x}
+          y={refine.y}
+          over={drag.over}
+        />
+      )}
       {drag &&
         dragged &&
         createPortal(

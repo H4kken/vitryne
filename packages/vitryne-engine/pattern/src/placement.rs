@@ -549,6 +549,72 @@ impl BodyPlace {
     }
 }
 
+/// A finer place along an arm or a leg: where on the limb the piece's top edge starts (a cuff at
+/// the wrist, a trouser leg from the knee). A position the person picks, nothing more; nothing
+/// in sewing reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Landmark {
+    UpperArm,
+    Forearm,
+    Wrist,
+    Knee,
+    Ankle,
+}
+
+/// Fractions of an arm's centreline (shoulder to wrist and a little beyond) for its landmarks.
+const UPPER_ARM_AT: f32 = 0.25;
+const FOREARM_AT: f32 = 0.55;
+const WRIST_AT: f32 = 0.9;
+/// Heights of the legs' landmarks, as fractions of the avatar's height.
+const KNEE: f32 = 0.28;
+const ANKLE: f32 = 0.06;
+
+impl Landmark {
+    /// The `top` (m) of a wrap at `place` with its top edge at this landmark, or an error when
+    /// the landmark isn't on that part of the body.
+    pub fn top(
+        self,
+        place: BodyPlace,
+        regions: &BTreeMap<String, Region>,
+        facts: &BodyFacts,
+    ) -> Result<f32, String> {
+        use BodyPlace::*;
+        let region = place.region();
+        match (place, self) {
+            (ArmLeft | ArmRight, Landmark::UpperArm | Landmark::Forearm | Landmark::Wrist) => {
+                let Some(Region::Path(p)) = regions.get(region) else {
+                    return Err(format!("region {region} has no centreline"));
+                };
+                let length: f32 = p
+                    .points
+                    .windows(2)
+                    .map(|w| metres(w[0]).distance(metres(w[1])))
+                    .sum();
+                let at = match self {
+                    Landmark::UpperArm => UPPER_ARM_AT,
+                    Landmark::Forearm => FOREARM_AT,
+                    _ => WRIST_AT,
+                };
+                // The centreline runs below the origin: further along is further down.
+                Ok(-at * length)
+            }
+            (
+                LegLeftFront | LegLeftBack | LegRightFront | LegRightBack,
+                Landmark::Knee | Landmark::Ankle,
+            ) => {
+                let f = region_frame(regions, region)?;
+                if f.a.y.abs() < 0.1 {
+                    return Err(format!("region {region} doesn't rise"));
+                }
+                let y = if self == Landmark::Knee { KNEE } else { ANKLE } * facts.height;
+                Ok((y - f.o.y) / f.a.y)
+            }
+            _ => Err(format!("{self:?} isn't on {place:?}")),
+        }
+    }
+}
+
 /// What `auto_wrap` needs to know about the avatar, measured once from its mesh (m).
 #[derive(Debug, Clone, Copy)]
 pub struct BodyFacts {

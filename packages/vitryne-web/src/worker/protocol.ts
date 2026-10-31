@@ -182,7 +182,7 @@ export interface Requests {
   };
   /** Cut `cut` started again at `place` (Rust `project::Rewrapped`, JSON); nothing changes. */
   rewrap: {
-    args: { cut: string; place: string };
+    args: { cut: string; place: string; at?: string };
     reply: { rewrapped: string };
   };
   /** A drawn piece (JSON) wrapped around the body, cut k at places[k] (Rust `project::PlacedPiece`, JSON); nothing changes. */

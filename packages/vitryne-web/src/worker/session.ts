@@ -354,8 +354,8 @@ export class EngineSession {
     return point.length === 3 ? (point as [number, number, number]) : null;
   }
 
-  async rewrap(cut: string, place: string): Promise<string> {
-    return (await this.need().request("rewrap", { cut, place })).rewrapped;
+  async rewrap(cut: string, place: string, at?: string): Promise<string> {
+    return (await this.need().request("rewrap", { cut, place, at })).rewrapped;
   }
 
   /** A drawn piece wrapped around the body (`project::PlacedPiece`, JSON). */

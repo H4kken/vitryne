@@ -12,7 +12,7 @@ use serde::Serialize;
 use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Piece, Placement, Wrap};
 use vitryne_pattern::{
     import::{Addition, Choice, ImportSource, import_bounds, rewrap},
-    placement::{BodyFacts, BodyPlace},
+    placement::{BodyFacts, BodyPlace, Landmark},
     project::{Placer, ProjectGarment, avatar_mesh, for_drape},
     seams::{self, CutEdge, EdgePick, SeamProposal},
 };
@@ -317,7 +317,12 @@ impl ProjectFile {
 
     /// Cut `cut` started again at `place`: a fresh wrap from its size and the body
     /// (`placement::auto_wrap`), keeping its rotation.
-    pub fn rewrap(&self, cut: &str, place: BodyPlace) -> Result<Rewrapped, String> {
+    pub fn rewrap(
+        &self,
+        cut: &str,
+        place: BodyPlace,
+        at: Option<Landmark>,
+    ) -> Result<Rewrapped, String> {
         let pg = ProjectGarment::new(&self.doc)?;
         let id = Id::parse(cut)?;
         let (piece, c) = pg
@@ -326,7 +331,7 @@ impl ProjectFile {
             .ok_or_else(|| format!("no cut {cut}"))?;
         let (regions, body) = self.body()?;
         let facts = BodyFacts::measure(&body, regions)?;
-        let wrap = rewrap(piece, c, place, regions, &facts)?;
+        let wrap = rewrap(piece, c, place, at, regions, &facts)?;
         let outline = pg.placed_outline(&id, &Placement::Wrap(wrap.clone()))?;
         let own = pg
             .garment
@@ -356,7 +361,7 @@ impl ProjectFile {
             .cuts
             .iter()
             .zip(places)
-            .map(|(c, &place)| rewrap(piece, c, place, regions, &facts))
+            .map(|(c, &place)| rewrap(piece, c, place, None, regions, &facts))
             .collect::<Result<Vec<_>, _>>()?;
         // The garment as it will be, to place the cuts in it.
         let mut doc = self.doc.clone();
@@ -656,7 +661,7 @@ mod tests {
 
         // Its pieces move to other places; the box already covers them.
         let sleeve = &p.info.cuts[2];
-        let r = file.rewrap(sleeve, BodyPlace::LegRightFront).unwrap();
+        let r = file.rewrap(sleeve, BodyPlace::LegRightFront, None).unwrap();
         assert_eq!(r.placement.region, "leg-right");
         assert!(r.bounds.is_none());
     }
@@ -731,10 +736,10 @@ mod tests {
         let (file, _) = ProjectFile::open(&example_zip("trousers")).unwrap();
         let p = file.prepare().unwrap();
         let front = &p.info.cuts[0];
-        let r = file.rewrap(front, BodyPlace::LegRightBack).unwrap();
+        let r = file.rewrap(front, BodyPlace::LegRightBack, None).unwrap();
         assert_eq!(r.placement.angle, std::f64::consts::PI);
         assert!(r.bounds.is_none());
-        let r = file.rewrap(front, BodyPlace::BodyFront).unwrap();
+        let r = file.rewrap(front, BodyPlace::BodyFront, None).unwrap();
         let b = r.bounds.unwrap();
         assert_eq!((b.min[1], b.max[1]), (0.0, 1720.0));
     }

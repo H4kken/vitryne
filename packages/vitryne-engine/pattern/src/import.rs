@@ -31,7 +31,7 @@ use crate::{
     convert::{ConvertOptions, convert_with, dxf_piece, fabric_entity, project_document},
     drafting::{self, SizeOption, pieces::Shape},
     garment::Garment as SidecarGarment,
-    placement::{BodyFacts, BodyPlace, auto_wrap, default_avatar, flat_wrap},
+    placement::{BodyFacts, BodyPlace, Landmark, auto_wrap, default_avatar, flat_wrap},
 };
 
 /// How far a piece placed on another one sits off it, mm (the hoodie's pocket).
@@ -862,6 +862,7 @@ pub fn rewrap(
     piece: &Piece,
     cut: &Cut,
     place: BodyPlace,
+    at: Option<Landmark>,
     regions: &BTreeMap<String, Region>,
     facts: &BodyFacts,
 ) -> Result<Wrap, String> {
@@ -874,10 +875,14 @@ pub fn rewrap(
         .into_iter()
         .map(|q| Vec2::new(c * q.x - s * q.y, s * q.x + c * q.y))
         .collect();
-    Ok(Wrap {
+    let mut wrap = Wrap {
         rotation,
         ..auto_wrap(place, &outline, regions, facts)?
-    })
+    };
+    if let Some(l) = at {
+        wrap.top = (l.top(place, regions, facts)? as f64 * 1000.0).round() + 0.0;
+    }
+    Ok(wrap)
 }
 
 #[cfg(test)]

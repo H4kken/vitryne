@@ -35,7 +35,7 @@ export function PiecesPanel(props: {
   /** A cut hovered in the list (picked out in the views), or none. */
   onHover: (cutId: string | null) => void;
   /** Asks Rust for a fresh wrap of the cut at `place`, then makes it an edit. */
-  onRewrap: (cutId: string, place: Place) => void;
+  onRewrap: (cutId: string, place: Place, at?: string) => void;
   /** The part of the body under a screen point of the 3D view. */
   pickPart: PickPart;
   /** Switches to placing in 3D (null when already there). */

@@ -12,7 +12,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use vitryne_pattern::{
     garment::Garment as DxfGarment,
     import::{Choice, ImportSource},
-    placement::BodyPlace,
+    placement::{BodyPlace, Landmark},
     seams::EdgePick,
     tshirt::{self, SdfParams, TshirtParams},
 };
@@ -419,10 +419,16 @@ impl VtryFile {
 
     /// Cut `cut` (its id) started again at `place` (a `placement::BodyPlace` name, e.g.
     /// "body-front"): `project::Rewrapped` as JSON. The project is unchanged.
-    pub fn rewrap(&self, cut: &str, place: &str) -> Result<String, JsValue> {
+    pub fn rewrap(&self, cut: &str, place: &str, at: Option<String>) -> Result<String, JsValue> {
         let place: BodyPlace = serde_json::from_value(serde_json::Value::String(place.into()))
             .map_err(|_| format!("no place {place:?}"))?;
-        let r = self.file.rewrap(cut, place)?;
+        let at: Option<Landmark> = at
+            .map(|a| {
+                serde_json::from_value(serde_json::Value::String(a.clone()))
+                    .map_err(|_| format!("no landmark {a:?}"))
+            })
+            .transpose()?;
+        let r = self.file.rewrap(cut, place, at)?;
         Ok(serde_json::to_string(&r).expect("rewrap serializes"))
     }
 

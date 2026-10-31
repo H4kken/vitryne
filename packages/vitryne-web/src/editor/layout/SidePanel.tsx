@@ -23,7 +23,7 @@ export function SidePanel(props: {
   loadOthers: ReturnType<typeof useOtherFabrics>;
   selection: ReturnType<typeof useSelection>;
   sewing: ReturnType<typeof useSewing>;
-  rewrap: (cutId: string, place: Place) => void;
+  rewrap: (cutId: string, place: Place, at?: string) => void;
   /** The part of the body under a screen point of the 3D view. */
   pickPart: PickPart;
   /** Shows the 3D view with the Select tool, to place pieces there (null: already placing). */

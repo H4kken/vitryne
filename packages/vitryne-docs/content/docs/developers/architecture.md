@@ -189,7 +189,9 @@ sew them and the cuts that follow them (`project::for_drape`, used by `prepare` 
 sewing keeps using the whole document, so what is suggested never depends on where a piece was put
 (rule 3). The Pieces panel's tray (`PlacementTray`) places them: drag a piece onto a body map
 (front and back; `bodyZones.ts` maps its zones to places and reads nothing about seams), or click
-it and then the body, or use the place list; a placed cut loses its `state` in `setPlacement`.
+it and then the body, or use the place list; holding a piece over a limb for a second offers finer places
+(`Landmark`: upper arm, forearm, wrist, knee, ankle), which only set the wrap's `top` (a position
+the person picks; nothing in sewing reads it); a placed cut loses its `state` in `setPlacement`.
 Pieces can be set aside (kept, not draped) and brought back. A `garment.toml` given with the DXF supplies the cuts, names and seams
 (`vitryne convert`'s path); only its placements are replaced by the user's choices. The pieces
 become a new project (the test avatar, a placeholder jersey, self-collision on, the import

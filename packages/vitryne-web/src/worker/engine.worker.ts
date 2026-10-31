@@ -193,8 +193,8 @@ const handlers: Handlers = {
     return { point: Array.from(needViewport().pick_body(x, y)) };
   },
 
-  async rewrap({ cut, place }) {
-    return { rewrapped: needFile().rewrap(cut, place) };
+  async rewrap({ cut, place, at }) {
+    return { rewrapped: needFile().rewrap(cut, place, at) };
   },
 
   async placePiece({ piece, places }) {
