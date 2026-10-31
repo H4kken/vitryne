@@ -33,6 +33,7 @@ import {
   radians,
   tidy,
 } from "@/placement/places";
+import { PlaceMap } from "./PlaceMap";
 import { cutName } from "../cutName";
 import { TextField } from "../TextField";
 import { FlipButton } from "./FlipButton";
@@ -60,7 +61,7 @@ export function CutDetails(props: {
   cut: Cut;
   onNewFabric: (piece: { id: string; name: string }) => void;
   onSelect: (s: Selection) => void;
-  onRewrap: (cutId: string, place: Place) => void;
+  onRewrap: (cutId: string, place: Place, at?: string) => void;
   onPlaceIn3d: (() => void) | null;
   /** Flips the picked pieces (this one among them) in the flat view. */
   onFlip: (axis: FlipAxis) => void;
@@ -202,27 +203,40 @@ export function CutDetails(props: {
 
       <div className="flex flex-col gap-4 border-t pt-4">
         <PanelHeading>Where it starts</PanelHeading>
-        <PlaceSelect
-          label="Where it starts on the body"
-          value={value}
-          placeholder={
-            p.type === "wrap" ? (p.region ?? "Somewhere") : "On another piece"
-          }
-          options={{ one: true, pairs: false, on, leave: false }}
-          onChange={(v) => {
-            if (v.startsWith("one:"))
-              props.onRewrap(cut.id, v.slice(4) as Place);
-            else if (v.startsWith("on:")) {
-              store.execute((e) =>
-                setPlacement(e, g.id, cut.id, {
-                  type: "follow",
-                  cut: v.slice(3),
-                  lift: ON_TOP_LIFT_MM,
-                }),
-              );
-            }
-          }}
+        <PlaceMap
+          place={place}
+          onPlace={(pl, at) => props.onRewrap(cut.id, pl, at)}
         />
+        <details className="group">
+          <summary className="text-muted-foreground cursor-pointer text-[13px]">
+            More places…
+          </summary>
+          <div className="pt-2">
+            <PlaceSelect
+              label="Where it starts on the body"
+              value={value}
+              placeholder={
+                p.type === "wrap"
+                  ? (p.region ?? "Somewhere")
+                  : "On another piece"
+              }
+              options={{ one: true, pairs: false, on, leave: false }}
+              onChange={(v) => {
+                if (v.startsWith("one:"))
+                  props.onRewrap(cut.id, v.slice(4) as Place);
+                else if (v.startsWith("on:")) {
+                  store.execute((e) =>
+                    setPlacement(e, g.id, cut.id, {
+                      type: "follow",
+                      cut: v.slice(3),
+                      lift: ON_TOP_LIFT_MM,
+                    }),
+                  );
+                }
+              }}
+            />
+          </div>
+        </details>
         {p.type === "wrap" ? (
           <>
             <NumberField

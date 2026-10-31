@@ -74,8 +74,8 @@ export class EngineSession {
     progress: null,
     drape: null,
     drapeError: null,
-    // Paused at first: the drape runs once the person presses Play.
-    controls: { fast: false, paused: false, placing: false, seams: false },
+    // Paused at first: the drape runs once the person presses Play (a project opens as it was left).
+    controls: { fast: false, paused: true, placing: false, seams: false },
     gizmo: null,
     playHint: 0,
   };
@@ -345,8 +345,17 @@ export class EngineSession {
     return (await this.need().request("importAddition", args)).addition;
   }
 
-  async rewrap(cut: string, place: string): Promise<string> {
-    return (await this.need().request("rewrap", { cut, place })).rewrapped;
+  /** The avatar's point under the pointer (normalized device coordinates), metres; null off the body. */
+  async pickBody(
+    x: number,
+    y: number,
+  ): Promise<[number, number, number] | null> {
+    const { point } = await this.need().request("pickBody", { x, y });
+    return point.length === 3 ? (point as [number, number, number]) : null;
+  }
+
+  async rewrap(cut: string, place: string, at?: string): Promise<string> {
+    return (await this.need().request("rewrap", { cut, place, at })).rewrapped;
   }
 
   /** A drawn piece wrapped around the body (`project::PlacedPiece`, JSON). */

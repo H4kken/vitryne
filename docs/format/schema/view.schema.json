@@ -18,6 +18,17 @@
       "required": ["target", "distance"],
       "unevaluatedProperties": false
     },
+    "drape": {
+      "description": "The drape's controls as the project was left (format version 5).",
+      "type": "object",
+      "properties": {
+        "paused": { "description": "The drape waits for Play. Absent: it does.", "type": "boolean" },
+        "fast": { "description": "Several steps per frame. Absent: no.", "type": "boolean" },
+        "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+        "extras": { "$ref": "common.schema.json#/$defs/extras" }
+      },
+      "unevaluatedProperties": false
+    },
     "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
     "extras": { "$ref": "common.schema.json#/$defs/extras" }
   },

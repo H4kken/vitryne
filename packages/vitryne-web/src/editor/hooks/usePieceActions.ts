@@ -33,10 +33,10 @@ export function usePieceActions(o: {
   const { session, store, garment, pattern, showError, onAdded } = o;
   /** A cut wrapped at another place of the body. */
   const rewrap = useCallback(
-    (cutId: string, place: Place) => {
+    (cutId: string, place: Place, at?: string) => {
       const g = garment;
       if (!g) return;
-      session.rewrap(cutId, place).then(
+      session.rewrap(cutId, place, at).then(
         (json) => {
           const r = JSON.parse(json) as {
             placement: Omit<Placement, "type">;

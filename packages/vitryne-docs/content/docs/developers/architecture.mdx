@@ -294,15 +294,21 @@ bytes.
 #### Importing a pattern
 
 A DXF-AAMA file (picked, or dropped on the start screen or the canvas) is read in
-the worker (`vitryne_pattern::import`, the same importer as `vitryne convert`). The import dialog
-shows its pieces with a thumbnail, what was left out of the file (layers the importer doesn't
-use, blocks with no outline, entity types it doesn't read, arcs taken as chords, pieces a
-sidecar doesn't use), and asks where each piece goes: one place, a pair of places (two cuts,
-the second mirrored: arms, legs front or back, hood sides, body sides), on top of another piece
-(a pocket: `follow`, 12 mm off it), or left out. Each piece comes with a suggestion **from its
+the worker (`vitryne_pattern::import`, the same importer as `vitryne convert`). Importing is one gesture: the import dialog opens only to ask what the import can't go on
+without (a drafted pattern's measurements, a size of a size chart, and with a project open whether
+the pieces join it or make a new project). Each piece gets the place its name suggests, **from its
 name only** ("sleeve" → arms, "front" cut twice → legs, "hoodSide" → hood sides, facings,
-bindings, cuffs and bands get none), which the user sees and can change: no learned placement
-([patent rules](/developers/patents), rule 4). A `garment.toml` given with the DXF supplies the cuts, names and seams
+bindings, cuffs and bands get none; no learned placement, [patent rules](/developers/patents),
+rule 4), or, with none, is imported **unplaced** (`Choice::Unplaced`: `Cut.state = unplaced`, a
+flat placeholder wrap). The 3D drape leaves unplaced and set-aside cuts out, with the seams that
+sew them and the cuts that follow them (`project::for_drape`, used by `prepare` and `looks`);
+sewing keeps using the whole document, so what is suggested never depends on where a piece was put
+(rule 3). The Pieces panel's tray (`PlacementTray`) places them: drag a piece onto a body map
+(front and back; `bodyZones.ts` maps its zones to places and reads nothing about seams), or click
+it and then the body, or use the place list; holding a piece over a limb for a second offers finer places
+(`Landmark`: upper arm, forearm, wrist, knee, ankle), which only set the wrap's `top` (a position
+the person picks; nothing in sewing reads it); a placed cut loses its `state` in `setPlacement`.
+Pieces can be set aside (kept, not draped) and brought back. A `garment.toml` given with the DXF supplies the cuts, names and seams
 (`vitryne convert`'s path); only its placements are replaced by the user's choices. The pieces
 become a new project (the test avatar, a placeholder jersey, self-collision on, the import
 collision box) or are added to the open project's garment as one undoable edit.

@@ -1,0 +1,275 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// The pieces that wait for a place on the body (an import leaves the ones no name rule placed
+// here) and the ones set aside: drag a piece onto the body (front and back side by side), or pick
+// it and click a part of the body. A zone is a position the person chooses; nothing in sewing
+// reads it (packages/vitryne-docs/content/docs/developers/patents.md, rule 3).
+
+import { type ReactNode, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { findCut, setCutState, setPlacement } from "@/document/commands";
+import type { DocumentStore } from "@/document/store";
+import type { Cut, Garment, Piece } from "@/format/schema.gen";
+import { BodyMap } from "@/editor/dialogs/BodyMap";
+import { choiceAt, parseZoneKey } from "@/editor/dialogs/bodyZones";
+import { ImportThumb } from "@/editor/dialogs/ImportThumb";
+import { PlacementCard, type CardPiece } from "@/editor/dialogs/PlacementCard";
+import type { PickPart } from "@/editor/hooks/useBodyPick";
+import { RefinePalette } from "./RefinePalette";
+import { PAIRS, type Pair, type Place } from "@/placement/places";
+import { outlinePoints } from "@/pattern/geometry";
+import { cutName } from "../cutName";
+import { ON_TOP_LIFT_MM } from "./CutDetails";
+
+/** How long a piece is held over a limb before its finer places show, ms. */
+const HOLD_MS = 1000;
+/** How long the finer places stay after the pointer leaves the limb, ms. */
+const GRACE_MS = 500;
+
+interface Item {
+  piece: Piece;
+  cut: Cut;
+  card: CardPiece;
+}
+
+export function PlacementTray(props: {
+  store: DocumentStore;
+  garment: Garment;
+  /** Asks Rust for a fresh wrap of the cut at `place`, then makes it an edit. */
+  onRewrap: (cutId: string, place: Place, at?: string) => void;
+  onHover: (cutId: string | null) => void;
+  /** The part of the body under a screen point of the 3D view. */
+  pickPart: PickPart;
+}) {
+  const { store, garment: g } = props;
+  const [armed, setArmed] = useState<string | null>(null);
+  const [drag, setDrag] = useState<{
+    id: string;
+    x: number;
+    y: number;
+    over: string | null;
+  } | null>(null);
+  /** The part of the body under the pointer in the 3D view while dragging (and when asked). */
+  const [over3d, setOver3d] = useState<string | null>(null);
+  const asked = useRef(0);
+  const [note, setNote] = useState<string | null>(null);
+  /** The limb a piece has been held over for a second: its finer places show beside the pointer. */
+  const [refine, setRefine] = useState<{
+    zone: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const refineNow = useRef<string | null>(null);
+  const timers = useRef<{ open?: number; close?: number; zone: string | null }>(
+    { zone: null },
+  );
+  const hold = (over: string | null, at: { x: number; y: number }) => {
+    const zone = over?.split("#")[0] ?? null;
+    const t = timers.current;
+    if (zone && zone === refineNow.current) {
+      window.clearTimeout(t.close);
+      t.close = undefined;
+      return;
+    }
+    if (zone === t.zone) return;
+    window.clearTimeout(t.open);
+    t.zone = zone;
+    // Leaving the limb takes its finer places away, after a moment to reach them.
+    if (refineNow.current && t.close === undefined)
+      t.close = window.setTimeout(() => {
+        refineNow.current = null;
+        t.close = undefined;
+        setRefine(null);
+      }, GRACE_MS);
+    if (zone && /arm|leg/.test(zone))
+      t.open = window.setTimeout(() => {
+        window.clearTimeout(t.close);
+        t.close = undefined;
+        refineNow.current = zone;
+        setRefine({ zone, ...at });
+      }, HOLD_MS);
+  };
+  const stopHold = () => {
+    const t = timers.current;
+    window.clearTimeout(t.open);
+    window.clearTimeout(t.close);
+    timers.current = { zone: null };
+    refineNow.current = null;
+    setRefine(null);
+  };
+
+  const items = useMemo(
+    () =>
+      g.pieces.flatMap((piece) =>
+        piece.cuts.flatMap((cut): Item[] =>
+          cut.state
+            ? [
+                {
+                  piece,
+                  cut,
+                  card: {
+                    name: cutName(piece, cut),
+                    outline: outlinePoints(piece),
+                    cuts: 1,
+                    quantity: 1,
+                  },
+                },
+              ]
+            : [],
+        ),
+      ),
+    [g],
+  );
+  const waiting = items.filter((x) => x.cut.state === "unplaced");
+  if (!waiting.length) return null;
+
+  const setState = (id: string, s: "unplaced" | "set-aside") =>
+    store.execute((e) => setCutState(e, g.id, [id], s));
+
+  const drop = (id: string, key: string) => {
+    const x = items.find((i) => i.cut.id === id);
+    if (!x) return;
+    setArmed(null);
+    // Both copies of a piece that waits go together, the first on the right (as an import does).
+    const both =
+      x.piece.cuts.length === 2 &&
+      x.piece.cuts.every((c) => c.state === "unplaced");
+    const [view, zone, landmark] = parseZoneKey(key);
+    const at = landmark ?? undefined;
+    const choice = choiceAt(view, zone, both);
+    if (!choice) {
+      setNote("A piece cut twice goes on both arms or both legs.");
+      return;
+    }
+    setNote(null);
+    if (choice.startsWith("pair:")) {
+      const places = PAIRS[choice.slice(5) as Pair].places;
+      x.piece.cuts.forEach((c, k) =>
+        props.onRewrap(c.id, places[k] as Place, at),
+      );
+    } else props.onRewrap(id, choice.slice(4) as Place, at);
+  };
+
+  const card = (x: Item): ReactNode => (
+    <PlacementCard
+      key={x.cut.id}
+      piece={x.card}
+      choice={x.cut.state === "set-aside" ? "leave" : undefined}
+      slim
+      noFlat
+      check={false}
+      armed={armed === x.cut.id}
+      dragging={drag?.id === x.cut.id}
+      others={g.pieces
+        .filter((p) => p.id !== x.piece.id && p.cuts[0] && !p.cuts[0].state)
+        .map((p) => ({ key: (p.cuts[0] as Cut).id, label: p.name }))}
+      onArm={() => {
+        setNote(null);
+        setArmed((a) => (a === x.cut.id ? null : x.cut.id));
+      }}
+      onDrag={(at) => {
+        setDrag(at && { id: x.cut.id, ...at });
+        if (!at) {
+          setOver3d(null);
+          stopHold();
+        } else if (at.over) {
+          setOver3d(null);
+          hold(at.over, at);
+        } else if (performance.now() - asked.current > 100) {
+          asked.current = performance.now();
+          void props.pickPart(at.x, at.y).then((k) => {
+            setOver3d(k);
+            hold(k, at);
+          });
+        }
+      }}
+      onDrop={(z, at) => {
+        if (z) drop(x.cut.id, z);
+        // Released on the 3D view: the part of the avatar under the pointer.
+        else
+          void props.pickPart(at.x, at.y).then((k) => {
+            if (k) drop(x.cut.id, k);
+          });
+      }}
+      onChoose={(v) => {
+        setNote(null);
+        if (v === "leave") setState(x.cut.id, "set-aside");
+        else if (v.startsWith("one:"))
+          props.onRewrap(x.cut.id, v.slice(4) as Place);
+        else if (v.startsWith("on:")) {
+          const on = v.slice(3);
+          if (findCut(g, on))
+            store.execute((e) =>
+              setPlacement(e, g.id, x.cut.id, {
+                type: "follow",
+                cut: on,
+                lift: ON_TOP_LIFT_MM,
+              }),
+            );
+        }
+      }}
+      onHover={(on) => props.onHover(on ? x.cut.id : null)}
+    />
+  );
+
+  const lit = new Set<string>(drag?.over ? [drag.over] : []);
+  const over3dLabel = over3d ? over3d.split(":")[1] : null;
+  const dragged = drag && items.find((i) => i.cut.id === drag.id);
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl bg-secondary/50 p-3">
+      {
+        <>
+          <h3 className="m-0 text-[14px] font-semibold">
+            Not placed ({waiting.length})
+          </h3>
+          <BodyMap
+            occupied={{}}
+            lit={lit}
+            inviting={!!armed || !!drag}
+            onZone={(key) =>
+              armed
+                ? drop(armed, key)
+                : setNote("Pick a piece first, then click a part of the body.")
+            }
+          />
+          <p
+            aria-live="polite"
+            className="text-muted-foreground m-0 text-center text-[13px] leading-snug"
+          >
+            {note ??
+              (armed
+                ? "Click the part of the body it goes on."
+                : "Drag a piece onto the body, or pick it and click a part of the body.")}
+          </p>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {waiting.map(card)}
+          </ul>
+        </>
+      }
+      {drag && refine && (
+        <RefinePalette
+          zone={refine.zone}
+          x={refine.x}
+          y={refine.y}
+          over={drag.over}
+        />
+      )}
+      {drag &&
+        dragged &&
+        createPortal(
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed z-[200] -translate-x-1/2 -translate-y-1/2 opacity-90"
+            style={{ left: drag.x, top: drag.y }}
+          >
+            <ImportThumb outline={dragged.card.outline} />
+            {over3dLabel && (
+              <span className="bg-primary text-primary-foreground mt-1 block rounded-full px-2 py-0.5 text-center text-[12px] font-semibold whitespace-nowrap">
+                {over3dLabel.replace("-", " ")}
+              </span>
+            )}
+          </div>,
+          document.body,
+        )}
+    </section>
+  );
+}

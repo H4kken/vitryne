@@ -38,7 +38,7 @@ pub use model::*;
 pub use validate::{Report, check_outline_shape};
 
 /// The version this crate reads and writes.
-pub const FORMAT_VERSION: u32 = 4;
+pub const FORMAT_VERSION: u32 = 6;
 /// The `minReaderVersion` it writes: the oldest reader that can open its files correctly.
 pub const MIN_READER_VERSION: u32 = 1;
 /// What a file with garments needs: version 4's `stack` goes stale when an older app adds or

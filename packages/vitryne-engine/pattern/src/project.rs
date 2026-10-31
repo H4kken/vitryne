@@ -8,7 +8,10 @@
 //! are isotropic (the mean of warp and weft is used, with a warning when they differ), and a
 //! garment has one fabric (cuts with their own fabric are refused).
 
-use std::collections::BTreeMap;
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use glam::{Vec2, Vec3};
 use serde_json::{Map, Value};
@@ -68,6 +71,50 @@ fn cut_transform(cut: &vitryne_format::Cut) -> impl Fn([f64; 2]) -> Vec2 + use<>
         let q = if mirrored { Vec2::new(-q.x, q.y) } else { q };
         Vec2::new(c * q.x - s * q.y, s * q.x + c * q.y)
     }
+}
+
+/// The document as the drape sees it: cuts that are unplaced or set aside (`CutState`) are left
+/// out, with the seams that sew them and the cuts that follow them. Nothing is copied when every
+/// cut is placed. Sewing (seam suggestions, picking edges) uses the whole document, so what is
+/// suggested never depends on where, or whether, a piece was put on the body.
+pub fn for_drape(doc: &Document) -> Cow<'_, Document> {
+    if !doc
+        .garments
+        .iter()
+        .any(|g| g.cuts().any(|(_, c)| c.state.is_some()))
+    {
+        return Cow::Borrowed(doc);
+    }
+    let mut out = doc.clone();
+    for g in &mut out.garments {
+        let mut gone: BTreeSet<Id> = g
+            .cuts()
+            .filter(|(_, c)| c.state.is_some())
+            .map(|(_, c)| c.id.clone())
+            .collect();
+        // A cut that follows a cut left out has nothing to follow.
+        loop {
+            let more: Vec<Id> = g
+                .cuts()
+                .filter(|(_, c)| {
+                    matches!(&c.placement, Placement::Follow(f) if gone.contains(&f.cut))
+                        && !gone.contains(&c.id)
+                })
+                .map(|(_, c)| c.id.clone())
+                .collect();
+            if more.is_empty() {
+                break;
+            }
+            gone.extend(more);
+        }
+        for p in &mut g.pieces {
+            p.cuts.retain(|c| !gone.contains(&c.id));
+        }
+        g.seams
+            .retain(|s| !s.a.iter().chain(&s.b).any(|r| gone.contains(&r.cut)));
+        g.stack.retain(|id| !gone.contains(id));
+    }
+    Cow::Owned(out)
 }
 
 /// One garment of a file, ready to turn into an engine garment.

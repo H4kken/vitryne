@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { ReactNode } from "react";
 import { ProjectGrid } from "@/cloud/ProjectGrid";
+import { ProjectGridSkeleton } from "@/cloud/ProjectGridSkeleton";
 import type { Cloud } from "@/cloud/useCloud";
 import type { Example } from "../examples";
 import { CloudButton } from "../layout/CloudButton";
@@ -51,7 +52,8 @@ export function StartPage(props: {
         </>
       }
       projects={
-        // Nobody signed in yet: nothing saved, so no list to wait for.
+        // Nobody signed in yet: nothing saved, so no list to wait for. Signed in, the list is
+        // being fetched: a skeleton keeps the layout from jumping.
         !cloud.user || cloud.projects ? (
           <ProjectGrid
             cloud={cloud}
@@ -75,7 +77,9 @@ export function StartPage(props: {
             busy={!!props.busy}
             onOpen={props.onOpenProject}
           />
-        ) : null
+        ) : (
+          <ProjectGridSkeleton title="Your projects" />
+        )
       }
       banner={
         <>

@@ -417,6 +417,10 @@ export interface Cut {
   appearance?: string;
   placement: Placement;
   /**
+   * Absent: placed and draped. unplaced: waiting to be put on the body. set-aside: kept in the project, not draped. Either way the placement is a placeholder (format version 6).
+   */
+  state?: 'unplaced' | 'set-aside';
+  /**
    * Where the cut sits in the 2D pattern view (mm, radians). Display only.
    */
   layout?: {
@@ -748,6 +752,26 @@ export interface View {
      * radians, positive = looking down
      */
     pitch?: number;
+    extensions?: Extensions;
+    /**
+     * Application-specific data with no meaning in the format. Preserved, never interpreted.
+     */
+    extras?: {
+      [k: string]: unknown | undefined;
+    };
+  };
+  /**
+   * The drape's controls as the project was left (format version 5).
+   */
+  drape?: {
+    /**
+     * The drape waits for Play. Absent: it does.
+     */
+    paused?: boolean;
+    /**
+     * Several steps per frame. Absent: no.
+     */
+    fast?: boolean;
     extensions?: Extensions;
     /**
      * Application-specific data with no meaning in the format. Preserved, never interpreted.

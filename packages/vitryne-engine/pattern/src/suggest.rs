@@ -5,9 +5,10 @@
 //! and where an internal line meets the outline). Notches inside an edge are kept as fractions
 //! of its length. A suggestion pairs two whole edges whose lengths and notches agree.
 //!
-//! Patents (packages/vitryne-docs/content/docs/developers/patents.md, rules 1 and 3): the unit is a whole edge, the user only accepts or
-//! rejects a suggestion, and the only inputs are lengths, notch positions and counts. No
-//! placement, no body place, no piece role or name, no directed outline graph, no learning.
+//! Patents (packages/vitryne-docs/content/docs/developers/patents.md, rule 3): the inputs are
+//! lengths, notch positions and counts. No placement, no body place, no piece role or name, no
+//! learning. The unit is a whole edge and the user only accepts or rejects a suggestion: a
+//! design choice, stricter than the rules need.
 
 use crate::aama::{LandmarkKind, Piece};
 
