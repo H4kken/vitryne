@@ -4,6 +4,8 @@ icon: Globe
 description: Run Vitryne on a server other people reach, with a domain and HTTPS.
 ---
 
+In order to run Vitryne on a server, you need [Docker with Compose 2.23.1 or later](/self-hosting#what-you-need).
+
 Browsers only turn on WebGPU, which the editor needs, on pages served over HTTPS (or on `localhost`).
 They also ignore the headers Vitryne sets for it on plain `http://`, and Chrome's console then says
 the `Cross-Origin-Opener-Policy` header was ignored. So a server that is not just for you needs a
