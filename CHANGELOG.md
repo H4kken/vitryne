@@ -8,6 +8,8 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-01
+
 ### Changed
 
 - A selected piece's "Where it starts" is the body map: the part it is on is tinted, click another
@@ -200,6 +202,7 @@ The first public beta.
   ([Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
+[0.6.0]: https://github.com/H4kken/vitryne/releases/tag/v0.6.0
 [0.5.0]: https://github.com/H4kken/vitryne/releases/tag/v0.5.0
 [0.4.0]: https://github.com/H4kken/vitryne/releases/tag/v0.4.0
 [0.3.0]: https://github.com/H4kken/vitryne/releases/tag/v0.3.0

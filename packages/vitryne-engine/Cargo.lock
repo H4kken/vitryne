@@ -2532,7 +2532,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vitryne-cli"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "env_logger",
  "glam",
@@ -2550,7 +2550,7 @@ dependencies = [
 
 [[package]]
 name = "vitryne-format"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "jsonschema",
  "serde",
@@ -2561,7 +2561,7 @@ dependencies = [
 
 [[package]]
 name = "vitryne-pattern"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "glam",
  "log",
@@ -2576,7 +2576,7 @@ dependencies = [
 
 [[package]]
 name = "vitryne-render"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2586,7 +2586,7 @@ dependencies = [
 
 [[package]]
 name = "vitryne-solver"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2600,7 +2600,7 @@ dependencies = [
 
 [[package]]
 name = "vitryne-wasm"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
