@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { NoticeCard } from "./NoticeCard";
 
 /** How long a plain notice stays, ms. Errors and questions stay until dismissed. */
@@ -14,9 +15,11 @@ export function InfoToast(props: { text: string; onDismiss: () => void }) {
     const t = setTimeout(onDismiss, STAYS + PER_CHAR * text.length);
     return () => clearTimeout(t);
   }, [text, onDismiss]);
-  return (
-    <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2">
+  // On the page itself: inside a view it would sit under the splitter between the views.
+  return createPortal(
+    <div className="fixed bottom-20 left-1/2 z-[60] -translate-x-1/2">
       <NoticeCard onDismiss={onDismiss}>{text}</NoticeCard>
-    </div>
+    </div>,
+    document.body,
   );
 }

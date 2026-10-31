@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import type { PickPart } from "../hooks/useBodyPick";
 import type { Garment } from "@/format/schema.gen";
 import { type DocState, DocumentStore } from "@/document/store";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,8 @@ export function SidePanel(props: {
   selection: ReturnType<typeof useSelection>;
   sewing: ReturnType<typeof useSewing>;
   rewrap: (cutId: string, place: Place) => void;
+  /** The part of the body under a screen point of the 3D view. */
+  pickPart: PickPart;
   /** Shows the 3D view with the Select tool, to place pieces there (null: already placing). */
   onPlaceIn3d: (() => void) | null;
   /** Flips the picked pieces in the flat view. */
@@ -36,6 +39,7 @@ export function SidePanel(props: {
     garment,
     loadOthers,
     rewrap,
+    pickPart,
     onPlaceIn3d,
     onFlip,
     startsOut,
@@ -109,6 +113,7 @@ export function SidePanel(props: {
                 onSelect={select}
                 onHover={setHovered}
                 onRewrap={rewrap}
+                pickPart={pickPart}
                 onPlaceIn3d={onPlaceIn3d}
                 onFlip={onFlip}
                 openSeam={openSeam}

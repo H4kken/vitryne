@@ -92,6 +92,7 @@ export function ViewportCanvas({
   return (
     <canvas
       ref={ref}
+      data-viewport
       aria-label="3D view of the garment on the mannequin"
       className={`block h-full w-full touch-none outline-none ${turning ? "cursor-grab active:cursor-grabbing" : sliding ? "cursor-move" : tool === "pinch" ? "cursor-crosshair" : "cursor-default"}`}
       tabIndex={-1}

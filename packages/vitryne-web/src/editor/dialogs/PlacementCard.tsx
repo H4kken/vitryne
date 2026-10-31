@@ -46,7 +46,8 @@ export function PlacementCard(props: {
   others: { key: string; label: string }[];
   onArm: () => void;
   onDrag: (at: { x: number; y: number; over: string | null } | null) => void;
-  onDrop: (zone: string) => void;
+  /** Released: over a body-map zone, or not (`zone` null), at this screen point. */
+  onDrop: (zone: string | null, at: { x: number; y: number }) => void;
   onChoose: (value: string) => void;
   onHover: (on: boolean) => void;
   children?: ReactNode;
@@ -105,8 +106,10 @@ export function PlacementCard(props: {
                 50,
               );
               if (u.type === "pointerup") {
-                const z = zoneAt(u.clientX, u.clientY);
-                if (z) props.onDrop(z);
+                props.onDrop(zoneAt(u.clientX, u.clientY), {
+                  x: u.clientX,
+                  y: u.clientY,
+                });
               }
             };
             el.addEventListener("pointermove", move);

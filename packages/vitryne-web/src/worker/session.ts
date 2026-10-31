@@ -345,6 +345,15 @@ export class EngineSession {
     return (await this.need().request("importAddition", args)).addition;
   }
 
+  /** The avatar's point under the pointer (normalized device coordinates), metres; null off the body. */
+  async pickBody(
+    x: number,
+    y: number,
+  ): Promise<[number, number, number] | null> {
+    const { point } = await this.need().request("pickBody", { x, y });
+    return point.length === 3 ? (point as [number, number, number]) : null;
+  }
+
   async rewrap(cut: string, place: string): Promise<string> {
     return (await this.need().request("rewrap", { cut, place })).rewrapped;
   }

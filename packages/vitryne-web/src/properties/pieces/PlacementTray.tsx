@@ -4,7 +4,7 @@
 // it and click a part of the body. A zone is a position the person chooses; nothing in sewing
 // reads it (packages/vitryne-docs/content/docs/developers/patents.md, rule 3).
 
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { findCut, setCutState, setPlacement } from "@/document/commands";
 import type { DocumentStore } from "@/document/store";
@@ -13,6 +13,7 @@ import { BodyMap } from "@/editor/dialogs/BodyMap";
 import { choiceAt, parseZoneKey } from "@/editor/dialogs/bodyZones";
 import { ImportThumb } from "@/editor/dialogs/ImportThumb";
 import { PlacementCard, type CardPiece } from "@/editor/dialogs/PlacementCard";
+import type { PickPart } from "@/editor/hooks/useBodyPick";
 import { PAIRS, type Pair, type Place } from "@/placement/places";
 import { outlinePoints } from "@/pattern/geometry";
 import { cutName } from "../cutName";
@@ -30,6 +31,8 @@ export function PlacementTray(props: {
   /** Asks Rust for a fresh wrap of the cut at `place`, then makes it an edit. */
   onRewrap: (cutId: string, place: Place) => void;
   onHover: (cutId: string | null) => void;
+  /** The part of the body under a screen point of the 3D view. */
+  pickPart: PickPart;
 }) {
   const { store, garment: g } = props;
   const [armed, setArmed] = useState<string | null>(null);
@@ -39,6 +42,9 @@ export function PlacementTray(props: {
     y: number;
     over: string | null;
   } | null>(null);
+  /** The part of the body under the pointer in the 3D view while dragging (and when asked). */
+  const [over3d, setOver3d] = useState<string | null>(null);
+  const asked = useRef(0);
   const [note, setNote] = useState<string | null>(null);
 
   const items = useMemo(
@@ -107,8 +113,22 @@ export function PlacementTray(props: {
         setNote(null);
         setArmed((a) => (a === x.cut.id ? null : x.cut.id));
       }}
-      onDrag={(at) => setDrag(at && { id: x.cut.id, ...at })}
-      onDrop={(z) => drop(x.cut.id, z)}
+      onDrag={(at) => {
+        setDrag(at && { id: x.cut.id, ...at });
+        if (!at) setOver3d(null);
+        else if (!at.over && performance.now() - asked.current > 100) {
+          asked.current = performance.now();
+          void props.pickPart(at.x, at.y).then(setOver3d);
+        } else if (at.over) setOver3d(null);
+      }}
+      onDrop={(z, at) => {
+        if (z) drop(x.cut.id, z);
+        // Released on the 3D view: the part of the avatar under the pointer.
+        else
+          void props.pickPart(at.x, at.y).then((k) => {
+            if (k) drop(x.cut.id, k);
+          });
+      }}
       onChoose={(v) => {
         setNote(null);
         if (v === "leave") setState(x.cut.id, "set-aside");
@@ -131,6 +151,7 @@ export function PlacementTray(props: {
   );
 
   const lit = new Set<string>(drag?.over ? [drag.over] : []);
+  const over3dLabel = over3d ? over3d.split(":")[1] : null;
   const dragged = drag && items.find((i) => i.cut.id === drag.id);
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-secondary/50 p-3">
@@ -172,6 +193,11 @@ export function PlacementTray(props: {
             style={{ left: drag.x, top: drag.y }}
           >
             <ImportThumb outline={dragged.card.outline} />
+            {over3dLabel && (
+              <span className="bg-primary text-primary-foreground mt-1 block rounded-full px-2 py-0.5 text-center text-[12px] font-semibold whitespace-nowrap">
+                {over3dLabel.replace("-", " ")}
+              </span>
+            )}
           </div>,
           document.body,
         )}

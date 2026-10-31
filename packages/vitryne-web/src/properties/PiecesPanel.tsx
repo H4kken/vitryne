@@ -8,6 +8,7 @@ import { cutColor, cutFabric, findCut } from "@/document/commands";
 import type { Entities } from "@/document/entities";
 import type { DocumentStore } from "@/document/store";
 
+import type { PickPart } from "@/editor/hooks/useBodyPick";
 import { type Place } from "@/placement/places";
 import { DEFAULT_CLOTH_COLOR } from "@/format/colors";
 import { type Sewing, SeamsSection } from "@/sewing/SeamsSection";
@@ -35,6 +36,8 @@ export function PiecesPanel(props: {
   onHover: (cutId: string | null) => void;
   /** Asks Rust for a fresh wrap of the cut at `place`, then makes it an edit. */
   onRewrap: (cutId: string, place: Place) => void;
+  /** The part of the body under a screen point of the 3D view. */
+  pickPart: PickPart;
   /** Switches to placing in 3D (null when already there). */
   onPlaceIn3d: (() => void) | null;
   /** Flips the picked pieces in the flat view. */
@@ -106,6 +109,7 @@ export function PiecesPanel(props: {
             store={store}
             garment={garment}
             onRewrap={props.onRewrap}
+            pickPart={props.pickPart}
             onHover={onHover}
           />
           <ul

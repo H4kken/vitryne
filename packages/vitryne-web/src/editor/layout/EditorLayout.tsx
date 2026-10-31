@@ -52,6 +52,7 @@ import { useWarningsLog } from "../hooks/useWarningsLog";
 import { StartPage } from "../start/StartPage";
 import { DrapeView } from "./DrapeView";
 import { FlatView } from "./FlatView";
+import { useBodyPick } from "../hooks/useBodyPick";
 import { NoticeCards } from "./NoticeCards";
 import { Rail } from "./Rail";
 import { RecoveryBanner } from "./RecoveryBanner";
@@ -139,6 +140,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     selection: selection.selection,
     select: selection.select,
   });
+  const pickPart = useBodyPick(session, doc.entities);
   const cutColors = useCutColors(doc.entities, garment);
   // How far out each cut starts in the drape shown (the Layers view says so).
   const info = engine.drape?.info;
@@ -299,6 +301,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
           selection={selection}
           sewing={sewing}
           rewrap={rewrap}
+          pickPart={pickPart}
           onPlaceIn3d={
             placing ? null : () => (view.setShow3d(true), setTool("select"))
           }
