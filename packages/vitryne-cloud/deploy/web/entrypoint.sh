@@ -29,5 +29,14 @@ if [ -n "${SUPABASE_DB_URL:-}" ]; then
   echo "migrate: up to date"
 fi
 
+# SELFHOST: the compose file with the bundled backend, which this container also fronts.
+caddyfile=/etc/caddy/Caddyfile
+[ -z "${SELFHOST:-}" ] || caddyfile=/etc/caddy/Caddyfile.selfhost
+
+# The bundled backend has no Edge Functions: the daily cleanup of anonymous drafts runs here.
+if [ -n "${SELFHOST:-}" ] && [ -n "${SERVICE_KEY:-}" ] && [ "${ALLOW_ANONYMOUS:-false}" = true ]; then
+  /cleanup.sh &
+fi
+
 echo "web: backend $SUPABASE_URL"
-exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+exec caddy run --config "$caddyfile" --adapter caddyfile

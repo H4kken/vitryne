@@ -9,6 +9,11 @@
 //                  before replacing the draft; with the account, Duplicate makes "(copy)".
 //                  Browser B (a fresh profile) signs in and opens the project, its navy denim
 //                  (recoloured offline) the garment's fabric.
+//   selfhost <url> the stack with its own backend (deploy/docker-compose.selfhost.yml: no mail
+//                  server, accounts confirm at once): a denim fabric autosaved as A's draft, the
+//                  draft listed after a reload, an account made from it with no email, and
+//                  browser B (a fresh profile) signing in to open the project. Run with
+//                  SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY set to the stack's (instance.mjs).
 //   reset  <url>   a forgotten password: an account (made over the API), "Forgot your password?",
 //                  the link from Mailpit opened in the same browser, the new password chosen
 //                  there; it signs in, the old one doesn't.
@@ -350,6 +355,58 @@ async function cloud() {
   return { email, aErrors, bErrors, title };
 }
 
+async function selfhost() {
+  const email = `selfhost-${Date.now().toString(36)}@example.test`;
+  const password = `pw-${Date.now().toString(36)}-x`;
+  const header = `document.querySelector('header')?.innerText ?? ''`;
+  const a = await browser('A');
+  await a.goto(url);
+  await a.until('start screen', `document.body.innerText.includes('What do you want to make?')`);
+  await a.click('T-shirt');
+  await a.until('the T-shirt open', loaded);
+  await a.click('Fabric', { exact: true });
+  await a.click('New fabric');
+  await a.click('Denim');
+  await a.click('Make this fabric');
+  await a.until('the autosave', `(${header}).includes('Saved')`, 30000);
+  await a.goto(url);
+  await a.until('the draft listed', `document.body.innerText.toLowerCase().includes('your draft') && document.body.innerText.includes('T-shirt (Teagan)')`);
+  await a.click('Sign in', { exact: true });
+  await a.type('#cloud-email', email);
+  await a.click('Continue with email');
+  await a.type('#cloud-password', password);
+  await a.click('Create account', { exact: true });
+  // No mail server: the account is there at once, so no "Check your email" waits for a link.
+  await a.until('the account created', `document.body.innerText.includes('Account created') || document.body.innerText.includes(${JSON.stringify(email)})`, 30000);
+  await a.shot('account');
+  const aErrors = a.logs;
+  const sawCheckEmail = (await a.text()).includes('Check your email');
+  a.close();
+
+  const b = await browser('B');
+  await b.goto(url);
+  await b.until('start screen', `document.body.innerText.includes('What do you want to make?')`);
+  await b.click('Sign in', { exact: true });
+  await b.click('Sign in', { exact: true });
+  await b.type('#cloud-email', email);
+  await b.click('Continue with email');
+  await b.type('#cloud-password', password);
+  await b.click('Sign in', { exact: true });
+  await b.until('B signed in', `document.body.innerText.includes(${JSON.stringify(email)})`);
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await sleep(500);
+  await b.until('the project listed', `document.body.innerText.toLowerCase().includes('your projects') && document.body.innerText.includes('T-shirt (Teagan)')`);
+  await b.click('Open T-shirt (Teagan)', { exact: true });
+  await b.until('the project open in B', loaded);
+  await b.click('Fabric', { exact: true });
+  await b.until('the denim kept', `document.body.innerText.includes('White denim')`);
+  const title = await b.evaluate(projectName);
+  const bErrors = b.logs;
+  b.close();
+  if (title !== 'T-shirt (Teagan)') throw new Error(`B: unexpected title: ${title}`);
+  return { email, sawCheckEmail, aErrors, bErrors, title };
+}
+
 async function reset() {
   const auth = async (path, body, token) => {
     const r = await fetch(`${URL_}/auth/v1/${path}`, {
@@ -484,5 +541,5 @@ async function draw() {
   return { suggested, reopened, errors: a.logs };
 }
 
-const result = mode === 'none' ? await none() : mode === 'draw' ? await draw() : mode === 'reset' ? await reset() : await cloud();
+const result = mode === 'none' ? await none() : mode === 'draw' ? await draw() : mode === 'reset' ? await reset() : mode === 'selfhost' ? await selfhost() : await cloud();
 console.log(JSON.stringify({ mode, ok: true, ...result, shots }, null, 2));

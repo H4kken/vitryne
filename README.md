@@ -55,17 +55,20 @@ The fastest way to get started. Sign up for Free at [vitryne.app](https://vitryn
 
 ### <img src="./packages/vitryne-web/public/images/server.svg" width="14" height="14"/> Self-hosting
 
-One container from a [release](https://github.com/H4kken/vitryne/releases) and a free
-[Supabase](https://supabase.com) project to keep the projects:
+From a [release](https://github.com/H4kken/vitryne/releases), with its own backend (editor,
+database, accounts and storage in five small containers, nothing else to set up; needs Docker
+Compose 2.23.1 or later):
 
 ```sh
-curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/docker-compose.yml
-curl -fsSL https://github.com/H4kken/vitryne/releases/latest/download/env.example -o .env
-# set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env
+curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/docker-compose.selfhost.yml
+curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/setup.sh
+sh setup.sh        # writes .env with fresh keys; `sh setup.sh your.domain` for a server with HTTPS
 docker compose up -d
+# then open http://localhost:8000
 ```
 
-Setting up the backend, updates and the other ways to run it: [Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md).
+Or one container with a [Supabase](https://supabase.com) project of your own for the backend:
+[Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md).
 
 <br />
 

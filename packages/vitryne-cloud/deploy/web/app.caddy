@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The editor's static build with the cross-origin isolation headers it needs (docs/HOSTING.md),
+# shared by Caddyfile (a backend elsewhere) and Caddyfile.selfhost (the bundled one).
+(app) {
+	encode zstd gzip
+	header {
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Embedder-Policy require-corp
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	# PRIVACY_POLICY_URL and TERMS_URL are the operator's own pages (none by default; vitryne.app:
+	# docs.vitryne.app/legal). The editor reads this at start: no file (404) means no backend, which it says.
+	@cloud expression `{env.SUPABASE_URL} != "" && {env.SUPABASE_PUBLISHABLE_KEY} != ""`
+	handle /config.json {
+		header Cache-Control no-cache
+		handle @cloud {
+			header Content-Type application/json
+			respond `{"backend":{"url":"{$SUPABASE_URL}","publishableKey":"{$SUPABASE_PUBLISHABLE_KEY}"},"privacyPolicy":"{$PRIVACY_POLICY_URL}","termsOfService":"{$TERMS_URL}"}`
+		}
+		respond 404
+	}
+	# A project's address (/design/<id>) is the editor's: a page opened in a new tab, or reloaded.
+	handle {
+		root * /srv/app
+		try_files {path} /index.html
+		file_server
+	}
+}

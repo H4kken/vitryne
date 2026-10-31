@@ -8,6 +8,14 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+### Added
+
+- Self-hosting with its own backend: `docker-compose.selfhost.yml` and `setup.sh` (new release files)
+  run the editor, Postgres, Auth, the REST API and Storage in five containers (about 350 MB idle),
+  with nothing else to set up and no Supabase account. `sh setup.sh [domain]` makes the keys; with a
+  domain, Caddy gets the HTTPS certificate itself. Accounts work without a mail server (set `SMTP_*`
+  for confirmation emails and password resets).
+
 ## [0.5.0] - 2026-10-30
 
 ### Added

@@ -77,7 +77,8 @@ it is published, but `latest` doesn't move.
      linux/arm64);
    - creates the GitHub release with the changelog section as notes, plus
      `vitryne-web-0.1.0.tar.gz` (the static build), a `docker-compose.yml` that runs 0.1.0,
-     `env.example` and `SHA256SUMS`.
+     `env.example`, `docker-compose.selfhost.yml` (the one with its own backend) with `setup.sh`,
+     and `SHA256SUMS`.
 5. Update the hosted instance (vitryne.app) to the new image, and check it.
 
 **If the workflow fails** before the image is pushed: fix on `main`, delete the tag

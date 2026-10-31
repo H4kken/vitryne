@@ -1,0 +1,177 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Vitryne with its own backend, nothing else to set up (packages/vitryne-docs/content/docs/developers/cloud.md):
+# the editor, Postgres, Auth, the REST API and Storage, from the release images. Five containers;
+# no dashboard, no mail catcher. Create the settings once with `sh setup.sh [domain]` (it writes
+# .env with fresh keys), then `docker compose up -d`.
+#
+# Only `web` is published: it serves the editor and fronts the backend under /auth/v1, /rest/v1
+# and /storage/v1 (web/Caddyfile.selfhost), so the browser sees one address.
+
+name: vitryne
+
+x-auth-urls: &auth-urls
+  GOTRUE_MAILER_URLPATHS_CONFIRMATION: ${PUBLIC_URL:?run setup.sh}/auth/v1/verify
+  GOTRUE_MAILER_URLPATHS_RECOVERY: ${PUBLIC_URL}/auth/v1/verify
+  GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${PUBLIC_URL}/auth/v1/verify
+  GOTRUE_MAILER_URLPATHS_INVITE: ${PUBLIC_URL}/auth/v1/verify
+
+services:
+  web:
+    image: ${VITRYNE_IMAGE:-ghcr.io/h4kken/vitryne-web}:${VITRYNE_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8000}:80"
+      - "${HTTPS_PORT:-8443}:443"
+    volumes:
+      # Caddy's certificates (with DOMAIN set).
+      - caddy:/data
+    environment:
+      SELFHOST: "1"
+      # For the daily cleanup of anonymous drafts (web/cleanup.sh); never sent to the browser.
+      SERVICE_KEY: ${SERVICE_KEY:?run setup.sh}
+      ALLOW_ANONYMOUS: ${ALLOW_ANONYMOUS:-true}
+      SITE_ADDRESS: ${DOMAIN:-:80}
+      SUPABASE_URL: ${PUBLIC_URL:?run setup.sh}
+      SUPABASE_PUBLISHABLE_KEY: ${ANON_KEY:?run setup.sh}
+      # The editor's migrations, applied at start (web/entrypoint.sh).
+      SUPABASE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD:?run setup.sh}@db:5432/postgres
+      PRIVACY_POLICY_URL: ${PRIVACY_POLICY_URL:-}
+      TERMS_URL: ${TERMS_URL:-}
+    depends_on:
+      # Their schemas come first: the migrations use auth.users and storage.buckets.
+      auth: { condition: service_healthy }
+      storage: { condition: service_healthy }
+
+  db:
+    image: public.ecr.aws/supabase/postgres:17.6.1.171
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: /var/run/postgresql
+      JWT_SECRET: ${JWT_SECRET:?run setup.sh}
+      JWT_EXP: 3600
+    configs:
+      # Run once, on an empty database (the image's migrate.sh): the services' passwords.
+      - source: db-init
+        target: /etc/postgresql.schema.sql
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 2s
+      retries: 30
+
+  auth:
+    image: public.ecr.aws/supabase/gotrue:v2.197.0
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      <<: *auth-urls
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${PUBLIC_URL}/auth/v1
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgresql://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: ${PUBLIC_URL}
+      GOTRUE_URI_ALLOW_LIST: ${PUBLIC_URL}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_ISSUER: ${PUBLIC_URL}/auth/v1
+      GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: ${ALLOW_ANONYMOUS:-true}
+      GOTRUE_SECURITY_MANUAL_LINKING_ENABLED: "true"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      # No mail server needed: an account works at once. With SMTP_HOST set (and this false) a
+      # new account confirms its email first and password resets work.
+      GOTRUE_MAILER_AUTOCONFIRM: ${MAILER_AUTOCONFIRM:-true}
+      GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "true"
+      GOTRUE_PASSWORD_MIN_LENGTH: 8
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: 10
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
+      GOTRUE_RATE_LIMIT_ANONYMOUS_USERS: 30
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: ${RATE_LIMIT_EMAIL_SENT:-30}
+      GOTRUE_RATE_LIMIT_VERIFY: 30
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: 150
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-admin@localhost}
+      GOTRUE_SMTP_SENDER_NAME: Vitryne
+      GOTRUE_MAILER_OTP_LENGTH: 6
+      GOTRUE_MAILER_OTP_EXP: 3600
+      # Vitryne's email templates, served by web on its internal port.
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://web:8081/email/confirmation.html
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: http://web:8081/email/recovery.html
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: http://web:8081/email/email_change.html
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: Confirm your Vitryne email
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: Choose a new Vitryne password
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: Confirm your Vitryne email
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9999/health"]
+      interval: 2s
+      retries: 30
+
+  rest:
+    image: public.ecr.aws/supabase/postgrest:v16.3
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGRST_DB_URI: postgresql://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_MAX_ROWS: 1000
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+
+  storage:
+    image: public.ecr.aws/supabase/storage-api:v1.77.0
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+      rest: { condition: service_started }
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_KEY:?run setup.sh}
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      POSTGREST_URL: http://rest:3000
+      DATABASE_URL: postgresql://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /mnt
+      FILE_SIZE_LIMIT: 52428800
+      TENANT_ID: stub
+      GLOBAL_S3_BUCKET: stub
+      STORAGE_S3_REGION: local
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+      TUS_URL_PATH: /storage/v1/upload/resumable
+    volumes:
+      - storage:/mnt
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5000/status"]
+      interval: 2s
+      retries: 30
+
+configs:
+  db-init:
+    content: |
+      \set pgpass `echo "$$POSTGRES_PASSWORD"`
+      \set jwt_secret `echo "$$JWT_SECRET"`
+      \set jwt_exp `echo "$$JWT_EXP"`
+      alter database postgres set "app.settings.jwt_secret" to :'jwt_secret';
+      alter database postgres set "app.settings.jwt_exp" to :'jwt_exp';
+      alter user postgres with password :'pgpass';
+      alter user authenticator with password :'pgpass';
+      alter user pgbouncer with password :'pgpass';
+      alter user supabase_auth_admin with password :'pgpass';
+      alter user supabase_storage_admin with password :'pgpass';
+
+volumes:
+  db:
+  storage:
+  caddy:

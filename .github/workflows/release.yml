@@ -3,7 +3,8 @@
 # the workspace version and CHANGELOG.md, runs `make check-ci` (which builds the editor), then
 # publishes the web image to GHCR for amd64 and arm64 (the editor is static files, so only the
 # Caddy layer differs per platform) and creates the GitHub release: its notes from CHANGELOG.md,
-# the static build, and a docker-compose.yml pinned to this version. A version with a hyphen
+# the static build, and a docker-compose.yml (a backend of your own) and a
+# docker-compose.selfhost.yml (its own backend) with setup.sh, both pinned to this version. A version with a hyphen
 # (0.2.0-rc.1) is a pre-release and doesn't move `latest`.
 name: release
 
@@ -53,6 +54,11 @@ jobs:
             "$GITHUB_WORKSPACE/packages/vitryne-cloud/deploy/docker-compose.yml" > docker-compose.yml
           grep -q "VITRYNE_VERSION:-$VERSION}" docker-compose.yml
           cp "$GITHUB_WORKSPACE/packages/vitryne-cloud/deploy/.env.example" env.example
+          # The one with its own backend, and the script that makes its .env.
+          sed "s/VITRYNE_VERSION:-latest/VITRYNE_VERSION:-$VERSION/" \
+            "$GITHUB_WORKSPACE/packages/vitryne-cloud/deploy/docker-compose.selfhost.yml" > docker-compose.selfhost.yml
+          grep -q "VITRYNE_VERSION:-$VERSION}" docker-compose.selfhost.yml
+          cp "$GITHUB_WORKSPACE/packages/vitryne-cloud/deploy/setup.sh" setup.sh
           sha256sum -- * > SHA256SUMS
 
       - uses: docker/metadata-action@v5

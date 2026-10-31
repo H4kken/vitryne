@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The editor and the bundled backend behind one address (docker-compose.selfhost.yml): the
+# services under their usual Supabase paths, in place of the Kong a Supabase project has, so
+# the browser sees one origin (no CORS). SITE_ADDRESS is `:80` (plain HTTP, an HTTPS proxy in
+# front) or the domain from DOMAIN, for which Caddy gets and renews a certificate itself.
+{
+	admin off
+}
+
+import /etc/caddy/app.caddy
+
+{$SITE_ADDRESS::80} {
+	# Auth endpoints get the anon key as the bearer when the request has none (as Kong does).
+	@nobearer {
+		not header Authorization *
+		header apikey *
+	}
+	request_header @nobearer Authorization "Bearer {http.request.header.apikey}"
+
+	handle_path /auth/v1/* {
+		reverse_proxy auth:9999
+	}
+	handle_path /rest/v1/* {
+		reverse_proxy rest:3000
+	}
+	handle_path /storage/v1/* {
+		reverse_proxy storage:5000
+	}
+	import app
+}
+
+# Inside the compose network only (not published): Auth fetches Vitryne's email templates here.
+http://:8081 {
+	handle_path /email/* {
+		root * /srv/email
+		file_server
+	}
+	respond 404
+}
