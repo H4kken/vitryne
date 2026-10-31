@@ -37,7 +37,16 @@ export function MeasurementsBox(props: {
       <span className="font-semibold">Measurements</span>
       {props.file ? (
         <div className="flex flex-wrap items-center gap-3">
-          <span className="grow">From {props.file.name}.</span>
+          <span className="grow">
+            From {props.file.name}.
+            {props.needed &&
+              props.needed.toLowerCase() !== props.file.name.toLowerCase() && (
+                <span className="text-danger block">
+                  The pattern names {props.needed}; if the pieces fail below,
+                  this may be another person's file.
+                </span>
+              )}
+          </span>
           {pick}
         </div>
       ) : props.needed ? (

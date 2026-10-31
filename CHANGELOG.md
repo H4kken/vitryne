@@ -25,6 +25,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 - Importing a pattern: drag each piece onto the body (front and back side by side), or click the
   piece and then a part of the body, instead of choosing from a list. Places guessed from a
   piece's name are marked "Check" until you confirm them, one by one or all at once.
+- The import dialog groups its pieces (needs a place, placed, left out), nests pieces that go on
+  another under it, and has a one-click way to leave a piece out.
 - **Skip and import** in the import dialog opens the pieces with their suggested places, the rest
   flat in front of the chest, without choosing each one.
 - The file that comes with an imported pattern (the measurements of a Valentina or Seamly2D

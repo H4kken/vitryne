@@ -308,19 +308,16 @@ export function ImportDialog(props: {
         <DialogFooter className="items-center gap-3 sm:justify-between">
           <span className="text-muted-foreground text-[13px]">
             {missing.length
-              ? `Choose a place for ${missing.map((x) => x.name).join(", ")}, or leave it out.`
+              ? `${missing.length} piece${missing.length === 1 ? " needs" : "s need"} a place, or leave ${missing.length === 1 ? "it" : "them"} out.`
               : ""}
           </span>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={props.onClose} disabled={busy}>
-              Cancel
-            </Button>
             <button
               type="button"
               onClick={() => void run(true)}
               disabled={!preview || busy}
               title="Open the pieces with their suggested places; the rest start flat in front of the chest"
-              className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent px-2 text-[14px] hover:underline disabled:pointer-events-none disabled:opacity-50"
+              className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent px-2 text-[14px] whitespace-nowrap hover:underline disabled:pointer-events-none disabled:opacity-50"
             >
               Skip and import
             </button>

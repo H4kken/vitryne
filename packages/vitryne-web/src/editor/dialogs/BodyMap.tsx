@@ -21,7 +21,7 @@ export function BodyMap(props: {
         <figure key={view} className="m-0 flex flex-col items-center gap-1">
           <svg
             viewBox="0 0 200 340"
-            className="h-auto w-full max-w-[170px]"
+            className="h-auto w-full max-w-[190px]"
             role="group"
             aria-label={`The body, ${view}`}
           >

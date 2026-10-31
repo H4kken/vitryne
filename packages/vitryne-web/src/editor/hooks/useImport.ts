@@ -29,7 +29,11 @@ async function readPattern(
   const pattern = list.find((f) => patternKind(f.name));
   const kind = pattern && patternKind(pattern.name);
   if (!pattern || !kind) return null;
-  const other = list.find((f) => isCompanion(kind, f.name));
+  // Several patterns dropped together: the file named like the pattern goes with it.
+  const stem = (n: string) => n.replace(/\.[^.]+$/, "").toLowerCase();
+  const others = list.filter((f) => isCompanion(kind, f.name));
+  const other =
+    others.find((f) => stem(f.name) === stem(pattern.name)) ?? others[0];
   return {
     pattern: { name: pattern.name, text: await pattern.text() },
     companion: other ? { name: other.name, text: await other.text() } : null,
@@ -120,6 +124,7 @@ export function useImport(o: {
       o.onNewProject();
     }
     setImporting(null);
+    setDroppedCompanion(null);
   };
 
   return {
@@ -128,7 +133,10 @@ export function useImport(o: {
     /** Bumped by each import, so the dialog starts afresh. */
     importKey,
     droppedCompanion,
-    closeImport: () => setImporting(null),
+    closeImport: () => {
+      setImporting(null);
+      setDroppedCompanion(null);
+    },
     startImport,
     dropProps,
     runImport,
