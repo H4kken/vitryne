@@ -3,7 +3,7 @@
 </p>
 <h2 align="center">The first Open-Source Clothes Modelling Software</h2>
 
-<p align="center"><a href="https://docs.vitryne.app"><img src="./packages/vitryne-web/public/images/book-open.svg" width="12" height="12"/> Documentation</a></p>
+<p align="center"><a href="https://docs.vitryne.app"><img src="./packages/vitryne-web/public/images/book-open.svg" width="14" height="14"/> Documentation</a></p>
 
 <br />
 
