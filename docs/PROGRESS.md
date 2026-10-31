@@ -582,7 +582,7 @@ Checked in Chrome on the M2 (real GPU, driven over CDP), and by hand in Safari o
 | [packages/vitryne-engine/render](../packages/vitryne-engine/render/) | The renderer, out of drape-core (which now has no rendering). |
 | `packages/vitryne-engine/wasm` | `VtryFile` (open zip or folder, entities out and in with validation, checked saves), `PreparedScene`, `Viewport`. |
 | `vitryne-format` | `Document::entities` / `set_entities` (atomic, validated), `to_zip_checked` / `to_entries_checked`, physical range checks, exact float parsing (`float_roundtrip`). |
-| [Architecture](../packages/vitryne-docs/content/docs/developers/architecture.mdx), [docs/HOSTING.md](HOSTING.md) | How the editor is built and its guardrails; the COOP/COEP headers for nginx, Caddy and static hosts. |
+| [Architecture](../packages/vitryne-docs/content/docs/developers/architecture.mdx), [Static hosting](../packages/vitryne-docs/content/docs/self-hosting/static-hosting.mdx) | How the editor is built and its guardrails; the COOP/COEP headers for nginx, Caddy and static hosts. |
 
 The guardrails (details in architecture.mdx): the document is deep-frozen in development and
 tests; commands record whole entities before and after, so undo is exact; a command checks the
@@ -607,7 +607,7 @@ unsaved-changes dialog, the leave-page prompt, and a recovery copy.
 - Bench page from `app/`: T-shirt 10k with self-collision, 7.1 ms per frame pipelined, 8.7 ms
   serial median, cross-origin isolated, no NaN frames.
 - Production bundle: wasm 3.0 MB (880 KB gzipped), UI 549 KB JS (144 KB gzipped), worker 43 KB,
-  CSS 43 KB. The bundled SDFs are 32–50 MB each (about a third gzipped; HOSTING.md says to
+  CSS 43 KB. The bundled SDFs are 32–50 MB each (about a third gzipped; the Static hosting page says to
   compress them).
 - Tests: 44 Rust (new: the worker's open → edit → undo → save path and the folder form on the
   examples, entities through JSON text, refused edits change nothing, physical ranges), 28

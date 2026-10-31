@@ -6,7 +6,7 @@ import react from "@vitejs/plugin-react";
 import { loadEnv, type Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
-// Cross-origin isolation (docs/HOSTING.md): performance.now() at its fine resolution (Chrome
+// Cross-origin isolation (packages/vitryne-docs/content/docs/self-hosting/static-hosting.mdx): performance.now() at its fine resolution (Chrome
 // coarsens it to 100 µs otherwise), which the frame timings and the bench need, and
 // SharedArrayBuffer for later. Production hosting must send the same two headers.
 const isolation = {

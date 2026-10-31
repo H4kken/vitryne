@@ -18,40 +18,15 @@ How Vitryne is put together, and the rules that keep it that way. For the solver
 The repository at a glance:
 
 <Files>
+  <Folder
+    name="assets"
+    note="the avatar and the sample garments, with their licences"
+  />
+  <Folder
+    name="docs"
+    note="milestone notes, hosting and release guides, the file format’s JSON Schemas"
+  />
   <Folder name="packages" defaultOpen>
-    <Folder
-      name="vitryne-engine"
-      note="the Rust cloth solver, file format and wasm build"
-      defaultOpen
-    >
-      <Folder
-        name="solver"
-        note="cloth solver, public API & WGSL shaders"
-      />
-      <Folder
-        name="render"
-        note="viewport rendering: lit cloth and body, the orbit camera, picking"
-      />
-      <Folder
-        name="format"
-        note="the .vtry file format: read, write, validate, migrate"
-      />
-      <Folder
-        name="pattern"
-        note="DXF import, meshing, placement, seams in the editor"
-      />
-      <Folder name="cli" note="the vitryne command and the native viewer" />
-      <Folder name="wasm" note="the browser build the editor’s worker runs" />
-      <Folder
-        name="tests"
-        note="tests & regression"
-      />
-    </Folder>
-    <Folder name="vitryne-web" note="the editor: what vitryne.app serves" />
-    <Folder
-      name="vitryne-docs"
-      note="this documentation: what docs.vitryne.app serves"
-    />
     <Folder
       name="vitryne-cloud"
       note="the backend, and the files for running your own instance"
@@ -74,20 +49,43 @@ The repository at a glance:
         note="backend tests (RLS, accounts, cleanup) and the real-browser check"
       />
     </Folder>
+    <Folder
+      name="vitryne-docs"
+      note="this documentation: what docs.vitryne.app serves"
+    />
+    <Folder
+      name="vitryne-engine"
+      note="the Rust cloth solver, file format and wasm build"
+      defaultOpen
+    >
+      <Folder name="solver" note="cloth solver, public API & WGSL shaders" />
+      <Folder
+        name="render"
+        note="viewport rendering: lit cloth and body, the orbit camera, picking"
+      />
+      <Folder
+        name="format"
+        note="the .vtry file format: read, write, validate, migrate"
+      />
+      <Folder
+        name="pattern"
+        note="DXF import, meshing, placement, seams in the editor"
+      />
+      <Folder name="cli" note="the vitryne command and the native viewer" />
+      <Folder name="wasm" note="the browser build the editor’s worker runs" />
+      <Folder name="tests" note="tests & regression" />
+    </Folder>
+    <Folder name="vitryne-web" note="the editor: what vitryne.app serves" />    
   </Folder>
-  <Folder
-    name="assets"
-    note="the avatar and the sample garments, with their licences"
-  />
-  <Folder
-    name="docs"
-    note="milestone notes, hosting and release guides, the file format’s JSON Schemas"
-  />
   <Folder
     name="tools"
     note="checks, benchmarks, release notes, the pattern scripts"
   />
+  <File name="CHANGELOG.md" />
+  <File name="CONTRIBUTING.md" />
+  <File name="LICENSE" />
   <File name="Makefile" />
+  <File name="SECURITY.md" />
 </Files>
 
 What each part of the engine and the editor is:

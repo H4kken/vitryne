@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Every pull request and every push to main: `make check-ci`, which is `make check` without the
 # golden drapes (GitHub's runners have no GPU; run `make regress` locally), and on pull requests
-# the DCO sign-off of each commit. Both are required to merge (docs/MAINTAINING.md).
+# the DCO sign-off of each commit. Both are required to merge (packages/vitryne-docs/content/docs/developers/maintaining.md).
 name: ci
 
 on:

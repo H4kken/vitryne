@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# A release, on pushing a tag vX.Y.Z (docs/MAINTAINING.md, Releasing). Checks the tag against
+# A release, on pushing a tag vX.Y.Z (packages/vitryne-docs/content/docs/developers/maintaining.md, Releasing). Checks the tag against
 # the workspace version and CHANGELOG.md, runs `make check-ci` (which builds the editor), then
 # publishes the web image to GHCR for amd64 and arm64 (the editor is static files, so only the
 # Caddy layer differs per platform) and creates the GitHub release: its notes from CHANGELOG.md,

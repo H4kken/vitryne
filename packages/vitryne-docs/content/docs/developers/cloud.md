@@ -299,7 +299,7 @@ node packages/vitryne-cloud/tests/browser.mjs none <url>
 
 - **A refactor before the MVP release**: a trimmed `packages/vitryne-cloud/supabase/config.toml`
   (listed in [PROGRESS.md](https://github.com/H4kken/vitryne/blob/main/docs/PROGRESS.md), under the cloud backend). (The web image is versioned now:
-  one image per release, [MAINTAINING.md](https://github.com/H4kken/vitryne/blob/main/docs/MAINTAINING.md#releasing).)
+  one image per release, [Maintaining](/developers/maintaining#releasing).)
 - **A reset button that knows:** an instance without SMTP says "email sent" for a forgotten
   password and sends nothing; the editor should hide the button (or say so) when the instance has
   no mail. Also an invite-only or sign-in-first mode (no anonymous drafts): the editor's account

@@ -9,6 +9,7 @@
     "settings",
     "operations",
     "troubleshooting",
-    "supabase"
+    "supabase",
+    "static-hosting"
   ]
 }

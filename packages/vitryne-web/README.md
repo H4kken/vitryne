@@ -21,7 +21,7 @@ make test       # cargo test, then this package's check: format types, tsc, esli
 
 The same scripts run from this folder with pnpm (`pnpm run dev`, `pnpm run check`, ...; see
 `package.json`). After changing `docs/format/schema/`, run `pnpm run gen:format`. The app needs
-cross-origin isolation: [docs/HOSTING.md](../../docs/HOSTING.md) has the two headers.
+cross-origin isolation: [Static hosting](../vitryne-docs/content/docs/self-hosting/static-hosting.mdx) has the two headers.
 
 A backend other than the local stack goes in `.env.local` here (`SUPABASE_URL`,
 `SUPABASE_PUBLISHABLE_KEY`; git-ignored). Test against the local stack only.

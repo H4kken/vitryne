@@ -4,7 +4,7 @@ What changes for people who use or self-host Vitryne, one section per release. T
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/) (0.x: anything may change between minor versions).
 Add a line under **Unreleased** with your pull request when it changes what people see; a
-release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasing)).
+release renames that section ([Maintaining](packages/vitryne-docs/content/docs/developers/maintaining.md#releasing)).
 
 ## [Unreleased]
 

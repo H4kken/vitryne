@@ -25,15 +25,16 @@ Search runs in the browser over that static index; the site makes no other reque
 headings, and each folder under them is a collapsible entry. A folder's URL without a page of its
 own (`/guide`) goes to its first page. Search covers every page.
 
-The pages in Developers are the only copy of those documents: `architecture`, `algorithms`,
-`cloud`, `fabrics`, `file-format` and `patents` (`.md`), and `docker-stack.mdx`. Edit them here;
-the repository's code comments and READMEs link to these files. The one exception is
-`contributing.md`: GitHub shows the root `CONTRIBUTING.md` to anyone opening a pull request, so
-that file stays the source and `scripts/sync-contributing.mjs` writes the page from it (the H1
-becomes the `title`, links to pages become site URLs, links into the repository point at GitHub;
-it runs before `dev`, `check` and `build`, and its output is git-ignored). `docs/PROGRESS.md`,
-`docs/MAINTAINING.md` and `docs/HOSTING.md` stay on GitHub only: they are for maintainers, not
-documentation.
+The pages in Developers are the only copy of those documents: `architecture` (`.mdx`: it uses the
+file trees), `algorithms`, `cloud`, `fabrics`, `file-format`, `patents` and `maintaining` (`.md`), and
+`docker-stack.mdx`. Self-hosting is the same: its pages (`self-hosting/`, including `static-hosting`)
+are the only copy of the instructions for running an instance. Edit them here; the repository's code
+comments and READMEs link to these files. The one exception is `contributing.md`: GitHub shows the
+root `CONTRIBUTING.md` to anyone opening a pull request, so that file stays the source and
+`scripts/sync-contributing.mjs` writes the page from it (the H1 becomes the `title`, links to pages
+become site URLs, links into the repository point at GitHub; it runs before `dev`, `check` and
+`build`, and its output is git-ignored). `docs/PROGRESS.md` stays on GitHub only: it is the
+project's history, not documentation.
 
 `make hygiene` fails on a broken link between markdown files (`tools/check/links.py`, which also
 checks site links like `/developers/architecture`).
