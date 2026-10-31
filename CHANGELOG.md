@@ -10,12 +10,17 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Changed
 
+- The status pill is the play/pause control: "Live" or "Paused", click it to switch. An import no
+  longer leaves a message on the canvas, and passing messages appear at the bottom centre and
+  go away by themselves.
 - A project opens with the drape paused and waits for Play, so an imported pattern isn't dropped
   on the body before it is placed and sewn. Whether the drape was paused or fast is saved with the
   project (file format version 5: `drape` in `view.json`), and the example projects still open
   draping.
 
 ### Fixed
+
+- Importing a Seamly2D pattern named the project "pattern.sm2d.vtry"; it is now "pattern".
 
 - The import dialog's "Left out of the file" line counts the pieces and details the importer
   couldn't read (it said "Nothing was left out" above a warning).

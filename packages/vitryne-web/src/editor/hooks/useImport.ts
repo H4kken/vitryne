@@ -113,7 +113,7 @@ export function useImport(o: {
       // With nothing open, starting the import already asked.
       if (!empty && !(await o.confirmReplace())) return;
       const avatar = await fetchAvatar();
-      const name = `${r.pattern.name.replace(/\.(dxf|val)$/i, "")}.vtry`;
+      const name = `${r.pattern.name.replace(/\.(dxf|val|sm2d)$/i, "")}.vtry`;
       await files.importNew(async (rev) => ({
         name,
         ...(await session.importNew(

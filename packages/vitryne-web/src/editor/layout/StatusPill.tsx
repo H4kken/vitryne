@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { Pause, Play } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -12,10 +13,13 @@ export function StatusPill({
   engine,
   show3d,
   placing,
+  onPlay,
 }: {
   engine: EngineState;
   show3d: boolean;
   placing: boolean;
+  /** Plays or pauses the drape: the pill becomes the control while it is Live or Paused. */
+  onPlay?: () => void;
 }) {
   let text: string;
   let dot = "bg-live live-dot";
@@ -31,28 +35,50 @@ export function StatusPill({
     [text, dot] = ["No pieces yet", "bg-line"];
   else if (!show3d)
     [text, dot] = ["Flat pieces. 3D follows your edits", "bg-live"];
-  else if (placing)
-    [text, dot] = ["Placing pieces. The drape waits", "bg-line"];
-  else if (engine.controls.paused)
-    [text, dot] = ["Paused. Press Play to drape", "bg-line"];
-  else text = "Fabric is settling live";
+  else if (placing) [text, dot] = ["Paused", "bg-line"];
+  else if (engine.controls.paused) [text, dot] = ["Paused", "bg-line"];
+  else text = "Live";
   const s = engine.stats;
   const detail = s
     ? `${s.vertices.toLocaleString()} points · ${s.fps.toFixed(0)} fps · ${Number.isNaN(s.frameMs) ? "–" : s.frameMs.toFixed(1)} ms of GPU per frame · ${s.simTime.toFixed(1)} s simulated`
     : "No drape yet";
+  // Live or Paused: the pill is the play/pause control, like a recording indicator.
+  const toggles = !!onPlay && (text === "Live" || text === "Paused");
+  const paused = engine.controls.paused;
+  const look =
+    "flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-medium";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span
-          tabIndex={0}
-          role="status"
-          className="flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-medium"
-        >
-          <span className={cn("size-2 rounded-full", dot)} />
-          {text}
-        </span>
+        {toggles ? (
+          <button
+            type="button"
+            onClick={onPlay}
+            aria-label={paused ? "Play the drape" : "Pause the drape"}
+            className={cn(look, "hover:bg-hover cursor-pointer")}
+          >
+            {paused ? (
+              <Play className="size-3.5 fill-current" />
+            ) : (
+              <span className="flex items-center gap-2">
+                <span className={cn("size-2 rounded-full", dot)} />
+              </span>
+            )}
+            {text}
+            {!paused && (
+              <Pause className="text-muted-foreground size-3.5 fill-current" />
+            )}
+          </button>
+        ) : (
+          <span tabIndex={0} role="status" className={look}>
+            <span className={cn("size-2 rounded-full", dot)} />
+            {text}
+          </span>
+        )}
       </TooltipTrigger>
-      <TooltipContent>{detail}</TooltipContent>
+      <TooltipContent>
+        {toggles ? `${detail}. Click to ${paused ? "play" : "pause"}.` : detail}
+      </TooltipContent>
     </Tooltip>
   );
 }
