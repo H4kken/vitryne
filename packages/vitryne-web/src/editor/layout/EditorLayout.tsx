@@ -7,7 +7,7 @@
 // owns the engine, the document and the open file; the hooks beside it (../hooks/) hold the
 // rest of the editor's state, and the components here draw it.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { AccountDialog } from "@/cloud/AccountDialog";
 import { CloudProjectsDialog } from "@/cloud/CloudProjectsDialog";
@@ -129,6 +129,25 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     empty: doc.empty,
     showError: files.showError,
   });
+  // The last waiting piece was placed or set aside: sewing is next, the suggestions ready. They
+  // come from the shapes of the pieces; where a piece was put plays no part (patent rule 3).
+  const toPlace =
+    garment?.pieces.reduce(
+      (n, p) => n + p.cuts.filter((c) => c.state === "unplaced").length,
+      0,
+    ) ?? 0;
+  const waited = useRef({ loads: doc.loads, n: 0 });
+  const { setPanel, setPiecesView } = panels;
+  const { findSeams } = sewing;
+  useEffect(() => {
+    const w = waited.current;
+    if (w.loads === doc.loads && w.n > 0 && toPlace === 0) {
+      setPanel("pieces");
+      setPiecesView("seams");
+      void findSeams();
+    }
+    waited.current = { loads: doc.loads, n: toPlace };
+  }, [toPlace, doc.loads, setPanel, setPiecesView, findSeams]);
   const { placing, gizmoIndex } = useDrapeControls({
     session,
     engine,
@@ -175,6 +194,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
       selection.setSelection(null);
       view.setShow3d(true);
       // What waits for a place is in the Pieces panel.
+      panels.setPiecesView("pieces");
       panels.setPanel("pieces");
     },
   });

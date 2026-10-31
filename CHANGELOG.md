@@ -30,7 +30,8 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
   with no suggestion wait under **Not placed** in the Pieces panel, where you drag them onto a
   body map (front and back) or click them; **✕** sets a piece aside and **Bring back** returns it.
   Hold a piece over an arm or a leg to drop it at the upper arm, forearm, wrist, knee or ankle.
-  Pieces can also be dropped on the avatar in the 3D view. File format version 6 (`state` on cuts).
+  When the last waiting piece is placed or set aside, the Seams tab opens with the seam suggestions
+  ready. Pieces can also be dropped on the avatar in the 3D view. File format version 6 (`state` on cuts).
 - The file that comes with an imported pattern (the measurements of a Valentina or Seamly2D
   pattern, a garment.toml for a DXF) can be dropped anywhere on the import dialog.
 - The start screen shows placeholder cards while your projects load, instead of an empty gap.
