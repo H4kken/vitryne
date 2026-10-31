@@ -704,6 +704,24 @@ impl Viewport {
         })
     }
 
+    /// The point of the avatar under the pointer (normalized device coordinates) as `[x, y, z]`
+    /// in metres (Y up, facing +Z), or an empty array when the ray misses the body. For
+    /// dropping a piece on a part of the body; the cloth plays no part.
+    pub fn pick_body(&self, x: f32, y: f32) -> Vec<f32> {
+        let (o, d) = self.ray(x, y);
+        let body = self.core.body.borrow();
+        let Some((_, body)) = body.as_ref() else {
+            return Vec::new();
+        };
+        match render::pick(&body.render.pos, o, d, 0.02) {
+            Some(v) => {
+                let p = body.render.pos[v as usize];
+                vec![p.x, p.y, p.z]
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// Shows cut `cut` (panel index) where `placement` (JSON) puts it, the other cuts where
     /// they start; while placing. The next drape (after the edit) starts from there too.
     pub fn place_cut(&self, cut: u32, placement: &str) -> Result<(), JsValue> {

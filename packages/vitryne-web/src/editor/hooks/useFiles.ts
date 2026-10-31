@@ -196,8 +196,7 @@ export function useFiles(
 
   /**
    * A project made from an imported pattern, or from scratch: a new cloud project at once.
-   * `told`: what the person is told once it is open (default: how to go on after an import;
-   * null: nothing).
+   * `told`: what the person is told once it is open (default: nothing).
    */
   const importNew = (
     make: (rev: number) => Promise<{
@@ -224,16 +223,8 @@ export function useFiles(
             setRef(null);
             session.drape(rev, true);
             void dropRecovery();
-            setNotice(
-              told === null
-                ? null
-                : {
-                    kind: "info",
-                    text:
-                      told ??
-                      `Imported ${m.name}. Pick Select in the 3D view to move a piece, or the Pieces panel to change where it starts.`,
-                  },
-            );
+            // An import says nothing: the status pill says what comes next.
+            setNotice(told ? { kind: "info", text: told } : null);
             resolve();
           } catch (e) {
             reject(e as Error);

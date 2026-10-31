@@ -12,8 +12,8 @@ use serde::Serialize;
 use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Piece, Placement, Wrap};
 use vitryne_pattern::{
     import::{Addition, Choice, ImportSource, import_bounds, rewrap},
-    placement::{BodyFacts, BodyPlace},
-    project::{Placer, ProjectGarment, avatar_mesh},
+    placement::{BodyFacts, BodyPlace, Landmark},
+    project::{Placer, ProjectGarment, avatar_mesh, for_drape},
     seams::{self, CutEdge, EdgePick, SeamProposal},
 };
 use vitryne_solver::{
@@ -167,7 +167,8 @@ impl ProjectFile {
     /// Meshes and places the project's garment, with its fabric, settings and avatar. CPU
     /// only; the SDF is found or baked later, by its key.
     pub fn prepare(&self) -> Result<Prepared, String> {
-        let pg = ProjectGarment::new(&self.doc)?;
+        let doc = for_drape(&self.doc);
+        let pg = ProjectGarment::new(&doc)?;
         let mut settings = SheetScene::config();
         let mut warnings = pg.warnings.clone();
         warnings.extend(pg.apply_settings(&mut settings));
@@ -230,7 +231,8 @@ impl ProjectFile {
     /// colour) and its export material. No meshing, so the viewport can recolour the drape
     /// after an edit that changes appearances only, without draping again.
     pub fn looks(&self) -> Result<BTreeMap<String, Look>, String> {
-        let pg = ProjectGarment::new(&self.doc)?;
+        let doc = for_drape(&self.doc);
+        let pg = ProjectGarment::new(&doc)?;
         let ids = pg.garment.cuts().map(|(_, c)| c.id.to_string());
         let looks = pg.panel_colors().into_iter().zip(pg.export_fabrics());
         Ok(ids
@@ -315,7 +317,12 @@ impl ProjectFile {
 
     /// Cut `cut` started again at `place`: a fresh wrap from its size and the body
     /// (`placement::auto_wrap`), keeping its rotation.
-    pub fn rewrap(&self, cut: &str, place: BodyPlace) -> Result<Rewrapped, String> {
+    pub fn rewrap(
+        &self,
+        cut: &str,
+        place: BodyPlace,
+        at: Option<Landmark>,
+    ) -> Result<Rewrapped, String> {
         let pg = ProjectGarment::new(&self.doc)?;
         let id = Id::parse(cut)?;
         let (piece, c) = pg
@@ -324,7 +331,7 @@ impl ProjectFile {
             .ok_or_else(|| format!("no cut {cut}"))?;
         let (regions, body) = self.body()?;
         let facts = BodyFacts::measure(&body, regions)?;
-        let wrap = rewrap(piece, c, place, regions, &facts)?;
+        let wrap = rewrap(piece, c, place, at, regions, &facts)?;
         let outline = pg.placed_outline(&id, &Placement::Wrap(wrap.clone()))?;
         let own = pg
             .garment
@@ -354,7 +361,7 @@ impl ProjectFile {
             .cuts
             .iter()
             .zip(places)
-            .map(|(c, &place)| rewrap(piece, c, place, regions, &facts))
+            .map(|(c, &place)| rewrap(piece, c, place, None, regions, &facts))
             .collect::<Result<Vec<_>, _>>()?;
         // The garment as it will be, to place the cuts in it.
         let mut doc = self.doc.clone();
@@ -654,7 +661,7 @@ mod tests {
 
         // Its pieces move to other places; the box already covers them.
         let sleeve = &p.info.cuts[2];
-        let r = file.rewrap(sleeve, BodyPlace::LegRightFront).unwrap();
+        let r = file.rewrap(sleeve, BodyPlace::LegRightFront, None).unwrap();
         assert_eq!(r.placement.region, "leg-right");
         assert!(r.bounds.is_none());
     }
@@ -729,10 +736,10 @@ mod tests {
         let (file, _) = ProjectFile::open(&example_zip("trousers")).unwrap();
         let p = file.prepare().unwrap();
         let front = &p.info.cuts[0];
-        let r = file.rewrap(front, BodyPlace::LegRightBack).unwrap();
+        let r = file.rewrap(front, BodyPlace::LegRightBack, None).unwrap();
         assert_eq!(r.placement.angle, std::f64::consts::PI);
         assert!(r.bounds.is_none());
-        let r = file.rewrap(front, BodyPlace::BodyFront).unwrap();
+        let r = file.rewrap(front, BodyPlace::BodyFront, None).unwrap();
         let b = r.bounds.unwrap();
         assert_eq!((b.min[1], b.max[1]), (0.0, 1720.0));
     }

@@ -395,11 +395,25 @@ pub struct Cut {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub appearance: Option<Id>,
     pub placement: Placement,
+    /// Absent: placed and draped. Otherwise it is kept but not draped (its placement is a
+    /// placeholder).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<CutState>,
     /// Where it sits in the 2D pattern view. Display only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layout: Option<Layout>,
     #[serde(flatten)]
     pub other: Other,
+}
+
+/// Why a cut isn't draped (format version 6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CutState {
+    /// Waiting to be put on the body.
+    Unplaced,
+    /// Kept in the project, not needed on the body (interfacing, a facing).
+    SetAside,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -775,6 +789,21 @@ impl Fabric {
 pub struct View {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera: Option<Camera>,
+    /// The drape's controls as the project was left.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drape: Option<DrapeView>,
+    #[serde(flatten)]
+    pub other: Other,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct DrapeView {
+    /// The drape waits for Play (absent: it does).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paused: Option<bool>,
+    /// The drape runs several steps per frame (absent: it doesn't).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fast: Option<bool>,
     #[serde(flatten)]
     pub other: Other,
 }

@@ -45,6 +45,8 @@ export interface DocState {
   warnings: string[];
   /** Edits not yet confirmed by Rust (saving waits for them). */
   syncing: boolean;
+  /** Counts the documents opened, so a hook can tell a new project from an edit. */
+  loads: number;
 }
 
 interface Snapshot {
@@ -91,6 +93,7 @@ export class DocumentStore {
     refused: null,
     warnings: [],
     syncing: false,
+    loads: 0,
   };
 
   constructor(
@@ -158,6 +161,7 @@ export class DocumentStore {
       rev,
       refused: null,
       warnings,
+      loads: this.state.loads + 1,
     });
   }
 
@@ -212,7 +216,10 @@ export class DocumentStore {
       entities = applyCommand(this.state.entities, cmd);
     } catch (e) {
       if (e instanceof CommandError) {
-        this.publish({ refused: e.message });
+        // An edit that would change nothing (a repeated drop, a click on a handle) isn't an
+        // error worth a message.
+        if (!e.message.endsWith(": nothing changes"))
+          this.publish({ refused: e.message });
         return false;
       }
       throw e;
@@ -230,6 +237,23 @@ export class DocumentStore {
     }
     this.redoStack = [];
     this.changed(entities, cmd.drape);
+    return true;
+  }
+
+  /**
+   * Applies a command that isn't an edit of the design (the drape's controls): it is saved with
+   * the project, but isn't an undo step and undo doesn't touch it.
+   */
+  executeQuiet(build: (e: Entities) => Command): boolean {
+    if (this.state.empty) return false;
+    let entities: Entities;
+    try {
+      entities = applyCommand(this.state.entities, build(this.state.entities));
+    } catch (e) {
+      if (e instanceof CommandError) return false;
+      throw e;
+    }
+    this.changed(entities, false);
     return true;
   }
 

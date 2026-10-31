@@ -110,45 +110,50 @@ export function SeamsSection(props: {
             view.
           </p>
         ) : (
-          <ul
-            className="m-0 flex list-none flex-col gap-2 p-0"
-            onPointerLeave={() => sewing.onHoverProposal(null)}
-          >
-            {sewing.proposals.map((p, i) => (
-              <li
-                key={i}
-                className="rounded-xl border border-border p-3 transition-colors hover:border-foreground/30 hover:bg-hover"
-                onPointerEnter={() => sewing.onHoverProposal(i)}
-                onFocus={() => sewing.onHoverProposal(i)}
-                onBlur={() => sewing.onHoverProposal(null)}
-              >
-                <div className="text-[14px] leading-snug font-semibold">
-                  {sideTitle(garment, p.a)}{" "}
-                  <span className="text-muted-foreground font-normal">
-                    with
-                  </span>{" "}
-                  {sideTitle(garment, p.b)}
-                </div>
-                <div className="text-muted-foreground mt-1 text-[12.5px] leading-snug">
-                  {describeSide(garment, p.a)}
-                  <br />
-                  {describeSide(garment, p.b)}
-                </div>
-                <div className="mt-2 flex gap-2">
-                  <Button size="sm" onClick={() => sewing.onAccept(p)}>
-                    Sew
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => sewing.onSkip(i)}
-                  >
-                    Skip
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="text-muted-foreground m-0 text-[13px]">
+              Suggested from the shapes of your pieces:
+            </p>
+            <ul
+              className="m-0 flex list-none flex-col gap-2 p-0"
+              onPointerLeave={() => sewing.onHoverProposal(null)}
+            >
+              {sewing.proposals.map((p, i) => (
+                <li
+                  key={i}
+                  className="rounded-xl border border-border p-3 transition-colors hover:border-foreground/30 hover:bg-hover"
+                  onPointerEnter={() => sewing.onHoverProposal(i)}
+                  onFocus={() => sewing.onHoverProposal(i)}
+                  onBlur={() => sewing.onHoverProposal(null)}
+                >
+                  <div className="text-[14px] leading-snug font-semibold">
+                    {sideTitle(garment, p.a)}{" "}
+                    <span className="text-muted-foreground font-normal">
+                      with
+                    </span>{" "}
+                    {sideTitle(garment, p.b)}
+                  </div>
+                  <div className="text-muted-foreground mt-1 text-[12.5px] leading-snug">
+                    {describeSide(garment, p.a)}
+                    <br />
+                    {describeSide(garment, p.b)}
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <Button size="sm" onClick={() => sewing.onAccept(p)}>
+                      Sew
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => sewing.onSkip(i)}
+                    >
+                      Skip
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         ))}
     </div>
   );

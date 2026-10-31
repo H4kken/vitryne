@@ -2,6 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { EngineSession, type EngineState } from "@/worker/session";
 import { useFiles } from "../hooks/useFiles";
+import { InfoToast } from "./InfoToast";
 import { NoticeCard } from "./NoticeCard";
 
 /**
@@ -36,9 +37,7 @@ export function NoticeCards(props: {
         </NoticeCard>
       )}
       {files.notice?.kind === "info" && (
-        <NoticeCard onDismiss={() => files.dismissNotice()}>
-          {files.notice.text}
-        </NoticeCard>
+        <InfoToast text={files.notice.text} onDismiss={files.dismissNotice} />
       )}
       {files.conflict && (
         <NoticeCard tone="error">

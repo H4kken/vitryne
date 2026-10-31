@@ -175,9 +175,14 @@ export interface Requests {
     };
     reply: { addition: string };
   };
+  /** The avatar's point under the pointer (normalized device coordinates), metres, or none. */
+  pickBody: {
+    args: { x: number; y: number };
+    reply: { point: number[] };
+  };
   /** Cut `cut` started again at `place` (Rust `project::Rewrapped`, JSON); nothing changes. */
   rewrap: {
-    args: { cut: string; place: string };
+    args: { cut: string; place: string; at?: string };
     reply: { rewrapped: string };
   };
   /** A drawn piece (JSON) wrapped around the body, cut k at places[k] (Rust `project::PlacedPiece`, JSON); nothing changes. */

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // What Rust's sewing calls return (packages/vitryne-engine/pattern/src/seams.rs), and plain-language labels
-// for them. Whole edges only (packages/vitryne-docs/content/docs/developers/patents.md, rule 1): an edge is the outline between two of
+// for them. Whole edges only (a design choice that keeps rule 1 of packages/vitryne-docs/content/docs/developers/patents.md out of reach): an edge is the outline between two of
 // a cut's corners, named by those corners.
 
 import type { Garment, Seam } from "@/format/schema.gen";

@@ -14,10 +14,10 @@ use glam::Vec2;
 use serde_json::Map;
 
 use vitryne_format::{
-    Attribution, Bending, Bounds, Camera, Category, Cut, Direction, Document, Edge, Fabric, File,
-    Fold, Follow, Garment, GarmentSimulation, Grain, Id, IdGen, Kind, Line, Node, NodeType,
-    Pairing, Piece, PieceSource, Placement, Project, ProjectSimulation, Run, Seam, Source, Stretch,
-    View, Wrap,
+    Attribution, Bending, Bounds, Camera, Category, Cut, Direction, Document, DrapeView, Edge,
+    Fabric, File, Fold, Follow, Garment, GarmentSimulation, Grain, Id, IdGen, Kind, Line, Node,
+    NodeType, Pairing, Piece, PieceSource, Placement, Project, ProjectSimulation, Run, Seam,
+    Source, Stretch, View, Wrap,
     manifest::{MEDIA_GLB, ROLE_SOURCE},
     round_mm,
 };
@@ -472,6 +472,7 @@ pub fn convert_with(
                 fabric: None,
                 appearance: None,
                 placement,
+                state: None,
                 layout: None,
                 other: Map::new(),
             });
@@ -624,7 +625,7 @@ pub fn convert_with(
     };
     garment.stack = garment.default_stack();
     let camera = spec.camera.map(|c| ([c[0], c[1], c[2]], c[3]));
-    project_document(
+    let mut doc = project_document(
         project_id,
         garment,
         fabric,
@@ -633,7 +634,15 @@ pub fn convert_with(
         opts.include_dxf
             .as_ref()
             .map(|dxf| (format!("sources/{source_id}.dxf"), dxf.clone())),
-    )
+    )?;
+    // A converted sidecar is a sample to look at: it opens draping (an import opens paused).
+    if let Some(view) = &mut doc.view {
+        view.drape = Some(DrapeView {
+            paused: Some(false),
+            ..Default::default()
+        });
+    }
+    Ok(doc)
 }
 
 /// A fabric from the engine's material (file-format.md, From garment.toml: Y = 2k/√3, shear 3Y/8,
@@ -737,6 +746,7 @@ pub(crate) fn project_document(
             pitch: None,
             other: Map::new(),
         }),
+        drape: None,
         other: Map::new(),
     });
     doc.garments.push(garment);

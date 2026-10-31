@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { WorkerCrashed } from "@/worker/client";
 import { openExample } from "@/test/rust";
-import { setFabricValue, renameProject } from "./commands";
+import { setDrapeView, setFabricValue, renameProject } from "./commands";
 import { DocumentStore, type Engine } from "./store";
 
 /** An engine whose answers the test controls. */
@@ -59,6 +59,29 @@ describe("DocumentStore", () => {
     await flush();
     expect(calls).toHaveLength(2);
     expect(calls[1]!.rev).toBe(5);
+  });
+
+  it("saves the drape's controls with the project, outside the undo steps", () => {
+    const { store, drapes, fabric } = setup();
+    store.execute((e) => setFabricValue(e, fabric, "friction", 0.5));
+    expect(
+      store.executeQuiet((e) => setDrapeView(e, { paused: false, fast: true })),
+    ).toBe(true);
+    expect(store.state.entities.view?.drape).toEqual({
+      paused: false,
+      fast: true,
+    });
+    expect(store.state.dirty).toBe(true);
+    // Undo takes back the fabric edit and leaves the controls; no drape is asked for them.
+    store.undo();
+    expect(store.state.entities.fabrics[0]!.friction).not.toBe(0.5);
+    expect(store.state.entities.view?.drape?.fast).toBe(true);
+    expect(store.state.undoLabel).toBeNull();
+    // The same controls again change nothing.
+    expect(
+      store.executeQuiet((e) => setDrapeView(e, { paused: false, fast: true })),
+    ).toBe(false);
+    expect(drapes).toEqual([]);
   });
 
   it("merges a slider gesture into one undo step", () => {

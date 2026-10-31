@@ -143,7 +143,21 @@ export function DrapeView(props: {
       {/* 3D Window badge and status */}
       <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-32px)] flex-col items-start gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <StatusPill engine={engine} show3d={show3d} placing={placing} />
+          <StatusPill
+            engine={engine}
+            show3d={show3d}
+            placing={placing}
+            toPlace={
+              garment?.pieces.reduce(
+                (n, p) =>
+                  n + p.cuts.filter((c) => c.state === "unplaced").length,
+                0,
+              ) ?? 0
+            }
+            onPlay={() =>
+              session.setControls({ paused: !engine.controls.paused })
+            }
+          />
           {noHandles && (
             <span className="flex items-center gap-2 rounded-full border border-amber-400 bg-card px-3.5 py-2 text-sm font-medium">
               <span className="size-2 rounded-full bg-amber-400" />

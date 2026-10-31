@@ -155,6 +155,28 @@ export function renameProject(e: Entities, name: string): Command {
   });
 }
 
+/**
+ * The drape's controls as the project is left (`view.json`). The view may not exist yet (an
+ * import). Not an edit of the design: the store applies it with `executeQuiet`.
+ */
+export function setDrapeView(
+  e: Entities,
+  drape: { paused: boolean; fast: boolean },
+): Command {
+  const before = e.view;
+  const after = { ...before, drape };
+  const problems = schemaErrors("view", after);
+  if (problems.length)
+    throw new CommandError(`Drape controls: ${problems.join("; ")}`);
+  if (deepEqual(before, after))
+    throw new CommandError("Drape controls: nothing changes");
+  return {
+    label: "Drape controls",
+    drape: false,
+    changes: [{ slot: { kind: "view" }, before, after }],
+  };
+}
+
 function indexOf<T extends { id: string }>(
   list: readonly T[] | undefined,
   id: string,
@@ -987,6 +1009,9 @@ export function setPlacement(
     (g) => {
       const [i, j] = cutAt(g, cutId);
       let out = setIn(g, ["pieces", i, "cuts", j, "placement"], placement);
+      // Putting a cut on the body places it, whatever kept it off.
+      if (g.pieces[i]?.cuts[j]?.state)
+        out = setIn(out, ["pieces", i, "cuts", j, "state"], undefined);
       if (placement.type === "follow" && placement.cut) {
         const stack = stackAfterFollow(g, cutId, placement.cut);
         if (stack !== g.stack) out = setIn(out, ["stack"], stack);
@@ -995,6 +1020,34 @@ export function setPlacement(
       return out;
     },
     { label: "Move a piece on the body", drape: true, coalesce },
+  );
+}
+
+/**
+ * Keeps cuts off the body (`set-aside`: not needed; `unplaced`: waiting for a place), or brings
+ * them back (`undefined`: placed where their placement says). The 3D drape leaves them out.
+ */
+export function setCutState(
+  e: Entities,
+  garmentId: string,
+  cutIds: readonly string[],
+  state: "unplaced" | "set-aside" | undefined,
+): Command {
+  return editGarment(
+    e,
+    garmentId,
+    (g) => {
+      let out = g;
+      for (const id of cutIds) {
+        const [i, j] = cutAt(g, id);
+        out = setIn(out, ["pieces", i, "cuts", j, "state"], state);
+      }
+      return out;
+    },
+    {
+      label: state === "set-aside" ? "Set a piece aside" : "Bring a piece back",
+      drape: true,
+    },
   );
 }
 

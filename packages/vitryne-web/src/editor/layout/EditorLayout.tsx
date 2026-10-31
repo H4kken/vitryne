@@ -7,7 +7,7 @@
 // owns the engine, the document and the open file; the hooks beside it (../hooks/) hold the
 // rest of the editor's state, and the components here draw it.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { AccountDialog } from "@/cloud/AccountDialog";
 import { CloudProjectsDialog } from "@/cloud/CloudProjectsDialog";
@@ -52,11 +52,13 @@ import { useWarningsLog } from "../hooks/useWarningsLog";
 import { StartPage } from "../start/StartPage";
 import { DrapeView } from "./DrapeView";
 import { FlatView } from "./FlatView";
+import { useBodyPick } from "../hooks/useBodyPick";
 import { NoticeCards } from "./NoticeCards";
 import { Rail } from "./Rail";
 import { RecoveryBanner } from "./RecoveryBanner";
 import { SidePanel } from "./SidePanel";
 import { Splitter } from "./Splitter";
+import { useDrapeMemory } from "../hooks/useDrapeMemory";
 import { TopBar } from "./TopBar";
 import type { FlatTool, PatternView } from "@/pattern/panel/types";
 
@@ -67,6 +69,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
   const disk = useMemo(() => new DiskFiles(), []);
   const doc = useDocument(store);
   const files = useFiles(session, store, disk, doc, cloud);
+  useDrapeMemory(session, store, doc, engine);
   const ready = useStarted(files.started);
   useFollowOpen(files, doc.empty, ready);
   const navigate = useNavigate();
@@ -126,6 +129,25 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     empty: doc.empty,
     showError: files.showError,
   });
+  // The last waiting piece was placed or set aside: sewing is next, the suggestions ready. They
+  // come from the shapes of the pieces; where a piece was put plays no part (patent rule 3).
+  const toPlace =
+    garment?.pieces.reduce(
+      (n, p) => n + p.cuts.filter((c) => c.state === "unplaced").length,
+      0,
+    ) ?? 0;
+  const waited = useRef({ loads: doc.loads, n: 0 });
+  const { setPanel, setPiecesView } = panels;
+  const { findSeams } = sewing;
+  useEffect(() => {
+    const w = waited.current;
+    if (w.loads === doc.loads && w.n > 0 && toPlace === 0) {
+      setPanel("pieces");
+      setPiecesView("seams");
+      void findSeams();
+    }
+    waited.current = { loads: doc.loads, n: toPlace };
+  }, [toPlace, doc.loads, setPanel, setPiecesView, findSeams]);
   const { placing, gizmoIndex } = useDrapeControls({
     session,
     engine,
@@ -137,6 +159,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     selection: selection.selection,
     select: selection.select,
   });
+  const pickPart = useBodyPick(session, doc.entities);
   const cutColors = useCutColors(doc.entities, garment);
   // How far out each cut starts in the drape shown (the Layers view says so).
   const info = engine.drape?.info;
@@ -170,6 +193,9 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     onNewProject: () => {
       selection.setSelection(null);
       view.setShow3d(true);
+      // What waits for a place is in the Pieces panel.
+      panels.setPiecesView("pieces");
+      panels.setPanel("pieces");
     },
   });
   const begin = useNewProject({
@@ -295,6 +321,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
           selection={selection}
           sewing={sewing}
           rewrap={rewrap}
+          pickPart={pickPart}
           onPlaceIn3d={
             placing ? null : () => (view.setShow3d(true), setTool("select"))
           }

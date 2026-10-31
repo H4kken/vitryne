@@ -8,6 +8,37 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ## [Unreleased]
 
+### Changed
+
+- A selected piece's "Where it starts" is the body map: the part it is on is tinted, click another
+  part to move it, and on an arm or a leg pick the upper arm, forearm, wrist, knee or ankle. The
+  list of places stays under "More places…".
+- The status pill is the play/pause control: "Live" or "Paused", click it to switch. An import no
+  longer leaves a message on the canvas, and passing messages appear at the bottom centre and
+  go away by themselves.
+- A project opens with the drape paused and waits for Play, so an imported pattern isn't dropped
+  on the body before it is placed and sewn. Whether the drape was paused or fast is saved with the
+  project (file format version 5: `drape` in `view.json`), and the example projects still open
+  draping.
+
+### Fixed
+
+- Importing a Seamly2D pattern named the project "pattern.sm2d.vtry"; it is now "pattern".
+
+### Added
+
+- Importing a pattern is one step: drop the file and the pieces open in the editor, paused, each
+  at the place its name suggests. Only what is needed is asked (a drafted pattern's measurements,
+  a size, and with a project open whether to add the pieces or start a new project). The pieces
+  with no suggestion wait under **Not placed** in the Pieces panel, where you drag them onto a
+  body map (front and back) or click them; **✕** sets a piece aside and **Bring back** returns it.
+  Hold a piece over an arm or a leg to drop it at the upper arm, forearm, wrist, knee or ankle.
+  When the last waiting piece is placed or set aside, the Seams tab opens with the seam suggestions
+  ready. Pieces can also be dropped on the avatar in the 3D view. File format version 6 (`state` on cuts).
+- The file that comes with an imported pattern (the measurements of a Valentina or Seamly2D
+  pattern, a garment.toml for a DXF) can be dropped anywhere on the import dialog.
+- The start screen shows placeholder cards while your projects load, instead of an empty gap.
+
 ## [0.5.0] - 2026-10-30
 
 ### Added

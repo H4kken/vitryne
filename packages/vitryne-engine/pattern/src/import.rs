@@ -21,8 +21,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Map;
 
 use vitryne_format::{
-    Bounds, Cut, Document, Follow, Garment, GarmentSimulation, Id, IdGen, Piece, Placement, Region,
-    Seam, Source, Wrap,
+    Bounds, Cut, CutState, Document, Follow, Garment, GarmentSimulation, Id, IdGen, Piece,
+    Placement, Region, Seam, Source, Wrap,
 };
 use vitryne_solver::constraints::Material;
 
@@ -31,7 +31,7 @@ use crate::{
     convert::{ConvertOptions, convert_with, dxf_piece, fabric_entity, project_document},
     drafting::{self, SizeOption, pieces::Shape},
     garment::Garment as SidecarGarment,
-    placement::{BodyFacts, BodyPlace, auto_wrap, default_avatar, flat_wrap},
+    placement::{BodyFacts, BodyPlace, Landmark, auto_wrap, default_avatar, flat_wrap},
 };
 
 /// How far a piece placed on another one sits off it, mm (the hoodie's pocket).
@@ -76,6 +76,9 @@ pub enum Choice {
     Flat,
     /// One cut on top of the first cut of `piece` (a pocket on a front).
     On { piece: String },
+    /// Imported but not placed yet: every cut is kept, flat in front of the chest as a
+    /// placeholder, and waits (`CutState::Unplaced`) for the person to put it on the body.
+    Unplaced,
 }
 
 impl Choice {
@@ -578,6 +581,7 @@ impl PatternImport {
                                 angle: None,
                                 other: Map::new(),
                             }),
+                            state: None,
                             layout: None,
                             other: Map::new(),
                         });
@@ -614,7 +618,7 @@ impl PatternImport {
             .collect();
         for piece in &mut pieces {
             let c = choice(&piece.name)?.clone();
-            if c.cuts() != piece.cuts.len() {
+            if !matches!(c, Choice::Unplaced) && c.cuts() != piece.cuts.len() {
                 return Err(format!(
                     "{}: the sewing file cuts it {} time(s), so choose {}",
                     piece.name,
@@ -632,6 +636,7 @@ impl PatternImport {
                 Choice::One { place } => vec![Some(*place)],
                 Choice::Pair { pair } => pair.places().map(Some).to_vec(),
                 Choice::On { .. } => vec![None],
+                Choice::Unplaced => vec![None; piece.cuts.len()],
             };
             let outlines: Vec<Vec<Vec2>> = piece
                 .cuts
@@ -639,6 +644,9 @@ impl PatternImport {
                 .map(|cut| cut_outline(piece, cut.mirrored))
                 .collect::<Result<_, _>>()?;
             for ((cut, place), outline) in piece.cuts.iter_mut().zip(places).zip(outlines) {
+                if matches!(c, Choice::Unplaced) {
+                    cut.state = Some(CutState::Unplaced);
+                }
                 cut.placement = match (place, &c) {
                     (Some(place), _) => {
                         Placement::Wrap(auto_wrap(place, &outline, regions, facts)?)
@@ -653,8 +661,10 @@ impl PatternImport {
                         angle: None,
                         other: Map::new(),
                     }),
-                    (None, Choice::Flat) => Placement::Wrap(flat_wrap(&outline, regions, facts)?),
-                    (None, _) => unreachable!("only On and Flat have no place"),
+                    (None, Choice::Flat | Choice::Unplaced) => {
+                        Placement::Wrap(flat_wrap(&outline, regions, facts)?)
+                    }
+                    (None, _) => unreachable!("only On, Flat and Unplaced have no place"),
                 };
             }
         }
@@ -852,6 +862,7 @@ pub fn rewrap(
     piece: &Piece,
     cut: &Cut,
     place: BodyPlace,
+    at: Option<Landmark>,
     regions: &BTreeMap<String, Region>,
     facts: &BodyFacts,
 ) -> Result<Wrap, String> {
@@ -864,10 +875,14 @@ pub fn rewrap(
         .into_iter()
         .map(|q| Vec2::new(c * q.x - s * q.y, s * q.x + c * q.y))
         .collect();
-    Ok(Wrap {
+    let mut wrap = Wrap {
         rotation,
         ..auto_wrap(place, &outline, regions, facts)?
-    })
+    };
+    if let Some(l) = at {
+        wrap.top = (l.top(place, regions, facts)? as f64 * 1000.0).round() + 0.0;
+    }
+    Ok(wrap)
 }
 
 #[cfg(test)]
