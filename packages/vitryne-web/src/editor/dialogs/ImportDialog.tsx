@@ -221,7 +221,7 @@ export function ImportDialog(props: {
               : error
                 ? `${pattern?.name} could not be read.`
                 : waiting && needs
-                  ? `${pattern?.name} needs its measurements file.`
+                  ? `${pattern?.name} is drawn from measurements. Add their file to see the pieces.`
                   : `Reading ${pattern?.name}…`}
           </DialogDescription>
         </DialogHeader>
@@ -305,32 +305,34 @@ export function ImportDialog(props: {
           )}
         </div>
 
-        <DialogFooter className="items-center gap-3 sm:justify-between">
-          <span className="text-muted-foreground text-[13px]">
-            {missing.length
-              ? `${missing.length} piece${missing.length === 1 ? " needs" : "s need"} a place, or leave ${missing.length === 1 ? "it" : "them"} out.`
-              : ""}
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => void run(true)}
-              disabled={!preview || busy}
-              title="Open the pieces with their suggested places; the rest start flat in front of the chest"
-              className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent px-2 text-[14px] whitespace-nowrap hover:underline disabled:pointer-events-none disabled:opacity-50"
-            >
-              Skip and import
-            </button>
-            <Button
-              onClick={() => void run()}
-              disabled={
-                !preview || missing.length > 0 || placed.length === 0 || busy
-              }
-            >
-              {busy ? "Importing…" : "Import"}
-            </Button>
-          </div>
-        </DialogFooter>
+        {preview && (
+          <DialogFooter className="items-center gap-3 sm:justify-between">
+            <span className="text-muted-foreground text-[13px]">
+              {missing.length
+                ? `${missing.length} piece${missing.length === 1 ? " needs" : "s need"} a place, or leave ${missing.length === 1 ? "it" : "them"} out.`
+                : ""}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void run(true)}
+                disabled={!preview || busy}
+                title="Open the pieces with their suggested places; the rest start flat in front of the chest"
+                className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent px-2 text-[14px] whitespace-nowrap hover:underline disabled:pointer-events-none disabled:opacity-50"
+              >
+                Skip and import
+              </button>
+              <Button
+                onClick={() => void run()}
+                disabled={
+                  !preview || missing.length > 0 || placed.length === 0 || busy
+                }
+              >
+                {busy ? "Importing…" : "Import"}
+              </Button>
+            </div>
+          </DialogFooter>
+        )}
       </DialogContent>
       {dragging && kind && <CompanionDropZone kind={kind} />}
     </Dialog>

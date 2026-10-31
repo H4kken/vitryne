@@ -9,6 +9,8 @@ export function CompanionPicker(props: {
   kind: PatternKind;
   label: string;
   variant?: "outline" | "ghost";
+  /** A large dashed area, for when the file is the next thing to do. */
+  area?: boolean;
   onFile: (f: TextFile) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -26,13 +28,23 @@ export function CompanionPicker(props: {
             void f.text().then((text) => props.onFile({ name: f.name, text }));
         }}
       />
-      <Button
-        variant={props.variant ?? "outline"}
-        size="sm"
-        onClick={() => input.current?.click()}
-      >
-        {props.label}
-      </Button>
+      {props.area ? (
+        <button
+          type="button"
+          onClick={() => input.current?.click()}
+          className="border-border-strong text-body-text hover:border-foreground hover:text-foreground flex w-full cursor-pointer flex-col items-center gap-1 rounded-2xl border-2 border-dashed bg-transparent px-4 py-6 text-[15px] font-semibold"
+        >
+          {props.label}
+        </button>
+      ) : (
+        <Button
+          variant={props.variant ?? "outline"}
+          size="sm"
+          onClick={() => input.current?.click()}
+        >
+          {props.label}
+        </Button>
+      )}
     </>
   );
 }

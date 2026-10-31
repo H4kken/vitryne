@@ -50,14 +50,19 @@ export function MeasurementsBox(props: {
           {pick}
         </div>
       ) : props.needed ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-body-text grow">
-            This pattern is drafted from the measurements in{" "}
-            <strong>{props.needed}</strong>. Drop that file here or choose it to
-            see its pieces.
+        <>
+          <span className="text-body-text">
+            This pattern is drawn from a person's measurements, kept in a
+            separate file, <strong>{props.needed}</strong>. It usually sits next
+            to the pattern.
           </span>
-          {pick}
-        </div>
+          <CompanionPicker
+            kind="drafted"
+            area
+            label={`Drop ${props.needed} here, or click to choose it`}
+            onFile={props.onFile}
+          />
+        </>
       ) : (
         <span className="text-body-text">
           This pattern needs no measurements file.
