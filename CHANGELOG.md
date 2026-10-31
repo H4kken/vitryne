@@ -10,6 +10,9 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 ### Changed
 
+- A selected piece's "Where it starts" is the body map: the part it is on is tinted, click another
+  part to move it, and on an arm or a leg pick the upper arm, forearm, wrist, knee or ankle. The
+  list of places stays under "More places…".
 - The status pill is the play/pause control: "Live" or "Paused", click it to switch. An import no
   longer leaves a message on the canvas, and passing messages appear at the bottom centre and
   go away by themselves.

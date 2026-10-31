@@ -14,14 +14,17 @@ export function BodyMap(props: {
   /** A piece is held or picked: the free zones invite a drop. */
   inviting: boolean;
   onZone: (key: string) => void;
+  /** Draw only this side, smaller (a piece's details), instead of both. */
+  only?: View;
 }) {
+  const { only, ...rest } = props;
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {(["front", "back"] as View[]).map((view) => (
+    <div className={only ? "flex justify-center" : "grid grid-cols-2 gap-2"}>
+      {(only ? [only] : (["front", "back"] as View[])).map((view) => (
         <figure key={view} className="m-0 flex flex-col items-center gap-1">
           <svg
             viewBox="0 0 200 340"
-            className="h-auto w-full max-w-[190px]"
+            className={only ? "h-56 w-auto" : "h-auto w-full max-w-[190px]"}
             role="group"
             aria-label={`The body, ${view}`}
           >
@@ -42,12 +45,14 @@ export function BodyMap(props: {
               strokeWidth={1.5}
             />
             {zonesIn(view).map((z) => (
-              <BodyZone key={z.zone} view={view} box={z} {...props} />
+              <BodyZone key={z.zone} view={view} box={z} {...rest} />
             ))}
           </svg>
-          <figcaption className="text-muted-foreground text-[13px] font-semibold">
-            {view === "front" ? "Front" : "Back"}
-          </figcaption>
+          {!only && (
+            <figcaption className="text-muted-foreground text-[13px] font-semibold">
+              {view === "front" ? "Front" : "Back"}
+            </figcaption>
+          )}
         </figure>
       ))}
     </div>
