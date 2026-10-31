@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The messages between the UI and the engine worker (packages/vitryne-docs/content/docs/developers/architecture.md, Worker protocol).
+// The messages between the UI and the engine worker (packages/vitryne-docs/content/docs/developers/architecture.mdx, Worker protocol).
 // The worker owns the GPU, the drape and the file's binary parts; the UI owns the document's
 // JSON. Three kinds of message:
 //  - inputs (UI -> worker, no answer): canvas, size, pointer, controls, a cut being placed,

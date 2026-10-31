@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The handles of the cut being placed, over the 3D view (packages/vitryne-docs/content/docs/developers/architecture.md, Placement): up
+// The handles of the cut being placed, over the 3D view (packages/vitryne-docs/content/docs/developers/architecture.mdx, Placement): up
 // and down the body, around it, away from it, and a ring to turn the piece. The worker says
 // where they are on screen and how far a handle's point moves per unit of what it changes;
 // a drag shows the cut moving at once (`onPreview`) and is one edit when let go (`onCommit`).

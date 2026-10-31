@@ -641,7 +641,7 @@ impl ProjectGarment<'_> {
 }
 
 /// What placing a meshed garment again needs, without meshing it again: the editor moves a
-/// cut and sees it move at once (packages/vitryne-docs/content/docs/developers/architecture.md, Placement).
+/// cut and sees it move at once (packages/vitryne-docs/content/docs/developers/architecture.mdx, Placement).
 #[derive(Clone)]
 pub struct Placer {
     uv: Vec<Vec2>,

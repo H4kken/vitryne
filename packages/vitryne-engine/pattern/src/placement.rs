@@ -484,7 +484,7 @@ fn tube_profile(
     (lo, step, radii)
 }
 
-// ---- the editor's places (packages/vitryne-docs/content/docs/developers/architecture.md, Placement) --------------------------------
+// ---- the editor's places (packages/vitryne-docs/content/docs/developers/architecture.mdx, Placement) --------------------------------
 
 /// Where the editor offers to start a cut, as people say it: a region and a side of it. Each
 /// is a region name and an angle; `auto_wrap` works out the rest. "Left" is the wearer's left.
@@ -596,7 +596,7 @@ impl BodyFacts {
     }
 }
 
-/// The starting wrap for a piece at `place` (packages/vitryne-docs/content/docs/developers/architecture.md, Placement): the cylinder
+/// The starting wrap for a piece at `place` (packages/vitryne-docs/content/docs/developers/architecture.mdx, Placement): the cylinder
 /// is the piece's own circumference with some ease (a front and a back each make half of it, a
 /// sleeve all of it), never closer to the body than `CLEARANCE` where the body is measured;
 /// the top edge goes where that kind of piece usually starts (the base of the neck, the waist,

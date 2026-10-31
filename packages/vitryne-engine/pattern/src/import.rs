@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Patterns into the editor (packages/vitryne-docs/content/docs/developers/architecture.md, Import and placement): DXF-AAMA, or a
+//! Patterns into the editor (packages/vitryne-docs/content/docs/developers/architecture.mdx, Import and placement): DXF-AAMA, or a
 //! Valentina pattern with its measurements (`valentina`). Reading one gives a preview: what was
 //! found, what was ignored, and for each piece how often it is cut and a suggested place on the
 //! body. The user confirms or changes a choice per piece, and the import

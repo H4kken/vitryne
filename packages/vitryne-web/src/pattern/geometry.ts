@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Cheap 2D geometry for drawing the pattern (packages/vitryne-docs/content/docs/developers/architecture.md: TypeScript only draws;
+// Cheap 2D geometry for drawing the pattern (packages/vitryne-docs/content/docs/developers/architecture.mdx: TypeScript only draws;
 // anything algorithmic is asked of the worker). Pattern coordinates are mm, +y up.
 
 import type {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The open document: its entities, the undo and redo stacks, and its sync with the engine
-// worker (packages/vitryne-docs/content/docs/developers/architecture.md, Document model). Every change is a command; each new state
+// worker (packages/vitryne-docs/content/docs/developers/architecture.mdx, Document model). Every change is a command; each new state
 // is sent to the worker, which validates it in Rust. A refused state rolls the document back
 // to the last one Rust accepted, and says why. Drape-relevant changes re-drape, debounced.
 

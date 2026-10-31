@@ -7,6 +7,8 @@ import Redirect from "@/components/redirect.astro";
 import Shell from "@/components/shell.astro";
 import { Card } from "@/components/card";
 import defaultMdxComponents from "fumadocs-ui/mdx";
+import { Files } from "fumadocs-ui/components/files";
+import { File, Folder } from "@/components/files";
 import "@/styles/global.css";
 import {
   source,
@@ -36,11 +38,15 @@ const rendered = page && (await render(page.data._raw));
 const isHome = page?.slugs.length === 0;
 const title = isHome ? "Vitryne docs" : `${page?.data.title} · Vitryne docs`;
 
-const toc: TOCItemType[] = (rendered?.headings ?? []).map((heading) => ({
-  depth: heading.depth,
-  title: heading.text,
-  url: "#" + heading.slug,
-}));
+// "On this page" lists the ## and ### headings: a third level made the long pages' list a wall
+// (the architecture page's had 27 entries). #### headings keep their anchors.
+const toc: TOCItemType[] = (rendered?.headings ?? [])
+  .filter((heading) => heading.depth <= 3)
+  .map((heading) => ({
+    depth: heading.depth,
+    title: heading.text,
+    url: "#" + heading.slug,
+  }));
 const Content = rendered?.Content;
 ---
 
@@ -59,7 +65,9 @@ const Content = rendered?.Content;
         {page.data.description}
       </p>
       <div class="prose flex-1">
-        <Content components={{ ...defaultMdxComponents, Card }} />
+        <Content
+          components={{ ...defaultMdxComponents, Card, File, Files, Folder }}
+        />
       </div>
     </Shell>
   </Layout>

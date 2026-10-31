@@ -109,7 +109,7 @@ installed; `make stack-test` runs the backend tests against it and `make stack-d
 It's described in [packages/vitryne-cloud/dev/](packages/vitryne-cloud/dev/docker-compose.yml).
 
 The editor (`packages/vitryne-web/`) is TypeScript, React, Tailwind and shadcn/ui; how it is
-built, and the rules it follows, are in [Architecture](packages/vitryne-docs/content/docs/developers/architecture.md). After
+built, and the rules it follows, are in [Architecture](packages/vitryne-docs/content/docs/developers/architecture.mdx). After
 changing `docs/format/schema/`, run `pnpm run gen:format` in `packages/vitryne-web/` to
 regenerate the types and validators.
 

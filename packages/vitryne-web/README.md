@@ -5,7 +5,7 @@ engine's benchmark page (`bench.html`). The engine runs in a Web Worker as wasm 
 from [vitryne-engine](../vitryne-engine/)'s `vitryne-wasm`) and draws into an OffscreenCanvas;
 projects save to the backend in [vitryne-cloud](../vitryne-cloud/).
 
-How it is built, its guardrails and where things are: [Architecture](../vitryne-docs/content/docs/developers/architecture.md).
+How it is built, its guardrails and where things are: [Architecture](../vitryne-docs/content/docs/developers/architecture.mdx).
 
 ## Build and run
 

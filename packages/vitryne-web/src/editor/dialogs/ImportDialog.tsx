@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Importing a pattern (packages/vitryne-docs/content/docs/developers/architecture.md, Import and placement), a DXF-AAMA file or a
+// Importing a pattern (packages/vitryne-docs/content/docs/developers/architecture.mdx, Import and placement), a DXF-AAMA file or a
 // Valentina pattern: what the file holds and what was left out of it, then where each piece goes
 // on the body (suggested from its name, the user decides), an optional garment.toml for a DXF's
 // sewing or the measurements a Valentina pattern is drafted from (and its size), and whether the
