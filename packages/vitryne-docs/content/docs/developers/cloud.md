@@ -5,15 +5,15 @@ description: "How accounts, projects and storage work in the backend: the design
 ---
 
 **In short:** projects live in a Supabase project (accounts, a projects table, a storage bucket)
-and the editor is static files in front of it. Read [Running the editor](#running-the-editor) to
-host it, [Setting up the backend](#setting-up-the-backend) to create the backend, and
-[Developing](#developing) to work on it locally.
+and the editor is static files in front of it. To run it yourself, read [Self-hosting](/self-hosting);
+[Running the editor](#running-the-editor) and [Setting up the backend](#setting-up-the-backend) here
+list the files, and [Developing](#developing) is how to work on it locally.
 
 Like Figma or Canva, projects live in the cloud and save by themselves; nothing is saved to disk.
 The editor is static files plus a backend, a **Supabase project** (hosted by Supabase, or one you
 run), which holds **accounts** and **projects**. Anyone can try the editor without an account: their
 work is kept as one draft. A free account keeps every project, opens them anywhere, and exports.
-This page covers the design, running the editor, and developing against a backend.
+This page covers the design and developing against a backend; running one is in [Self-hosting](/self-hosting).
 
 [The backend](#the-backend) · [Running the editor](#running-the-editor) ·
 [Setting up the backend](#setting-up-the-backend) · [Developing](#developing) ·
@@ -57,115 +57,23 @@ a CORS fetch is allowed under the editor's cross-origin isolation (COEP).
 
 ## Running the editor
 
-Plug and go, like Twenty's self-hosting: one container, from a
-[GitHub release](https://github.com/H4kken/vitryne/releases), nothing to build.
+How to run Vitryne yourself (the editor with its own backend, five containers, or one container with a
+Supabase project of yours), HTTPS, settings, updates and backups: [Self-hosting](/self-hosting). The
+files are in `packages/vitryne-cloud/deploy/`:
 
-```sh
-mkdir vitryne && cd vitryne
-curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/docker-compose.yml
-curl -fsSL https://github.com/H4kken/vitryne/releases/latest/download/env.example -o .env
-# set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env (Setting up the backend, below)
-docker compose up -d
-# then open http://localhost:8000
-```
-
-The compose file runs one service, `web`: the image `ghcr.io/h4kken/vitryne-web` (linux/amd64 and
-linux/arm64), Caddy serving the editor with its isolation headers
-(`packages/vitryne-cloud/deploy/web/`). A release's `docker-compose.yml` runs that release; the one
-in the repository follows `latest`. **To update:** set `VITRYNE_VERSION` in `.env` to the new
-release (or leave it empty with the repository's file), then
-`docker compose pull && docker compose up -d`. Read the release notes first: a release that
-changes the schema says so, and its migrations run at start when `SUPABASE_DB_URL` is set.
-
-Settings go in `.env` next to the compose file (`packages/vitryne-cloud/deploy/.env` in a
-checkout; copy `.env.example`). The backend's two are required: without them `docker compose`
-says so and doesn't start.
-
-| Setting                                    | What                                                                                                                                                                                                                                                                                       |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `VITRYNE_VERSION`                          | The release to run (`0.4.0`); empty: the compose file's default. `VITRYNE_IMAGE` replaces `ghcr.io/h4kken/vitryne-web` (a mirror, or your own build).                                                                                                                                      |
-| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Required: the project's URL and publishable key (`sb_publishable_…`, Project Settings, API Keys). **Never a secret key**: the browser gets these.                                                                                                                                          |
-| `SUPABASE_DB_URL`                          | Optional: the container applies `packages/vitryne-cloud/supabase/migrations/` at start, like Twenty's server does. Use the project's _Session pooler_ connection string (on the free plan the direct one is IPv6 only). Without it, run `pnpm run supabase db push` after a schema change. |
-| `HTTP_PORT`                                | The port on the host, `8000` by default. Plain HTTP: on a server, an HTTPS proxy goes in front (below).                                                                                                                                                                                    |
-
-The migrations at start record what they applied where the Supabase CLI does
-(`supabase_migrations.schema_migrations`), so they and `supabase db push` never apply anything
-twice.
-
-**From a checkout**, to run code that isn't released: the override file builds the image in Docker
-(target `from-source`: wasm, the examples and their SDFs on the CPU, the Vite build; ~10 GB of
-Docker disk, ~4 GB of memory and 10-20 minutes the first time, later builds reuse what didn't
-change):
-
-```sh
-docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml \
-  -f packages/vitryne-cloud/deploy/docker-compose.build.yml up -d --build
-```
-
-On a server too small to build, build on your machine and copy the image over, no registry:
-
-```sh
-make build
-docker build --platform linux/amd64 -f packages/vitryne-cloud/deploy/web/Dockerfile \
-  --target from-dist -t vitryne-web .
-docker save vitryne-web | ssh you@server docker load
-ssh you@server 'cd vitryne && VITRYNE_IMAGE=vitryne-web VITRYNE_VERSION=latest \
-  docker compose -f packages/vitryne-cloud/deploy/docker-compose.yml up -d'
-```
-
-The static build of each release (`vitryne-web-<version>.tar.gz`) also runs on any static host
-that sends the isolation headers ([HOSTING.md](https://github.com/H4kken/vitryne/blob/main/docs/HOSTING.md)) and serves `config.json` itself.
-
-**Over HTTPS:** browsers ignore the isolation headers and refuse WebGPU on a plain `http://` page
-other than localhost, so a server needs a domain with HTTPS (Chrome's console then says the
-`Cross-Origin-Opener-Policy` header was ignored). Put a proxy that does HTTPS in front of
-`HTTP_PORT` (Caddy, Traefik, nginx, Cloudflare), or on Coolify give the `web` service a domain
-(`https://your.domain`, port 80) and set `HTTP_PORT` to a free port (Coolify's dashboard is on
-8000). Add that domain to the Supabase project's redirect URLs (below).
+- `docker-compose.selfhost.yml` and `setup.sh`: the editor with its own backend. `web/Caddyfile.selfhost`
+  puts the services under `/auth/v1`, `/rest/v1` and `/storage/v1` behind one address, like the Kong of
+  a Supabase project; `web/cleanup.sh` is the daily cleanup of stale drafts (the counterpart of the
+  `clean-anonymous` function). `smoke-selfhost.sh` tests it.
+- `docker-compose.yml`: the editor alone, with `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` of a project
+  you name. `smoke.sh` tests it.
+- `docker-compose.build.yml`: an override that builds the web image from the checkout.
 
 ## Setting up the backend
 
-On a hosted Supabase project (pick an EU region; the free plan pauses an inactive project and
-has no backups, so use Pro for a public instance):
-
-1. **Schema:** set `SUPABASE_DB_URL` for the web container, or from `packages/vitryne-web/`:
-   `pnpm run supabase link --project-ref <ref>` then `pnpm run supabase db push`.
-2. **Authentication, Sign In / Providers:** allow anonymous sign-ins and manual linking (an
-   anonymous user becomes an account); Email on with _Confirm email_ on; minimum password
-   length 8. **Google** (optional): an OAuth client in the Google Cloud console (_Web
-   application_, authorized redirect URI `https://<ref>.supabase.co/auth/v1/callback`), its ID and
-   secret here. The editor shows _Continue with Google_ only when it is on.
-3. **Authentication, Emails:** connect an SMTP provider (Supabase's own sender only reaches the
-   project's team, a few emails an hour; Resend or Brevo have free tiers). Every email carries a
-   link: the default templates work. `packages/vitryne-cloud/supabase/templates/*.html` say the same
-   in Vitryne's words, to paste into _Change email address_ (what confirms a new account), _Confirm
-   signup_ and _Reset password_ if you like (subjects in
-   `packages/vitryne-cloud/supabase/config.toml`).
-4. **Authentication, URL configuration:** the site URL and the redirect URLs are the editor's
-   address (Google and the email links come back there).
-5. **Limits** (optional): `update vitryne_private.limits set quota_bytes = …, max_projects = …,
-max_anonymous_projects = …, anonymous_days = …;` in the SQL editor. Parts are capped at 50 MB
-   each, the free plan's file limit.
-6. **Stale anonymous users:** deploy the cleanup function and give pg_cron its address and a
-   secret (the migration schedules the daily call; it does nothing until both are in Vault):
-
-   ```sh
-   secret=$(openssl rand -hex 32)
-   pnpm run supabase functions deploy clean-anonymous --no-verify-jwt
-   pnpm run supabase secrets set CLEANUP_SECRET=$secret
-   ```
-
-   then in the SQL editor:
-
-   ```sql
-   select vault.create_secret('https://<ref>.supabase.co/functions/v1', 'vitryne_functions_url');
-   select vault.create_secret('<the same secret>', 'vitryne_cleanup_secret');
-   ```
-
-   Check it with `select vitryne_private.clean_anonymous();` and the function's logs.
-
-Self-hosting Supabase too: Supabase's own Docker setup or Coolify's Supabase template, then the
-same steps (the settings are environment variables there, `GOTRUE_*`).
+For a Supabase project (anonymous sign-ins, email and password, SMTP, redirect URLs, limits, the cleanup
+function): [With your own Supabase project](/self-hosting/supabase#set-up-the-supabase-project). The
+bundled backend of `docker-compose.selfhost.yml` sets all of that itself.
 
 ## Developing
 
@@ -367,7 +275,9 @@ browser with a GPU.
 ```sh
 make cloud-test       # the web image (built from this machine's packages/vitryne-web/dist):
                       # refuses to start without a backend, then on the local stack with
-                      # migrations at start; then the backend tests: RLS, accounts, the cleanup
+                      # migrations at start; then the self-contained stack from its own compose
+                      # file (keys, a draft that becomes an account, the stale-draft cleanup);
+                      # then the backend tests: RLS, accounts, the cleanup
                       # function and thumbnails (packages/vitryne-cloud/tests/*.test.mjs; on the
                       # local stack, or SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, MAILPIT_URL,
                       # CLEANUP_SECRET)
@@ -390,6 +300,10 @@ node packages/vitryne-cloud/tests/browser.mjs none <url>
 - **A refactor before the MVP release**: a trimmed `packages/vitryne-cloud/supabase/config.toml`
   (listed in [PROGRESS.md](https://github.com/H4kken/vitryne/blob/main/docs/PROGRESS.md), under the cloud backend). (The web image is versioned now:
   one image per release, [MAINTAINING.md](https://github.com/H4kken/vitryne/blob/main/docs/MAINTAINING.md#releasing).)
+- **A reset button that knows:** an instance without SMTP says "email sent" for a forgotten
+  password and sends nothing; the editor should hide the button (or say so) when the instance has
+  no mail. Also an invite-only or sign-in-first mode (no anonymous drafts): the editor's account
+  creation starts from a draft today.
 - **Sharing a project** with someone else, and real-time editing together: the reason projects
   stay in the cloud. Until then one tab edits a project at a time, and another browser's save is
   a conflict the person settles.

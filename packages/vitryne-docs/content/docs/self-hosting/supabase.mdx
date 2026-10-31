@@ -1,0 +1,101 @@
+---
+title: With your own Supabase project
+icon: Cloud
+description: Run the editor as one container, and keep accounts and projects in a Supabase project you run or pay for.
+---
+
+Use this if you already have a [Supabase](https://supabase.com) project, or prefer to run the backend
+elsewhere. If you only want Vitryne running, the [quick start](/self-hosting/quick-start) is simpler:
+it includes its own backend.
+
+## Run the editor
+
+You need Docker, and a Supabase project with its URL and its **publishable key**
+(Project Settings, API Keys; the key starts with `sb_publishable_`).
+
+```sh
+mkdir vitryne && cd vitryne
+curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/docker-compose.yml
+curl -fsSL https://github.com/H4kken/vitryne/releases/latest/download/env.example -o .env
+# set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env
+docker compose up -d
+```
+
+Open **http://localhost:8000**. The compose file runs one container, `web`: the image
+`ghcr.io/h4kken/vitryne-web` (for `amd64` and `arm64`), Caddy serving the editor with the headers it
+needs. Without the two Supabase settings, `docker compose` says so and does not start.
+
+| Setting                                    | What                                                                                                                                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Required: the project's URL and publishable key. **Never a secret key**: the browser receives these.                                                                                   |
+| `SUPABASE_DB_URL`                          | Optional: the container applies Vitryne's database changes (migrations) at start. Use the project's _Session pooler_ connection string (on the free plan the direct one is IPv6 only). |
+| `VITRYNE_VERSION`                          | The release to run, such as `0.6.0`. Empty: the version named in the compose file.                                                                                                     |
+| `VITRYNE_IMAGE`                            | Replaces `ghcr.io/h4kken/vitryne-web`: a mirror, or an image you built.                                                                                                                |
+| `HTTP_PORT`                                | The port on the host, `8000` by default. Plain HTTP.                                                                                                                                   |
+| `PRIVACY_POLICY_URL`, `TERMS_URL`          | Your own pages, linked from the editor.                                                                                                                                                |
+
+On a server, put HTTPS in front of `HTTP_PORT` with your own proxy (Caddy, Traefik, nginx,
+Cloudflare), or on Coolify give the `web` service a domain on port 80: see
+[behind your own proxy](/self-hosting/https#behind-your-own-proxy). Then add that domain to the
+Supabase project's redirect URLs (step 4 below).
+
+**To update:** download the new release's `docker-compose.yml` over the old one (or set
+`VITRYNE_VERSION` in `.env`), then `docker compose pull && docker compose up -d`. Read the release
+notes first: a release that changes the database says so. With `SUPABASE_DB_URL` set, the changes are
+applied when the container starts; without it, apply them yourself (below).
+
+## Set up the Supabase project
+
+On a hosted project, pick an EU region if your users are there. The free plan pauses an inactive
+project and has no backups: use a paid plan for a public instance.
+
+1. **The database:** set `SUPABASE_DB_URL` for the `web` container, or, from a checkout of the
+   [repository](https://github.com/H4kken/vitryne), in `packages/vitryne-web/`:
+   `pnpm run supabase link --project-ref <ref>` then `pnpm run supabase db push`.
+2. **Authentication, Sign In / Providers:** allow **anonymous sign-ins** and **manual linking** (an
+   anonymous user becomes an account); turn Email on with _Confirm email_ on; set the minimum password
+   length to 8. **Google** is optional: create an OAuth client in the Google Cloud console (_Web
+   application_, with the authorized redirect URI `https://<ref>.supabase.co/auth/v1/callback`) and enter
+   its ID and secret. The editor shows _Continue with Google_ only when it is on.
+3. **Authentication, Emails:** connect an SMTP provider. Supabase's own sender only reaches the
+   project's team, a few emails an hour; Resend or Brevo have free plans. The default templates work.
+   The repository's `packages/vitryne-cloud/supabase/templates/*.html` say the same in Vitryne's words,
+   to paste into _Change email address_ (what confirms a new account), _Confirm signup_ and _Reset
+   password_ if you like.
+4. **Authentication, URL configuration:** set the site URL and the redirect URLs to the editor's
+   address. Google and the links in emails come back there.
+5. **Limits** (optional): in the SQL editor,
+   `update vitryne_private.limits set quota_bytes = 5368709120, max_projects = 100, max_anonymous_projects = 1, anonymous_days = 14;`.
+   Each stored file is at most 50 MB, the free plan's file limit.
+6. **Stale drafts:** an anonymous draft nobody comes back to is deleted after `anonymous_days`, by a
+   function you deploy once. The database calls it daily; it does nothing until both of its settings
+   are in place. From `packages/vitryne-web/` in a checkout:
+
+   ```sh
+   secret=$(openssl rand -hex 32)
+   pnpm run supabase functions deploy clean-anonymous --no-verify-jwt
+   pnpm run supabase secrets set CLEANUP_SECRET=$secret
+   ```
+
+   then in the SQL editor, with your project's reference and the same secret:
+
+   ```sql
+   select vault.create_secret('https://<ref>.supabase.co/functions/v1', 'vitryne_functions_url');
+   select vault.create_secret('<the same secret>', 'vitryne_cleanup_secret');
+   ```
+
+   Check it with `select vitryne_private.clean_anonymous();` and the function's logs.
+
+## Running Supabase yourself
+
+You can host Supabase too, with its own Docker setup or Coolify's Supabase template, and follow the
+same steps: the settings are environment variables there, named `GOTRUE_*`. For most people the
+[quick start](/self-hosting/quick-start) is a lighter way to get the same result, with the backend
+already set up for Vitryne.
+
+## Only static files
+
+Each release also publishes the editor's static build (`vitryne-web-<version>.tar.gz`). Any static host
+can serve it, if it sends the two isolation headers the editor needs
+([the hosting notes](https://github.com/H4kken/vitryne/blob/main/docs/HOSTING.md)) and serves a
+`config.json` that names your Supabase project.

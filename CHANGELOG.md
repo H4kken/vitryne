@@ -15,6 +15,9 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
   with nothing else to set up and no Supabase account. `sh setup.sh [domain]` makes the keys; with a
   domain, Caddy gets the HTTPS certificate itself. Accounts work without a mail server (set `SMTP_*`
   for confirmation emails and password resets).
+- A *Self-hosting* section in the documentation: quick start, running on a server with HTTPS, every
+  setting, updates, backups and restores, and troubleshooting. The instructions for running the editor with a
+  Supabase project of your own moved there from the developer pages.
 
 ## [0.5.0] - 2026-10-30
 

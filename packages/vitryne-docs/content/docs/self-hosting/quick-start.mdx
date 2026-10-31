@@ -1,0 +1,62 @@
+---
+title: Quick start
+icon: Rocket
+description: "Run Vitryne with its own backend: download two files, make your keys, start it."
+---
+
+This starts the editor with its own accounts and storage on your machine. You need
+[Docker with Compose 2.23.1 or later](/self-hosting#what-you-need).
+
+## Start it
+
+Open a terminal in an empty folder, then:
+
+```sh
+curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/docker-compose.selfhost.yml
+curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/setup.sh
+sh setup.sh
+docker compose up -d
+```
+
+1. The first two commands download the compose file and a small setup script from the
+   [latest release](https://github.com/H4kken/vitryne/releases).
+2. `sh setup.sh` writes a `.env` file next to them, with keys made on your machine. It needs
+   `openssl`, and it refuses to overwrite an existing `.env`.
+3. `docker compose up -d` downloads the images and starts everything. The first start takes a minute
+   or two while the database is prepared.
+
+Then open **http://localhost:8000**.
+
+## Try it
+
+1. Open the editor and start from an example. Your work is saved as you go, as one draft.
+2. Choose **Sign in**, then create an account with an email and a password. It works at once: there
+   is no confirmation email to wait for.
+3. Your projects are now listed on the start screen, and you can export.
+
+<Callout title="Port 8000 is taken?">
+  Another program, or Vitryne's development stack, may already use it. Set
+  `HTTP_PORT=8100` (or any free port) in `.env` and
+  `PUBLIC_URL=http://localhost:8100` to match, then run `docker compose up -d`.
+</Callout>
+
+## Everyday commands
+
+Run these in the same folder.
+
+```sh
+docker compose ps          # what is running
+docker compose logs -f     # follow the logs (Ctrl+C to stop following)
+docker compose stop        # stop, keeping everything
+docker compose up -d       # start again
+```
+
+`docker compose down` removes the containers but keeps your data. Adding `-v` deletes the data too:
+do not use it unless you mean to start over.
+
+## Next
+
+- Put it on a server with HTTPS: [On a server](/self-hosting/https).
+- Add email, close or tune sign-up, change limits: [Settings](/self-hosting/settings).
+- Update and back up: [Updates and backups](/self-hosting/operations).
+- Something does not start: [Troubleshooting](/self-hosting/troubleshooting).

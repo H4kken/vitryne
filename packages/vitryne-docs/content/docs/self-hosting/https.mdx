@@ -1,0 +1,61 @@
+---
+title: On a server
+icon: Globe
+description: Run Vitryne on a server other people reach, with a domain and HTTPS.
+---
+
+Browsers only turn on WebGPU, which the editor needs, on pages served over HTTPS (or on `localhost`).
+They also ignore the headers Vitryne sets for it on plain `http://`, and Chrome's console then says
+the `Cross-Origin-Opener-Policy` header was ignored. So a server that is not just for you needs a
+**domain name with HTTPS**. There are two ways to get one.
+
+## Let Vitryne do it (simplest)
+
+Caddy, the web server inside the `web` container, can get and renew a certificate by itself.
+
+1. Point your domain's DNS record (A or AAAA) at the server.
+2. Open ports **80** and **443** on the server's firewall.
+3. Run the setup with your domain:
+
+   ```sh
+   sh setup.sh vitryne.example.com
+   docker compose up -d
+   ```
+
+Open `https://vitryne.example.com`. `setup.sh` writes `DOMAIN`, `PUBLIC_URL` and the ports 80 and 443
+into `.env`. Certificates are kept in a Docker volume, so they survive restarts and updates.
+
+If you already ran `setup.sh` without a domain, edit `.env` instead: set `DOMAIN=vitryne.example.com`,
+`PUBLIC_URL=https://vitryne.example.com`, `HTTP_PORT=80` and `HTTPS_PORT=443`, then
+`docker compose up -d`.
+
+## Behind your own proxy
+
+If a proxy already does HTTPS on the server (Traefik, nginx, Caddy, a Cloudflare tunnel, Coolify), run
+`setup.sh` **without** a domain and let the proxy forward to Vitryne:
+
+1. In `.env`, set `PUBLIC_URL` to the address people use, for example `https://vitryne.example.com`, and
+   `HTTP_PORT` to a free port such as `8000`.
+2. Forward the domain to `http://localhost:8000` (or the port you chose). The whole site goes through
+   that one address: the editor and the accounts and storage under `/auth/v1`, `/rest/v1` and
+   `/storage/v1`.
+3. Do not strip or replace the `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy`
+   headers the site sends: the editor needs them.
+4. Run `docker compose up -d`.
+
+On Coolify, give the `web` service your domain on port 80, and set `HTTP_PORT` to a free port
+(Coolify's own dashboard uses 8000).
+
+## On a private network
+
+A name only your network knows, such as `vitryne.lan`, cannot get a public certificate. You need a
+certificate that your devices trust, for example from your own certificate authority or a tool such as
+`mkcert`, installed on a proxy in front of Vitryne as above. For trying it on the same machine,
+`DOMAIN=localhost` works: Caddy makes its own certificate, and your browser will ask you to trust it.
+
+## Check it
+
+- `https://your.domain/config.json` shows the instance's address.
+- The browser's address bar shows a lock, and the editor opens its 3D view.
+- Signing in works. If it opens and then fails to sign in, `PUBLIC_URL` does not match the address in
+  the bar.

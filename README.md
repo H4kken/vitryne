@@ -67,8 +67,9 @@ docker compose up -d
 # then open http://localhost:8000
 ```
 
-Or one container with a [Supabase](https://supabase.com) project of your own for the backend:
-[Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md).
+The [self-hosting guide](packages/vitryne-docs/content/docs/self-hosting/index.mdx) covers HTTPS for a
+server, email, settings, updates, backups, and running one container with a
+[Supabase](https://supabase.com) project of your own instead.
 
 <br />
 
