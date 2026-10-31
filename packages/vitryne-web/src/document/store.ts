@@ -216,7 +216,10 @@ export class DocumentStore {
       entities = applyCommand(this.state.entities, cmd);
     } catch (e) {
       if (e instanceof CommandError) {
-        this.publish({ refused: e.message });
+        // An edit that would change nothing (a repeated drop, a click on a handle) isn't an
+        // error worth a message.
+        if (!e.message.endsWith(": nothing changes"))
+          this.publish({ refused: e.message });
         return false;
       }
       throw e;

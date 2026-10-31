@@ -22,18 +22,14 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 
 - Importing a Seamly2D pattern named the project "pattern.sm2d.vtry"; it is now "pattern".
 
-- The import dialog's "Left out of the file" line counts the pieces and details the importer
-  couldn't read (it said "Nothing was left out" above a warning).
-
 ### Added
 
-- Importing a pattern: drag each piece onto the body (front and back side by side), or click the
-  piece and then a part of the body, instead of choosing from a list. Places guessed from a
-  piece's name are marked "Check" until you confirm them, one by one or all at once.
-- The import dialog groups its pieces (needs a place, placed, left out), nests pieces that go on
-  another under it, and has a one-click way to leave a piece out.
-- **Skip and import** in the import dialog opens the pieces with their suggested places, the rest
-  flat in front of the chest, without choosing each one.
+- Importing a pattern is one step: drop the file and the pieces open in the editor, paused, each
+  at the place its name suggests. Only what is needed is asked (a drafted pattern's measurements,
+  a size, and with a project open whether to add the pieces or start a new project). The pieces
+  with no suggestion wait under **Not placed** in the Pieces panel, where you drag them onto a
+  body map (front and back) or click them; **✕** sets a piece aside and **Bring back** returns it.
+  File format version 6 (`state` on cuts).
 - The file that comes with an imported pattern (the measurements of a Valentina or Seamly2D
   pattern, a garment.toml for a DXF) can be dropped anywhere on the import dialog.
 - The start screen shows placeholder cards while your projects load, instead of an empty gap.

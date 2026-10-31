@@ -4,8 +4,17 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlaceSelect } from "@/placement/PlaceSelect";
 import { choiceLabel } from "./bodyZones";
+import type { P } from "@/pattern/geometry";
 import { ImportThumb } from "./ImportThumb";
-import type { Preview } from "./ImportDialog";
+
+/** What a card shows of a piece. */
+export interface CardPiece {
+  name: string;
+  outline: readonly P[];
+  /** Cuts the sewing file says, or null. */
+  cuts: number | null;
+  quantity: number;
+}
 
 /** Pixels of movement before a press on a card becomes a drag. */
 const DRAG_FROM = 5;
@@ -25,12 +34,14 @@ export function zoneAt(x: number, y: number): string | null {
  * leave it out. `slim` is the one-line form for pieces that are placed or left out.
  */
 export function PlacementCard(props: {
-  piece: Preview["pieces"][number];
+  piece: CardPiece;
   choice: string | undefined;
   slim: boolean;
   check: boolean;
   armed: boolean;
   dragging: boolean;
+  /** No "as it is" in the place list. */
+  noFlat?: boolean;
   /** The other pieces this one can go on. */
   others: { key: string; label: string }[];
   onArm: () => void;
@@ -47,7 +58,7 @@ export function PlacementCard(props: {
     <li className="m-0 list-none">
       <div
         className={cn(
-          "flex items-center gap-2 rounded-2xl border p-2",
+          "flex flex-wrap items-center gap-2 rounded-2xl border p-2",
           props.armed ? "border-select bg-select/5" : "border-border",
           props.dragging && "opacity-50",
           left && "opacity-70",
@@ -59,7 +70,7 @@ export function PlacementCard(props: {
           type="button"
           aria-pressed={props.armed}
           aria-label={`${x.name}: ${choiceLabel(choice)}. Pick it, then choose a part of the body.`}
-          className="flex min-w-0 grow cursor-grab touch-none items-center gap-3 rounded-xl border-0 bg-transparent p-0 text-left select-none"
+          className="flex min-w-0 max-w-full grow basis-0 cursor-grab touch-none items-center gap-3 rounded-xl border-0 bg-transparent p-0 text-left select-none"
           onClick={props.onArm}
           onPointerDown={(e) => {
             if (e.button !== 0) return;
@@ -105,7 +116,7 @@ export function PlacementCard(props: {
         >
           <ImportThumb outline={x.outline} size={props.slim ? 36 : 56} />
           <span className="flex min-w-0 grow flex-col gap-0.5">
-            <span className="flex items-center gap-2">
+            <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-[15px] font-semibold">
                 {x.name}
               </span>
@@ -126,14 +137,14 @@ export function PlacementCard(props: {
         </button>
         <PlaceSelect
           label={`Place of ${x.name}`}
-          className="h-10 w-[180px] shrink-0 rounded-[10px] border-[1.5px] border-border-strong bg-card text-[13px]"
+          className="order-last h-9 w-full rounded-[10px] border-[1.5px] border-border-strong bg-card text-[13px]"
           placeholder="Not placed"
           value={choice ?? null}
           options={{
             one: fixed !== 2,
             pairs: fixed !== 1,
             on: fixed === 2 ? [] : props.others,
-            flat: fixed !== 2,
+            flat: fixed !== 2 && !props.noFlat,
             leave: true,
           }}
           onChange={props.onChoose}

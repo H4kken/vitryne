@@ -6,6 +6,7 @@ import { cutName } from "../cutName";
 
 /** Where a cut starts, in a few words. */
 export function whereLabel(g: Garment, cut: Cut): string {
+  if (cut.state) return cut.state === "set-aside" ? "Set aside" : "Not placed";
   const p = cut.placement;
   if (p.type === "follow") {
     const on = p.cut ? findCut(g, p.cut) : undefined;

@@ -13,7 +13,7 @@ use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Piece, Placeme
 use vitryne_pattern::{
     import::{Addition, Choice, ImportSource, import_bounds, rewrap},
     placement::{BodyFacts, BodyPlace},
-    project::{Placer, ProjectGarment, avatar_mesh},
+    project::{Placer, ProjectGarment, avatar_mesh, for_drape},
     seams::{self, CutEdge, EdgePick, SeamProposal},
 };
 use vitryne_solver::{
@@ -167,7 +167,8 @@ impl ProjectFile {
     /// Meshes and places the project's garment, with its fabric, settings and avatar. CPU
     /// only; the SDF is found or baked later, by its key.
     pub fn prepare(&self) -> Result<Prepared, String> {
-        let pg = ProjectGarment::new(&self.doc)?;
+        let doc = for_drape(&self.doc);
+        let pg = ProjectGarment::new(&doc)?;
         let mut settings = SheetScene::config();
         let mut warnings = pg.warnings.clone();
         warnings.extend(pg.apply_settings(&mut settings));
@@ -230,7 +231,8 @@ impl ProjectFile {
     /// colour) and its export material. No meshing, so the viewport can recolour the drape
     /// after an edit that changes appearances only, without draping again.
     pub fn looks(&self) -> Result<BTreeMap<String, Look>, String> {
-        let pg = ProjectGarment::new(&self.doc)?;
+        let doc = for_drape(&self.doc);
+        let pg = ProjectGarment::new(&doc)?;
         let ids = pg.garment.cuts().map(|(_, c)| c.id.to_string());
         let looks = pg.panel_colors().into_iter().zip(pg.export_fabrics());
         Ok(ids

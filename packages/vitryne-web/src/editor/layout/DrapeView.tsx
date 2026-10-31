@@ -147,6 +147,13 @@ export function DrapeView(props: {
             engine={engine}
             show3d={show3d}
             placing={placing}
+            toPlace={
+              garment?.pieces.reduce(
+                (n, p) =>
+                  n + p.cuts.filter((c) => c.state === "unplaced").length,
+                0,
+              ) ?? 0
+            }
             onPlay={() =>
               session.setControls({ paused: !engine.controls.paused })
             }

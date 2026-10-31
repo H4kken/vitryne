@@ -4,12 +4,14 @@ import { NoticeCard } from "./NoticeCard";
 
 /** How long a plain notice stays, ms. Errors and questions stay until dismissed. */
 const STAYS = 6000;
+/** Longer for a longer message: it has to be read, ms per character. */
+const PER_CHAR = 40;
 
 /** A passing message, bottom centre above the tool bar; it goes away by itself. */
 export function InfoToast(props: { text: string; onDismiss: () => void }) {
   const { text, onDismiss } = props;
   useEffect(() => {
-    const t = setTimeout(onDismiss, STAYS);
+    const t = setTimeout(onDismiss, STAYS + PER_CHAR * text.length);
     return () => clearTimeout(t);
   }, [text, onDismiss]);
   return (

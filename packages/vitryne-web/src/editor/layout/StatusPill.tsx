@@ -13,11 +13,14 @@ export function StatusPill({
   engine,
   show3d,
   placing,
+  toPlace = 0,
   onPlay,
 }: {
   engine: EngineState;
   show3d: boolean;
   placing: boolean;
+  /** Pieces waiting for a place on the body. */
+  toPlace?: number;
   /** Plays or pauses the drape: the pill becomes the control while it is Live or Paused. */
   onPlay?: () => void;
 }) {
@@ -33,6 +36,11 @@ export function StatusPill({
     [text, dot] = ["The drape stopped", "bg-destructive"];
   else if (engine.drape && !engine.drape.info.cuts.length)
     [text, dot] = ["No pieces yet", "bg-line"];
+  else if (toPlace > 0)
+    [text, dot] = [
+      `${toPlace} piece${toPlace === 1 ? "" : "s"} to place`,
+      "bg-amber-400",
+    ];
   else if (!show3d)
     [text, dot] = ["Flat pieces. 3D follows your edits", "bg-live"];
   else if (placing) [text, dot] = ["Paused", "bg-line"];

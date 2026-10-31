@@ -99,6 +99,7 @@ export function useImport(o: {
     size: number[] | null;
     choices: Record<string, unknown>;
     into: "new" | "add";
+    told: string | null;
   }) => {
     const choices = JSON.stringify(r.choices);
     const source = importSource(r.pattern, r.companion, r.size);
@@ -108,19 +109,23 @@ export function useImport(o: {
       ) as Addition;
       if (!store.execute((e) => addPieces(e, garment.id, a)))
         throw new Error(store.state.refused ?? "the pieces could not be added");
-      if (a.notes.length) files.showInfo(a.notes.join(". "));
+      const notes = [...a.notes, ...(r.told ? [r.told] : [])];
+      if (notes.length) files.showInfo(notes.join(". "));
     } else {
       // With nothing open, starting the import already asked.
       if (!empty && !(await o.confirmReplace())) return;
       const avatar = await fetchAvatar();
       const name = `${r.pattern.name.replace(/\.(dxf|val|sm2d)$/i, "")}.vtry`;
-      await files.importNew(async (rev) => ({
-        name,
-        ...(await session.importNew(
-          { source, choices, avatar, seed: seed() },
-          rev,
-        )),
-      }));
+      await files.importNew(
+        async (rev) => ({
+          name,
+          ...(await session.importNew(
+            { source, choices, avatar, seed: seed() },
+            rev,
+          )),
+        }),
+        r.told ?? undefined,
+      );
       o.onNewProject();
     }
     setImporting(null);

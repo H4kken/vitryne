@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Importing a pattern (packages/vitryne-docs/content/docs/developers/architecture.md, Import and placement), a DXF-AAMA file or a
-// Valentina pattern: what the file holds and what was left out of it, then where each piece goes
-// on the body (suggested from its name, the user decides), an optional garment.toml for a DXF's
-// sewing or the measurements a Valentina pattern is drafted from (and its size; either file can
-// be dropped anywhere on the dialog), and whether the pieces make a new project or join the open one.
+// Valentina or Seamly2D pattern. Importing is one gesture: the dialog asks only for what it
+// can't go on without (the measurements a drafted pattern is drawn from, and a size of a size
+// chart) and, with a project open, whether the pieces join it or make a new project. Pieces get
+// the place their name suggests; the rest are imported unplaced and wait in the Pieces panel.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -17,12 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { EngineSession } from "@/worker/session";
-import { encodeChoice } from "./encodeChoice";
 import { leftOut } from "./leftOut";
-import { decodeChoice } from "./decodeChoice";
 import { CompanionDropZone } from "./CompanionDropZone";
-import { ImportPlacement } from "./ImportPlacement";
-import { ImportSewing } from "./ImportSewing";
 import { ImportTarget } from "./ImportTarget";
 import { importSource, patternKind } from "./importSource";
 import { MeasurementsBox } from "./MeasurementsBox";
@@ -40,7 +35,8 @@ export type Choice =
   | { type: "one"; place: string }
   | { type: "pair"; pair: string }
   | { type: "on"; piece: string }
-  | { type: "flat" };
+  | { type: "flat" }
+  | { type: "unplaced" };
 
 /** Rust `drafting::SizeOption`: one dimension of a size chart. */
 export interface SizeOption {
@@ -74,7 +70,7 @@ export interface Preview {
 }
 
 export function ImportDialog(props: {
-  /** The pattern to import; the dialog is open while there is one. */
+  /** The pattern to import; the dialog is open while it has something to ask. */
   pattern: TextFile | null;
   /** A file that came with it (dropped together): a garment.toml, or measurements. */
   initialCompanion?: TextFile | null;
@@ -88,6 +84,8 @@ export function ImportDialog(props: {
     size: number[] | null;
     choices: Record<string, Choice>;
     into: "new" | "add";
+    /** What the import left out, for a note once it is done (null: nothing). */
+    told: string | null;
   }) => Promise<void>;
 }) {
   const { pattern, session } = props;
@@ -96,9 +94,8 @@ export function ImportDialog(props: {
   const [companion, setCompanion] = useState<TextFile | null>(
     props.initialCompanion ?? null,
   );
-  const sidecar = kind === "dxf" ? companion : null;
   const [size, setSize] = useState<number[] | null>(null);
-  /** A Valentina pattern's measurements file (null: it needs none), once asked. */
+  /** A drafted pattern's measurements file (null: it needs none), once asked. */
   const [needs, setNeeds] = useState<{ measurements: string | null } | null>(
     null,
   );
@@ -109,11 +106,10 @@ export function ImportDialog(props: {
     error?: string;
   } | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
-  const [choices, setChoices] = useState<Record<string, string>>({});
-  /** Pieces whose place was guessed from their name and not yet confirmed. */
-  const [unchecked, setUnchecked] = useState<ReadonlySet<string>>(new Set());
-  const [into, setInto] = useState<"new" | "add">("new");
   const [busy, setBusy] = useState(false);
+  const started = useRef(false);
+  /** A size chart's sizes were looked at: go ahead. */
+  const [sized, setSized] = useState(false);
 
   useEffect(() => {
     if (!pattern || kind !== "drafted") return;
@@ -128,7 +124,7 @@ export function ImportDialog(props: {
       stale = true;
     };
   }, [pattern, kind, session]);
-  // A Valentina pattern can't be read before its measurements are here.
+  // A drafted pattern can't be read before its measurements are here.
   const waiting =
     kind === "drafted" && (!needs || (!!needs.measurements && !companion));
   const key = `${pattern?.name ?? ""}|${companion?.name ?? ""}|${size?.join(",") ?? ""}`;
@@ -136,21 +132,8 @@ export function ImportDialog(props: {
     if (!pattern || waiting) return;
     let stale = false;
     session.inspectImport(importSource(pattern, companion, size)).then(
-      (json) => {
-        if (stale) return;
-        const p = JSON.parse(json) as Preview;
-        setReading({ key, preview: p });
-        setChoices(
-          Object.fromEntries(
-            p.pieces.flatMap((x) =>
-              x.suggestion ? [[x.name, encodeChoice(x.suggestion)]] : [],
-            ),
-          ),
-        );
-        setUnchecked(
-          new Set(p.pieces.filter((x) => x.suggestion).map((x) => x.name)),
-        );
-      },
+      (json) =>
+        !stale && setReading({ key, preview: JSON.parse(json) as Preview }),
       (e: Error) => !stale && setReading({ key, error: e.message }),
     );
     return () => {
@@ -162,71 +145,69 @@ export function ImportDialog(props: {
   const preview = current?.preview ?? null;
   const error = runError ?? current?.error ?? null;
 
-  const missing = preview?.pieces.filter((x) => !choices[x.name]) ?? [];
-  const placed =
-    preview?.pieces.filter(
-      (x) => choices[x.name] && choices[x.name] !== "leave",
-    ) ?? [];
-  const lines = preview ? leftOut(preview) : [];
-  const leftOutCount = lines.length + (preview?.report.warnings.length ?? 0);
+  /** Each piece at the place its name suggests, else unplaced. */
+  const choices = (p: Preview): Record<string, Choice> =>
+    Object.fromEntries(
+      p.pieces.map((x) => [x.name, x.suggestion ?? { type: "unplaced" }]),
+    );
 
-  const run = async (skip = false) => {
+  const run = async (into: "new" | "add") => {
     if (!pattern || !preview) return;
     setBusy(true);
     setRunError(null);
+    const lines = [...leftOut(preview), ...preview.report.warnings];
     try {
       await props.onImport({
         pattern,
         companion,
         size,
-        choices: Object.fromEntries(
-          preview.pieces.map((x) => [
-            x.name,
-            decodeChoice(
-              choices[x.name] ??
-                // Skipping: the suggestion, else as it is (a piece cut twice can't be, so it waits out).
-                (skip && x.cuts !== 2 ? "flat" : "leave"),
-            ),
-          ]),
-        ),
-        into: props.projectName ? into : "new",
+        choices: choices(preview),
+        into,
+        told: lines.length ? lines.join(". ") : null,
       });
     } catch (e) {
+      started.current = false;
       setRunError((e as Error).message);
     } finally {
       setBusy(false);
     }
   };
 
+  // With nothing to ask, the import goes ahead by itself.
+  const needsSize = !!preview && preview.sizes.length > 0 && !sized;
+  const asksTarget = !!props.projectName;
+  useEffect(() => {
+    if (!preview || error || needsSize || asksTarget || started.current) return;
+    started.current = true;
+    void run("new");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview, error, needsSize, asksTarget]);
+
   const dragging = useCompanionDrop(kind, setCompanion, setRunError);
+  const open =
+    !!pattern &&
+    (waiting || !!error || (!!preview && (needsSize || asksTarget)));
+  const ready = !!preview;
 
   return (
-    <Dialog
-      open={!!pattern}
-      onOpenChange={(open) => !open && !busy && props.onClose()}
-    >
-      <DialogContent
-        className={cn(
-          "flex max-h-[calc(100vh-32px)] flex-col gap-5 rounded-[20px] p-6 sm:max-w-[640px]",
-          preview && "sm:max-w-[900px]",
-        )}
-      >
+    <Dialog open={open} onOpenChange={(o) => !o && !busy && props.onClose()}>
+      <DialogContent className="flex max-h-[calc(100vh-32px)] flex-col gap-5 rounded-[20px] p-6 sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl font-bold">
             Import a pattern
           </DialogTitle>
           <DialogDescription className="text-body-text text-[15px]">
-            {preview
-              ? `${pattern?.name}: ${preview.pieces.length} piece${preview.pieces.length === 1 ? "" : "s"}. Put each one where it goes on the body; you can move them afterwards.`
-              : error
-                ? `${pattern?.name} could not be read.`
-                : waiting && needs
-                  ? `${pattern?.name} is drawn from measurements. Add their file to see the pieces.`
+            {error
+              ? `${pattern?.name} could not be read.`
+              : waiting && needs
+                ? `${pattern?.name} is drawn from measurements. Add their file to see the pieces.`
+                : preview
+                  ? `${pattern?.name}: ${preview.pieces.length} piece${preview.pieces.length === 1 ? "" : "s"}.`
                   : `Reading ${pattern?.name}…`}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="-mx-6 flex min-h-0 grow flex-col gap-5 overflow-y-auto px-6">
+        <div className="flex min-h-0 grow flex-col gap-5 overflow-y-auto">
           {kind === "drafted" && needs && (
             <MeasurementsBox
               needed={needs.measurements}
@@ -238,60 +219,11 @@ export function ImportDialog(props: {
             />
           )}
 
-          {preview && (
-            <ImportPlacement
-              preview={preview}
-              choices={choices}
-              onChoices={setChoices}
-              unchecked={unchecked}
-              onChecked={(names) =>
-                setUnchecked(
-                  (u) => new Set([...u].filter((n) => !names.includes(n))),
-                )
-              }
-            />
-          )}
-
-          {preview && (
-            <ImportSewing
-              kind={kind}
-              preview={preview}
-              sidecar={sidecar}
-              onSidecar={setCompanion}
-            />
-          )}
-
-          {preview && (leftOutCount > 0 || kind === "dxf") && (
-            <details className="text-[14px] leading-snug">
-              <summary className="cursor-pointer font-semibold">
-                {leftOutCount
-                  ? `Left out of the file (${leftOutCount})`
-                  : "File details"}
-              </summary>
-              <ul className="text-body-text mt-2 mb-0 flex flex-col gap-1 pl-5">
-                {lines.map((l) => (
-                  <li key={l}>{l}</li>
-                ))}
-                {preview.report.warnings.map((w) => (
-                  <li key={w}>{w}</li>
-                ))}
-                {kind === "dxf" && (
-                  <li>
-                    Units:{" "}
-                    {preview.report.units_m === 0.001
-                      ? "millimetres"
-                      : `${preview.report.units_m * 1000} mm per drawing unit`}
-                  </li>
-                )}
-              </ul>
-            </details>
-          )}
-
-          {preview && props.projectName && (
+          {ready && asksTarget && (
             <ImportTarget
-              projectName={props.projectName}
-              value={into}
-              onChange={setInto}
+              projectName={props.projectName as string}
+              busy={busy}
+              onChoose={(into) => void run(into)}
             />
           )}
 
@@ -305,32 +237,11 @@ export function ImportDialog(props: {
           )}
         </div>
 
-        {preview && (
-          <DialogFooter className="items-center gap-3 sm:justify-between">
-            <span className="text-muted-foreground text-[13px]">
-              {missing.length
-                ? `${missing.length} piece${missing.length === 1 ? " needs" : "s need"} a place, or leave ${missing.length === 1 ? "it" : "them"} out.`
-                : ""}
-            </span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => void run(true)}
-                disabled={!preview || busy}
-                title="Open the pieces with their suggested places; the rest start flat in front of the chest"
-                className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent px-2 text-[14px] whitespace-nowrap hover:underline disabled:pointer-events-none disabled:opacity-50"
-              >
-                Skip and import
-              </button>
-              <Button
-                onClick={() => void run()}
-                disabled={
-                  !preview || missing.length > 0 || placed.length === 0 || busy
-                }
-              >
-                {busy ? "Importing…" : "Import"}
-              </Button>
-            </div>
+        {needsSize && !asksTarget && (
+          <DialogFooter>
+            <Button disabled={busy} onClick={() => setSized(true)}>
+              Import
+            </Button>
           </DialogFooter>
         )}
       </DialogContent>

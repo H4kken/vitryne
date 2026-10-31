@@ -417,6 +417,10 @@ export interface Cut {
   appearance?: string;
   placement: Placement;
   /**
+   * Absent: placed and draped. unplaced: waiting to be put on the body. set-aside: kept in the project, not draped. Either way the placement is a placeholder (format version 6).
+   */
+  state?: 'unplaced' | 'set-aside';
+  /**
    * Where the cut sits in the 2D pattern view (mm, radians). Display only.
    */
   layout?: {

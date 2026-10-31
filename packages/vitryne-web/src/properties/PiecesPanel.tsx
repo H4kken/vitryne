@@ -17,6 +17,8 @@ import { SeamDetails } from "@/sewing/SeamDetails";
 import type { FlipAxis } from "@/pattern/flip";
 import { CutDetails } from "./pieces/CutDetails";
 import { LayersView } from "./pieces/LayersView";
+import { SetAside } from "./pieces/SetAside";
+import { PlacementTray } from "./pieces/PlacementTray";
 import { type PiecesView, PiecesViewSwitch } from "./pieces/PiecesViewSwitch";
 import { whereLabel } from "./pieces/whereLabel";
 import type { Selection } from "@/pattern/panel/types";
@@ -100,61 +102,70 @@ export function PiecesPanel(props: {
         />
       ) : (
         <div className="flex flex-col gap-3">
+          <PlacementTray
+            store={store}
+            garment={garment}
+            onRewrap={props.onRewrap}
+            onHover={onHover}
+          />
           <ul
             className="m-0 flex list-none flex-col gap-1 p-0"
             onPointerLeave={() => onHover(null)}
           >
             {garment.pieces.flatMap((piece) =>
-              piece.cuts.map((cut) => {
-                const own = cut.fabric
-                  ? cutFabric(props.entities, garment, cut)
-                  : undefined;
-                return (
-                  <li key={cut.id}>
-                    <button
-                      type="button"
-                      onPointerEnter={() => onHover(cut.id)}
-                      onFocus={() => onHover(cut.id)}
-                      onBlur={() => onHover(null)}
-                      onClick={() =>
-                        props.onSelect({
-                          kind: "cut",
-                          pieceId: piece.id,
-                          cutId: cut.id,
-                        })
-                      }
-                      className="flex w-full flex-col items-start rounded-[10px] px-3 py-2 text-left hover:bg-hover"
-                    >
-                      <span className="flex items-center gap-2 text-[15px] font-semibold">
-                        <span
-                          aria-hidden
-                          className="size-3 shrink-0 rounded-full border border-black/10"
-                          style={{
-                            background:
-                              cutColor(props.entities, garment, cut) ??
-                              DEFAULT_CLOTH_COLOR,
-                          }}
-                        />
-                        {cutName(piece, cut)}
-                        {cut.mirrored ? " (mirrored)" : ""}
-                      </span>
-                      <div className="flex items-center gap-1.5 text-muted-foreground text-[13px]">
-                        <span>{whereLabel(garment, cut)}</span>
-                        {own && (
-                          <>
-                            <span>·</span>
-                            <span className="rounded bg-chip px-1.5 py-0.5 text-[11px] font-medium text-foreground">
-                              {own.name}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </button>
-                  </li>
-                );
-              }),
+              piece.cuts
+                .filter((cut) => !cut.state)
+                .map((cut) => {
+                  const own = cut.fabric
+                    ? cutFabric(props.entities, garment, cut)
+                    : undefined;
+                  return (
+                    <li key={cut.id}>
+                      <button
+                        type="button"
+                        onPointerEnter={() => onHover(cut.id)}
+                        onFocus={() => onHover(cut.id)}
+                        onBlur={() => onHover(null)}
+                        onClick={() =>
+                          props.onSelect({
+                            kind: "cut",
+                            pieceId: piece.id,
+                            cutId: cut.id,
+                          })
+                        }
+                        className="flex w-full flex-col items-start rounded-[10px] px-3 py-2 text-left hover:bg-hover"
+                      >
+                        <span className="flex items-center gap-2 text-[15px] font-semibold">
+                          <span
+                            aria-hidden
+                            className="size-3 shrink-0 rounded-full border border-black/10"
+                            style={{
+                              background:
+                                cutColor(props.entities, garment, cut) ??
+                                DEFAULT_CLOTH_COLOR,
+                            }}
+                          />
+                          {cutName(piece, cut)}
+                          {cut.mirrored ? " (mirrored)" : ""}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-muted-foreground text-[13px]">
+                          <span>{whereLabel(garment, cut)}</span>
+                          {own && (
+                            <>
+                              <span>·</span>
+                              <span className="rounded bg-chip px-1.5 py-0.5 text-[11px] font-medium text-foreground">
+                                {own.name}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </button>
+                    </li>
+                  );
+                }),
             )}
           </ul>
+          <SetAside store={store} garment={garment} />
         </div>
       )}
     </div>

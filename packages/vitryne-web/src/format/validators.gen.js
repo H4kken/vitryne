@@ -520,7 +520,7 @@ return errors === 0;
 validate20.evaluated = {"props":{"id":true,"name":true,"description":true,"garments":true,"avatar":true,"fabrics":true,"appearances":true,"simulation":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 export const garment = validate24;
-const schema44 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/garment.schema.json","title":"Vitryne format v1: garments/<id>.json","description":"One garment: its pattern pieces (2D, mm), how many times each is cut, where each cut starts around the avatar, and which runs of outline are sewn together.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"fabric":{"description":"The fabric of every cut that doesn't name its own.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"The appearance (colour) of every cut that doesn't name its own. Absent: the app's own.","$ref":"common.schema.json#/$defs/id"},"pieces":{"description":"Empty in a garment started from scratch, before its first piece is drawn.","type":"array","items":{"$ref":"#/$defs/piece"}},"stack":{"description":"Every cut of the garment once, closest to the body first. Where cuts overlap on the body, the one higher in the list starts further out. A cut that goes on another (follow) comes after it.","type":"array","items":{"$ref":"common.schema.json#/$defs/id"},"uniqueItems":true},"seams":{"type":"array","items":{"$ref":"#/$defs/seam"}},"simulation":{"description":"Overrides of the project's simulation settings for this garment.","type":"object","properties":{"targetVertices":{"type":"integer","minimum":100},"engine":{"description":"Sparse engine tuning, merged over the project's (same rules: engine keys and units).","type":"object"},"collisionBounds":{"description":"The box (mm, avatar space) the cloth can reach, for the body's collision field. Optional: the engine derives one when absent.","type":"object","properties":{"min":{"$ref":"common.schema.json#/$defs/vec3"},"max":{"$ref":"common.schema.json#/$defs/vec3"}},"required":["min","max"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}},"sources":{"description":"Imported originals this garment was made from (e.g. a DXF-AAMA file), kept as parts with role source. For reference and re-import only: nothing is read from them.","type":"array","items":{"$ref":"#/$defs/source"}},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","fabric","pieces","stack","seams"],"$defs":{"piece":{"description":"A pattern piece as drafted, in its own 2D frame (mm, +y towards the top of the garment), seen from the right side of the fabric. Cut-on-fold pieces are stored unfolded, with the fold kept in folds.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"outline":{"description":"The sewing line, a closed loop of nodes in counter-clockwise order. Each node's edge runs to the next node (the last one's back to the first).","type":"array","items":{"$ref":"#/$defs/outlineNode"},"minItems":3},"lines":{"description":"Internal lines (pocket placement, darts, stitching lines): open paths inside the piece. They are meshed as creases and can be sewn.","type":"array","items":{"$ref":"#/$defs/line"}},"folds":{"description":"Fold lines of a cut-on-fold piece: the straight line between two outline nodes the piece was mirrored about.","type":"array","items":{"$ref":"#/$defs/fold"}},"grain":{"description":"The grain line, as drawn: its direction (to - from) is the fabric's warp. Absent: +y.","type":"object","properties":{"from":{"$ref":"common.schema.json#/$defs/vec2"},"to":{"$ref":"common.schema.json#/$defs/vec2"}},"required":["from","to"]},"cuts":{"description":"How many times the piece is cut, and how each copy is used. Seams and placement refer to cuts.","type":"array","items":{"$ref":"#/$defs/cut"},"minItems":1},"source":{"description":"The piece in an imported source this was made from.","type":"object","properties":{"source":{"$ref":"common.schema.json#/$defs/id"},"piece":{"description":"The piece's name in the source.","type":"string"}},"required":["source","piece"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","outline","cuts"]},"node":{"description":"A point of a piece that other things refer to. corner: the outline turns here. notch: an alignment notch. point: anything else worth naming (fold ends, where an internal line meets the outline, a point added for a seam).","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"enum":["corner","notch","point"]},"name":{"$ref":"common.schema.json#/$defs/name"},"position":{"$ref":"common.schema.json#/$defs/vec2"},"edge":{"$ref":"#/$defs/edge"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type","position"]},"outlineNode":{"$ref":"#/$defs/node","required":["edge"]},"edge":{"description":"The path from this node to the next one: a polyline (core) or a cubic Bézier (extension VTRY_curves). Other curve types (arcs) may be added by later versions or extensions.","oneOf":[{"$ref":"#/$defs/polylineEdge"},{"$ref":"#/$defs/cubicEdge"}]},"polylineEdge":{"description":"The points strictly between the two nodes, in order (empty for a straight edge).","type":"object","properties":{"type":{"const":"polyline"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec2"}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","points"]},"cubicEdge":{"description":"One cubic Bézier segment from this node to the next (extension VTRY_curves, which a file using it lists in extensionsUsed and extensionsRequired). Its two control points, mm, in the piece frame.","type":"object","properties":{"type":{"const":"cubic"},"controls":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec2"},"minItems":2,"maxItems":2},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","controls"]},"line":{"description":"An open path: nodes in order, each with the edge to the next one, except the last, which has none.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"nodes":{"type":"array","items":{"$ref":"#/$defs/node"},"minItems":2},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","nodes"]},"fold":{"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"from":{"description":"Outline node id.","$ref":"common.schema.json#/$defs/id"},"to":{"description":"Outline node id.","$ref":"common.schema.json#/$defs/id"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","from","to"]},"cut":{"description":"One copy of the piece in the garment. mirrored: the mirror image (x -> -x in the piece frame), the other one of a left/right pair; references into it still use the piece's node ids and the piece frame's directions.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mirrored":{"type":"boolean","default":false},"fabric":{"description":"Overrides the garment's fabric for this cut.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"Overrides the garment's appearance for this cut.","$ref":"common.schema.json#/$defs/id"},"placement":{"$ref":"#/$defs/placement"},"layout":{"description":"Where the cut sits in the 2D pattern view (mm, radians). Display only.","type":"object","properties":{"position":{"$ref":"common.schema.json#/$defs/vec2"},"rotation":{"type":"number"}}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","placement"]},"placement":{"description":"Where the cut starts before sewing. wrap: rolled onto a cylinder around an avatar region. follow: on top of another cut (a pocket on a front), lifted off it.","type":"object","properties":{"type":{"enum":["wrap","follow"]},"region":{"description":"wrap: a region name from the avatar's regions.","type":"string"},"angle":{"description":"Where the piece's centre goes around the axis, radians from the region's zero direction (follow: overrides the followed cut's).","type":"number"},"radius":{"description":"wrap: cylinder radius, mm.","type":"number","exclusiveMinimum":0},"top":{"description":"wrap: position of the piece's top edge along the region's axis, mm from its origin (negative = down a limb).","type":"number"},"rotation":{"description":"In-plane rotation of the piece before wrapping, radians counter-clockwise (after mirroring).","type":"number"},"tube":{"description":"wrap: long sleeves. Below the piece's widest row the radius follows the pattern, tube x width / 2 pi (> 1 leaves a gap so the open edges meet under the arm); above it, it rises linearly to radius at the top edge.","type":"number","exclusiveMinimum":0},"offset":{"description":"wrap: further out than the stack puts it, mm. Never negative; absent is 0.","type":"number","minimum":0},"cut":{"description":"follow: the cut to follow (it must not itself follow this one, directly or not).","$ref":"common.schema.json#/$defs/id"},"lift":{"description":"follow: distance off the followed cut, mm.","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type"],"allOf":[{"if":{"properties":{"type":{"const":"wrap"}}},"then":{"required":["region","radius","top"],"properties":{"cut":false,"lift":false}}},{"if":{"properties":{"type":{"const":"follow"}}},"then":{"required":["cut"],"properties":{"region":false,"radius":false,"top":false,"tube":false,"rotation":false,"offset":false}}}]},"run":{"description":"A stretch of one cut's outline or internal line, between two of its nodes. On the outline, direction says which way round: ccw (the outline's order) or cw, in the piece frame (also for a mirrored cut). On an internal line, the run goes from 'from' to 'to' along the line.","type":"object","properties":{"cut":{"$ref":"common.schema.json#/$defs/id"},"line":{"description":"Internal line id; absent = the outline.","$ref":"common.schema.json#/$defs/id"},"from":{"$ref":"common.schema.json#/$defs/id"},"to":{"$ref":"common.schema.json#/$defs/id"},"direction":{"enum":["ccw","cw"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["cut","from","to"],"if":{"required":["line"]},"then":{"properties":{"direction":false}},"else":{"required":["direction"]}},"seam":{"description":"Two sides sewn together, each a chain of runs (a chain may span cuts). The start of a meets the start of b, the end of a the end of b.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"a":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"b":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"pairing":{"description":"nodes: if both sides pass through the same number of nodes, the nodes meet (notches line up) and each stretch in between is matched by length; otherwise as length. length: matched by length along the whole chain.","enum":["nodes","length"],"default":"nodes"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","a","b"]},"source":{"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"description":"dxf-aama, valentina, ...","type":"string"},"part":{"description":"Path of the original file in the container, if kept.","type":"string"},"fileName":{"type":"string"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type"]}}};
+const schema44 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://vitryne.app/schema/1/garment.schema.json","title":"Vitryne format v1: garments/<id>.json","description":"One garment: its pattern pieces (2D, mm), how many times each is cut, where each cut starts around the avatar, and which runs of outline are sewn together.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"fabric":{"description":"The fabric of every cut that doesn't name its own.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"The appearance (colour) of every cut that doesn't name its own. Absent: the app's own.","$ref":"common.schema.json#/$defs/id"},"pieces":{"description":"Empty in a garment started from scratch, before its first piece is drawn.","type":"array","items":{"$ref":"#/$defs/piece"}},"stack":{"description":"Every cut of the garment once, closest to the body first. Where cuts overlap on the body, the one higher in the list starts further out. A cut that goes on another (follow) comes after it.","type":"array","items":{"$ref":"common.schema.json#/$defs/id"},"uniqueItems":true},"seams":{"type":"array","items":{"$ref":"#/$defs/seam"}},"simulation":{"description":"Overrides of the project's simulation settings for this garment.","type":"object","properties":{"targetVertices":{"type":"integer","minimum":100},"engine":{"description":"Sparse engine tuning, merged over the project's (same rules: engine keys and units).","type":"object"},"collisionBounds":{"description":"The box (mm, avatar space) the cloth can reach, for the body's collision field. Optional: the engine derives one when absent.","type":"object","properties":{"min":{"$ref":"common.schema.json#/$defs/vec3"},"max":{"$ref":"common.schema.json#/$defs/vec3"}},"required":["min","max"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}}},"sources":{"description":"Imported originals this garment was made from (e.g. a DXF-AAMA file), kept as parts with role source. For reference and re-import only: nothing is read from them.","type":"array","items":{"$ref":"#/$defs/source"}},"attribution":{"$ref":"common.schema.json#/$defs/attribution"},"libraryRef":{"$ref":"common.schema.json#/$defs/libraryRef"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","fabric","pieces","stack","seams"],"$defs":{"piece":{"description":"A pattern piece as drafted, in its own 2D frame (mm, +y towards the top of the garment), seen from the right side of the fabric. Cut-on-fold pieces are stored unfolded, with the fold kept in folds.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"outline":{"description":"The sewing line, a closed loop of nodes in counter-clockwise order. Each node's edge runs to the next node (the last one's back to the first).","type":"array","items":{"$ref":"#/$defs/outlineNode"},"minItems":3},"lines":{"description":"Internal lines (pocket placement, darts, stitching lines): open paths inside the piece. They are meshed as creases and can be sewn.","type":"array","items":{"$ref":"#/$defs/line"}},"folds":{"description":"Fold lines of a cut-on-fold piece: the straight line between two outline nodes the piece was mirrored about.","type":"array","items":{"$ref":"#/$defs/fold"}},"grain":{"description":"The grain line, as drawn: its direction (to - from) is the fabric's warp. Absent: +y.","type":"object","properties":{"from":{"$ref":"common.schema.json#/$defs/vec2"},"to":{"$ref":"common.schema.json#/$defs/vec2"}},"required":["from","to"]},"cuts":{"description":"How many times the piece is cut, and how each copy is used. Seams and placement refer to cuts.","type":"array","items":{"$ref":"#/$defs/cut"},"minItems":1},"source":{"description":"The piece in an imported source this was made from.","type":"object","properties":{"source":{"$ref":"common.schema.json#/$defs/id"},"piece":{"description":"The piece's name in the source.","type":"string"}},"required":["source","piece"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","outline","cuts"]},"node":{"description":"A point of a piece that other things refer to. corner: the outline turns here. notch: an alignment notch. point: anything else worth naming (fold ends, where an internal line meets the outline, a point added for a seam).","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"enum":["corner","notch","point"]},"name":{"$ref":"common.schema.json#/$defs/name"},"position":{"$ref":"common.schema.json#/$defs/vec2"},"edge":{"$ref":"#/$defs/edge"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type","position"]},"outlineNode":{"$ref":"#/$defs/node","required":["edge"]},"edge":{"description":"The path from this node to the next one: a polyline (core) or a cubic Bézier (extension VTRY_curves). Other curve types (arcs) may be added by later versions or extensions.","oneOf":[{"$ref":"#/$defs/polylineEdge"},{"$ref":"#/$defs/cubicEdge"}]},"polylineEdge":{"description":"The points strictly between the two nodes, in order (empty for a straight edge).","type":"object","properties":{"type":{"const":"polyline"},"points":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec2"}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","points"]},"cubicEdge":{"description":"One cubic Bézier segment from this node to the next (extension VTRY_curves, which a file using it lists in extensionsUsed and extensionsRequired). Its two control points, mm, in the piece frame.","type":"object","properties":{"type":{"const":"cubic"},"controls":{"type":"array","items":{"$ref":"common.schema.json#/$defs/vec2"},"minItems":2,"maxItems":2},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type","controls"]},"line":{"description":"An open path: nodes in order, each with the edge to the next one, except the last, which has none.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"nodes":{"type":"array","items":{"$ref":"#/$defs/node"},"minItems":2},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","nodes"]},"fold":{"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"from":{"description":"Outline node id.","$ref":"common.schema.json#/$defs/id"},"to":{"description":"Outline node id.","$ref":"common.schema.json#/$defs/id"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","from","to"]},"cut":{"description":"One copy of the piece in the garment. mirrored: the mirror image (x -> -x in the piece frame), the other one of a left/right pair; references into it still use the piece's node ids and the piece frame's directions.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mirrored":{"type":"boolean","default":false},"fabric":{"description":"Overrides the garment's fabric for this cut.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"Overrides the garment's appearance for this cut.","$ref":"common.schema.json#/$defs/id"},"placement":{"$ref":"#/$defs/placement"},"state":{"description":"Absent: placed and draped. unplaced: waiting to be put on the body. set-aside: kept in the project, not draped. Either way the placement is a placeholder (format version 6).","enum":["unplaced","set-aside"]},"layout":{"description":"Where the cut sits in the 2D pattern view (mm, radians). Display only.","type":"object","properties":{"position":{"$ref":"common.schema.json#/$defs/vec2"},"rotation":{"type":"number"}}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","placement"]},"placement":{"description":"Where the cut starts before sewing. wrap: rolled onto a cylinder around an avatar region. follow: on top of another cut (a pocket on a front), lifted off it.","type":"object","properties":{"type":{"enum":["wrap","follow"]},"region":{"description":"wrap: a region name from the avatar's regions.","type":"string"},"angle":{"description":"Where the piece's centre goes around the axis, radians from the region's zero direction (follow: overrides the followed cut's).","type":"number"},"radius":{"description":"wrap: cylinder radius, mm.","type":"number","exclusiveMinimum":0},"top":{"description":"wrap: position of the piece's top edge along the region's axis, mm from its origin (negative = down a limb).","type":"number"},"rotation":{"description":"In-plane rotation of the piece before wrapping, radians counter-clockwise (after mirroring).","type":"number"},"tube":{"description":"wrap: long sleeves. Below the piece's widest row the radius follows the pattern, tube x width / 2 pi (> 1 leaves a gap so the open edges meet under the arm); above it, it rises linearly to radius at the top edge.","type":"number","exclusiveMinimum":0},"offset":{"description":"wrap: further out than the stack puts it, mm. Never negative; absent is 0.","type":"number","minimum":0},"cut":{"description":"follow: the cut to follow (it must not itself follow this one, directly or not).","$ref":"common.schema.json#/$defs/id"},"lift":{"description":"follow: distance off the followed cut, mm.","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type"],"allOf":[{"if":{"properties":{"type":{"const":"wrap"}}},"then":{"required":["region","radius","top"],"properties":{"cut":false,"lift":false}}},{"if":{"properties":{"type":{"const":"follow"}}},"then":{"required":["cut"],"properties":{"region":false,"radius":false,"top":false,"tube":false,"rotation":false,"offset":false}}}]},"run":{"description":"A stretch of one cut's outline or internal line, between two of its nodes. On the outline, direction says which way round: ccw (the outline's order) or cw, in the piece frame (also for a mirrored cut). On an internal line, the run goes from 'from' to 'to' along the line.","type":"object","properties":{"cut":{"$ref":"common.schema.json#/$defs/id"},"line":{"description":"Internal line id; absent = the outline.","$ref":"common.schema.json#/$defs/id"},"from":{"$ref":"common.schema.json#/$defs/id"},"to":{"$ref":"common.schema.json#/$defs/id"},"direction":{"enum":["ccw","cw"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["cut","from","to"],"if":{"required":["line"]},"then":{"properties":{"direction":false}},"else":{"required":["direction"]}},"seam":{"description":"Two sides sewn together, each a chain of runs (a chain may span cuts). The start of a meets the start of b, the end of a the end of b.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"a":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"b":{"type":"array","items":{"$ref":"#/$defs/run"},"minItems":1},"pairing":{"description":"nodes: if both sides pass through the same number of nodes, the nodes meet (notches line up) and each stretch in between is matched by length; otherwise as length. length: matched by length along the whole chain.","enum":["nodes","length"],"default":"nodes"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","a","b"]},"source":{"type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"type":{"description":"dxf-aama, valentina, ...","type":"string"},"part":{"description":"Path of the original file in the container, if kept.","type":"string"},"fileName":{"type":"string"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","type"]}}};
 const schema109 = {"description":"A 3D point or vector, mm (a direction's length doesn't matter).","type":"array","items":{"type":"number"},"minItems":3,"maxItems":3};
 const schema49 = {"description":"A pattern piece as drafted, in its own 2D frame (mm, +y towards the top of the garment), seen from the right side of the fabric. Cut-on-fold pieces are stored unfolded, with the fold kept in folds.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"outline":{"description":"The sewing line, a closed loop of nodes in counter-clockwise order. Each node's edge runs to the next node (the last one's back to the first).","type":"array","items":{"$ref":"#/$defs/outlineNode"},"minItems":3},"lines":{"description":"Internal lines (pocket placement, darts, stitching lines): open paths inside the piece. They are meshed as creases and can be sewn.","type":"array","items":{"$ref":"#/$defs/line"}},"folds":{"description":"Fold lines of a cut-on-fold piece: the straight line between two outline nodes the piece was mirrored about.","type":"array","items":{"$ref":"#/$defs/fold"}},"grain":{"description":"The grain line, as drawn: its direction (to - from) is the fabric's warp. Absent: +y.","type":"object","properties":{"from":{"$ref":"common.schema.json#/$defs/vec2"},"to":{"$ref":"common.schema.json#/$defs/vec2"}},"required":["from","to"]},"cuts":{"description":"How many times the piece is cut, and how each copy is used. Seams and placement refer to cuts.","type":"array","items":{"$ref":"#/$defs/cut"},"minItems":1},"source":{"description":"The piece in an imported source this was made from.","type":"object","properties":{"source":{"$ref":"common.schema.json#/$defs/id"},"piece":{"description":"The piece's name in the source.","type":"string"}},"required":["source","piece"]},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","name","outline","cuts"]};
 const schema56 = {"description":"A 2D point or vector, mm.","type":"array","items":{"type":"number"},"minItems":2,"maxItems":2};
@@ -1592,7 +1592,7 @@ return errors === 0;
 }
 validate39.evaluated = {"props":{"id":true,"from":true,"to":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
-const schema81 = {"description":"One copy of the piece in the garment. mirrored: the mirror image (x -> -x in the piece frame), the other one of a left/right pair; references into it still use the piece's node ids and the piece frame's directions.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mirrored":{"type":"boolean","default":false},"fabric":{"description":"Overrides the garment's fabric for this cut.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"Overrides the garment's appearance for this cut.","$ref":"common.schema.json#/$defs/id"},"placement":{"$ref":"#/$defs/placement"},"layout":{"description":"Where the cut sits in the 2D pattern view (mm, radians). Display only.","type":"object","properties":{"position":{"$ref":"common.schema.json#/$defs/vec2"},"rotation":{"type":"number"}}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","placement"]};
+const schema81 = {"description":"One copy of the piece in the garment. mirrored: the mirror image (x -> -x in the piece frame), the other one of a left/right pair; references into it still use the piece's node ids and the piece frame's directions.","type":"object","properties":{"id":{"$ref":"common.schema.json#/$defs/id"},"name":{"$ref":"common.schema.json#/$defs/name"},"mirrored":{"type":"boolean","default":false},"fabric":{"description":"Overrides the garment's fabric for this cut.","$ref":"common.schema.json#/$defs/id"},"appearance":{"description":"Overrides the garment's appearance for this cut.","$ref":"common.schema.json#/$defs/id"},"placement":{"$ref":"#/$defs/placement"},"state":{"description":"Absent: placed and draped. unplaced: waiting to be put on the body. set-aside: kept in the project, not draped. Either way the placement is a placeholder (format version 6).","enum":["unplaced","set-aside"]},"layout":{"description":"Where the cut sits in the 2D pattern view (mm, radians). Display only.","type":"object","properties":{"position":{"$ref":"common.schema.json#/$defs/vec2"},"rotation":{"type":"number"}}},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["id","placement"]};
 const schema86 = {"description":"Where the cut starts before sewing. wrap: rolled onto a cylinder around an avatar region. follow: on top of another cut (a pocket on a front), lifted off it.","type":"object","properties":{"type":{"enum":["wrap","follow"]},"region":{"description":"wrap: a region name from the avatar's regions.","type":"string"},"angle":{"description":"Where the piece's centre goes around the axis, radians from the region's zero direction (follow: overrides the followed cut's).","type":"number"},"radius":{"description":"wrap: cylinder radius, mm.","type":"number","exclusiveMinimum":0},"top":{"description":"wrap: position of the piece's top edge along the region's axis, mm from its origin (negative = down a limb).","type":"number"},"rotation":{"description":"In-plane rotation of the piece before wrapping, radians counter-clockwise (after mirroring).","type":"number"},"tube":{"description":"wrap: long sleeves. Below the piece's widest row the radius follows the pattern, tube x width / 2 pi (> 1 leaves a gap so the open edges meet under the arm); above it, it rises linearly to radius at the top edge.","type":"number","exclusiveMinimum":0},"offset":{"description":"wrap: further out than the stack puts it, mm. Never negative; absent is 0.","type":"number","minimum":0},"cut":{"description":"follow: the cut to follow (it must not itself follow this one, directly or not).","$ref":"common.schema.json#/$defs/id"},"lift":{"description":"follow: distance off the followed cut, mm.","type":"number"},"extensions":{"$ref":"common.schema.json#/$defs/extensions"},"extras":{"$ref":"common.schema.json#/$defs/extras"}},"required":["type"],"allOf":[{"if":{"properties":{"type":{"const":"wrap"}}},"then":{"required":["region","radius","top"],"properties":{"cut":false,"lift":false}}},{"if":{"properties":{"type":{"const":"follow"}}},"then":{"required":["cut"],"properties":{"region":false,"radius":false,"top":false,"tube":false,"rotation":false,"offset":false}}}]};
 
 function validate42(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
@@ -2245,14 +2245,10 @@ vErrors = vErrors === null ? validate42.errors : vErrors.concat(validate42.error
 errors = vErrors.length;
 }
 }
-if(data.layout !== undefined){
-let data6 = data.layout;
-if(data6 && typeof data6 == "object" && !Array.isArray(data6)){
-if(data6.position !== undefined){
-let data7 = data6.position;
-if(Array.isArray(data7)){
-if(data7.length > 2){
-const err10 = {instancePath:instancePath+"/layout/position",schemaPath:"common.schema.json#/$defs/vec2/maxItems",keyword:"maxItems",params:{limit: 2},message:"must NOT have more than 2 items"};
+if(data.state !== undefined){
+let data6 = data.state;
+if(!((data6 === "unplaced") || (data6 === "set-aside"))){
+const err10 = {instancePath:instancePath+"/state",schemaPath:"#/properties/state/enum",keyword:"enum",params:{allowedValues: schema81.properties.state.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err10];
 }
@@ -2261,8 +2257,15 @@ vErrors.push(err10);
 }
 errors++;
 }
-if(data7.length < 2){
-const err11 = {instancePath:instancePath+"/layout/position",schemaPath:"common.schema.json#/$defs/vec2/minItems",keyword:"minItems",params:{limit: 2},message:"must NOT have fewer than 2 items"};
+}
+if(data.layout !== undefined){
+let data7 = data.layout;
+if(data7 && typeof data7 == "object" && !Array.isArray(data7)){
+if(data7.position !== undefined){
+let data8 = data7.position;
+if(Array.isArray(data8)){
+if(data8.length > 2){
+const err11 = {instancePath:instancePath+"/layout/position",schemaPath:"common.schema.json#/$defs/vec2/maxItems",keyword:"maxItems",params:{limit: 2},message:"must NOT have more than 2 items"};
 if(vErrors === null){
 vErrors = [err11];
 }
@@ -2271,10 +2274,8 @@ vErrors.push(err11);
 }
 errors++;
 }
-const len0 = data7.length;
-for(let i0=0; i0<len0; i0++){
-if(!(typeof data7[i0] == "number")){
-const err12 = {instancePath:instancePath+"/layout/position/" + i0,schemaPath:"common.schema.json#/$defs/vec2/items/type",keyword:"type",params:{type: "number"},message:"must be number"};
+if(data8.length < 2){
+const err12 = {instancePath:instancePath+"/layout/position",schemaPath:"common.schema.json#/$defs/vec2/minItems",keyword:"minItems",params:{limit: 2},message:"must NOT have fewer than 2 items"};
 if(vErrors === null){
 vErrors = [err12];
 }
@@ -2283,10 +2284,10 @@ vErrors.push(err12);
 }
 errors++;
 }
-}
-}
-else {
-const err13 = {instancePath:instancePath+"/layout/position",schemaPath:"common.schema.json#/$defs/vec2/type",keyword:"type",params:{type: "array"},message:"must be array"};
+const len0 = data8.length;
+for(let i0=0; i0<len0; i0++){
+if(!(typeof data8[i0] == "number")){
+const err13 = {instancePath:instancePath+"/layout/position/" + i0,schemaPath:"common.schema.json#/$defs/vec2/items/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err13];
 }
@@ -2296,9 +2297,9 @@ vErrors.push(err13);
 errors++;
 }
 }
-if(data6.rotation !== undefined){
-if(!(typeof data6.rotation == "number")){
-const err14 = {instancePath:instancePath+"/layout/rotation",schemaPath:"#/properties/layout/properties/rotation/type",keyword:"type",params:{type: "number"},message:"must be number"};
+}
+else {
+const err14 = {instancePath:instancePath+"/layout/position",schemaPath:"common.schema.json#/$defs/vec2/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
 vErrors = [err14];
 }
@@ -2308,9 +2309,9 @@ vErrors.push(err14);
 errors++;
 }
 }
-}
-else {
-const err15 = {instancePath:instancePath+"/layout",schemaPath:"#/properties/layout/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(data7.rotation !== undefined){
+if(!(typeof data7.rotation == "number")){
+const err15 = {instancePath:instancePath+"/layout/rotation",schemaPath:"#/properties/layout/properties/rotation/type",keyword:"type",params:{type: "number"},message:"must be number"};
 if(vErrors === null){
 vErrors = [err15];
 }
@@ -2320,14 +2321,9 @@ vErrors.push(err15);
 errors++;
 }
 }
-if(data.extensions !== undefined){
-let data10 = data.extensions;
-if(data10 && typeof data10 == "object" && !Array.isArray(data10)){
-for(const key0 in data10){
-const _errs28 = errors;
-if(typeof key0 === "string"){
-if(!pattern9.test(key0)){
-const err16 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key0};
+}
+else {
+const err16 = {instancePath:instancePath+"/layout",schemaPath:"#/properties/layout/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err16];
 }
@@ -2337,9 +2333,14 @@ vErrors.push(err16);
 errors++;
 }
 }
-var valid10 = _errs28 === errors;
-if(!valid10){
-const err17 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key0},message:"property name must be valid"};
+if(data.extensions !== undefined){
+let data11 = data.extensions;
+if(data11 && typeof data11 == "object" && !Array.isArray(data11)){
+for(const key0 in data11){
+const _errs29 = errors;
+if(typeof key0 === "string"){
+if(!pattern9.test(key0)){
+const err17 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames/pattern",keyword:"pattern",params:{pattern: "^[A-Z0-9]+_[A-Za-z0-9_]+$"},message:"must match pattern \""+"^[A-Z0-9]+_[A-Za-z0-9_]+$"+"\"",propertyName:key0};
 if(vErrors === null){
 vErrors = [err17];
 }
@@ -2349,10 +2350,9 @@ vErrors.push(err17);
 errors++;
 }
 }
-for(const key1 in data10){
-let data11 = data10[key1];
-if(!(data11 && typeof data11 == "object" && !Array.isArray(data11))){
-const err18 = {instancePath:instancePath+"/extensions/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
+var valid10 = _errs29 === errors;
+if(!valid10){
+const err18 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/propertyNames",keyword:"propertyNames",params:{propertyName: key0},message:"property name must be valid"};
 if(vErrors === null){
 vErrors = [err18];
 }
@@ -2362,9 +2362,10 @@ vErrors.push(err18);
 errors++;
 }
 }
-}
-else {
-const err19 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
+for(const key1 in data11){
+let data12 = data11[key1];
+if(!(data12 && typeof data12 == "object" && !Array.isArray(data12))){
+const err19 = {instancePath:instancePath+"/extensions/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"common.schema.json#/$defs/extensions/additionalProperties/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err19];
 }
@@ -2376,7 +2377,7 @@ errors++;
 }
 }
 else {
-const err20 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err20 = {instancePath:instancePath+"/extensions",schemaPath:"common.schema.json#/$defs/extensions/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err20];
 }
@@ -2385,10 +2386,22 @@ vErrors.push(err20);
 }
 errors++;
 }
+}
+}
+else {
+const err21 = {instancePath,schemaPath:"#/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err21];
+}
+else {
+vErrors.push(err21);
+}
+errors++;
+}
 validate41.errors = vErrors;
 return errors === 0;
 }
-validate41.evaluated = {"props":{"id":true,"name":true,"mirrored":true,"fabric":true,"appearance":true,"placement":true,"layout":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
+validate41.evaluated = {"props":{"id":true,"name":true,"mirrored":true,"fabric":true,"appearance":true,"placement":true,"state":true,"layout":true,"extensions":true,"extras":true},"dynamicProps":false,"dynamicItems":false};
 
 
 function validate25(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){

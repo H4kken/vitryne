@@ -237,7 +237,7 @@ garment ── fabric (default for its cuts), appearance? (likewise)
  │   ├─ lines[]:   internal lines, open paths of nodes
  │   ├─ folds[]:   fold lines, between two outline nodes
  │   ├─ grain
- │   └─ cuts[]:    each copy cut from fabric: mirrored?, fabric?, appearance?, placement, layout
+ │   └─ cuts[]:    each copy cut from fabric: mirrored?, fabric?, appearance?, placement, state?, layout
  ├─ stack[]:       every cut once, closest to the body first
  ├─ seams[]:       side a and side b, each a chain of runs (cut, from node, to node)
  ├─ simulation:    overrides of the project's settings
@@ -361,6 +361,10 @@ A piece is cut one or more times. Each **cut** is one copy in the garment:
 ```
 
 - `mirrored`: the mirror image (x → −x in the piece frame), the other one of a left/right pair.
+- `state` (version 6): absent means placed and draped. `unplaced` waits for a place on the body and `set-aside`
+  is kept but not needed on it. Either way the cut is not draped, nor are the seams that sew it and the
+  cuts that follow it, and its `placement` is a placeholder (an import writes a flat sheet in front of
+  the chest). A reader that predates version 6 drapes the placeholder.
 - `fabric`: overrides the garment's fabric for this cut.
 - `appearance`: overrides the garment's appearance (colour) for this cut.
 - `placement`: where it starts before sewing (below).
@@ -732,6 +736,7 @@ produce.
   radius they start at (a `follow` at its cut's radius plus `lift`), ties in file order, so a file
   looks as it did.
 - **Version 5 is additive:** `view.json` gained `drape`. The migration is a no-op.
+- **Version 6 is additive:** cuts gained `state`. The migration is a no-op.
 - **A rule for future additive features:** if a new field's meaning depends on other data
   (e.g. per-size node offsets), it must stay valid when an older app edits that data, or the
   change has to be breaking, or it goes in a required extension.

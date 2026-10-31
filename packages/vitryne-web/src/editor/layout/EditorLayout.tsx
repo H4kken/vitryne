@@ -172,6 +172,8 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     onNewProject: () => {
       selection.setSelection(null);
       view.setShow3d(true);
+      // What waits for a place is in the Pieces panel.
+      panels.setPanel("pieces");
     },
   });
   const begin = useNewProject({

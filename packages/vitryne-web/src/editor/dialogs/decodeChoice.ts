@@ -3,6 +3,7 @@ import type { Choice } from "./ImportDialog";
 
 export function decodeChoice(v: string): Choice {
   if (v === "leave") return { type: "leave" };
+  if (v === "unplaced") return { type: "unplaced" };
   if (v === "flat") return { type: "flat" };
   const [kind, rest] = [
     v.slice(0, v.indexOf(":")),

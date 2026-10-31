@@ -5,7 +5,7 @@ export function ImportThumb({
   outline,
   size = 56,
 }: {
-  outline: [number, number][];
+  outline: readonly P[];
   size?: number;
 }) {
   const b = bounds(outline as P[]);

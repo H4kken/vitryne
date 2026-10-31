@@ -472,6 +472,7 @@ pub fn convert_with(
                 fabric: None,
                 appearance: None,
                 placement,
+                state: None,
                 layout: None,
                 other: Map::new(),
             });
