@@ -1,7 +1,11 @@
-# Maintaining
+---
+title: "Maintaining"
+icon: Settings
+description: "For whoever merges pull requests and makes releases: branches, merging, releasing, and the GitHub settings."
+---
 
 For whoever merges pull requests and makes releases. How to contribute is in
-[CONTRIBUTING.md](../CONTRIBUTING.md).
+[Contributing](/developers/contributing).
 
 [Branches](#branches) · [Merging a pull request](#merging-a-pull-request) ·
 [Releasing](#releasing) · [GitHub settings](#github-settings)
@@ -16,11 +20,11 @@ For whoever merges pull requests and makes releases. How to contribute is in
 - **Maintainers** (repository admins) may push straight to `main`: the ruleset lets admins
   bypass it. Anything a second pair of eyes should see still goes through a pull request.
 - History on `main` stays linear: squash merges for pull requests, rebase (not merge) for local
-  work. Every commit is signed off ([CONTRIBUTING.md](../CONTRIBUTING.md#sign-your-commits-dco)).
+  work. Every commit is signed off ([Contributing](/developers/contributing#sign-your-commits-dco)).
 
 ## Merging a pull request
 
-What the ruleset ([.github/rulesets/main.json](../.github/rulesets/main.json)) requires:
+What the ruleset ([.github/rulesets/main.json](https://github.com/H4kken/vitryne/blob/main/.github/rulesets/main.json)) requires:
 
 - CI green: `check` (`make check-ci`: everything in `make check` but the golden drapes, since
   GitHub's runners have no GPU) and `dco` (each commit signed off by its author).
@@ -33,13 +37,13 @@ What only a person can check:
   run `make regress` on the branch (`gh pr checkout <n>`, or fetch the fork's branch), or check
   that the author did and explained any re-recorded goldens.
 - **Patents.** Anything that joins pieces, places them, measures a pattern or resizes a garment
-  follows [patents.md](../packages/vitryne-docs/content/docs/developers/patents.md) (CLAUDE.md, "Patents").
+  follows [Patent warnings](/developers/patents) (CLAUDE.md, "Patents").
 - **Project rules.** WebGPU core only, the engine and the UI separate, published methods cited
-  in [algorithms.md](../packages/vitryne-docs/content/docs/developers/algorithms.md), no telemetry (CONTRIBUTING.md, "Rules for engine changes";
-  [cloud.md](../packages/vitryne-docs/content/docs/developers/cloud.md#privacy)).
+  in [Algorithms](/developers/algorithms), no telemetry (CONTRIBUTING.md, "Rules for engine changes";
+  [Cloud backend](/developers/cloud#privacy)).
 - **The squash message.** The title is the PR's title in the history's form
   (`type(scope): summary`); keep the `Signed-off-by:` lines GitHub puts in the body.
-- **The changelog.** A line under Unreleased in [CHANGELOG.md](../CHANGELOG.md) when people
+- **The changelog.** A line under Unreleased in [CHANGELOG.md](https://github.com/H4kken/vitryne/blob/main/CHANGELOG.md) when people
   will notice the change.
 
 ## Releasing
@@ -51,12 +55,12 @@ it is published, but `latest` doesn't move.
 
 1. On an up-to-date `main`, with a clean tree:
    - set `version` in `[workspace.package]` of
-     [packages/vitryne-engine/Cargo.toml](../packages/vitryne-engine/Cargo.toml), then
+     [packages/vitryne-engine/Cargo.toml](https://github.com/H4kken/vitryne/blob/main/packages/vitryne-engine/Cargo.toml), then
      `cd packages/vitryne-engine && cargo check --workspace` to update `Cargo.lock`;
    - re-record what carries the version (files name their generator, `vitryne-format 0.1.0`):
      `make examples assets wasm` (the skirt golden is written by the wasm build), then
      `cd packages/vitryne-web && SKIRT_UPDATE=1 pnpm exec vitest run src/document/skirt.test.ts`;
-   - in [CHANGELOG.md](../CHANGELOG.md), rename `## [Unreleased]` to `## [0.1.0] - YYYY-MM-DD`,
+   - in [CHANGELOG.md](https://github.com/H4kken/vitryne/blob/main/CHANGELOG.md), rename `## [Unreleased]` to `## [0.1.0] - YYYY-MM-DD`,
      add an empty `## [Unreleased]` above it, and update the links at the bottom
      (`[0.1.0]: https://github.com/H4kken/vitryne/releases/tag/v0.1.0`). Check the notes with
      `tools/release/notes.sh 0.1.0`.
@@ -69,7 +73,7 @@ it is published, but `latest` doesn't move.
    git push origin main v0.1.0
    ```
 
-4. The tag starts [.github/workflows/release.yml](../.github/workflows/release.yml) (about 20
+4. The tag starts [.github/workflows/release.yml](https://github.com/H4kken/vitryne/blob/main/.github/workflows/release.yml) (about 20
    minutes; Actions tab). It fails before publishing anything if the tag and `Cargo.toml`
    disagree, or CHANGELOG.md has no section for the version. Then it:
    - runs `make check-ci`, which builds the editor;
@@ -77,7 +81,8 @@ it is published, but `latest` doesn't move.
      linux/arm64);
    - creates the GitHub release with the changelog section as notes, plus
      `vitryne-web-0.1.0.tar.gz` (the static build), a `docker-compose.yml` that runs 0.1.0,
-     `env.example` and `SHA256SUMS`.
+     `env.example`, `docker-compose.selfhost.yml` (the one with its own backend) with `setup.sh`,
+     and `SHA256SUMS`.
 5. Update the hosted instance (vitryne.app) to the new image, and check it.
 
 **If the workflow fails** before the image is pushed: fix on `main`, delete the tag
@@ -91,17 +96,17 @@ in the repository):
 
 1. **Default branch:** Settings → General → Default branch: `main`. Then delete `master` (an
    ancestor of `main`, so nothing is lost): `git push origin --delete master`.
-2. **Pull requests** (Settings → General): allow squash merging only, default message *Pull
-   request title and commit details* (keeps the sign-offs); *Always suggest updating pull
-   request branches*; *Automatically delete head branches*.
+2. **Pull requests** (Settings → General): allow squash merging only, default message _Pull
+   request title and commit details_ (keeps the sign-offs); _Always suggest updating pull
+   request branches_; _Automatically delete head branches_.
 3. **Rulesets** (Settings → Rules → Rulesets → New ruleset → Import a ruleset): import
-   [.github/rulesets/main.json](../.github/rulesets/main.json) and
-   [.github/rulesets/release-tags.json](../.github/rulesets/release-tags.json) (only admins
+   [.github/rulesets/main.json](https://github.com/H4kken/vitryne/blob/main/.github/rulesets/main.json) and
+   [.github/rulesets/release-tags.json](https://github.com/H4kken/vitryne/blob/main/.github/rulesets/release-tags.json) (only admins
    create, move or delete `v*` tags). The status checks `check` and `dco` can only be picked
    once CI has run once, so push the workflows first.
-4. **Actions** (Settings → Actions → General): *Require approval for first-time contributors*
+4. **Actions** (Settings → Actions → General): _Require approval for first-time contributors_
    (the default), so a stranger's pull request doesn't run until someone has read it.
-5. **Security** (Settings → Security): turn on *Private vulnerability reporting*
-   ([SECURITY.md](../SECURITY.md)) and Dependabot alerts.
+5. **Security** (Settings → Security): turn on _Private vulnerability reporting_
+   ([SECURITY.md](https://github.com/H4kken/vitryne/blob/main/SECURITY.md)) and Dependabot alerts.
 6. **After the first release:** the image's package (Profile → Packages → `vitryne-web` →
    Package settings) starts private: make it public, and check it is linked to the repository.

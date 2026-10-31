@@ -162,8 +162,10 @@ check-ci: $(CHECK_NO_GPU) ## Everything but the drapes (no GPU): what CI runs on
 check: $(CHECK_NO_GPU) regress ## Everything; must pass before a pull request (~1.5 min, GPU)
 	printf '\ncheck: all passed\n'
 
-cloud-test: ## The web image's smoke test, then the backend tests: RLS, accounts, cleanup (Docker)
+cloud-test: ## The web image's smoke tests (a backend of your own, and the self-contained stack), then the backend tests: RLS, accounts, cleanup (Docker)
 	$(CLOUD)/deploy/smoke.sh
+	# The image smoke.sh just built, so the editor isn't built twice.
+	SMOKE_IMAGE=vitryne-web:latest $(CLOUD)/deploy/smoke-selfhost.sh
 	node --test '$(CLOUD)/tests/*.test.mjs'
 
 stack: ## Everything in Docker: the editor from this checkout + a local Supabase, http://localhost:8000

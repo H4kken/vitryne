@@ -30,9 +30,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
  && rm -rf dist/bench-assets
 
 FROM caddy:2.10.2-alpine AS serve
-RUN apk add --no-cache postgresql17-client
-COPY packages/vitryne-cloud/deploy/web/Caddyfile /etc/caddy/Caddyfile
-COPY packages/vitryne-cloud/deploy/web/entrypoint.sh /entrypoint.sh
+RUN apk add --no-cache postgresql17-client curl jq
+COPY packages/vitryne-cloud/deploy/web/Caddyfile packages/vitryne-cloud/deploy/web/Caddyfile.selfhost packages/vitryne-cloud/deploy/web/app.caddy /etc/caddy/
+COPY packages/vitryne-cloud/supabase/templates /srv/email
+COPY packages/vitryne-cloud/deploy/web/entrypoint.sh packages/vitryne-cloud/deploy/web/cleanup.sh /
 COPY packages/vitryne-cloud/supabase/migrations /srv/migrations
 ENTRYPOINT ["/entrypoint.sh"]
 

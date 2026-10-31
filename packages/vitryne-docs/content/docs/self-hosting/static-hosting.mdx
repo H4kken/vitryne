@@ -1,0 +1,117 @@
+---
+title: Static hosting
+icon: PanelTopOpen
+description: Serve the editor's files from any web server or static host, with the two headers it needs.
+---
+
+The editor is a folder of static files. If you already run a web server or a static host, you can serve
+it there, with its accounts and projects kept in a [Supabase project](/self-hosting/supabase). If you
+want the editor and a backend in one go, the [quick start](/self-hosting/quick-start) is simpler.
+
+## Get the files
+
+Each [release](https://github.com/H4kken/vitryne/releases) has `vitryne-web-<version>.tar.gz`, the
+editor's static build. Extract it into the folder your server will serve, such as `/srv/vitryne`.
+
+The editor needs to know where its backend is. Next to `index.html`, serve a `config.json`:
+
+```json
+{
+  "backend": {
+    "url": "https://abcd.supabase.co",
+    "publishableKey": "sb_publishable_…"
+  },
+  "privacyPolicy": "",
+  "termsOfService": ""
+}
+```
+
+Use your project's URL and its **publishable** key, never a secret key: the browser receives this file.
+Without it the editor tells people the instance has no backend.
+
+## The two headers
+
+Send these on every response:
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+They make the page _cross-origin isolated_: browsers then give `performance.now()` its full resolution
+(Chrome coarsens it to 100 µs otherwise, and the frame timings need it), and they allow
+`SharedArrayBuffer`, which a multi-threaded engine build will need. The cost is that the page can't embed
+resources from other origins that don't opt in. Vitryne loads nothing from other origins.
+
+Check in the browser console: `self.crossOriginIsolated` must be `true`.
+
+## Other requirements
+
+- **HTTPS** (or `localhost`): WebGPU and the File System Access API only work in secure contexts.
+- **`.wasm` served as `application/wasm`.** Most servers already do.
+- **Compression.** The bundled body SDFs (`/sdf/*.bin`, 30 to 50 MB each) shrink to about a third with
+  gzip or Brotli. Enable it for `application/octet-stream` too, or precompress them.
+- **Every address serves the editor.** A project's address (`/design/<id>`) is a page of the editor, so
+  unknown paths must fall back to `index.html`, as in the examples below.
+
+## nginx
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name vitryne.example;
+    root /srv/vitryne;
+
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Embedder-Policy "require-corp" always;
+
+    types { application/wasm wasm; }
+    gzip on;
+    gzip_types application/octet-stream application/wasm application/javascript text/css application/json;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+## Caddy
+
+```caddy
+vitryne.example {
+    root * /srv/vitryne
+    header Cross-Origin-Opener-Policy "same-origin"
+    header Cross-Origin-Embedder-Policy "require-corp"
+    encode zstd gzip
+    try_files {path} /index.html
+    file_server
+}
+```
+
+## Static hosts
+
+- **Netlify, Cloudflare Pages:** a `_headers` file at the root of the folder you publish:
+
+  ```
+  /*
+    Cross-Origin-Opener-Policy: same-origin
+    Cross-Origin-Embedder-Policy: require-corp
+  ```
+
+- **Vercel:** in `vercel.json`:
+
+  ```json
+  {
+    "headers": [
+      {
+        "source": "/(.*)",
+        "headers": [
+          { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+          { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
+        ]
+      }
+    ]
+  }
+  ```
+
+- **GitHub Pages** can't set headers, so the editor doesn't run there as it is.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The editor worker's project file (packages/vitryne-docs/content/docs/developers/architecture.md, Editor): a `.vtry` opened from
+//! The editor worker's project file (packages/vitryne-docs/content/docs/developers/architecture.mdx, Editor): a `.vtry` opened from
 //! bytes, its entities handed to the UI as JSON and taken back after each edit (validated, so
 //! the worker only ever holds a valid document), saved with a read-back check, and turned into
 //! what the engine drapes. Plain Rust, so it is tested natively; `lib.rs` exposes it to the
@@ -242,7 +242,7 @@ impl ProjectFile {
     }
 
     /// A pattern as a new project around the test avatar, its pieces placed as chosen
-    /// (packages/vitryne-docs/content/docs/developers/architecture.md, Import and placement). `body_glb`: the test avatar's mesh;
+    /// (packages/vitryne-docs/content/docs/developers/architecture.mdx, Import and placement). `body_glb`: the test avatar's mesh;
     /// `now_ms` and `seed` make the ids.
     pub fn import_new(
         source: &ImportSource,

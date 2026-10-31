@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Prints the notes of one release, its `## [<version>]` section of CHANGELOG.md, and fails when
-# there is none (docs/MAINTAINING.md, Releasing). The release workflow uses it; locally:
+# there is none (packages/vitryne-docs/content/docs/developers/maintaining.md, Releasing). The release workflow uses it; locally:
 # tools/release/notes.sh 0.1.0
 set -eu
 [ $# -eq 1 ] || { echo "usage: $0 <version>" >&2; exit 2; }

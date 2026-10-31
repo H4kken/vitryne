@@ -1,0 +1,100 @@
+---
+title: Settings
+icon: Settings
+description: Every setting in .env, plus email, sign-up, drafts, limits and managing accounts.
+---
+
+Settings live in the `.env` file next to `docker-compose.selfhost.yml`. After changing one, run
+`docker compose up -d` in that folder: Docker restarts only what changed.
+
+## The settings
+
+| Setting                                                      | What                                                                                                                                                                |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUBLIC_URL`                                                 | The address people type, such as `http://localhost:8000` or `https://vitryne.example.com`. It must match the address bar.                                           |
+| `DOMAIN`                                                     | Set it for Vitryne to get its own HTTPS certificate ([On a server](/self-hosting/https)). Empty: plain HTTP.                                                        |
+| `HTTP_PORT`, `HTTPS_PORT`                                    | The ports on the host: `8000` and `8443` by default, `80` and `443` with a domain.                                                                                  |
+| `VITRYNE_VERSION`                                            | The release to run, such as `0.6.0`. Empty: the version named in the compose file you downloaded.                                                                   |
+| `VITRYNE_IMAGE`                                              | Replaces `ghcr.io/h4kken/vitryne-web`: a mirror, or an image you built.                                                                                             |
+| `ALLOW_ANONYMOUS`                                            | `true` (keep it): people can try the editor without an account ([below](#drafts-without-an-account)).                                                               |
+| `DISABLE_SIGNUP`                                             | `true` closes the instance to anyone new ([below](#drafts-without-an-account)). Default `false`.                                                                    |
+| `MAILER_AUTOCONFIRM`                                         | `true`: an account works at once, no email. Set `false` once `SMTP_*` is filled in ([Email](#email)).                                                               |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`           | Your mail server ([Email](#email)).                                                                                                                                 |
+| `SMTP_ADMIN_EMAIL`                                           | The address the emails come from.                                                                                                                                   |
+| `RATE_LIMIT_EMAIL_SENT`                                      | Emails the instance may send per hour. Default `30`.                                                                                                                |
+| `PRIVACY_POLICY_URL`, `TERMS_URL`                            | Your own pages, linked from the editor. Empty: no link.                                                                                                             |
+| `JWT_SECRET`, `ANON_KEY`, `SERVICE_KEY`, `POSTGRES_PASSWORD` | Made by `setup.sh`. **Never change them, and never share them.** `ANON_KEY` goes to the browser by design; the others stay on the server. The data is tied to them. |
+| `COMPOSE_FILE`                                               | Lets you type `docker compose` without `-f`. Leave it.                                                                                                              |
+
+<Callout title="Changing a password or key later breaks the instance">
+  The database password and the keys are applied when the instance is first
+  created. Editing them in `.env` afterwards makes the services lose access. If
+  you must change one, restore the old value first, or start over
+  ([Troubleshooting](/self-hosting/troubleshooting)).
+</Callout>
+
+## Email
+
+By default there is **no mail server**: an account works as soon as it is created, which suits a
+private or team instance. The cost is that **a forgotten password cannot be reset by email** (the
+editor's button says an email was sent, but none is). You can reset a password yourself
+([below](#reset-a-password-without-email)).
+
+To confirm addresses and reset passwords by email, use any mail service that offers SMTP:
+
+1. In `.env`, fill in `SMTP_HOST`, `SMTP_PORT` (usually `587`, or `465`), `SMTP_USER`, `SMTP_PASS` and
+   `SMTP_ADMIN_EMAIL` (the sender address your provider allows).
+2. Set `MAILER_AUTOCONFIRM=false`.
+3. Run `docker compose up -d`.
+
+New accounts now receive a link, and the editor waits for it to be opened, on any device. The emails
+are Vitryne's own, in plain words. Accounts made before the change keep working.
+
+## Drafts without an account
+
+With `ALLOW_ANONYMOUS=true` (the default), anyone can open the editor and work: their work is kept as
+**one draft**. Creating an account turns that draft into their account, with the same projects, so the
+editor relies on this: **leave it on**. With it off, nobody can create an account.
+
+A draft nobody comes back to for **30 days** is deleted, with its files, by a job that runs once a day
+inside `web`. Accounts are never deleted this way. On an instance open to the internet, anyone can start
+a draft, so keep an eye on the disk and the [limits](#limits).
+
+`DISABLE_SIGNUP=true` shuts the door to anyone new, drafts included: only existing accounts can sign
+in. It is a lock for an instance that is full, not an invitation list.
+
+## Limits
+
+Per person, the defaults are 1 GB of stored files, 500 projects for an account and 1 project for a
+draft; each stored file is at most 50 MB. Change the first three, and how many days before a draft is
+deleted, with:
+
+```sh
+docker compose exec db psql -U postgres -c \
+  "update vitryne_private.limits set quota_bytes = 5368709120, max_projects = 100, max_anonymous_projects = 1, anonymous_days = 14"
+```
+
+The example gives 5 GB and 100 projects per account, and deletes drafts after 14 days. The change
+applies at once.
+
+## Managing accounts
+
+There is no dashboard. Two things you can do from the server, in the folder with the compose file.
+
+**See the accounts:**
+
+```sh
+docker compose exec db psql -U postgres -c "select id, email, created_at from auth.users where email is not null"
+```
+
+### Reset a password without email
+
+Find the account's `id` as above, then set a new password (use letters, digits and dashes, at least 8
+characters), replacing `THE-ID` and `a-new-password`:
+
+```sh
+docker compose exec web sh -c 'curl -fsS -X PUT "http://auth:9999/admin/users/$0" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H "Content-Type: application/json" -d "{\"password\":\"$1\"}" -o /dev/null -w "%{http_code}\n"' THE-ID a-new-password
+```
+
+It prints `200` when done. The command runs inside the `web` container, so the service key never
+leaves your server. Tell the person their new password and ask them to change it from their account.

@@ -1,0 +1,15 @@
+{
+  "title": "Self-hosting",
+  "description": "Run Vitryne on your own server",
+  "icon": "Server",
+  "root": true,
+  "pages": [
+    "quick-start",
+    "https",
+    "settings",
+    "operations",
+    "troubleshooting",
+    "supabase",
+    "static-hosting"
+  ]
+}

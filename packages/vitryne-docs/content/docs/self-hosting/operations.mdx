@@ -1,0 +1,101 @@
+---
+title: Updates and backups
+icon: RefreshCw
+description: Update to a new release, back up and restore your data, and run your own build.
+---
+
+Run the commands in the folder with `docker-compose.selfhost.yml` and `.env`.
+
+## Updating
+
+1. **Read the [release notes](https://github.com/H4kken/vitryne/releases).** A release that needs
+   care, such as a database change, says so.
+2. **Back up** ([below](#backing-up)).
+3. **Download the new release's compose file** over the old one. It names the release's own version
+   and the exact backend images it was tested with, so update it, not only the version:
+
+   ```sh
+   curl -fsSLO https://github.com/H4kken/vitryne/releases/latest/download/docker-compose.selfhost.yml
+   ```
+
+   For a specific release, replace `latest/download` with `download/v0.6.0`. Keep `VITRYNE_VERSION`
+   empty in `.env` to follow the file you downloaded.
+
+4. **Pull and restart:**
+
+   ```sh
+   docker compose pull
+   docker compose up -d
+   ```
+
+The database is brought up to date automatically when `web` starts. To go back, restore the backup
+you made and the old compose file: database changes are not undone by running an older version.
+
+## Backing up
+
+Your data is three things: the `.env` file, and the Docker volumes `vitryne_db` (accounts and
+projects) and `vitryne_storage` (project files). Stop the stack while copying, so the database is
+consistent:
+
+```sh
+docker compose stop
+mkdir -p backup && cp .env backup/
+for v in db storage; do
+  docker run --rm -v vitryne_$v:/v:ro -v "$PWD/backup":/b alpine tar czf /b/$v.tgz -C /v .
+done
+docker compose start
+```
+
+`backup/` now holds everything. **Copy it off the machine**, to another disk or a storage service:
+a backup on the same server does not survive losing the server. The `.env` is as important as the
+data: the data cannot be opened without its keys. The stack is stopped for as long as the copy takes,
+usually seconds. Certificates (`vitryne_caddy`) need no backup; they are issued again.
+
+Do this before every update, and on a schedule if people depend on the instance, for example a nightly
+`cron` job running the commands above.
+
+## Restoring
+
+On the same server after a problem, or on a new one: put the compose file and the backed-up `.env` in
+a folder, then:
+
+```sh
+for v in db storage; do
+  docker volume create vitryne_$v
+  docker run --rm -v vitryne_$v:/v -v "$PWD/backup":/b alpine tar xzf /b/$v.tgz -C /v
+done
+docker compose up -d
+```
+
+Restoring over a stack that already has data replaces it: run `docker compose down -v` first if you
+mean to. Sign in as before to check that your projects are there.
+
+## Running your own build
+
+To run code that is not in a release, from a checkout of the
+[repository](https://github.com/H4kken/vitryne) (the first build needs about 10 GB of disk, 4 GB of
+memory and 10 to 20 minutes; later ones reuse what has not changed):
+
+```sh
+cd packages/vitryne-cloud/deploy
+sh setup.sh
+docker compose -f docker-compose.selfhost.yml -f docker-compose.build.yml up -d --build
+```
+
+On a server too small to build, build the image on your own machine and copy it over without a
+registry:
+
+```sh
+make build
+docker build --platform linux/amd64 -f packages/vitryne-cloud/deploy/web/Dockerfile \
+  --target from-dist -t vitryne-web .
+docker save vitryne-web | ssh you@server docker load
+```
+
+Then on the server set `VITRYNE_IMAGE=vitryne-web` and `VITRYNE_VERSION=latest` in `.env` and run
+`docker compose up -d`. Do not run `docker compose pull` for an image that only exists on your machine.
+
+## Removing it
+
+`docker compose down -v` stops everything and **deletes the data**. Delete the folder afterwards if you
+want nothing left. Without `-v`, the data stays in the volumes.

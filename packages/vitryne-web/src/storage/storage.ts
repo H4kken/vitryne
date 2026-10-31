@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Opening project folders from disk (packages/vitryne-docs/content/docs/developers/architecture.md, Storage). Projects live in the cloud
+// Opening project folders from disk (packages/vitryne-docs/content/docs/developers/architecture.mdx, Storage). Projects live in the cloud
 // (src/cloud/) and save there by themselves; a project folder from disk opens as a new cloud
 // project (a .vtry file comes through the editor's file input, with DXF patterns). Nothing is
 // written to disk. Folders need the File System Access API (Chrome, Edge).

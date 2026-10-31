@@ -5,7 +5,7 @@ engine's benchmark page (`bench.html`). The engine runs in a Web Worker as wasm 
 from [vitryne-engine](../vitryne-engine/)'s `vitryne-wasm`) and draws into an OffscreenCanvas;
 projects save to the backend in [vitryne-cloud](../vitryne-cloud/).
 
-How it is built, its guardrails and where things are: [Architecture](../vitryne-docs/content/docs/developers/architecture.md).
+How it is built, its guardrails and where things are: [Architecture](../vitryne-docs/content/docs/developers/architecture.mdx).
 
 ## Build and run
 
@@ -21,7 +21,7 @@ make test       # cargo test, then this package's check: format types, tsc, esli
 
 The same scripts run from this folder with pnpm (`pnpm run dev`, `pnpm run check`, ...; see
 `package.json`). After changing `docs/format/schema/`, run `pnpm run gen:format`. The app needs
-cross-origin isolation: [docs/HOSTING.md](../../docs/HOSTING.md) has the two headers.
+cross-origin isolation: [Static hosting](../vitryne-docs/content/docs/self-hosting/static-hosting.mdx) has the two headers.
 
 A backend other than the local stack goes in `.env.local` here (`SUPABASE_URL`,
 `SUPABASE_PUBLISHABLE_KEY`; git-ignored). Test against the local stack only.

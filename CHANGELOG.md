@@ -4,7 +4,7 @@ What changes for people who use or self-host Vitryne, one section per release. T
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/) (0.x: anything may change between minor versions).
 Add a line under **Unreleased** with your pull request when it changes what people see; a
-release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasing)).
+release renames that section ([Maintaining](packages/vitryne-docs/content/docs/developers/maintaining.md#releasing)).
 
 ## [Unreleased]
 
@@ -38,6 +38,14 @@ release renames that section ([docs/MAINTAINING.md](docs/MAINTAINING.md#releasin
 - The file that comes with an imported pattern (the measurements of a Valentina or Seamly2D
   pattern, a garment.toml for a DXF) can be dropped anywhere on the import dialog.
 - The start screen shows placeholder cards while your projects load, instead of an empty gap.
+- Self-hosting with its own backend: `docker-compose.selfhost.yml` and `setup.sh` (new release files)
+  run the editor, Postgres, Auth, the REST API and Storage in five containers (about 350 MB idle),
+  with nothing else to set up and no Supabase account. `sh setup.sh [domain]` makes the keys; with a
+  domain, Caddy gets the HTTPS certificate itself. Accounts work without a mail server (set `SMTP_*`
+  for confirmation emails and password resets).
+- A *Self-hosting* section in the documentation: quick start, running on a server with HTTPS, every
+  setting, updates, backups and restores, and troubleshooting. The instructions for running the editor with a
+  Supabase project of your own moved there from the developer pages.
 
 ## [0.5.0] - 2026-10-30
 

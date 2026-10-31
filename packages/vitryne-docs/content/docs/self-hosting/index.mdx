@@ -1,0 +1,71 @@
+---
+title: Self Hosting
+icon: Server
+description: "Run your own Vitryne: the editor, accounts and project storage on your machine or server, with nothing to sign up for."
+---
+
+You can run Vitryne yourself, on a laptop or a server, instead of using [vitryne.app](https://vitryne.app).
+Your projects, accounts and files stay on your machine, and nothing is sent anywhere else: Vitryne has
+no telemetry, and the only network calls are the editor's own files and your own backend.
+
+## Pick a setup
+
+<Cards>
+  <Card icon="Rocket" title="Quick start" href="/self-hosting/quick-start">
+    The editor and its own backend, five small containers, four commands. This
+    is what most people want.
+  </Card>
+  <Card
+    icon="Cloud"
+    title="With your own Supabase project"
+    href="/self-hosting/supabase"
+  >
+    One container for the editor, with the accounts and projects kept in a
+    Supabase project you already run or pay for.
+  </Card>
+  <Card
+    icon="PanelTopOpen"
+    title="Static hosting"
+    href="/self-hosting/static-hosting"
+  >
+    Only the editor's files, on a web server or static host you already have,
+    with a Supabase project for the backend.
+  </Card>
+</Cards>
+
+If you are not sure, choose the **quick start**: it needs nothing but Docker.
+
+## What the quick start runs
+
+| Container | What it does                                                                |
+| --------- | --------------------------------------------------------------------------- |
+| `web`     | The editor, and the one address the browser talks to. The only one exposed. |
+| `db`      | The database (Postgres), where accounts and projects are kept.              |
+| `auth`    | Accounts and sign-in.                                                       |
+| `rest`    | The database's API.                                                         |
+| `storage` | Your project files, kept in a Docker volume.                                |
+
+Together they use about 350 MB of memory when idle. There is no admin dashboard and no mail server
+to set up: accounts work at once, and you can add email later ([Settings](/self-hosting/settings)).
+
+## What you need
+
+- **Docker** with **Docker Compose 2.23.1 or later**. `docker compose version` tells you which you have.
+- A few gigabytes of free disk for the images, and about 1 GB of memory to spare.
+- For the people using it: a browser with WebGPU ([Requirements](/requirements)).
+- For a server other people reach: a **domain name with HTTPS**. Browsers refuse WebGPU on a plain
+  `http://` page, except on `localhost` ([On a server](/self-hosting/https)).
+
+<Callout title="Keep your .env safe">
+  Setting up creates a `.env` file with the keys that protect your data. The
+  database and the stored files are tied to it, so **back it up together with
+  your data** and never share it ([Updates and
+  backups](/self-hosting/operations)).
+</Callout>
+
+## Who can use your instance
+
+Anyone who can reach it can try the editor without an account: their work is kept as one draft, and a
+free account keeps more projects and allows exports. Drafts nobody comes back to are deleted after
+30 days. If your instance is on the open internet, remember that anyone can start a draft; the
+limits are in [Settings](/self-hosting/settings#limits).

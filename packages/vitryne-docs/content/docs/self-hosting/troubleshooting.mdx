@@ -1,0 +1,82 @@
+---
+title: Troubleshooting
+icon: LifeBuoy
+description: The problems people hit most often when self-hosting, and how to fix them.
+---
+
+Run the commands in the folder with the compose file. To see what is happening:
+
+```sh
+docker compose ps                    # which containers run, and which restart
+docker compose logs --tail 100 web   # the last lines of one service (web, db, auth, rest, storage)
+```
+
+## `web` keeps restarting, with `could not translate host name "db"`
+
+The usual cause is that **the port was already in use** when `web` first started. Docker then keeps
+restarting it without a network, so it cannot find the database. The other containers are healthy.
+
+1. Find who uses port 8000, and stop it (a Vitryne development stack, or another program). Or choose
+   another port: in `.env` set `HTTP_PORT=8100` and `PUBLIC_URL=http://localhost:8100`.
+2. Recreate `web`:
+
+   ```sh
+   docker compose up -d --force-recreate web
+   ```
+
+## `docker compose` says "run setup.sh" or a variable is required
+
+The `.env` file is missing or empty, or you are in the wrong folder. Run `sh setup.sh` in the folder
+with the compose file. If a `.env` already exists, `setup.sh` refuses to replace it, because the data
+is tied to its keys.
+
+## `docker compose` complains about `configs` or `content` when starting
+
+The compose file keeps the database's first-start script inside itself, which needs a recent Docker
+Compose. If it reports an error about `configs` or an unknown `content` field, yours is older than
+2.23.1. Update Docker (Docker Desktop, or the `docker-compose-plugin`
+package). `docker compose version` shows what you have.
+
+## The 3D view is blank, or the editor says WebGPU is not available
+
+On a server, the page must be served over **HTTPS**; browsers turn WebGPU off on plain `http://` (except
+`localhost`). See [On a server](/self-hosting/https). Also check [Requirements](/requirements): the
+browser and graphics card must support WebGPU.
+
+## I can open the editor but not sign in, or it says the instance has no backend
+
+`PUBLIC_URL` in `.env` must be exactly the address in the browser's address bar, scheme and port
+included. After fixing it, run `docker compose up -d`.
+
+## "Forgot your password?" says an email was sent, but nothing arrives
+
+The instance has no mail server. Either [set one up](/self-hosting/settings#email), or
+[reset the password yourself](/self-hosting/settings#reset-a-password-without-email).
+
+## Nobody can sign up, or "Anonymous sign-ins are disabled"
+
+Check `ALLOW_ANONYMOUS` is `true` and `DISABLE_SIGNUP` is `false` in `.env` ([Settings](/self-hosting/settings)).
+The editor makes every account from a draft, so both are needed for sign-up to work.
+
+## `password authentication failed` in the logs of `auth`, `rest` or `storage`
+
+`POSTGRES_PASSWORD` in `.env` is not the one the database was created with. Put back the original
+value (from your backup of `.env`). If it is lost, the data cannot be opened: restore a backup, or
+start over with `docker compose down -v` and `sh setup.sh` after deleting `.env`. That **deletes
+all accounts and projects**.
+
+## After `docker compose pull`, `vitryne-web:local` or another image cannot be found
+
+You are running an image that only exists on your machine. Do not pull it. Either build it again, or
+set `VITRYNE_IMAGE` and `VITRYNE_VERSION` in `.env` to a published release.
+
+## The latest image does not have what the docs describe
+
+`latest` follows the newest release. If you downloaded a newer compose file than the image you have,
+pull again, and pin `VITRYNE_VERSION` to the release you downloaded the file from.
+
+## Asking for help
+
+Open an issue on [GitHub](https://github.com/H4kken/vitryne/issues) with `docker compose version`,
+`docker compose ps`, and the last lines of the logs of the failing service. **Remove keys, passwords
+and email addresses** before pasting.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Importing a pattern (packages/vitryne-docs/content/docs/developers/architecture.md, Import and placement), a DXF-AAMA file or a
+// Importing a pattern (packages/vitryne-docs/content/docs/developers/architecture.mdx, Import and placement), a DXF-AAMA file or a
 // Valentina or Seamly2D pattern. Importing is one gesture: the dialog asks only for what it
 // can't go on without (the measurements a drafted pattern is drawn from, and a size of a size
 // chart) and, with a project open, whether the pieces join it or make a new project. Pieces get

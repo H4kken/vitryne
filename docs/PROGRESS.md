@@ -582,9 +582,9 @@ Checked in Chrome on the M2 (real GPU, driven over CDP), and by hand in Safari o
 | [packages/vitryne-engine/render](../packages/vitryne-engine/render/) | The renderer, out of drape-core (which now has no rendering). |
 | `packages/vitryne-engine/wasm` | `VtryFile` (open zip or folder, entities out and in with validation, checked saves), `PreparedScene`, `Viewport`. |
 | `vitryne-format` | `Document::entities` / `set_entities` (atomic, validated), `to_zip_checked` / `to_entries_checked`, physical range checks, exact float parsing (`float_roundtrip`). |
-| [Architecture](../packages/vitryne-docs/content/docs/developers/architecture.md), [docs/HOSTING.md](HOSTING.md) | How the editor is built and its guardrails; the COOP/COEP headers for nginx, Caddy and static hosts. |
+| [Architecture](../packages/vitryne-docs/content/docs/developers/architecture.mdx), [Static hosting](../packages/vitryne-docs/content/docs/self-hosting/static-hosting.mdx) | How the editor is built and its guardrails; the COOP/COEP headers for nginx, Caddy and static hosts. |
 
-The guardrails (details in architecture.md): the document is deep-frozen in development and
+The guardrails (details in architecture.mdx): the document is deep-frozen in development and
 tests; commands record whole entities before and after, so undo is exact; a command checks the
 JSON Schema of what it produces before it exists; Rust validates every new state in the worker
 and a refusal rolls back with the reason; a save waits for Rust, is read back in Rust and then
@@ -607,7 +607,7 @@ unsaved-changes dialog, the leave-page prompt, and a recovery copy.
 - Bench page from `app/`: T-shirt 10k with self-collision, 7.1 ms per frame pipelined, 8.7 ms
   serial median, cross-origin isolated, no NaN frames.
 - Production bundle: wasm 3.0 MB (880 KB gzipped), UI 549 KB JS (144 KB gzipped), worker 43 KB,
-  CSS 43 KB. The bundled SDFs are 32–50 MB each (about a third gzipped; HOSTING.md says to
+  CSS 43 KB. The bundled SDFs are 32–50 MB each (about a third gzipped; the Static hosting page says to
   compress them).
 - Tests: 44 Rust (new: the worker's open → edit → undo → save path and the folder form on the
   examples, entities through JSON text, refused edits change nothing, physical ranges), 28
@@ -680,7 +680,7 @@ pocket on the front, long sleeves) imports and drapes the same way. Not checked 
 | `drape export-app-assets` | Also the test avatar's mesh (`packages/vitryne-web/public/avatar/body.glb`) and the SDF of the import box (74 MB), so a first import never bakes. |
 | `app/` | Start screen card "Import your own pattern" (or drop a DXF, with its garment.toml, anywhere); the import dialog; Select in the 3D tool bar (placing: the drape waits at the start, a click picks a piece, its gizmo moves it up and down, around, away, and turns it); the Pieces panel per cut (place, around, height, distance, turn, mirror image, fit again, on top of another piece); the flat view per cut with `cut.layout` (Select with a turn handle, Move); "Import a pattern" in the menu. An imported project is unsaved until saved (the recovery copy knows). |
 
-Design notes in [Architecture](../packages/vitryne-docs/content/docs/developers/architecture.md), "Import and placement". No format
+Design notes in [Architecture](../packages/vitryne-docs/content/docs/developers/architecture.mdx), "Import and placement". No format
 change: the gizmo edits the wrap's own fields; file-format.md now defines `cut.layout`.
 
 ### Numbers
@@ -735,7 +735,7 @@ by the author; not run in Safari or Firefox.
 **The plan changed in one place, on purpose:** the plan's "notch-to-notch segments" became
 **whole edges** (packages/vitryne-docs/content/docs/developers/patents.md, rule 1: the patents are another company's, and its rules
 override the plan). Suggestions may propose a chain of whole edges (a sleeve cap against two
-armholes); the user only accepts or rejects them. See architecture.md, "Sewing (M8)".
+armholes); the user only accepts or rejects them. See architecture.mdx, "Sewing (M8)".
 
 ### What's there
 

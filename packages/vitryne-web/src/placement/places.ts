@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Where a cut can start on the body, in plain words (packages/vitryne-docs/content/docs/developers/architecture.md, Placement). The
+// Where a cut can start on the body, in plain words (packages/vitryne-docs/content/docs/developers/architecture.mdx, Placement). The
 // names are Rust's `placement::BodyPlace` and `import::Pair`; Rust works out each wrap.
 
 import type { Placement } from "@/format/schema.gen";
