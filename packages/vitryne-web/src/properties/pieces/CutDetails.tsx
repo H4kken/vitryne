@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { FlipHorizontal2, FlipVertical2 } from "lucide-react";
+import {
+  FlipHorizontal2,
+  FlipVertical2,
+  SquareSplitHorizontal,
+  Unlink,
+} from "lucide-react";
 import { BackLink } from "@/components/BackLink";
+import { Button } from "@/components/ui/button";
 import { SHIFT } from "@/lib/keys";
 import type { FlipAxis } from "@/pattern/flip";
 import {
@@ -21,6 +27,7 @@ import {
   renamePiece,
   setPieceFabric,
   setPlacement,
+  makeIndependent,
 } from "@/document/commands";
 import type { Entities } from "@/document/entities";
 import type { DocumentStore } from "@/document/store";
@@ -65,6 +72,8 @@ export function CutDetails(props: {
   onPlaceIn3d: (() => void) | null;
   /** Flips the picked pieces (this one among them) in the flat view. */
   onFlip: (axis: FlipAxis) => void;
+  /** Adds a mirror-image cut to this piece. */
+  onMirror: () => void;
 }) {
   const { store, garment: g, piece, cut } = props;
   const p = cut.placement;
@@ -131,6 +140,36 @@ export function CutDetails(props: {
           Mirror image
         </span>
       )}
+      <div className="-mt-1 flex flex-col gap-1.5">
+        {piece.cuts.length === 1 ? (
+          <Button variant="outline" size="sm" onClick={props.onMirror}>
+            <SquareSplitHorizontal />
+            Make symmetric
+          </Button>
+        ) : (
+          <>
+            <span className="text-muted-foreground text-[13px]">
+              Cut {piece.cuts.length} times: changing the piece changes every
+              copy.
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-fit"
+              onClick={() =>
+                store.execute((e) =>
+                  makeIndependent(e, g.id, cut.id, {
+                    id: () => crypto.randomUUID(),
+                  }),
+                )
+              }
+            >
+              <Unlink />
+              Make this copy independent
+            </Button>
+          </>
+        )}
+      </div>
       {piece.cuts.length > 1 && (
         <TextField
           label={`This copy (${piece.cuts.indexOf(cut) + 1} of ${piece.cuts.length})`}

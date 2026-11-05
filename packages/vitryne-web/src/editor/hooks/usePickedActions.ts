@@ -28,6 +28,8 @@ export function usePickedActions(o: {
   pattern: RefObject<PatternView | null>;
   /** Pastes what was copied. */
   onPaste: (copied: Copied) => void;
+  /** Adds a mirror-image cut to the pieces of these cuts. */
+  onMirror: (cutIds: string[]) => void;
   /** The picked pieces were taken out. */
   onRemoved: () => void;
 }) {
@@ -38,6 +40,7 @@ export function usePickedActions(o: {
     showInfo,
     onRemoved,
     onPaste,
+    onMirror,
     pattern,
   } = o;
   /** Kept for the whole editor session, so it can be pasted into another project too. */
@@ -78,6 +81,17 @@ export function usePickedActions(o: {
   const paste = (): boolean => {
     if (!g || !copied.length) return false;
     onPaste(copied);
+    return true;
+  };
+  /** The picked pieces that are cut once: a mirror image can be added to them. */
+  const canMirror = picked().some((f) => f.piece.cuts.length === 1);
+  /** Adds the mirror image of each picked piece cut once, linked to it; false if none. */
+  const mirror = (): boolean => {
+    const ids = picked()
+      .filter((f) => f.piece.cuts.length === 1)
+      .map((f) => f.cut.id);
+    if (!ids.length) return false;
+    onMirror(ids);
     return true;
   };
   /** Takes the picked pieces out; false if there are none. */
@@ -130,6 +144,8 @@ export function usePickedActions(o: {
     copy,
     paste,
     duplicate,
+    mirror,
+    canMirror,
     flip,
     canPaste: copied.length > 0,
   };

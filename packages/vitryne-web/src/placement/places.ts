@@ -69,6 +69,26 @@ export const PAIRS = {
 
 export type Pair = keyof typeof PAIRS;
 
+/** The pair a place belongs to (the right arm: the arms), or null for a place that has none. */
+export function pairOf(place: Place): Pair | null {
+  for (const [k, v] of Object.entries(PAIRS) as [Pair, (typeof PAIRS)[Pair]][])
+    if ((v.places as readonly Place[]).includes(place)) return k;
+  return null;
+}
+
+/**
+ * The place on the other side of the body (the right arm's is the left arm), or null for a place
+ * that is its own mirror image (the front, the back, over the head). A pair's second cut goes
+ * there.
+ */
+export function oppositePlace(place: Place): Place | null {
+  for (const { places } of Object.values(PAIRS)) {
+    if (places[0] === place) return places[1];
+    if (places[1] === place) return places[0];
+  }
+  return null;
+}
+
 /** The difference between two angles, radians, in 0..π. */
 function angleGap(a: number, b: number): number {
   const d = Math.abs(a - b) % (2 * Math.PI);

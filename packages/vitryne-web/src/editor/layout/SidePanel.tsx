@@ -30,6 +30,8 @@ export function SidePanel(props: {
   onPlaceIn3d: (() => void) | null;
   /** Flips the picked pieces in the flat view. */
   onFlip: (axis: FlipAxis) => void;
+  /** Adds a mirror-image cut to the picked piece. */
+  onMirror: () => void;
   /** How far out each cut starts, mm, by cut id, in the drape shown. */
   startsOut: ReadonlyMap<string, number>;
 }) {
@@ -42,6 +44,7 @@ export function SidePanel(props: {
     pickPart,
     onPlaceIn3d,
     onFlip,
+    onMirror,
     startsOut,
   } = props;
   const {
@@ -116,6 +119,7 @@ export function SidePanel(props: {
                 pickPart={pickPart}
                 onPlaceIn3d={onPlaceIn3d}
                 onFlip={onFlip}
+                onMirror={onMirror}
                 openSeam={openSeam}
                 view={piecesView}
                 onView={setPiecesView}

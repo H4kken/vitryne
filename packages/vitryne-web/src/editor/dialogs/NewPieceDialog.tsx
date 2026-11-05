@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import type { OutlineNode } from "@/format/schema.gen";
 import { PlaceSelect } from "@/placement/PlaceSelect";
+import { type Place, pairOf } from "@/placement/places";
+import { Switch } from "@/components/ui/switch";
 import { PieceThumb } from "./PieceThumb";
 
 /** What the person chose: the outline (own frame), its name, and where (a PlaceSelect value). */
@@ -33,7 +35,13 @@ export function NewPieceDialog(props: {
 }) {
   const outline = props.open?.outline ?? null;
   const [name, setName] = useState(props.defaultName);
-  const [place, setPlace] = useState("one:body-front");
+  // One place on the body, and whether the piece is cut as a symmetric pair (a second copy,
+  // the mirror image, on the other side). A pair is on by default where a place has one (an
+  // arm, a leg, a side); a front or a back is cut once.
+  const [where, setWhere] = useState<Place>("body-front");
+  const [pairOn, setPairOn] = useState(false);
+  const pair = pairOf(where);
+  const place = pairOn && pair ? `pair:${pair}` : `one:${where}`;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ids = useId();
@@ -109,15 +117,39 @@ export function NewPieceDialog(props: {
               </label>
               <PlaceSelect
                 id={`${ids}-place`}
-                value={place}
-                options={{ one: true, pairs: true, on: [], leave: false }}
-                onChange={setPlace}
+                value={`one:${where}`}
+                options={{ one: true, pairs: false, on: [], leave: false }}
+                onChange={(v) => {
+                  const next = v.slice(4) as Place;
+                  setWhere(next);
+                  // Coming from a place with no pair to one with: a pair is the usual wish.
+                  if (!pair && pairOf(next)) setPairOn(true);
+                }}
               />
-              <span className="text-muted-foreground text-[13px]">
-                {place.startsWith("pair:")
-                  ? "Cut 2 (a pair): the second copy is the mirror image."
-                  : "Cut once."}
-              </span>
+            </div>
+
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-0.5">
+                <label
+                  htmlFor={`${ids}-pair`}
+                  className="text-[13px] font-semibold"
+                >
+                  Symmetric pair (left and right)
+                </label>
+                <span className="text-muted-foreground text-[13px]">
+                  {pair && pairOn
+                    ? "Cut twice, the second the mirror image. Changing one changes both."
+                    : pair
+                      ? "Cut once. Turn on for a mirror-image copy that follows every change."
+                      : "This place has no other side: cut once."}
+                </span>
+              </div>
+              <Switch
+                id={`${ids}-pair`}
+                checked={!!pair && pairOn}
+                disabled={!pair}
+                onCheckedChange={setPairOn}
+              />
             </div>
 
             {error && (

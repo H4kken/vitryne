@@ -8,6 +8,14 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 ## [Unreleased]
 
+### Added
+
+- Symmetric pieces: a new piece for an arm, a leg or a side of the body is cut as a left and right
+  pair by default (the **Symmetric pair** switch in the new-piece dialog), and the two are one
+  piece, so editing one changes the other. A piece cut once gets its mirror image with **Make
+  symmetric** in its panel or **Add mirror image** in its right-click menu, and a copy can be
+  made independent again with **Make this copy independent**.
+
 ## [0.6.0] - 2026-11-01
 
 ### Changed

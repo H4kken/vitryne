@@ -2,6 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { EXAMPLES, openExample, rustRefuses } from "@/test/rust";
 import {
+  addCut,
+  makeIndependent,
   addSeam,
   applyCommand,
   applyFabricPreset,
@@ -109,6 +111,11 @@ function everyCommand(e: Entities): Command[] {
       position: [120, -40],
       rotation: 0.5,
     }),
+    addCut(e, g.id, piece.id, {
+      id: "01a13cdb-cc00-7000-8000-000000000998",
+      mirrored: !piece.cuts[0]!.mirrored || undefined,
+      placement: piece.cuts[0]!.placement,
+    }),
     removeCuts(e, g.id, [piece.cuts[0]!.id]),
     removeCuts(
       e,
@@ -193,6 +200,64 @@ describe.each(EXAMPLES)("%s", (name) => {
         lift: 12,
       }),
     ).toThrow(/itself/);
+  });
+
+  it("adds a mirrored cut to a piece, on top of the stack, and refuses a used id", () => {
+    const g = mainGarment(frozen)!;
+    const piece = g.pieces[0]!;
+    const id = "01a13cdb-cc00-7000-8000-000000000997";
+    const cmd = addCut(frozen, g.id, piece.id, {
+      id,
+      mirrored: true,
+      placement: piece.cuts[0]!.placement,
+    });
+    const after = mainGarment(applyCommand(frozen, cmd))!;
+    expect(after.pieces[0]!.cuts).toHaveLength(piece.cuts.length + 1);
+    expect(after.stack.at(-1)).toBe(id);
+    expect(cmd.drape).toBe(true);
+    expect(() => addCut(frozen, g.id, piece.id, { ...piece.cuts[0]! })).toThrow(
+      /twice/,
+    );
+    expect(() =>
+      addCut(frozen, g.id, "nope", { id, placement: piece.cuts[0]!.placement }),
+    ).toThrow(CommandError);
+  });
+
+  it("splits a cut off its piece, keeping its id, its place and its seams", () => {
+    const g = mainGarment(frozen)!;
+    const piece = g.pieces[0]!;
+    const base = {
+      id: "01a13cdb-cc00-7000-8000-000000000996",
+      mirrored: true,
+      placement: piece.cuts[0]!.placement,
+    } as const;
+    const two = mainGarment(
+      applyCommand(frozen, addCut(frozen, g.id, piece.id, base)),
+    )!;
+    const withTwo = {
+      ...frozen,
+      garments: frozen.garments.map((x) => (x.id === g.id ? two : x)),
+    } as typeof frozen;
+    let n = 0;
+    const id = () =>
+      `01a13cdb-cc00-7000-8000-${String(1000 + n++).padStart(12, "0")}`;
+    const cmd = makeIndependent(withTwo, g.id, base.id, { id });
+    const after = mainGarment(applyCommand(withTwo, cmd))!;
+    const old = after.pieces.find((p) => p.id === piece.id)!;
+    const split = after.pieces.find((p) =>
+      p.cuts.some((c) => c.id === base.id),
+    )!;
+    expect(split.id).not.toBe(piece.id);
+    expect(old.cuts.some((c) => c.id === base.id)).toBe(false);
+    expect(split.cuts).toEqual([base]);
+    expect(split.outline.map((x) => x.position)).toEqual(
+      piece.outline.map((x) => x.position),
+    );
+    expect(after.stack).toEqual(two.stack);
+    // Now alone in its piece: nothing to split from.
+    expect(() =>
+      makeIndependent(applyCommand(withTwo, cmd), g.id, base.id, { id }),
+    ).toThrow(/only cut/);
   });
 
   it("deletes cuts with their seams, and a piece with its last cut", () => {

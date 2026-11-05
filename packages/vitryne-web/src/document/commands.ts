@@ -32,6 +32,7 @@ import {
   splitEdge,
 } from "@/pattern/edit";
 import { linePoints } from "@/pattern/geometry";
+import { clonePiece } from "./clonePiece";
 import {
   type Entities,
   getEntity,
@@ -1845,6 +1846,111 @@ export function addPiece(
       let out = setIn(x, ["pieces"], [...x.pieces, piece]);
       out = setIn(out, ["stack"], stackWith(x, piece.cuts));
       if (bounds) out = setIn(out, ["simulation", "collisionBounds"], bounds);
+      return out;
+    },
+    { label, drape: true },
+  );
+}
+
+/**
+ * A cut added to a piece that exists (`mirrorCut` makes the usual one: the piece's mirror image).
+ * It shares the piece's outline, so an edit to the piece reaches it too, and it goes on top of
+ * the stack. Placing it is the caller's to do (Rust's `place_piece` for a wrap); this only adds
+ * the cut. No seam is made: sewing stays the person's choice (patents.md, rule 3).
+ */
+export function addCut(
+  e: Entities,
+  garmentId: string,
+  pieceId: string,
+  cut: Cut,
+  bounds?: Bounds,
+): Command {
+  const label = "Add a copy of a piece";
+  const g = garment(e, garmentId);
+  const [i] = pieceIndex(g, pieceId);
+  const used = new Set([
+    ...g.pieces.flatMap((p) => [
+      p.id,
+      ...p.cuts.map((c) => c.id),
+      ...p.outline.map((n) => n.id),
+    ]),
+    ...(g.seams ?? []).map((s) => s.id),
+  ]);
+  if (used.has(cut.id)) throw new CommandError(`${label}: an id is used twice`);
+  return editGarment(
+    e,
+    garmentId,
+    (x) => {
+      const piece = x.pieces[i] as Piece;
+      let out = setIn(x, ["pieces", i, "cuts"], [...piece.cuts, cut]);
+      out = setIn(out, ["stack"], stackWith(x, [cut]));
+      if (bounds) out = setIn(out, ["simulation", "collisionBounds"], bounds);
+      return out;
+    },
+    { label, drape: cut.state === undefined },
+  );
+}
+
+/**
+ * A cut of a piece with several becomes a piece of its own: a copy of the outline with new ids
+ * that nothing changes along with. The cut keeps its id, so its place in the stack, the cuts
+ * placed on it and its seams all stay (the seams' nodes follow the copy).
+ */
+export function makeIndependent(
+  e: Entities,
+  garmentId: string,
+  cutId: string,
+  o: { id: () => string; name?: string },
+): Command {
+  const label = "Make a piece independent";
+  const g = garment(e, garmentId);
+  const [i, j] = cutAt(g, cutId);
+  const piece = g.pieces[i] as Piece;
+  const cut = piece.cuts[j] as Cut;
+  if (piece.cuts.length < 2)
+    throw new CommandError(`${label}: it is the only cut of its piece`);
+  const map = new Map<string, string>();
+  const copy = clonePiece(piece, cut, {
+    id: o.id,
+    name: o.name ?? `${piece.name} (separate)`,
+    map,
+  });
+  // The copy's cut is the cut itself, whole (clonePiece starts a new one).
+  const own: Piece = { ...copy, cuts: [structuredClone(cut)] };
+  const to = (id: string) => map.get(id) ?? id;
+  return editGarment(
+    e,
+    garmentId,
+    (x) => {
+      let out = setIn(
+        x,
+        ["pieces"],
+        [
+          ...x.pieces.slice(0, i),
+          { ...piece, cuts: piece.cuts.filter((c) => c.id !== cutId) },
+          ...x.pieces.slice(i + 1),
+          own,
+        ],
+      );
+      if (x.seams)
+        out = setIn(
+          out,
+          ["seams"],
+          x.seams.map((s) => {
+            const runs = (side: Seam["a"]) =>
+              side.map((r) =>
+                r.cut === cutId
+                  ? {
+                      ...r,
+                      from: to(r.from),
+                      to: to(r.to),
+                      ...(r.line ? { line: to(r.line) } : {}),
+                    }
+                  : r,
+              ) as Seam["a"];
+            return { ...s, a: runs(s.a), b: runs(s.b) };
+          }),
+        );
       return out;
     },
     { label, drape: true },

@@ -11,6 +11,7 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   SendToBack,
+  SquareSplitHorizontal,
   Trash2,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -73,6 +74,13 @@ export function CanvasMenu(props: {
               <CopyPlus />
               Duplicate
               <ContextMenuShortcut>{MOD}D</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={!actions.canMirror}
+              onSelect={() => actions.mirror()}
+            >
+              <SquareSplitHorizontal />
+              Add mirror image
             </ContextMenuItem>
             <ContextMenuItem onSelect={() => actions.remove()}>
               <Trash2 />
