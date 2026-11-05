@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { WorkerCrashed } from "@/worker/client";
 import { openExample } from "@/test/rust";
 import { setDrapeView, setFabricValue, renameProject } from "./commands";
-import { DocumentStore, type Engine } from "./store";
+import { DocumentStore, type Engine, VIEW_ONLY } from "./store";
 
 /** An engine whose answers the test controls. */
 function fakeEngine() {
@@ -40,6 +40,31 @@ function setup() {
 }
 
 describe("DocumentStore", () => {
+  it("refuses every change to a read-only document, and says why", async () => {
+    const { store, calls, entities, fabric } = setup();
+    store.load("shared", entities, [], 1, { readOnly: true });
+    expect(store.state.readOnly).toBe(true);
+    expect(
+      store.execute((e) => setFabricValue(e, fabric, "friction", 0.5)),
+    ).toBe(false);
+    expect(store.state.refused).toBe(VIEW_ONLY);
+    expect(
+      store.executeQuiet((e) => setDrapeView(e, { paused: true, fast: false })),
+    ).toBe(false);
+    store.undo();
+    store.redo();
+    await flush();
+    expect(calls).toEqual([]);
+    expect(store.state.entities).toBe(entities);
+    expect(store.state.dirty).toBe(false);
+    // Opening anything else makes it editable again.
+    store.load("mine", entities, [], 2);
+    expect(store.state.readOnly).toBe(false);
+    expect(
+      store.execute((e) => setFabricValue(e, fabric, "friction", 0.5)),
+    ).toBe(true);
+  });
+
   it("undoes and redoes, and is clean again after undoing everything", async () => {
     const { store, calls, fabric } = setup();
     store.execute((e) => setFabricValue(e, fabric, "friction", 0.5));

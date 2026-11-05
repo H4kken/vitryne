@@ -7,13 +7,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Autosaver, type SaveStatus } from "@/cloud/autosave";
-import type { CloudBackend, CloudUser } from "@/cloud/backend";
+import { type CloudBackend, CloudError, type CloudUser } from "@/cloud/backend";
 import {
   type CloudRef,
   collectUnused,
   copyName,
   duplicateProject,
   openProject,
+  openShared,
   saveProject,
 } from "@/cloud/projects";
 import { recoverChanges, renameProject } from "@/document/commands";
@@ -155,7 +156,11 @@ export function useFiles(
   useAutosaveTriggers(autosave, doc, blocked, cloud.user);
 
   const load = useCallback(
-    async (r: FileRef, data: FileData, opts: { unsaved?: boolean } = {}) => {
+    async (
+      r: FileRef,
+      data: FileData,
+      opts: { unsaved?: boolean; readOnly?: boolean } = {},
+    ) => {
       // Revisions keep growing across files, so a drape of the previous file is never newer.
       const rev = store.state.rev + 1;
       const { entities, warnings } = await session.open(
@@ -299,14 +304,73 @@ export function useFiles(
     }
   };
 
-  /** A failed open is kept in `openError` (its page says why); `cancelled`: the user kept what was open. */
+  /**
+   * Someone else's project the owner shared by link: opened read-only, the same address as the
+   * owner's (`makeCopy` makes it the person's own).
+   */
+  const loadShared = async (id: string) => {
+    setBusy("Opening the shared project");
+    try {
+      const o = await openShared(await cloudNow.current.backend(), id);
+      await load({ name: o.name, form: "folder", shared: id }, o.data, {
+        readOnly: true,
+      });
+      setNotice(null);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /**
+   * The project at `/design/$id`: the person's own, or when it isn't theirs, the owner's shared
+   * view of it. A failed open is kept in `openError` (its page says why); `cancelled`: the user
+   * kept what was open.
+   */
   const openCloud = (id: string, cancelled?: () => void) =>
-    guarded(() => {
+    guarded(async () => {
       setOpenError(null);
-      return loadCloud(id).catch((e: unknown) =>
-        setOpenError({ key: `design:${id}`, message: errorText(e) }),
-      );
+      try {
+        await loadCloud(id);
+      } catch (e) {
+        let failure = e;
+        if (e instanceof CloudError && e.kind === "notfound")
+          try {
+            return await loadShared(id);
+          } catch (shared) {
+            failure = shared;
+          }
+        setOpenError({ key: `design:${id}`, message: errorText(failure) });
+      }
     }, cancelled);
+
+  /**
+   * The shared project being looked at, saved as a new project of the person's own (an account:
+   * the caller asked for one) and opened in its place.
+   */
+  const makeCopy = async () => {
+    if (!refNow.current?.shared) return;
+    setBusy("Making your copy");
+    try {
+      const { rev } = await store.settled();
+      const data = await session.save(rev, "folder");
+      if (data.form !== "folder")
+        throw new Error("internal: the worker did not give the folder form");
+      const b = await cloudNow.current.backend();
+      const name =
+        store.state.entities.project?.name ?? refNow.current.name ?? "project";
+      const saved = await saveProject(b, name, data.files, null);
+      cloudNow.current.refresh();
+      await loadCloud(saved.id);
+      setNotice({
+        kind: "info",
+        text: `This is your copy of ${name}. Changes are saved to your projects.`,
+      });
+    } catch (e) {
+      fail("Copy not made", e);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   /** A bundled example, not saved until it is changed; failures and `cancelled` as `openCloud`. */
   const openExample = (
@@ -456,6 +520,7 @@ export function useFiles(
       })),
     openFolder: () => openWith(() => disk.openFolder()),
     openExample,
+    makeCopy,
     /** Why the project or example the URL names couldn't be opened. */
     openError,
     close: (undone?: () => void) =>

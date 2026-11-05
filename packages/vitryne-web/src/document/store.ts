@@ -47,7 +47,12 @@ export interface DocState {
   syncing: boolean;
   /** Counts the documents opened, so a hook can tell a new project from an edit. */
   loads: number;
+  /** Someone else's shared project: it can be looked at and draped, not changed (a copy can). */
+  readOnly: boolean;
 }
+
+/** Shown when an edit is tried on a read-only document. */
+export const VIEW_ONLY = "This project is view only. Make a copy to change it.";
 
 interface Snapshot {
   rev: number;
@@ -94,6 +99,7 @@ export class DocumentStore {
     warnings: [],
     syncing: false,
     loads: 0,
+    readOnly: false,
   };
 
   constructor(
@@ -137,14 +143,15 @@ export class DocumentStore {
 
   /**
    * A document just opened (already in the worker, at revision `rev`). `unsaved`: it was
-   * made here (an import) and isn't in any file yet.
+   * made here (an import) and isn't in any file yet. `readOnly`: it can't be changed (someone
+   * else's shared project).
    */
   load(
     fileName: string,
     entities: Entities,
     warnings: string[],
     rev: number,
-    opts: { unsaved?: boolean } = {},
+    opts: { unsaved?: boolean; readOnly?: boolean } = {},
   ) {
     clearTimeout(this.drapeTimer);
     this.neverSaved = !!opts.unsaved;
@@ -162,6 +169,7 @@ export class DocumentStore {
       refused: null,
       warnings,
       loads: this.state.loads + 1,
+      readOnly: !!opts.readOnly,
     });
   }
 
@@ -181,6 +189,7 @@ export class DocumentStore {
       rev: this.state.rev + 1,
       refused: null,
       warnings: [],
+      readOnly: false,
     });
   }
 
@@ -209,6 +218,10 @@ export class DocumentStore {
    */
   execute(build: (e: Entities) => Command): boolean {
     if (this.state.empty) return false;
+    if (this.state.readOnly) {
+      this.publish({ refused: VIEW_ONLY });
+      return false;
+    }
     let cmd: Command;
     let entities: Entities;
     try {
@@ -245,7 +258,7 @@ export class DocumentStore {
    * the project, but isn't an undo step and undo doesn't touch it.
    */
   executeQuiet(build: (e: Entities) => Command): boolean {
-    if (this.state.empty) return false;
+    if (this.state.empty || this.state.readOnly) return false;
     let entities: Entities;
     try {
       entities = applyCommand(this.state.entities, build(this.state.entities));
@@ -271,6 +284,7 @@ export class DocumentStore {
   }
 
   undo() {
+    if (this.state.readOnly) return;
     const cmd = this.undoStack.at(-1);
     if (!cmd) return;
     this.gesture = null;
@@ -281,6 +295,7 @@ export class DocumentStore {
   }
 
   redo() {
+    if (this.state.readOnly) return;
     const cmd = this.redoStack.at(-1);
     if (!cmd) return;
     this.gesture = null;

@@ -17,11 +17,13 @@ import {
   fileName,
   moveProjects,
   openProject,
+  openShared,
   projectZip,
   renameProject,
   saveProject,
   saveThumbnail,
   sha256Hex,
+  shareUrl,
 } from "./projects";
 import { fabricKey, projectFabrics } from "./fabrics";
 import { crc32 } from "./zip";
@@ -44,20 +46,33 @@ class MemBackend implements CloudBackend {
   }
   async listProjects() {
     return this.mine().map(
-      ({ id, name, bytes, revision, updatedAt, thumbnail }) => ({
+      ({ id, name, bytes, revision, updatedAt, thumbnail, shared }) => ({
         id,
         name,
         bytes,
         revision,
         updatedAt,
         thumbnail,
+        shared,
       }),
     );
   }
   async getProject(id: string) {
     const r = this.mine().find((x) => x.id === id);
-    if (!r) throw new CloudError("gone");
+    if (!r) throw new CloudError("gone", "notfound");
     return structuredClone(r);
+  }
+  async getSharedProject(id: string) {
+    const r = MemBackend.rows.get(id);
+    if (!r?.shared) throw new CloudError("private or gone");
+    return structuredClone(r);
+  }
+  async setShared(id: string, shared: boolean) {
+    const r = this.mine().find((x) => x.id === id);
+    if (!r) return;
+    if (shared && this.me?.anonymous)
+      throw new CloudError("account", "account");
+    r.shared = shared;
   }
   async insertProject(p: {
     name: string;
@@ -70,6 +85,7 @@ class MemBackend implements CloudBackend {
     const r: ProjectRow = {
       thumbnail: null,
       ...structuredClone(p),
+      shared: false,
       id: crypto.randomUUID(),
       owner: this.me!.id,
       revision: 1,
@@ -98,6 +114,20 @@ class MemBackend implements CloudBackend {
   private own(name: string) {
     return name.startsWith(`${this.me?.id}/`);
   }
+  /** Like the storage policy: a part a shared project names is readable by anyone. */
+  private readable(name: string) {
+    const [owner, sha] = name.split("/");
+    return (
+      this.own(name) ||
+      [...MemBackend.rows.values()].some(
+        (r) =>
+          r.shared &&
+          r.owner === owner &&
+          (r.thumbnail === sha ||
+            r.manifest.parts.some((p) => p.sha256 === sha)),
+      )
+    );
+  }
   async hasPart(name: string) {
     return this.own(name) && MemBackend.objects.has(name);
   }
@@ -109,7 +139,7 @@ class MemBackend implements CloudBackend {
       MemBackend.objects.set(name, bytes.slice(0));
   }
   async downloadPart(name: string) {
-    const b = this.own(name) ? MemBackend.objects.get(name) : undefined;
+    const b = this.readable(name) ? MemBackend.objects.get(name) : undefined;
     if (!b) throw new CloudError("missing");
     return b.slice(0);
   }
@@ -408,6 +438,47 @@ describe("cloud projects", () => {
     expect(JSON.parse(new TextDecoder().decode(project![1])).name).toBe(
       "Summer tee",
     );
+  });
+
+  it("opens a shared project for someone with no account, and only while it is shared", async () => {
+    const owner = account();
+    const ref = await saveProject(owner, "mine", folder("tshirt"), null);
+    const stranger = new MemBackend();
+    // Private by default: the link opens nothing.
+    expect((await owner.listProjects())[0]!.shared).toBe(false);
+    await expect(openShared(stranger, ref.id)).rejects.toThrow();
+    await owner.setShared(ref.id, true);
+    // The editor tries the project as its own first: for a stranger that is "not found", which
+    // is what sends it to the shared view.
+    await expect(openProject(stranger, ref.id)).rejects.toMatchObject({
+      kind: "notfound",
+    });
+    const o = await openShared(stranger, ref.id);
+    expect(o.name).toBe("mine");
+    expect(o.owner).toBe(owner.me!.id);
+    if (o.data.form !== "folder") throw new Error("folder form");
+    expect(rustOpensFolder(o.data.files).entities()).toBe(
+      rustOpensFolder(folder("tshirt")).entities(),
+    );
+    // Turned off again, it stops working at once.
+    await owner.setShared(ref.id, false);
+    await expect(openShared(stranger, ref.id)).rejects.toThrow();
+    expect(shareUrl(ref.id, "https://x.y")).toBe(
+      `https://x.y/design/${ref.id}`,
+    );
+  });
+
+  it("does not share a copy of a shared project, and an anonymous user cannot share", async () => {
+    const owner = account();
+    const ref = await saveProject(owner, "mine", folder("tshirt"), null);
+    await owner.setShared(ref.id, true);
+    const copy = await duplicateProject(owner, ref.id);
+    expect(copy.shared).toBe(false);
+    const draft = new MemBackend();
+    const d = await saveProject(draft, "draft", folder("tshirt"), null);
+    await expect(draft.setShared(d.id, true)).rejects.toMatchObject({
+      kind: "account",
+    });
   });
 
   it("keeps copy names within the backend limit", () => {

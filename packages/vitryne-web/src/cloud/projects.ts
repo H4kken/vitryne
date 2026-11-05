@@ -183,6 +183,27 @@ async function fetchProject(b: CloudBackend, id: string): Promise<Opened> {
   };
 }
 
+/**
+ * A project someone shared by link, for anyone who has the link (no account, no session). It is
+ * not the viewer's: it opens read-only, and the viewer can make a copy of it.
+ */
+export async function openShared(
+  b: CloudBackend,
+  id: string,
+): Promise<{ name: string; owner: string; data: FileData }> {
+  const row = await b.getSharedProject(id);
+  return {
+    name: row.name,
+    owner: row.owner,
+    data: { form: "folder", files: await folderOf(b, row) },
+  };
+}
+
+/** The address of project `id`: the owner's editor, and for anyone else a viewer while it is shared. */
+export function shareUrl(id: string, origin = location.origin): string {
+  return `${origin}/design/${id}`;
+}
+
 /** Starts downloading a project the person is about to open, so the open finds it here. */
 export function fetchAhead(b: CloudBackend, id: string): void {
   const a = ahead.get(id);
