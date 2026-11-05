@@ -16,6 +16,16 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
   symmetric** in its panel or **Add mirror image** in its right-click menu, and a copy can be
   made independent again with the unlink button on its linked card. Each copy can have its own
   name, and the flat view marks the other copies of the picked piece.
+- Share a project by link: **Share** in the top bar (an account is needed; it replaces the Export button, a panel under the button with the link on top and a Download row, like Canva) turns on a link anyone can
+  open, without an account, to look at the project in 3D. Every project stays private until you do;
+  turn the link off and it stops working at once. The link is the project's own address
+  (`/design/<id>`); people who open it get a view-only editor and can **Make a copy** (with an account: it asks them to
+  sign in or create one) to keep and change their own. Needs the new migration `20261103000000_share_link.sql` (the web image
+  applies it at start; a hosted Supabase project needs `supabase db push`).
+- A project page you can't open now offers **Sign in** (and opens the project once you have), and a
+  shared link opens for someone who is signed out instead of failing with "permission denied".
+- Signing in with Google from a shared project, or from a project page that couldn't be opened, now
+  brings you back to that page instead of the start page.
 
 ## [0.6.0] - 2026-11-01
 
@@ -54,7 +64,7 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
   with nothing else to set up and no Supabase account. `sh setup.sh [domain]` makes the keys; with a
   domain, Caddy gets the HTTPS certificate itself. Accounts work without a mail server (set `SMTP_*`
   for confirmation emails and password resets).
-- A *Self-hosting* section in the documentation: quick start, running on a server with HTTPS, every
+- A _Self-hosting_ section in the documentation: quick start, running on a server with HTTPS, every
   setting, updates, backups and restores, and troubleshooting. The instructions for running the editor with a
   Supabase project of your own moved there from the developer pages.
 
@@ -64,7 +74,7 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 - The documentation site publishes `llms.txt` (an index of every page), `llms-full.txt` (every page in one
   file) and a markdown version of each page (add `.md` to its address), for language models.
-- A privacy policy and terms of service for vitryne.app in the documentation (*Legal*), linked from
+- A privacy policy and terms of service for vitryne.app in the documentation (_Legal_), linked from
   the foot of the start screen and the account dialog.
 - Right-clicking a project on the start screen opens a menu: open, open in a new tab, rename,
   duplicate (with an account), export and delete (after a confirmation). The ⋯ button has the same
@@ -81,7 +91,7 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 - The account dialog is rebuilt: email first (Google or an address, then the password), one screen to
   create an account or sign in, the terms and privacy line shown once an email is typed, a clearer
-  account page, and *Check your email* with a resend. The top-bar button says *Sign in* until you have an account.
+  account page, and _Check your email_ with a resend. The top-bar button says _Sign in_ until you have an account.
 - The web image no longer serves a `/privacy.html` template. Whoever runs an instance publishes
   their own policy and terms and sets `PRIVACY_POLICY_URL` and `TERMS_URL`; with none set, the
   editor shows no link.
@@ -136,7 +146,7 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 - Import Valentina patterns (`.val`) with their measurements (`.vit`, or a `.vst` size chart and
   a size): drop them on the editor or use **Import a file**; the dialog asks for the measurements
   file the pattern names. Curves stay curves. Also `vitryne convert pattern.val out.vtry
-  --measurements m.vit [--size 176,100]`.
+--measurements m.vit [--size 176,100]`.
 
 ### Changed
 

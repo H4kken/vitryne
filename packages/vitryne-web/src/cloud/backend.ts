@@ -19,6 +19,8 @@ export interface ProjectSummary {
   updatedAt: string;
   /** The sha256 of the project's thumbnail (a part of the owner's), if it has one. */
   thumbnail: string | null;
+  /** Anyone with the link `/design/<id>` can view it (private until the owner says otherwise). */
+  shared: boolean;
 }
 
 export interface ProjectRow extends ProjectSummary {
@@ -52,6 +54,8 @@ export interface CloudBackend {
 
   listProjects(): Promise<ProjectSummary[]>;
   getProject(id: string): Promise<ProjectRow>;
+  /** A shared project, by its id, for anyone (no account needed); throws if it is private or gone. */
+  getSharedProject(id: string): Promise<ProjectRow>;
   insertProject(p: {
     name: string;
     manifest: Manifest;
@@ -67,6 +71,8 @@ export interface CloudBackend {
   deleteProject(id: string): Promise<void>;
   /** Names the project's thumbnail (a part already uploaded); not an edit: the revision stays. */
   setThumbnail(id: string, sha256: string): Promise<void>;
+  /** Turns the share link on or off; not an edit: the revision stays. An account only. */
+  setShared(id: string, shared: boolean): Promise<void>;
 
   hasPart(name: string): Promise<boolean>;
   /** Succeeds when the part is already there (parts never change). */
@@ -89,13 +95,20 @@ export interface CloudBackend {
 
 /**
  * Something the person can act on: a quota, a conflict, a network failure, a refusal. `account`:
- * an anonymous user tried what needs an account (a second project).
+ * an anonymous user tried what needs an account (a second project). `notfound`: no such project
+ * for this person (deleted, or someone else's and private).
  */
 export class CloudError extends Error {
   constructor(
     message: string,
     readonly kind:
-      "conflict" | "quota" | "account" | "damaged" | "auth" | "other" = "other",
+      | "conflict"
+      | "quota"
+      | "account"
+      | "damaged"
+      | "auth"
+      | "notfound"
+      | "other" = "other",
     options?: { cause?: unknown },
   ) {
     super(message, options);

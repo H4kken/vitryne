@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The editor's URLs, each with its own screen (src/routes/): `/` the start screen,
-// `/design/$id` a cloud project, `/example/$name` a bundled example not changed yet, `/new` a
-// project before its first save. The editor layout (`App` → `Editor`) stays mounted across
+// `/design/$id` a cloud project (the owner's editor, or a read-only view of it for anyone else
+// while it is shared), `/example/$name` a bundled example not changed yet, `/new` a project before
+// its first save. The editor layout (`App` → `Editor`) stays mounted across
 // them, because the 3D engine lives in it; the routes render into its outlet. Any other path goes
 // to `/`.
 

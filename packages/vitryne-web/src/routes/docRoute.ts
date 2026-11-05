@@ -9,13 +9,14 @@ export type DocRoute =
   | { path: string; to: "/example/$name"; params: { name: string } };
 
 /**
- * The URL of what is open: nothing (`/`), a cloud project (`/design/$id`), an example not
- * changed yet (`/example/$name`), or a project before its first save (`/new`).
+ * The URL of what is open: nothing (`/`), a cloud project (`/design/$id`), someone's shared project
+ * you are looking at (the same address as theirs), an example not changed yet
+ * (`/example/$name`), or a project before its first save (`/new`).
  */
 export function docRoute(ref: FileRef | null, empty: boolean): DocRoute {
   if (empty) return { path: "/", to: "/" };
-  if (ref?.cloud) {
-    const id = ref.cloud.id;
+  const id = ref?.cloud?.id ?? ref?.shared;
+  if (id) {
     return { path: `/design/${id}`, to: "/design/$id", params: { id } };
   }
   if (ref?.example) {

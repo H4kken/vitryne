@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // `/design/$id`: a cloud project. Opens it unless it is the one open (after what a crash left
-// was put back: it may be this project). A loading screen until it is open, an error page at
-// this URL if it can't be; never the start screen.
+// was put back: it may be this project). For anyone but its owner it opens read-only while the
+// owner shares it. A loading screen until it is open, an error page at this URL if it can't be;
+// never the start screen.
 
 import { useEffect, useRef } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
@@ -12,10 +13,10 @@ import { useShowOpen } from "./useShowOpen";
 
 export function DesignRoute() {
   const { id } = useParams({ from: "/design/$id" });
-  const { files, ready } = useEditor();
+  const { files, ready, isAccount, needAccount } = useEditor();
   const navigate = useNavigate();
   const showOpen = useShowOpen();
-  const openId = files.ref?.cloud?.id ?? null;
+  const openId = files.ref?.cloud?.id ?? files.ref?.shared ?? null;
 
   const now = useRef({ files, openId });
   useEffect(() => {
@@ -37,12 +38,20 @@ export function DesignRoute() {
         title="Can't open this project"
         hint={
           navigator.onLine
-            ? "It may have been deleted, or it belongs to another account than the one signed in here."
+            ? "It may be private, or deleted. If it is yours, sign in to the account that made it."
             : "This browser seems to be offline. Projects open from the cloud."
         }
         detail={error.message}
         onRetry={() => files.openCloud(id, showOpen)}
-        onHome={() => void navigate({ to: "/" })}
+        onSignIn={
+          isAccount
+            ? undefined
+            : () =>
+                needAccount("Sign in to open this project.", () =>
+                  files.openCloud(id, showOpen),
+                )
+        }
+        onHome={isAccount ? () => void navigate({ to: "/" }) : undefined}
       />
     );
   if (openId !== id)
