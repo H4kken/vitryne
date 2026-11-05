@@ -196,6 +196,33 @@ As [File format](/developers/file-format#cloud-storage) planned: **the same form
 - **Unused parts** (no project of the person's lists them or names them as its thumbnail, and
   older than a day, since another tab may be mid-save) are deleted after each save.
 
+## Sharing
+
+Every project is private. An account (not an anonymous draft) can turn on **Share** for a project:
+`projects.shared` becomes true and the project's own address, `/design/<project id>`, opens it for
+anyone, signed in or not (the same URL for everyone, as in Docs or Canva). The id is a random uuid,
+so the link can't be guessed, and turning sharing off ends it at once.
+
+- **What a stranger reaches** is one function and a few objects: `shared_project(id)` returns that
+  project's row (`security definer`; no row for a private or missing project, so the two look alike),
+  and a storage policy lets `anon` and `authenticated` read the parts that shared project names
+  (its manifest's parts and its thumbnail). The `projects` table stays owner-only: nobody can list
+  shared projects, and one person's list never shows another's.
+- **View only:** there is no write path for anyone but the owner, and the editor agrees. At
+  `/design/<id>` it first tries the project as the person's own (row-level security finds nothing for
+  anyone else: `notfound`), then falls back to `shared_project`. A shared project opens in a read-only
+  document (`DocState.readOnly`: every edit, undo and redo is refused with a message; draping, orbiting
+  and playing still work) under a bar with **Make a copy**, which saves it as a project of the
+  viewer's own (an account's new project, or an anonymous viewer's draft after asking) and opens that.
+  Share and Export are off for a viewer. A private or deleted project shows the "can't open" page.
+- **Not secret:** view access is file access: anyone with the link can download the project's parts
+  from the backend, so the editor's lack of an Export button for viewers is not a protection.
+- **Not an edit:** turning sharing on or off keeps the revision and `updated_at`, so a save in
+  another tab still matches. A new project starts private (a copy of a shared project isn't shared),
+  and sharing needs an account (the trigger refuses it for an anonymous user).
+- **Privacy:** opening a link sends the project id and the file requests to the backend, nothing
+  else, and no identifier to count visitors. Link previews (an image in chat apps) aren't done yet.
+
 **Deduplication is per person, not across people.** Sharing a part between people by hash would
 let anyone who knows (or guesses) a hash read the part, or plant wrong bytes under someone else's
 hash. Per-person names cost one avatar (~0.5 MB) per person, and nothing per project.
@@ -208,6 +235,7 @@ Row-level security on everything a client can reach (`packages/vitryne-cloud/sup
 | -------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `projects` rows                                    | their owner                       | `owner = auth.uid()` for select, insert, update, delete; `owner`, `id`, `revision`, dates are server-kept (column grants and a trigger); `thumbnail` must be a sha256 |
 | `parts` objects                                    | their owner                       | the first path segment is `auth.uid()`; names must be `<uuid>/<64 hex>`; no updates                                                                                   |
+| a shared project and its parts                     | anyone with its link (read only)  | `shared_project(id)` and a read policy on the parts that project names, while `projects.shared` is true; owner only to change it, and an account only                 |
 | `my_usage`, `my_unused_parts`, `delete_my_account` | signed-in users, about themselves | functions on `auth.uid()`, not callable by `anon`                                                                                                                     |
 | `stale_anonymous_users`                            | the service role only             | what `clean-anonymous` deletes                                                                                                                                        |
 | `clean-anonymous` (Edge Function)                  | pg_cron                           | refuses any call without the `x-cleanup-secret` header                                                                                                                |
@@ -235,6 +263,10 @@ delete A's parts; the anon key alone reaches nothing; parts are immutable and mu
 hash; the server keeps owner, dates and revision, and a stale revision changes nothing; the quota
 and the project limit refuse; an anonymous user keeps one draft and an account several; account
 deletion is refused while parts remain, then removes the user and their projects and leaves B alone.
+`packages/vitryne-cloud/tests/share.test.mjs`: a project is private by default; a visitor or another
+user gets no row and none of its parts; only an account's owner can share; once shared, anyone gets
+the project, its parts and its thumbnail and nothing else (no table access, no unnamed parts, no
+writes); turning it off ends it at once; sharing keeps the revision.
 `packages/vitryne-cloud/tests/cleanup.test.mjs`: the cleanup function refuses a call without its
 secret, deletes an anonymous user idle for 31 days with their draft and parts, and keeps one idle
 for 29 days and an idle account.

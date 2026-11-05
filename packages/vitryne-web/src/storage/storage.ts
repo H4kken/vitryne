@@ -15,6 +15,8 @@ export interface FileRef {
   cloud?: CloudRef;
   /** A bundled example not saved yet (its id, as in `/example/$name`). */
   example?: string;
+  /** Someone else's project, shared by link, being looked at (read-only): its id, as in `/design/$id`. */
+  shared?: string;
 }
 
 export interface Opened {

@@ -8,6 +8,15 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 ## [Unreleased]
 
+### Added
+
+- Share a project by link: **Share** in the top bar (an account is needed) turns on a link anyone can
+  open, without an account, to look at the project in 3D. Every project stays private until you do;
+  turn the link off and it stops working at once. The link is the project's own address
+  (`/design/<id>`); people who open it get a view-only editor and can **Make a copy** to keep and
+  change their own. Needs the new migration `20261103000000_share_link.sql` (the web image
+  applies it at start; a hosted Supabase project needs `supabase db push`).
+
 ## [0.6.0] - 2026-11-01
 
 ### Changed

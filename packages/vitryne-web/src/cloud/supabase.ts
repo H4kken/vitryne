@@ -77,6 +77,7 @@ interface Row {
   revision: number;
   updated_at: string;
   thumbnail: string | null;
+  shared?: boolean;
 }
 
 /** The picture Google shares, only if it is an https address. A user linked to Google from an anonymous one has it on the identity, not in `user_metadata`. */
@@ -106,6 +107,7 @@ const summary = (r: Row): ProjectSummary => ({
   revision: r.revision,
   updatedAt: r.updated_at,
   thumbnail: r.thumbnail ?? null,
+  shared: r.shared ?? false,
 });
 const full = (r: Row): ProjectRow => ({
   ...summary(r),
@@ -484,7 +486,7 @@ export class SupabaseBackend implements CloudBackend {
     if (!this.current) return [];
     const { data, error } = await this.sb
       .from("projects")
-      .select("id,name,bytes,revision,updated_at,thumbnail")
+      .select("id,name,bytes,revision,updated_at,thumbnail,shared")
       .order("updated_at", { ascending: false });
     if (error) fail("Could not list your cloud projects", error);
     return (data as Row[]).map(summary);
@@ -493,15 +495,31 @@ export class SupabaseBackend implements CloudBackend {
   async getProject(id: string): Promise<ProjectRow> {
     const { data, error } = await this.sb
       .from("projects")
-      .select("id,owner,name,manifest,bytes,revision,updated_at,thumbnail")
+      .select(
+        "id,owner,name,manifest,bytes,revision,updated_at,thumbnail,shared",
+      )
       .eq("id", id)
       .maybeSingle();
     if (error) fail("Could not open the project", error);
     if (!data)
       throw new CloudError(
         "that project is gone (deleted from another tab or browser?)",
+        "notfound",
       );
     return full(data as Row);
+  }
+
+  async getSharedProject(id: string): Promise<ProjectRow> {
+    // A function, not the table: nobody can list other people's projects.
+    const { data, error } = await this.sb.rpc("shared_project", { pid: id });
+    if (error) fail("Could not open the shared project", error);
+    const row = (data as Row[])[0];
+    if (!row)
+      throw new CloudError(
+        "this link doesn't open anything: the project is private, or deleted",
+        "notfound",
+      );
+    return full(row);
   }
 
   async insertProject(p: {
@@ -513,7 +531,9 @@ export class SupabaseBackend implements CloudBackend {
     const { data, error } = await this.sb
       .from("projects")
       .insert(p)
-      .select("id,owner,name,manifest,bytes,revision,updated_at,thumbnail")
+      .select(
+        "id,owner,name,manifest,bytes,revision,updated_at,thumbnail,shared",
+      )
       .single();
     if (error) fail("Not saved", error);
     return full(data as Row);
@@ -529,7 +549,9 @@ export class SupabaseBackend implements CloudBackend {
       .update(p)
       .eq("id", id)
       .eq("revision", revision)
-      .select("id,owner,name,manifest,bytes,revision,updated_at,thumbnail");
+      .select(
+        "id,owner,name,manifest,bytes,revision,updated_at,thumbnail,shared",
+      );
     if (error) fail("Not saved", error);
     const rows = data as Row[];
     return rows[0] ? full(rows[0]) : null;
@@ -546,6 +568,19 @@ export class SupabaseBackend implements CloudBackend {
       .update({ thumbnail: sha256 })
       .eq("id", id);
     if (error) fail("Thumbnail not saved", error);
+  }
+
+  async setShared(id: string, shared: boolean): Promise<void> {
+    const { error } = await this.sb
+      .from("projects")
+      .update({ shared })
+      .eq("id", id);
+    if (error?.hint === "account")
+      throw new CloudError(
+        "create a free account to share a project",
+        "account",
+      );
+    if (error) fail(shared ? "Not shared" : "Not made private", error);
   }
 
   async hasPart(name: string): Promise<boolean> {

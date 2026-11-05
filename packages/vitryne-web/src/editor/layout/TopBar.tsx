@@ -2,7 +2,7 @@
 // The top bar: back to the start, the project's name and save state, undo and redo, which
 // views show, help, the account and Export.
 
-import { Download } from "lucide-react";
+import { Download, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -32,6 +32,7 @@ import type { SplitView } from "../hooks/useSplitView";
 /** The title bar's save state. */
 function saveStateText(s: SaveStatus, doc: DocState, inCloud: boolean): string {
   if (doc.empty) return "";
+  if (doc.readOnly) return "View only";
   switch (s.kind) {
     case "saving":
       return "Saving…";
@@ -59,8 +60,10 @@ export function TopBar(props: {
   garment: Garment | undefined;
   onAccount: () => void;
   onExport: () => void;
+  onShare: () => void;
 }) {
-  const { doc, store, files, cloud, garment, onAccount, onExport } = props;
+  const { doc, store, files, cloud, garment, onAccount, onExport, onShare } =
+    props;
   const { show2d, show3d, toggle2d, toggle3d } = props.view;
   const saveState = files.busy
     ? `${files.busy}…`
@@ -81,7 +84,7 @@ export function TopBar(props: {
         <TooltipContent>Back to files</TooltipContent>
       </Tooltip>
       <span className="mx-1 h-6 w-px bg-chip" />
-      {doc.entities.project ? (
+      {doc.entities.project && !doc.readOnly ? (
         <ProjectName
           name={doc.entities.project.name ?? doc.fileName}
           onRename={(v) => {
@@ -92,7 +95,7 @@ export function TopBar(props: {
         />
       ) : (
         <span className="max-w-[40vw] truncate text-[15px] font-semibold">
-          {doc.fileName}
+          {doc.entities.project?.name ?? doc.fileName}
         </span>
       )}
       <span
@@ -178,10 +181,22 @@ export function TopBar(props: {
       <ThemeMenu />
       <HelpMenu />
       <CloudButton user={cloud.user} onClick={onAccount} />
+      {!doc.readOnly && (
+        <Button
+          variant="outline"
+          className="gap-2 px-3.5 font-semibold"
+          onClick={onShare}
+          disabled={!files.ref?.cloud}
+          aria-label="Share"
+        >
+          <Link2 className="size-4" />
+          <span>Share</span>
+        </Button>
+      )}
       <Button
         className="gap-2 px-3.5 font-semibold shadow-xs"
         onClick={onExport}
-        disabled={doc.empty || !garment?.pieces.length}
+        disabled={doc.empty || doc.readOnly || !garment?.pieces.length}
         aria-label="Export"
       >
         <Download className="size-4" />

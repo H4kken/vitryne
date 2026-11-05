@@ -22,6 +22,8 @@ import type { PointerTool } from "@/worker/protocol";
 import { EngineSession, useEngine } from "@/worker/session";
 import { BlockedDialog } from "../dialogs/BlockedDialog";
 import { ExportDialog } from "../dialogs/ExportDialog";
+import { ShareDialog } from "../dialogs/ShareDialog";
+import { ViewOnlyBar } from "./ViewOnlyBar";
 import { ImportDialog } from "../dialogs/ImportDialog";
 import { NewPieceDialog } from "../dialogs/NewPieceDialog";
 import { ReplaceDraftDialog } from "../dialogs/ReplaceDraftDialog";
@@ -111,6 +113,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     key: number;
   } | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const pattern = useRef<PatternView>(null);
 
@@ -211,6 +214,13 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
   const importFile = () => fileInput.current?.click();
   const exportIt = () =>
     account.need("Create a free account to export.", () => setExporting(true));
+  const shareIt = () =>
+    account.need("Create a free account to share a project.", () =>
+      setSharing(true),
+    );
+  const sharedId = files.ref?.cloud?.id ?? null;
+  const sharedNow =
+    cloud.projects?.find((p) => p.id === sharedId)?.shared ?? false;
   const sewTool = () => {
     setFlatTool("sew");
     selection.setSelection(null);
@@ -308,7 +318,15 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
         garment={garment}
         onAccount={openAccount}
         onExport={exportIt}
+        onShare={shareIt}
       />
+      {doc.readOnly && (
+        <ViewOnlyBar
+          name={doc.entities.project?.name ?? doc.fileName}
+          busy={!!files.busy}
+          onCopy={() => draftReplace.startNew(() => void files.makeCopy())}
+        />
+      )}
 
       <div className="relative flex min-h-0 grow">
         <Rail panel={panels.panel} setPanel={panels.setPanel} />
@@ -429,6 +447,18 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
         defaultName={`Piece ${(garment?.pieces.length ?? 0) + 1}`}
         onClose={() => setAdding(null)}
         onAdd={(n) => addNewPiece(n, adding?.origin)}
+      />
+      <ShareDialog
+        open={sharing}
+        onOpenChange={setSharing}
+        projectName={doc.entities.project?.name ?? doc.fileName}
+        projectId={sharedId}
+        shared={sharedNow}
+        setShared={async (on) => {
+          if (!sharedId) return;
+          await (await cloud.backend()).setShared(sharedId, on);
+          cloud.refresh();
+        }}
       />
       <ExportDialog
         open={exporting}
