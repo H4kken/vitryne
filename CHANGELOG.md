@@ -20,6 +20,8 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
   shared link opens for someone who is signed out instead of failing with "permission denied".
 - Signing in with Google from a shared project, or from a project page that couldn't be opened, now
   brings you back to that page instead of the start page.
+- The body is now a warm skin tone (a darker one in dark mode) instead of a flat grey, so a sage
+  garment stands out from it.
 
 ## [0.6.0] - 2026-11-01
 
