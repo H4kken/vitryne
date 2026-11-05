@@ -3,15 +3,15 @@
 // the project file, so it never changes a drape, an export or what another viewer sees).
 import { useSyncExternalStore } from "react";
 
-/** Swatches, light to deep, named for people. */
-export const SKIN_TONES: readonly { name: string; color: string }[] = [
-  { name: "Fair", color: "#E8C4AC" },
-  { name: "Light", color: "#D9A98C" },
-  { name: "Medium", color: "#BD8C70" },
-  { name: "Olive", color: "#A97C5B" },
-  { name: "Tan", color: "#8F6248" },
-  { name: "Brown", color: "#6F4A36" },
-  { name: "Deep", color: "#4E3226" },
+/** Swatches, light to deep. */
+export const SKIN_TONES: readonly string[] = [
+  "#E8C4AC",
+  "#D9A98C",
+  "#BD8C70",
+  "#A97C5B",
+  "#8F6248",
+  "#6F4A36",
+  "#4E3226",
 ];
 
 export const DEFAULT_SKIN = "#BD8C70";
@@ -22,7 +22,8 @@ const listeners = new Set<() => void>();
 function stored(): string {
   try {
     const v = localStorage.getItem(KEY);
-    if (v && /^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
+    const tone = SKIN_TONES.find((t) => t.toLowerCase() === v?.toLowerCase());
+    if (tone) return tone.toLowerCase();
   } catch {
     // Storage blocked: the default tone.
   }
