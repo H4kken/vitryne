@@ -44,7 +44,7 @@ pub struct Style {
 }
 
 impl Default for Style {
-    /// The native viewer's: dark background, red cloth, grey body.
+    /// The native viewer's: dark background, red cloth, skin-toned body.
     fn default() -> Self {
         Self {
             background: [
@@ -54,7 +54,7 @@ impl Default for Style {
             ],
             cloth: [0.85, 0.3, 0.25],
             cloth_back: [0.55, 0.55, 0.6],
-            body: [0.75, 0.75, 0.72],
+            body: [0.74, 0.52, 0.40],
         }
     }
 }
