@@ -18,6 +18,8 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
   applies it at start; a hosted Supabase project needs `supabase db push`).
 - A project page you can't open now offers **Sign in** (and opens the project once you have), and a
   shared link opens for someone who is signed out instead of failing with "permission denied".
+- Signing in with Google from a shared project, or from a project page that couldn't be opened, now
+  brings you back to that page instead of the start page.
 
 ## [0.6.0] - 2026-11-01
 

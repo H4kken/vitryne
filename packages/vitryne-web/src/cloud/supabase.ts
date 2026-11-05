@@ -4,6 +4,7 @@
 // an example doesn't download it. The session is kept in localStorage: it is what the
 // requested feature needs, nothing else is stored.
 
+import { designIdAt } from "./designId";
 import {
   createClient,
   type Session,
@@ -438,7 +439,13 @@ export class SupabaseBackend implements CloudBackend {
     try {
       sessionStorage.setItem(
         RETURN_KEY,
-        JSON.stringify({ reopen: o.reopen, from } satisfies Stash),
+        JSON.stringify({
+          // The page being left: a project of the person's own, or a shared one, or one that
+          // couldn't be opened yet.
+          reopen:
+            o.reopen ?? designIdAt(location.pathname, import.meta.env.BASE_URL),
+          from,
+        } satisfies Stash),
       );
     } catch {
       // Without session storage the project just doesn't reopen.

@@ -52,6 +52,14 @@ export function useGoogleReturn(
           cloudRefresh();
           const { showInfo, projectsMoved } = now.current.files;
           projectsMoved(r.ids);
+          // A project that wasn't the anonymous user's (a shared one being looked at) is still
+          // where the person was.
+          if (stash.reopen && !r.ids[stash.reopen])
+            void now.current.navigate({
+              to: "/design/$id",
+              params: { id: stash.reopen },
+              replace: true,
+            });
           if (r.failed.length)
             showInfo(
               `Signed in. These projects could not be moved from this browser and stay there: ${r.failed.join(", ")}.`,
