@@ -13,7 +13,7 @@ import { useShowOpen } from "./useShowOpen";
 
 export function DesignRoute() {
   const { id } = useParams({ from: "/design/$id" });
-  const { files, ready } = useEditor();
+  const { files, ready, isAccount, needAccount } = useEditor();
   const navigate = useNavigate();
   const showOpen = useShowOpen();
   const openId = files.ref?.cloud?.id ?? files.ref?.shared ?? null;
@@ -43,7 +43,15 @@ export function DesignRoute() {
         }
         detail={error.message}
         onRetry={() => files.openCloud(id, showOpen)}
-        onHome={() => void navigate({ to: "/" })}
+        onSignIn={
+          isAccount
+            ? undefined
+            : () =>
+                needAccount("Sign in to open this project.", () =>
+                  files.openCloud(id, showOpen),
+                )
+        }
+        onHome={isAccount ? () => void navigate({ to: "/" }) : undefined}
       />
     );
   if (openId !== id)

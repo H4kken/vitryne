@@ -21,8 +21,7 @@ import { DiskFiles } from "@/storage/storage";
 import type { PointerTool } from "@/worker/protocol";
 import { EngineSession, useEngine } from "@/worker/session";
 import { BlockedDialog } from "../dialogs/BlockedDialog";
-import { ExportDialog } from "../dialogs/ExportDialog";
-import { ShareDialog } from "../dialogs/ShareDialog";
+import { SharePanel } from "../dialogs/SharePanel";
 import { ViewOnlyBar } from "./ViewOnlyBar";
 import { ImportDialog } from "../dialogs/ImportDialog";
 import { NewPieceDialog } from "../dialogs/NewPieceDialog";
@@ -112,7 +111,6 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     origin: Vec2;
     key: number;
   } | null>(null);
-  const [exporting, setExporting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const pattern = useRef<PatternView>(null);
@@ -212,12 +210,13 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     },
   });
   const importFile = () => fileInput.current?.click();
-  const exportIt = () =>
-    account.need("Create a free account to export.", () => setExporting(true));
+  const shareRef = useRef<HTMLButtonElement>(null);
   const shareIt = () =>
-    account.need("Create a free account to share a project.", () =>
-      setSharing(true),
-    );
+    sharing
+      ? setSharing(false)
+      : account.need("Create a free account to share or download.", () =>
+          setSharing(true),
+        );
   const sharedId = files.ref?.cloud?.id ?? null;
   const sharedNow =
     cloud.projects?.find((p) => p.id === sharedId)?.shared ?? false;
@@ -315,16 +314,20 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
         files={files}
         view={view}
         cloud={cloud}
-        garment={garment}
         onAccount={openAccount}
-        onExport={exportIt}
         onShare={shareIt}
+        shareRef={shareRef}
       />
       {doc.readOnly && (
         <ViewOnlyBar
           name={doc.entities.project?.name ?? doc.fileName}
           busy={!!files.busy}
-          onCopy={() => draftReplace.startNew(() => void files.makeCopy())}
+          onCopy={() =>
+            account.need(
+              "Create a free account to make a copy.",
+              () => void files.makeCopy(),
+            )
+          }
         />
       )}
 
@@ -409,6 +412,8 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
           ready,
           examples: examples.examples,
           examplesError: examples.error,
+          isAccount,
+          needAccount: account.need,
           startScreen,
         }}
       >
@@ -448,10 +453,11 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
         onClose={() => setAdding(null)}
         onAdd={(n) => addNewPiece(n, adding?.origin)}
       />
-      <ShareDialog
+      <SharePanel
         open={sharing}
         onOpenChange={setSharing}
-        projectName={doc.entities.project?.name ?? doc.fileName}
+        anchor={shareRef}
+        session={session}
         projectId={sharedId}
         shared={sharedNow}
         setShared={async (on) => {
@@ -459,11 +465,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
           await (await cloud.backend()).setShared(sharedId, on);
           cloud.refresh();
         }}
-      />
-      <ExportDialog
-        open={exporting}
-        onOpenChange={setExporting}
-        session={session}
+        canDownload={!!garment?.pieces.length}
         garmentName={doc.entities.project?.name ?? garment?.name ?? "garment"}
         projectFile={async () => {
           const data = await session.save((await store.settled()).rev, "zip");

@@ -15,6 +15,10 @@ export interface EditorRoutes {
   /** The bundled examples, once listed. */
   examples: Example[] | null;
   examplesError: string | null;
+  /** Whether the person has an account (not just an anonymous draft). */
+  isAccount: boolean;
+  /** Runs `then` with an account: at once, or once the person has signed in (the dialog says `why`). */
+  needAccount: (why: string, then: () => void) => void;
   /** The start screen, as the layout builds it (`/` shows it). */
   startScreen: ReactNode;
 }

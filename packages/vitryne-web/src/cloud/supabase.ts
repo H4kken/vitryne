@@ -500,6 +500,16 @@ export class SupabaseBackend implements CloudBackend {
       )
       .eq("id", id)
       .maybeSingle();
+    // Signed out, the table isn't readable at all: the same as "not yours", so a shared link is
+    // tried next (useFiles.openCloud).
+    if (
+      error?.code === "42501" ||
+      /permission denied/.test(error?.message ?? "")
+    )
+      throw new CloudError(
+        "this project is private, or deleted: sign in to the account that made it",
+        "notfound",
+      );
     if (error) fail("Could not open the project", error);
     if (!data)
       throw new CloudError(

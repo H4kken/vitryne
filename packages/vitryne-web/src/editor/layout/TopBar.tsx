@@ -2,7 +2,7 @@
 // The top bar: back to the start, the project's name and save state, undo and redo, which
 // views show, help, the account and Export.
 
-import { Download, Link2 } from "lucide-react";
+import type { RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -12,7 +12,6 @@ import {
 import type { SaveStatus } from "@/cloud/autosave";
 import type { Cloud } from "@/cloud/useCloud";
 import { renameProject } from "@/document/commands";
-import type { Garment } from "@/format/schema.gen";
 import { type DocState, DocumentStore } from "@/document/store";
 import { cn } from "@/lib/utils";
 import { useFiles } from "../hooks/useFiles";
@@ -57,13 +56,12 @@ export function TopBar(props: {
   files: ReturnType<typeof useFiles>;
   view: SplitView;
   cloud: Cloud;
-  garment: Garment | undefined;
   onAccount: () => void;
-  onExport: () => void;
   onShare: () => void;
+  /** The Share button, which the Share panel opens under. */
+  shareRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const { doc, store, files, cloud, garment, onAccount, onExport, onShare } =
-    props;
+  const { doc, store, files, cloud, onAccount, onShare, shareRef } = props;
   const { show2d, show3d, toggle2d, toggle3d } = props.view;
   const saveState = files.busy
     ? `${files.busy}…`
@@ -181,26 +179,14 @@ export function TopBar(props: {
       <ThemeMenu />
       <HelpMenu />
       <CloudButton user={cloud.user} onClick={onAccount} />
-      {!doc.readOnly && (
-        <Button
-          variant="outline"
-          className="gap-2 px-3.5 font-semibold"
-          onClick={onShare}
-          disabled={!files.ref?.cloud}
-          aria-label="Share"
-        >
-          <Link2 className="size-4" />
-          <span>Share</span>
-        </Button>
-      )}
       <Button
-        className="gap-2 px-3.5 font-semibold shadow-xs"
-        onClick={onExport}
-        disabled={doc.empty || doc.readOnly || !garment?.pieces.length}
-        aria-label="Export"
+        ref={shareRef}
+        className="px-3.5 font-semibold shadow-xs"
+        onClick={onShare}
+        disabled={doc.empty || doc.readOnly}
+        aria-label="Share"
       >
-        <Download className="size-4" />
-        <span>Export</span>
+        <span>Share</span>
       </Button>
     </header>
   );

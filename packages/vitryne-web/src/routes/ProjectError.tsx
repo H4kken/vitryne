@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/editor/icons/Logo";
 
@@ -10,15 +11,24 @@ export function ProjectError(props: {
   /** The error itself. */
   detail: string;
   onRetry: () => void;
-  onHome: () => void;
+  /** Shown when signing in could help (the person has no account): opens the account dialog. */
+  onSignIn?: () => void;
+  /** Where "Your projects" goes; left out when the person has none to go to. */
+  onHome?: () => void;
 }) {
   return (
     <div className="bg-background absolute inset-0 z-30 flex flex-col overflow-y-auto">
       <div className="flex h-16 shrink-0 items-center gap-3 px-8">
-        <Logo />
-        <span className="font-display text-xl font-bold tracking-[-0.01em]">
-          Vitryne
-        </span>
+        <Link
+          to="/"
+          aria-label="Back to start"
+          className="flex items-center gap-3 rounded-lg"
+        >
+          <Logo />
+          <span className="font-display text-xl font-bold tracking-[-0.01em]">
+            Vitryne
+          </span>
+        </Link>
       </div>
       <div
         role="alert"
@@ -32,7 +42,15 @@ export function ProjectError(props: {
         </p>
         <p className="text-muted-foreground m-0 text-[15px]">{props.detail}</p>
         <div className="mt-2 flex flex-wrap gap-2">
-          <Button onClick={props.onHome}>Your projects</Button>
+          {props.onSignIn && <Button onClick={props.onSignIn}>Sign in</Button>}
+          {props.onHome && (
+            <Button
+              variant={props.onSignIn ? "outline" : "default"}
+              onClick={props.onHome}
+            >
+              Your projects
+            </Button>
+          )}
           <Button variant="outline" onClick={props.onRetry}>
             Try again
           </Button>

@@ -344,8 +344,8 @@ export function useFiles(
     }, cancelled);
 
   /**
-   * The shared project being looked at, saved as a project of the person's own and opened in its
-   * place: a new project for an account, the draft of an anonymous user (the caller asked first).
+   * The shared project being looked at, saved as a new project of the person's own (an account:
+   * the caller asked for one) and opened in its place.
    */
   const makeCopy = async () => {
     if (!refNow.current?.shared) return;
@@ -358,8 +358,7 @@ export function useFiles(
       const b = await cloudNow.current.backend();
       const name =
         store.state.entities.project?.name ?? refNow.current.name ?? "project";
-      const prev = b.user()?.anonymous ? await draftOf(b) : null;
-      const saved = await saveProject(b, name, data.files, prev);
+      const saved = await saveProject(b, name, data.files, null);
       cloudNow.current.refresh();
       await loadCloud(saved.id);
       setNotice({
