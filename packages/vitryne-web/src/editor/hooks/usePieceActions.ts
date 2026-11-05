@@ -4,6 +4,7 @@
 
 import { type RefObject, useCallback } from "react";
 import {
+  addCut,
   addPiece,
   type Bounds,
   findCut,
@@ -13,8 +14,15 @@ import type { DocumentStore } from "@/document/store";
 import type { Garment, Placement, Vec2 } from "@/format/schema.gen";
 
 import { clonePiece } from "@/document/clonePiece";
+import { mirrorCut } from "@/document/mirrorCut";
 import { newPiece } from "@/pattern/draw";
-import { PAIRS, type Pair, type Place, placeOf } from "@/placement/places";
+import {
+  oppositePlace,
+  PAIRS,
+  type Pair,
+  type Place,
+  placeOf,
+} from "@/placement/places";
 import type { EngineSession } from "@/worker/session";
 import type { Copied } from "./usePickedActions";
 import type { NewPiece } from "../dialogs/NewPieceDialog";
@@ -132,5 +140,46 @@ export function usePieceActions(o: {
     }
   };
 
-  return { rewrap, addNewPiece, pasteCopies };
+  /**
+   * Another cut of each piece, the mirror image of the cut given, on the other side of the body
+   * where it has one (else waiting under "Not placed"). It shares the piece, so editing one
+   * changes both. One edit per piece; a piece with a mirror image already is left alone.
+   */
+  const addMirrors = async (cutIds: readonly string[]) => {
+    const g = garment;
+    if (!g) return;
+    let last: { pieceId: string; cutId: string } | undefined;
+    for (const cutId of cutIds) {
+      const f = findCut(g, cutId);
+      if (!f || f.piece.cuts.length > 1) continue;
+      const id = crypto.randomUUID();
+      const place = f.cut.state ? null : placeOf(f.cut.placement);
+      const other = place && oppositePlace(place);
+      let cut = mirrorCut(f.piece, f.cut, {
+        id,
+        placement: f.cut.placement,
+        ...(other ? {} : { state: "unplaced" as const }),
+      });
+      let bounds: Bounds | undefined;
+      if (other) {
+        const r = JSON.parse(
+          await session.placePiece(
+            JSON.stringify({ ...f.piece, cuts: [cut] }),
+            [other],
+          ),
+        ) as { placements: Omit<Placement, "type">[]; bounds: Bounds | null };
+        cut = {
+          ...cut,
+          placement: { type: "wrap", ...r.placements[0] } as Placement,
+        };
+        bounds = r.bounds ?? undefined;
+      }
+      if (!store.execute((e) => addCut(e, g.id, f.piece.id, cut, bounds)))
+        throw new Error(store.state.refused ?? "the copy could not be added");
+      last = { pieceId: f.piece.id, cutId: id };
+    }
+    if (last) onAdded(last.pieceId, last.cutId);
+  };
+
+  return { rewrap, addNewPiece, pasteCopies, addMirrors };
 }

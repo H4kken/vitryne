@@ -64,10 +64,22 @@ export function CutGroup(props: {
     props.marks;
   const on = inGroup.has(v.cut.id);
   const lit = highlight === v.cut.id;
+  // Another copy of the picked piece: a faint dashed box, so the link shows in the flat view.
+  const linked =
+    !on &&
+    v.piece.cuts.length > 1 &&
+    v.piece.cuts.some((c) => inGroup.has(c.id));
   return (
     <g
       key={v.cut.id}
-      opacity={highlight && !lit ? 0.3 : undefined}
+      opacity={
+        highlight && !lit
+          ? 0.3
+          : // The mirror image of a piece cut more than once: a touch softer, as a hint.
+            v.cut.mirrored && v.piece.cuts.length > 1 && !on
+            ? 0.9
+            : undefined
+      }
       className="transition-opacity duration-150"
     >
       <g transform={svgTransform(v.t, !!v.cut.mirrored)}>
@@ -77,6 +89,15 @@ export function CutGroup(props: {
           bad={!!shape?.problem && shape.pieceId === v.piece.id}
           marked={markPicked?.cutId === v.cut.id ? markPicked : null}
         />
+        {on && (
+          <path
+            d={pathData(outlinePoints(v.piece), true)}
+            fill="var(--select)"
+            fillOpacity={0.07}
+            stroke="none"
+            className="pointer-events-none"
+          />
+        )}
         {lit && (
           <path
             d={pathData(outlinePoints(v.piece), true)}
@@ -187,6 +208,21 @@ export function CutGroup(props: {
           />
         )}
       </g>
+      {linked && (
+        <rect
+          x={v.box.minX - 12}
+          y={-v.box.maxY - 12}
+          width={v.box.maxX - v.box.minX + 24}
+          height={v.box.maxY - v.box.minY + 24}
+          fill="none"
+          stroke="var(--select)"
+          strokeWidth={1.5}
+          strokeDasharray="5 4"
+          strokeOpacity={0.45}
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+      )}
       <text
         x={(v.box.minX + v.box.maxX) / 2}
         y={-v.box.minY + LABEL_GAP_MM}
@@ -196,7 +232,6 @@ export function CutGroup(props: {
         className="pointer-events-none font-sans text-[22px] select-none"
       >
         {cutLabel(v)}
-        {v.cut.mirrored ? " (mirrored)" : ""}
       </text>
     </g>
   );

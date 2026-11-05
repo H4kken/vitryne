@@ -10,6 +10,12 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 ### Added
 
+- Symmetric pieces: a new piece for an arm, a leg or a side of the body is cut as a left and right
+  pair by default (the **Symmetric pair** switch in the new-piece dialog), and the two are one
+  piece, so editing one changes the other. A piece cut once gets its mirror image with **Make
+  symmetric** in its panel or **Add mirror image** in its right-click menu, and a copy can be
+  made independent again with the unlink button on its linked card. Each copy can have its own
+  name, and the flat view marks the other copies of the picked piece.
 - Share a project by link: **Share** in the top bar (an account is needed; it replaces the Export button, a panel under the button with the link on top and a Download row, like Canva) turns on a link anyone can
   open, without an account, to look at the project in 3D. Every project stays private until you do;
   turn the link off and it stops working at once. The link is the project's own address

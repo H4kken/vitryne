@@ -171,7 +171,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
       ),
     [info],
   );
-  const { rewrap, addNewPiece, pasteCopies } = usePieceActions({
+  const { rewrap, addNewPiece, pasteCopies, addMirrors } = usePieceActions({
     session,
     store,
     garment,
@@ -236,6 +236,10 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
     onPaste: (copied) =>
       void pasteCopies(copied).catch((e: Error) =>
         files.showError("Could not paste", e),
+      ),
+    onMirror: (cutIds) =>
+      void addMirrors(cutIds).catch((e: Error) =>
+        files.showError("Could not add the mirror image", e),
       ),
   });
   useShortcuts({
@@ -348,6 +352,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
           }
           startsOut={startsOut}
           onFlip={(axis) => void picked.flip(axis)}
+          onMirror={() => void picked.mirror()}
         />
 
         {/* Workspace views: 2D window on the left, 3D on the right */}

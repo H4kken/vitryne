@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { FlipHorizontal2, FlipVertical2 } from "lucide-react";
+import {
+  ChevronRight,
+  FlipHorizontal2,
+  FlipVertical2,
+  SquareSplitHorizontal,
+  Unlink,
+} from "lucide-react";
 import { BackLink } from "@/components/BackLink";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { SHIFT } from "@/lib/keys";
 import type { FlipAxis } from "@/pattern/flip";
 import {
@@ -17,24 +29,26 @@ import type { Cut, Garment, Piece } from "@/format/schema.gen";
 import {
   fabricColor,
   followers,
-  renameCut,
   renamePiece,
   setPieceFabric,
   setPlacement,
+  makeIndependent,
+  renameCut,
 } from "@/document/commands";
 import type { Entities } from "@/document/entities";
 import type { DocumentStore } from "@/document/store";
 
+import { cutName } from "../cutName";
 import { PlaceSelect } from "@/placement/PlaceSelect";
 import {
   degrees,
   type Place,
+  PLACES,
   placeOf,
   radians,
   tidy,
 } from "@/placement/places";
 import { PlaceMap } from "./PlaceMap";
-import { cutName } from "../cutName";
 import { TextField } from "../TextField";
 import { FlipButton } from "./FlipButton";
 import { FabricOption } from "./FabricOption";
@@ -65,11 +79,15 @@ export function CutDetails(props: {
   onPlaceIn3d: (() => void) | null;
   /** Flips the picked pieces (this one among them) in the flat view. */
   onFlip: (axis: FlipAxis) => void;
+  /** Adds a mirror-image cut to this piece. */
+  onMirror: () => void;
 }) {
   const { store, garment: g, piece, cut } = props;
   const p = cut.placement;
   const place = placeOf(p);
   const blocked = followers(g, cut.id);
+  /** Cut more than once: the copies share the outline, and each has its own name. */
+  const linked = piece.cuts.length > 1;
   const on = g.pieces.flatMap((pc) =>
     pc.cuts
       .filter((c) => !blocked.has(c.id))
@@ -104,10 +122,15 @@ export function CutDetails(props: {
       <div className="flex items-end gap-2">
         <div className="min-w-0 grow">
           <TextField
-            label="Piece name"
-            value={piece.name}
+            label="Name"
+            value={linked ? cutName(piece, cut) : piece.name}
             onCommit={(v) =>
-              store.execute((e) => renamePiece(e, g.id, piece.id, v))
+              // Linked copies each have their own name; a piece cut once is named as a piece.
+              store.execute((e) =>
+                linked
+                  ? renameCut(e, g.id, piece.id, cut.id, v)
+                  : renamePiece(e, g.id, piece.id, v),
+              )
             }
           />
         </div>
@@ -126,21 +149,86 @@ export function CutDetails(props: {
           <FlipHorizontal2 />
         </FlipButton>
       </div>
-      {cut.mirrored && (
-        <span className="-mt-2 w-fit rounded-full bg-secondary px-2.5 py-0.5 text-[13px] font-medium text-secondary-foreground">
-          Mirror image
-        </span>
-      )}
-      {piece.cuts.length > 1 && (
-        <TextField
-          label={`This copy (${piece.cuts.indexOf(cut) + 1} of ${piece.cuts.length})`}
-          value={cut.name ?? ""}
-          placeholder={piece.name}
-          onCommit={(v) =>
-            store.execute((e) => renameCut(e, g.id, piece.id, cut.id, v))
-          }
-        />
-      )}
+      <div className="-mt-1 flex flex-col gap-1.5">
+        {piece.cuts.length === 1 ? (
+          <Button variant="outline" size="sm" onClick={props.onMirror}>
+            <SquareSplitHorizontal />
+            Make symmetric
+          </Button>
+        ) : (
+          <>
+            <div className="flex flex-col gap-1.5 rounded-[10px] bg-secondary/60 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground text-[13px]">
+                  This piece is linked to
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="-mt-1 -mr-1.5 size-8"
+                      aria-label="Make this copy independent"
+                      onClick={() =>
+                        store.execute((e) =>
+                          makeIndependent(e, g.id, cut.id, {
+                            id: () => crypto.randomUUID(),
+                          }),
+                        )
+                      }
+                    >
+                      <Unlink />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Make this copy independent</TooltipContent>
+                </Tooltip>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {piece.cuts
+                  .filter((c) => c.id !== cut.id)
+                  .map((c) => {
+                    // Its name (its own, else the piece's), and where it goes on the body.
+                    const at = c.state ? null : placeOf(c.placement);
+                    const where = at
+                      ? PLACES[at].label
+                      : c.mirrored
+                        ? "Mirror image"
+                        : null;
+                    return (
+                      <Button
+                        key={c.id}
+                        variant="outline"
+                        className="h-auto justify-start gap-2.5 px-3 py-2"
+                        onClick={() =>
+                          props.onSelect({
+                            kind: "cut",
+                            pieceId: piece.id,
+                            cutId: c.id,
+                          })
+                        }
+                      >
+                        <span className="flex grow flex-col items-start text-left">
+                          <span className="font-medium">
+                            {cutName(piece, c)}
+                          </span>
+                          {where && (
+                            <span className="text-muted-foreground text-[13px] font-normal">
+                              {where}
+                            </span>
+                          )}
+                        </span>
+                        <ChevronRight className="text-muted-foreground" />
+                      </Button>
+                    );
+                  })}
+              </div>
+              <span className="text-muted-foreground text-[13px]">
+                Every change you make here is also made to it.
+              </span>
+            </div>
+          </>
+        )}
+      </div>
       <div className="flex flex-col gap-2 border-t pt-4">
         <PanelHeading>Fabric</PanelHeading>
         <Select

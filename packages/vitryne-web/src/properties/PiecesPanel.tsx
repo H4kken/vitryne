@@ -42,6 +42,8 @@ export function PiecesPanel(props: {
   onPlaceIn3d: (() => void) | null;
   /** Flips the picked pieces in the flat view. */
   onFlip: (axis: FlipAxis) => void;
+  /** Adds a mirror-image cut to the picked piece. */
+  onMirror: () => void;
   /** The seam whose page is open, or none. */
   openSeam: string | null;
   sewing: Sewing;

@@ -8,10 +8,20 @@ import type { Cut, Piece } from "@/format/schema.gen";
 export function clonePiece(
   piece: Piece,
   cut: Cut,
-  o: { id: () => string; name: string },
+  o: {
+    id: () => string;
+    name: string;
+    /** Filled with old id -> new id of the outline's nodes, lines and their nodes. */
+    map?: Map<string, string>;
+  },
 ): Piece {
   const ids = new Map(piece.outline.map((n) => [n.id, o.id()]));
   const to = (id: string) => ids.get(id) ?? id;
+  const note = <T extends { id: string }>(old: T, fresh: string): string => {
+    o.map?.set(old.id, fresh);
+    return fresh;
+  };
+  for (const [old, fresh] of ids) o.map?.set(old, fresh);
   const copy = structuredClone(piece);
   delete copy.source; // it names a piece of the imported source, which this is not
   return {
@@ -26,8 +36,8 @@ export function clonePiece(
       ? {
           lines: copy.lines.map((l) => ({
             ...l,
-            id: o.id(),
-            nodes: l.nodes.map((n) => ({ ...n, id: o.id() })),
+            id: note(l, o.id()),
+            nodes: l.nodes.map((n) => ({ ...n, id: note(n, o.id()) })),
           })) as NonNullable<Piece["lines"]>,
         }
       : {}),
