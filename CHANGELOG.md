@@ -14,7 +14,8 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
   pair by default (the **Symmetric pair** switch in the new-piece dialog), and the two are one
   piece, so editing one changes the other. A piece cut once gets its mirror image with **Make
   symmetric** in its panel or **Add mirror image** in its right-click menu, and a copy can be
-  made independent again with **Make this copy independent**.
+  made independent again with the unlink button on its linked card. Each copy can have its own
+  name, and the flat view marks the other copies of the picked piece.
 
 ## [0.6.0] - 2026-11-01
 
