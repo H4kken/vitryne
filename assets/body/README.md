@@ -18,3 +18,14 @@ Measured on this mesh (used to size and place the T-shirt):
 chest ≈ 0.80–0.85 m around, waist ≈ 0.66 m (y ≈ 1.10), hips ≈ 0.95 m (y ≈ 0.80),
 shoulder top ≈ (±0.15, 1.39, 0.01), upper arm from ≈ (±0.18, 1.36, 0.01) along
 ≈ (±0.54, −0.84, 0.06), radius ≈ 4 cm, elbow at y ≈ 1.13.
+
+`avatar.json`'s `measurements` (mm: `height` and the tape measures above, 25 values) come from
+`tools/avatar/derive.py`, which also derives the regions from the MakeHuman skeleton's joints
+(`default.mhskel` and `base.obj`, CC0). On this avatar the derived regions are within 25 mm and
+8° of the hand-set ones above, and the T-shirt and trousers still drape to rest with 0 mm
+penetration on them, so a body made from MakeHuman targets can have its regions derived. This
+avatar keeps its hand-set regions, because the golden drapes depend on them. Regenerate the
+measurements:
+
+    python3 tools/avatar/derive.py --body assets/body/makehuman_body_m.obj \
+        --base-obj base.obj --skeleton default.mhskel --check assets/body/avatar.json --write
