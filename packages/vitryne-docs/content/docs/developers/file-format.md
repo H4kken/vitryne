@@ -615,7 +615,10 @@ avatar used by many projects.
 
 - **Mesh:** glTF 2.0 binary, one mesh, triangles, metres, in avatar space (+Y up, facing +Z, feet
   at y = 0). The collision field (SDF) is never stored; the engine bakes or caches it.
-- **`measurements`:** optional, mm, informational in v1.
+- **`measurements`:** optional, mm, informational in v1: `height` and the tape measures of the
+  mesh (chest, waist, hips, seat, knee, wrist, ... in FreeSewing's terms), written by
+  `tools/avatar/derive.py`. The editor reads `height` to tell a leg from a torso when you drop a
+  piece on the body (1750 mm without it).
 
 **Why glTF:** standard, compact, in metres, and it already has skins, morph targets and
 animations for poses later. OBJ has none of those.

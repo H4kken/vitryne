@@ -14,6 +14,7 @@ which git ignores.
 | [format/validate.py](format/validate.py) | Checks a Vitryne file (`.vtry` zip or folder) against `docs/format/schema/` and the reference rules of [File format](../packages/vitryne-docs/content/docs/developers/file-format.md). Needs `pip install jsonschema`. |
 | [format/build-examples.sh](format/build-examples.sh) | Regenerates `assets/examples/*.vtry` (folder form) from the sample garments' sidecars with `vitryne convert`, writes the zips to `bench-out/examples/`, and validates both forms. Run it after changing the converter or a sidecar; `make check` fails until you do. |
 | [drafting/corpus.sh](drafting/corpus.sh) | Fetches Valentina's and Seamly2D's own pattern collections (GPL-3.0, into `packages/vitryne-engine/target/`, never committed) and imports every pattern with its measurements: pieces made and refused, with reasons. `make drafting-corpus`. |
+| [avatar/derive.py](avatar/derive.py) | Derives an avatar's `measurements` (tape measures of the mesh) and its `regions` (from the MakeHuman skeleton's joints, so a body made with MakeHuman targets needs no hand-measuring). `--check` compares with an avatar file, `--write` puts the measurements in. Needs numpy and scipy, and MakeHuman's `base.obj` and `default.mhskel` (CC0, not committed). |
 | [patterns/](patterns/) | Measures the avatar and drafts the sample garments with FreeSewing into DXF-AAMA (`cd tools/patterns && pnpm install && ./export-all.sh`). |
 
 ## Examples

@@ -25,6 +25,11 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 - An **Avatar** tab in the left rail changes the body's skin tone (seven swatches). It is
   kept in this browser, like the theme, and never changes a drape or an export.
 
+### Fixed
+
+- Dropping a piece on the body now uses the avatar's real height (1666 mm) to find the legs and the
+  head, instead of assuming 1750 mm. The avatar carries its measurements (chest, waist, hips, ...).
+
 ## [0.6.0] - 2026-11-01
 
 ### Changed
