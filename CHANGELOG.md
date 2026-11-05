@@ -22,6 +22,8 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
   brings you back to that page instead of the start page.
 - The body is now a warm skin tone (a darker one in dark mode) instead of a flat grey, so a sage
   garment stands out from it.
+- An **Avatar** tab in the left rail changes the body's skin tone (seven swatches or any colour). It is
+  kept in this browser, like the theme, and never changes a drape or an export.
 
 ## [0.6.0] - 2026-11-01
 

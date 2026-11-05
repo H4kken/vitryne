@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { FlipAxis } from "@/pattern/flip";
 import { type Place } from "@/placement/places";
 import { FabricPanel } from "@/properties/FabricPanel";
+import { AvatarPanel } from "@/properties/AvatarPanel";
 import { PANEL_TITLES } from "@/properties/panelTitles";
 import { PiecesPanel } from "@/properties/PiecesPanel";
 import { SettingsPanel } from "@/properties/SettingsPanel";
@@ -14,7 +15,7 @@ import type { useOtherFabrics } from "../hooks/useOtherFabrics";
 import type { useSelection } from "../hooks/useSelection";
 import type { useSewing } from "../hooks/useSewing";
 
-/** The panel the rail opened, sliding in over the canvas: Fabric, Pieces (and seams) or Settings. */
+/** The panel the rail opened, sliding in over the canvas: Fabric, Pieces (and seams), Avatar or Settings. */
 export function SidePanel(props: {
   panels: ReturnType<typeof usePanel>;
   store: DocumentStore;
@@ -133,6 +134,7 @@ export function SidePanel(props: {
                 }}
               />
             )}
+            {displayedPanel === "avatar" && <AvatarPanel />}
             {displayedPanel === "settings" && (
               <SettingsPanel store={store} entities={doc.entities} />
             )}

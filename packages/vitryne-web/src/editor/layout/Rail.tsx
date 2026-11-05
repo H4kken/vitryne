@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { Shapes, SlidersHorizontal } from "lucide-react";
+import { Shapes, SlidersHorizontal, User } from "lucide-react";
 import { type PanelId } from "@/properties/panelTitles";
 import { FabricIcon } from "../icons/FabricIcon";
 import { RailButton } from "./RailButton";
@@ -26,6 +26,12 @@ export function Rail({
       <RailButton
         id="pieces"
         icon={<Shapes className="size-6" strokeWidth={1.6} />}
+        panel={panel}
+        setPanel={setPanel}
+      />
+      <RailButton
+        id="avatar"
+        icon={<User className="size-6" strokeWidth={1.6} />}
         panel={panel}
         setPanel={setPanel}
       />

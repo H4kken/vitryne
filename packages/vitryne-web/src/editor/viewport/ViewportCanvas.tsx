@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useAltHeld } from "../hooks/useAltHeld";
 import { useModHeld } from "../hooks/useModHeld";
 import { sceneStyle } from "./sceneStyle";
+import { useSkin } from "@/lib/skin";
 import { useResolvedTheme } from "@/lib/theme";
 import type { PointerTool } from "@/worker/protocol";
 import { type EngineSession } from "@/worker/session";
@@ -26,13 +27,14 @@ export function ViewportCanvas({
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const theme = useResolvedTheme();
+  const skin = useSkin();
   const turning = useModHeld();
   const sliding = useAltHeld();
 
-  // Sent before the canvas attaches, and again when the theme changes (the worker repaints).
+  // Sent before the canvas attaches, and again when the theme or the skin tone changes (the worker repaints).
   useEffect(() => {
-    session.setStyle(sceneStyle(theme));
-  }, [session, theme]);
+    session.setStyle(sceneStyle(theme, skin));
+  }, [session, theme, skin]);
 
   useEffect(() => {
     const canvas = ref.current;
