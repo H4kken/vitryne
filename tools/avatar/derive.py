@@ -91,7 +91,8 @@ def derive_regions(joints, ctx):
                             'zero': [0.0, 0.0, 1.0]}
     torso_z = float(np.mean([mid_z(ctx['torso'](y)) for y in
                              np.arange(ctx['crotch'] + 0.05, ctx['armpit'], 0.02)])) * 1000
-    head_ys = np.arange(1.50, 1.63, 0.02)
+    hy = float(j('head')[1]) / 1000  # slices through the head, from just below its joint up
+    head_ys = np.arange(hy - 0.014, hy + 0.116, 0.02)
     head_z = float(np.median([mid_z(ctx['torso'](y)) for y in head_ys])) * 1000
     r['torso'] = {'type': 'axis', 'origin': [0.0, 0.0, round(torso_z, 1)], 'axis': [0.0, 1.0, 0.0],
                   'zero': [0.0, 0.0, 1.0]}

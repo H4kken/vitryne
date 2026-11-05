@@ -22,6 +22,8 @@ def measure(V, F, profile=False):
     """Measures a body mesh (V: vertices in metres, F: triangles). Returns (the FreeSewing
     measurements in mm, a context for deriving more from the same slices), or (None, None) when
     printing the profile."""
+    # The search ranges below are for the 1.666 m test avatar; other bodies scale them by height.
+    s = round(float(V[:, 1].max()) / 1.66589, 3)
 
     def slice_pts(origin, normal):
         """Points where mesh edges cross the plane, with each point's triangle index."""
@@ -85,12 +87,12 @@ def measure(V, F, profile=False):
 
     ys = np.arange(0.50, 1.50, 0.005)
     # Crotch: highest y where the slice through x=0 doesn't exist (legs separate).
-    crotch = max(y for y in np.arange(0.5, 1.0, 0.002) if torso(y) is None)
+    crotch = max(y for y in np.arange(0.5 * s, 1.0 * s, 0.002) if torso(y) is None)
     # Armpit: lowest y where the arms join the torso loop (torso loop suddenly wider).
     def torso_width(y):
         p = torso(y)
         return p[:, 0].max() - p[:, 0].min() if p is not None else 0
-    armpit = min(y for y in np.arange(1.15, 1.45, 0.002) if torso_width(y) > 0.50)
+    armpit = min(y for y in np.arange(1.15 * s, 1.45 * s, 0.002) if torso_width(y) > 0.50)
     # Waist: narrowest torso girth between crotch + 0.20 and armpit - 0.10.
     waist_y = min(np.arange(crotch + 0.20, armpit - 0.10, 0.005), key=lambda y: girth(torso(y)))
     # Seat: fullest girth between 5 cm above the crotch (below that the hull spans both thighs) and the waist.
@@ -160,14 +162,14 @@ def measure(V, F, profile=False):
     def leg(y):
         ls = [p for p in loops(y) if p[:, 0].mean() > 0.02]
         return max(ls, key=len) if ls else None
-    knee_y = min(np.arange(0.38, 0.58, 0.005), key=lambda y: girth(leg(y)))
+    knee_y = min(np.arange(0.38 * s, 0.58 * s, 0.005), key=lambda y: girth(leg(y)))
     out['knee'] = mm(girth(leg(knee_y)))
     out['waistToKnee'] = mm(waist_y - knee_y)
     out['upperLeg'] = mm(girth(leg(crotch - 0.03)))
 
     # Neck: girth of the neck loop at its base; HPS = side of the neck base.
     neck_base = None
-    for y in np.arange(armpit + 0.02, 1.60, 0.002):
+    for y in np.arange(armpit + 0.02, 1.60 * s, 0.002):
         p = torso(y)
         if p is not None and p[:, 0].max() - p[:, 0].min() < 0.16:
             neck_base = y
@@ -176,7 +178,7 @@ def measure(V, F, profile=False):
     pn = torso(neck_base + 0.01)
     hps = np.array([pn[:, 0].max(), neck_base, pn[pn[:, 0].argmax(), 2]])
     # Head: fullest girth above the neck.
-    out['head'] = mm(max(girth(torso(y)) for y in np.arange(1.50, 1.66, 0.005)))
+    out['head'] = mm(max(girth(torso(y)) for y in np.arange(1.50 * s, 1.66 * s, 0.005)))
     # Shoulder point: outermost top-of-shoulder point, from the frontal profile above the armpit.
     sh = [(y, torso(y)) for y in np.arange(armpit, neck_base, 0.002)]
     # Shoulder tip: highest y where the torso loop is still wider than 0.30 m.
@@ -209,7 +211,7 @@ def measure(V, F, profile=False):
     # Arm centreline (right arm, +x): centroids of the arm's horizontal slice loops, from the
     # armpit down to the fingertips; girths are taken perpendicular to the local centreline.
     cents = []
-    for y in np.arange(armpit - 0.01, 0.90, -0.01):
+    for y in np.arange(armpit - 0.01, 0.90 * s, -0.01):
         ls = [p for p in loops(y) if p[:, 0].mean() > 0.17]
         if ls:
             cents.append(max(ls, key=len).mean(0))

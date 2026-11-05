@@ -1,0 +1,117 @@
+{
+  "id": "9aca93de-0a73-70f0-8fc4-01095a701f1a",
+  "name": "Male, average",
+  "attribution": {
+    "title": "MakeHuman base mesh (hm08) with macro targets (gender 1.0, weight 0.5)",
+    "creator": "Data Collection AB, Joel Palmius, Jonas Hauquier",
+    "license": "CC0-1.0",
+    "source": "https://github.com/makehumancommunity/makehuman"
+  },
+  "mesh": "avatars/9aca93de-0a73-70f0-8fc4-01095a701f1a/body.glb",
+  "pose": "A",
+  "measurements": {
+    "height": 1730.4,
+    "waist": 746.6,
+    "seat": 930.0,
+    "hips": 826.8,
+    "chest": 981.7,
+    "seatBack": 449.6,
+    "waistBack": 368.6,
+    "waistToFloor": 1076.5,
+    "waistToSeat": 195.0,
+    "waistToHips": 100.0,
+    "waistToUpperLeg": 245.0,
+    "waistToArmpit": 228.4,
+    "crossSeamFront": 312.0,
+    "crossSeam": 637.4,
+    "knee": 351.4,
+    "waistToKnee": 596.7,
+    "upperLeg": 551.8,
+    "neck": 390.6,
+    "head": 567.5,
+    "shoulderToShoulder": 299.3,
+    "hpsToWaistBack": 414.4,
+    "hpsToBust": 223.5,
+    "biceps": 296.9,
+    "wrist": 147.0,
+    "shoulderToWrist": 584.7
+  },
+  "regions": {
+    "arm-left": {
+      "type": "path",
+      "points": [
+        [186.5, 1379.4, 17.8],
+        [352.2, 1189.6, 15.6],
+        [385.9, 1157.4, 63.6],
+        [419.5, 1125.2, 111.6],
+        [486.8, 1060.9, 207.6]
+      ],
+      "zero": [0.0, 1.0, 0.0]
+    },
+    "arm-right": {
+      "type": "path",
+      "points": [
+        [-186.5, 1379.4, 17.8],
+        [-352.2, 1189.6, 15.6],
+        [-385.9, 1157.4, 63.6],
+        [-419.5, 1125.2, 111.6],
+        [-486.8, 1060.9, 207.6]
+      ],
+      "zero": [0.0, 1.0, 0.0]
+    },
+    "arm-straight-left": {
+      "type": "axis",
+      "origin": [186.5, 1379.4, 17.8],
+      "axis": [-0.629, 0.668, -0.398],
+      "zero": [0.0, 1.0, 0.0]
+    },
+    "arm-straight-right": {
+      "type": "axis",
+      "origin": [-186.5, 1379.4, 17.8],
+      "axis": [0.629, 0.668, -0.398],
+      "zero": [0.0, 1.0, 0.0]
+    },
+    "head": {
+      "type": "axis",
+      "origin": [0.0, 0.0, 50.6],
+      "axis": [0.0, 1.0, 0.0],
+      "zero": [0.0, 0.0, 1.0]
+    },
+    "head-over": {
+      "type": "axis",
+      "origin": [0.0, 1580.7, 50.6],
+      "axis": [1.0, 0.0, 0.0],
+      "zero": [0.0, 1.0, 0.0]
+    },
+    "leg-left": {
+      "type": "axis",
+      "origin": [205.3, 0.0, 17.1],
+      "axis": [-0.105, 0.994, -0.027],
+      "zero": [0.0, 0.0, 1.0]
+    },
+    "leg-right": {
+      "type": "axis",
+      "origin": [-205.3, 0.0, 17.1],
+      "axis": [0.105, 0.994, -0.027],
+      "zero": [0.0, 0.0, 1.0]
+    },
+    "torso": {
+      "type": "axis",
+      "origin": [0.0, 0.0, 29.3],
+      "axis": [0.0, 1.0, 0.0],
+      "zero": [0.0, 0.0, 1.0]
+    },
+    "upper-arm-left": {
+      "type": "axis",
+      "origin": [186.5, 1379.4, 17.8],
+      "axis": [-0.658, 0.753, 0.009],
+      "zero": [0.0, 1.0, 0.0]
+    },
+    "upper-arm-right": {
+      "type": "axis",
+      "origin": [-186.5, 1379.4, 17.8],
+      "axis": [0.658, 0.753, 0.009],
+      "zero": [0.0, 1.0, 0.0]
+    }
+  }
+}
