@@ -135,11 +135,6 @@ export function CutDetails(props: {
           <FlipHorizontal2 />
         </FlipButton>
       </div>
-      {cut.mirrored && (
-        <span className="-mt-2 w-fit rounded-full bg-secondary px-2.5 py-0.5 text-[13px] font-medium text-secondary-foreground">
-          Mirror image
-        </span>
-      )}
       <div className="-mt-1 flex flex-col gap-1.5">
         {piece.cuts.length === 1 ? (
           <Button variant="outline" size="sm" onClick={props.onMirror}>
@@ -148,10 +143,42 @@ export function CutDetails(props: {
           </Button>
         ) : (
           <>
-            <span className="text-muted-foreground text-[13px]">
-              Cut {piece.cuts.length} times: changing the piece changes every
-              copy.
-            </span>
+            <div className="flex flex-col gap-1.5 rounded-[10px] bg-secondary/60 p-3">
+              <span className="text-[13px] font-semibold">
+                {cut.mirrored
+                  ? "This is the mirror image"
+                  : piece.cuts.some((c) => c.mirrored)
+                    ? "This is the original"
+                    : "One of the copies"}
+              </span>
+              <span className="text-muted-foreground text-[13px]">
+                Changing the piece changes every copy.
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-muted-foreground text-[13px]">
+                  Linked to:
+                </span>
+                {piece.cuts
+                  .filter((c) => c.id !== cut.id)
+                  .map((c) => (
+                    <Button
+                      key={c.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        props.onSelect({
+                          kind: "cut",
+                          pieceId: piece.id,
+                          cutId: c.id,
+                        })
+                      }
+                    >
+                      {c.mirrored ? "Mirror image" : "Original"} (
+                      {cutName(piece, c)})
+                    </Button>
+                  ))}
+              </div>
+            </div>
             <Button
               variant="ghost"
               size="sm"

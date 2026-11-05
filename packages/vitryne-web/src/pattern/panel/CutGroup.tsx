@@ -67,7 +67,14 @@ export function CutGroup(props: {
   return (
     <g
       key={v.cut.id}
-      opacity={highlight && !lit ? 0.3 : undefined}
+      opacity={
+        highlight && !lit
+          ? 0.3
+          : // The mirror image of a piece cut more than once: a touch softer, as a hint.
+            v.cut.mirrored && v.piece.cuts.length > 1 && !on
+            ? 0.78
+            : undefined
+      }
       className="transition-opacity duration-150"
     >
       <g transform={svgTransform(v.t, !!v.cut.mirrored)}>
