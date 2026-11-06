@@ -28,6 +28,7 @@ pub mod manifest;
 pub mod migrate;
 pub mod model;
 pub mod presets;
+pub mod skin;
 mod validate;
 
 pub use document::{Document, File, Opened};

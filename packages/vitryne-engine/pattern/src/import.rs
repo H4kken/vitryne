@@ -946,6 +946,7 @@ mod tests {
         let mesh = vitryne_format::glb::Mesh {
             positions: body.pos.iter().map(|p| p.to_array()).collect(),
             indices: body.tris.iter().flatten().copied().collect(),
+            skin: None,
         };
         vitryne_format::glb::write(&mesh, vitryne_format::GENERATOR)
     }

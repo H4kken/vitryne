@@ -5,8 +5,8 @@
 
 For each body of BODIES: the base mesh with its macro sliders applied (makehuman_body.py), cut to
 the `body` group in metres with the feet at y = 0 (assets/body/convert.py, the same as the first
-avatar), its measurements and regions (derive.py), written as assets/bodies/<slug>/avatar.json
-and body.glb (a project file's avatar part). Everything is CC0 (MakeHuman's mesh and targets).
+avatar), its measurements and regions (derive.py) and its skin (rig.py), written as
+assets/bodies/<slug>/avatar.json and body.glb (a project file's avatar part). Everything is CC0 (MakeHuman's mesh and targets).
 Needs numpy and scipy.
 """
 import argparse, hashlib, json, os, re, struct, subprocess, sys, tempfile
@@ -17,6 +17,7 @@ REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, HERE)
 import derive  # noqa: E402
 import makehuman_body as mb  # noqa: E402
+import rig  # noqa: E402
 
 # slug, name, sliders. Slider 0.5 is average; weight 0.1 / 0.9 are a leaner and a fuller build.
 BODIES = [
@@ -38,11 +39,15 @@ def body_id(slug):
     return f'{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:]}'
 
 
-def write_glb(path, vertices, triangles):
-    """A glTF binary with one mesh, positions and indices only (what the app's avatars are)."""
+def write_glb(path, vertices, triangles, skin=None):
+    """A glTF binary with one mesh, positions and indices (what the app's avatars are), and with
+    `skin` (rig.skin_for's result) the skeleton and weights: one node per joint with its
+    translation from its parent, inverse bind matrices that are a shift by minus the joint's
+    position, `JOINTS_0` as unsigned shorts and `WEIGHTS_0` as normalized unsigned shorts
+    (the format's glb reader, `vitryne-format/src/glb.rs`, reads both)."""
     pos = np.asarray(vertices, dtype='<f4')
     idx = np.asarray(triangles, dtype='<u4').reshape(-1)
-    pos_b, idx_b = pos.tobytes(), idx.tobytes()
+    parts = [pos.tobytes(), idx.tobytes()]
     gltf = {
         'asset': {'version': '2.0', 'generator': 'vitryne tools/avatar/build_bodies.py'},
         'scene': 0, 'scenes': [{'nodes': [0]}], 'nodes': [{'mesh': 0, 'name': 'body'}],
@@ -52,13 +57,49 @@ def write_glb(path, vertices, triangles):
              'min': pos.min(0).tolist(), 'max': pos.max(0).tolist()},
             {'bufferView': 1, 'componentType': 5125, 'count': len(idx), 'type': 'SCALAR'}],
         'bufferViews': [
-            {'buffer': 0, 'byteOffset': 0, 'byteLength': len(pos_b), 'target': 34962},
-            {'buffer': 0, 'byteOffset': len(pos_b), 'byteLength': len(idx_b), 'target': 34963}],
-        'buffers': [{'byteLength': len(pos_b) + len(idx_b)}],
+            {'buffer': 0, 'byteOffset': 0, 'byteLength': len(parts[0]), 'target': 34962},
+            {'buffer': 0, 'byteOffset': len(parts[0]), 'byteLength': len(parts[1]), 'target': 34963}],
     }
+    if skin is not None:
+        joints, ids, weights = skin
+        rest = [np.round(np.asarray(r, dtype='<f4'), 6) for _, _, r in joints]
+        mats = []
+        for r in rest:
+            m = np.eye(4, dtype='<f4')
+            m[3, :3] = -r  # column-major: the translation is the last column, i.e. row 3 here
+            mats.append(m)
+        n = len(joints)
+        parts += [np.asarray(ids, dtype='<u2').tobytes(), np.asarray(weights, dtype='<u2').tobytes(),
+                  np.concatenate(mats).astype('<f4').tobytes()]
+        gltf['nodes'][0]['skin'] = 0
+        roots = [0]
+        for k, (name, parent, _) in enumerate(joints):
+            local = rest[k] - (rest[parent] if parent is not None else 0)
+            node = {'name': name, 'translation': [float(x) for x in local]}
+            kids = [c + 1 for c, (_, p, _) in enumerate(joints) if p == k]
+            if kids:
+                node['children'] = kids
+            gltf['nodes'].append(node)
+            if parent is None:
+                roots.append(k + 1)
+        gltf['scenes'][0]['nodes'] = roots
+        gltf['skins'] = [{'inverseBindMatrices': 4, 'joints': list(range(1, n + 1)), 'skeleton': roots[1]}]
+        gltf['meshes'][0]['primitives'][0]['attributes'].update({'JOINTS_0': 2, 'WEIGHTS_0': 3})
+        gltf['accessors'] += [
+            {'bufferView': 2, 'componentType': 5123, 'count': len(ids), 'type': 'VEC4'},
+            {'bufferView': 3, 'componentType': 5123, 'normalized': True, 'count': len(weights), 'type': 'VEC4'},
+            {'bufferView': 4, 'componentType': 5126, 'count': n, 'type': 'MAT4'}]
+        offset = len(parts[0]) + len(parts[1])
+        for k, target in ((2, 34962), (3, 34962), (4, None)):
+            view = {'buffer': 0, 'byteOffset': offset, 'byteLength': len(parts[k])}
+            if target:
+                view['target'] = target
+            gltf['bufferViews'].append(view)
+            offset += len(parts[k])
+    bin_ = b''.join(parts)
+    gltf['buffers'] = [{'byteLength': len(bin_)}]
     js = json.dumps(gltf, separators=(',', ':')).encode()
     js += b' ' * (-len(js) % 4)
-    bin_ = pos_b + idx_b
     bin_ += b'\0' * (-len(bin_) % 4)
     total = 12 + 8 + len(js) + 8 + len(bin_)
     with open(path, 'wb') as f:
@@ -98,11 +139,14 @@ def build(slug, name, sliders, mh, out_dir, tmp):
     subprocess.run([sys.executable, os.path.join(REPO, 'assets', 'body', 'convert.py'), deformed, body_obj],
                    check=True, stdout=subprocess.DEVNULL)
     measurements, ctx = derive.derive_measurements(body_obj)
-    regions = derive.derive_regions(derive.makehuman_joints(deformed, skeleton, body_obj), ctx)
+    joints = derive.makehuman_joints(deformed, skeleton, body_obj)
+    regions = derive.derive_regions(joints, ctx)
+    skin = rig.skin_for(deformed, skeleton, os.path.join(data, 'rigs', json.load(open(skeleton))['weights_file']),
+                        joints)
     v, f = derive.read_obj(body_obj)
     d = os.path.join(out_dir, slug)
     os.makedirs(d, exist_ok=True)
-    write_glb(os.path.join(d, 'body.glb'), v, f)
+    write_glb(os.path.join(d, 'body.glb'), v, f, skin)
     sliders_text = ', '.join(f'{k} {x}' for k, x in sliders.items())
     avatar = {
         'id': body_id(slug),

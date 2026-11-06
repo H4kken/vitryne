@@ -615,6 +615,15 @@ avatar used by many projects.
 
 - **Mesh:** glTF 2.0 binary, one mesh, triangles, metres, in avatar space (+Y up, facing +Z, feet
   at y = 0). The collision field (SDF) is never stored; the engine bakes or caches it.
+- **Skin:** optional, in the same glb: a skeleton and per-vertex weights, the standard glTF skin
+  (`JOINTS_0` as unsigned bytes or shorts, `WEIGHTS_0` as floats or normalized integers, at most
+  four joints per vertex, adding up to one). The rest pose is **translation only**: joint nodes carry
+  a translation and no rotation or scale, and the inverse bind matrices are a shift by minus the
+  joint's position; a file with anything else is refused, so a pose is one rotation per joint and
+  the engine needs no bind-pose maths. The skin does not change the mesh, so it does not change the
+  collision field's key. The bundled bodies have 22 joints (root, three spine, neck, head, two
+  breast, and per side a clavicle, upper arm, forearm, wrist, upper leg, lower leg and foot), cut
+  from MakeHuman's 163-bone rig by `tools/avatar/rig.py`. Nothing in the editor poses a body yet.
 - **`measurements`:** optional, mm, informational in v1: `height` and the tape measures of the
   mesh (chest, waist, hips, seat, knee, wrist, ... in FreeSewing's terms), written by
   `tools/avatar/derive.py`. The editor reads `height` to tell a leg from a torso when you drop a
@@ -769,7 +778,7 @@ How the planned features fit, without breaking v1 files:
 | **Colourways and textures**   | Appearances exist since version 2 (colour only), and fabrics name a default one since version 3. Next: texture parts and print scale on the appearance, and `colourways` on the garment mapping cuts to appearances. Physics stays in fabrics, so nothing existing changes. |
 | **Multi-garment outfits**     | Already there: `project.garments` is in layering order. Per-garment visibility or grouping are additions.                                                                                                                                                                   |
 | **Avatars from measurements** | `avatar.source = {generator, measurements}`, with `body.glb` as the generated (and regenerable) mesh.                                                                                                                                                                       |
-| **Animations and poses**      | glTF skins and animations in `body.glb`; a project-level `pose` reference. The cache key gains the pose.                                                                                                                                                                    |
+| **Animations and poses**      | The skin is in `body.glb` now (see Avatar, Skin); animations and a project-level `pose` reference are still to come. The cache key gains the pose.                                                                                                                          |
 | **Collaboration**             | Stable ids per entity are what operation-based sync needs; per-entity parts let edits travel as small objects. Metadata (authors, comments) goes on entities in `extras` or an extension. The file stays a snapshot.                                                        |
 | **Seam allowance, arcs**      | `VTRY_seam_allowance` per edge; new `edge.type` values (`arc`), which a reader that doesn't know them must refuse, so they go in `extensionsRequired` until they're core, as `cubic` does (`VTRY_curves`, [Curved edges](#curved-edges-vtry_curves)).                       |
 

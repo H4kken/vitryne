@@ -699,6 +699,7 @@ fn body_glb() -> Vec<u8> {
     let mesh = glb::Mesh {
         positions: body.pos.iter().map(|p| p.to_array()).collect(),
         indices: body.tris.iter().flatten().copied().collect(),
+        skin: None,
     };
     glb::write(&mesh, vitryne_format::GENERATOR)
 }

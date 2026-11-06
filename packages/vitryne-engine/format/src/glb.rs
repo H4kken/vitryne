@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Just enough glTF 2.0 binary for avatar meshes (file-format.md, Avatar): triangles, positions in
-//! metres, optional indices. Reading takes every triangle primitive of the first mesh and
-//! ignores node transforms (an avatar mesh is already in avatar space).
+//! metres, optional indices, and optionally a skin (`skin.rs`). Reading takes every triangle
+//! primitive of the first mesh and ignores node transforms (an avatar mesh is already in avatar
+//! space); a skin's joints are the exception, read with their translations.
 
 use serde_json::{Value, json};
+
+use crate::skin::{INFLUENCES, Joint, Skin};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Mesh {
     pub positions: Vec<[f32; 3]>,
     /// Triangle list.
     pub indices: Vec<u32>,
+    /// A skeleton and per-vertex weights, if the file has them.
+    pub skin: Option<Skin>,
 }
 
 const MAGIC: u32 = 0x4654_6c67; // "glTF"
@@ -17,6 +22,9 @@ const CHUNK_JSON: u32 = 0x4e4f_534a;
 const CHUNK_BIN: u32 = 0x004e_4942;
 
 pub fn write(mesh: &Mesh, generator: &str) -> Vec<u8> {
+    if let Some(skin) = &mesh.skin {
+        return write_skinned(mesh, skin, generator);
+    }
     let vbytes: Vec<u8> = mesh
         .positions
         .iter()
@@ -62,6 +70,128 @@ pub fn write(mesh: &Mesh, generator: &str) -> Vec<u8> {
         out.extend_from_slice(&w.to_le_bytes());
     }
     out.extend_from_slice(&bin);
+    out
+}
+
+/// `write` for a mesh with a skin: the same mesh node plus the skin (`JOINTS_0` as unsigned shorts,
+/// `WEIGHTS_0` as floats), one node per joint with its translation from the joint above, and the
+/// inverse bind matrices (a shift by minus the joint's rest position).
+fn write_skinned(mesh: &Mesh, skin: &Skin, generator: &str) -> Vec<u8> {
+    let mut vbytes: Vec<u8> = mesh
+        .positions
+        .iter()
+        .flatten()
+        .flat_map(|x| x.to_le_bytes())
+        .collect();
+    let ibytes: Vec<u8> = mesh.indices.iter().flat_map(|i| i.to_le_bytes()).collect();
+    let jbytes: Vec<u8> = skin
+        .joint_ids
+        .iter()
+        .flatten()
+        .flat_map(|j| j.to_le_bytes())
+        .collect();
+    let wbytes: Vec<u8> = skin
+        .weights
+        .iter()
+        .flatten()
+        .flat_map(|w| w.to_le_bytes())
+        .collect();
+    let mbytes: Vec<u8> = skin
+        .joints
+        .iter()
+        .flat_map(|j| {
+            let [x, y, z] = j.rest;
+            [
+                1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -x, -y, -z, 1.0,
+            ]
+        })
+        .flat_map(|f: f32| f.to_le_bytes())
+        .collect();
+    let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+    for p in &mesh.positions {
+        for k in 0..3 {
+            lo[k] = lo[k].min(p[k]);
+            hi[k] = hi[k].max(p[k]);
+        }
+    }
+    let n = skin.joints.len();
+    let mut nodes = vec![json!({ "mesh": 0, "skin": 0, "name": "body" })];
+    let mut roots = vec![0];
+    for (k, j) in skin.joints.iter().enumerate() {
+        let local = match j.parent {
+            Some(p) => [0, 1, 2].map(|c| j.rest[c] - skin.joints[p].rest[c]),
+            None => j.rest,
+        };
+        let children: Vec<usize> = (0..n)
+            .filter(|&c| skin.joints[c].parent == Some(k))
+            .map(|c| c + 1)
+            .collect();
+        let mut node = json!({ "name": j.name, "translation": local });
+        if !children.is_empty() {
+            node["children"] = json!(children);
+        }
+        nodes.push(node);
+        if j.parent.is_none() {
+            roots.push(k + 1);
+        }
+    }
+    let lens = [
+        vbytes.len(),
+        ibytes.len(),
+        jbytes.len(),
+        wbytes.len(),
+        mbytes.len(),
+    ];
+    let mut offsets = [0usize; 5];
+    for k in 1..5 {
+        offsets[k] = offsets[k - 1] + lens[k - 1];
+    }
+    let gltf = json!({
+        "asset": { "version": "2.0", "generator": generator },
+        "scene": 0,
+        "scenes": [{ "nodes": roots }],
+        "nodes": nodes,
+        "skins": [{
+            "inverseBindMatrices": 4,
+            "joints": (1..=n).collect::<Vec<_>>(),
+            "skeleton": roots.get(1).copied().unwrap_or(1),
+        }],
+        "meshes": [{ "name": "body", "primitives": [{
+            "attributes": { "POSITION": 0, "JOINTS_0": 2, "WEIGHTS_0": 3 },
+            "indices": 1,
+        }] }],
+        "accessors": [
+            { "bufferView": 0, "componentType": 5126, "count": mesh.positions.len(), "type": "VEC3", "min": lo, "max": hi },
+            { "bufferView": 1, "componentType": 5125, "count": mesh.indices.len(), "type": "SCALAR" },
+            { "bufferView": 2, "componentType": 5123, "count": skin.joint_ids.len(), "type": "VEC4" },
+            { "bufferView": 3, "componentType": 5126, "count": skin.weights.len(), "type": "VEC4" },
+            { "bufferView": 4, "componentType": 5126, "count": n, "type": "MAT4" }
+        ],
+        "bufferViews": [
+            { "buffer": 0, "byteOffset": offsets[0], "byteLength": lens[0], "target": 34962 },
+            { "buffer": 0, "byteOffset": offsets[1], "byteLength": lens[1], "target": 34963 },
+            { "buffer": 0, "byteOffset": offsets[2], "byteLength": lens[2], "target": 34962 },
+            { "buffer": 0, "byteOffset": offsets[3], "byteLength": lens[3], "target": 34962 },
+            { "buffer": 0, "byteOffset": offsets[4], "byteLength": lens[4] }
+        ],
+        "buffers": [{ "byteLength": lens.iter().sum::<usize>() }]
+    });
+    let mut js = serde_json::to_vec(&gltf).unwrap();
+    js.resize(js.len().div_ceil(4) * 4, b' ');
+    for part in [&ibytes, &jbytes, &wbytes, &mbytes] {
+        vbytes.extend_from_slice(part);
+    }
+    vbytes.resize(vbytes.len().div_ceil(4) * 4, 0);
+    let total = 12 + 8 + js.len() + 8 + vbytes.len();
+    let mut out = Vec::with_capacity(total);
+    for w in [MAGIC, 2, total as u32, js.len() as u32, CHUNK_JSON] {
+        out.extend_from_slice(&w.to_le_bytes());
+    }
+    out.extend_from_slice(&js);
+    for w in [vbytes.len() as u32, CHUNK_BIN] {
+        out.extend_from_slice(&w.to_le_bytes());
+    }
+    out.extend_from_slice(&vbytes);
     out
 }
 
@@ -437,6 +567,8 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
         let comps = match a["type"].as_str() {
             Some("SCALAR") => 1,
             Some("VEC3") => 3,
+            Some("VEC4") => 4,
+            Some("MAT4") => 16,
             other => return Err(format!("glb: accessor type {other:?} not supported")),
         };
         let ctype = a["componentType"].as_u64().unwrap_or(0);
@@ -463,6 +595,8 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
         Ok((data, stride, count, ctype, comps))
     };
     let mut mesh = Mesh::default();
+    let (mut joint_ids, mut weights) = (Vec::new(), Vec::new());
+    let mut skinned = None;
     let prims = g["meshes"][0]["primitives"]
         .as_array()
         .ok_or("glb: no mesh")?;
@@ -480,6 +614,42 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
             let e = &data[k * stride..];
             mesh.positions
                 .push([0, 4, 8].map(|o| f32::from_le_bytes(e[o..o + 4].try_into().unwrap())));
+        }
+        // Skin weights, the same for every primitive or for none.
+        let has = !p["attributes"]["JOINTS_0"].is_null() && !p["attributes"]["WEIGHTS_0"].is_null();
+        if *skinned.get_or_insert(has) != has {
+            return Err("glb: only some primitives have skin weights".into());
+        }
+        if has {
+            let (jd, js, jc, jt, jcomps) =
+                accessor(num(&p["attributes"]["JOINTS_0"], "JOINTS_0")?)?;
+            let wacc = num(&p["attributes"]["WEIGHTS_0"], "WEIGHTS_0")?;
+            let normalized = g["accessors"][wacc]["normalized"]
+                .as_bool()
+                .unwrap_or(false);
+            let (wd, ws, wc, wt, wcomps) = accessor(wacc)?;
+            if jc != count || wc != count || jcomps != INFLUENCES || wcomps != INFLUENCES {
+                return Err("glb: JOINTS_0 and WEIGHTS_0 must be VEC4, one per vertex".into());
+            }
+            for k in 0..count {
+                let e = &jd[k * js..];
+                joint_ids.push(match jt {
+                    5121 => [0, 1, 2, 3].map(|c| e[c] as u16),
+                    5123 => [0, 2, 4, 6].map(|o| u16::from_le_bytes([e[o], e[o + 1]])),
+                    _ => return Err("glb: JOINTS_0 must be unsigned bytes or shorts".into()),
+                });
+                let e = &wd[k * ws..];
+                weights.push(match (wt, normalized) {
+                    (5126, _) => {
+                        [0, 4, 8, 12].map(|o| f32::from_le_bytes(e[o..o + 4].try_into().unwrap()))
+                    }
+                    (5123, true) => {
+                        [0, 2, 4, 6].map(|o| u16::from_le_bytes([e[o], e[o + 1]]) as f32 / 65535.0)
+                    }
+                    (5121, true) => [0, 1, 2, 3].map(|c| e[c] as f32 / 255.0),
+                    _ => return Err("glb: WEIGHTS_0 must be floats or normalized integers".into()),
+                });
+            }
         }
         if p["indices"].is_null() {
             mesh.indices.extend((0..count as u32).map(|i| base + i));
@@ -501,7 +671,125 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
     if mesh.indices.len() % 3 != 0 || mesh.indices.iter().any(|&i| i >= n) {
         return Err("glb: indices don't form triangles over the vertices".into());
     }
+    if skinned == Some(true) {
+        let joints = read_joints(&g, &accessor)?;
+        let skin = Skin {
+            joints,
+            joint_ids,
+            weights,
+        };
+        skin.check(mesh.positions.len())?;
+        mesh.skin = Some(skin);
+    }
     Ok(mesh)
+}
+
+/// An accessor's bytes: (data, element stride, count, component type, components).
+type Accessed<'a> = (&'a [u8], usize, usize, u64, usize);
+
+/// The skin's joints: each node's name, its parent among the joints and its rest position (the
+/// translations added up from the root). Only translations are read: a joint with a rotation or a
+/// scale, or inverse bind matrices that are not a shift by minus the rest position, is refused
+/// (`skin.rs`: the rest pose is translation only).
+fn read_joints<'a>(
+    g: &Value,
+    accessor: &dyn Fn(usize) -> Result<Accessed<'a>, String>,
+) -> Result<Vec<Joint>, String> {
+    let skin = g["skins"]
+        .as_array()
+        .and_then(|s| s.first())
+        .ok_or("glb: weights but no skin")?;
+    let ids: Vec<usize> = skin["joints"]
+        .as_array()
+        .ok_or("glb: the skin has no joints")?
+        .iter()
+        .map(|v| v.as_u64().map(|x| x as usize).ok_or("glb: bad joint node"))
+        .collect::<Result<_, _>>()?;
+    let nodes = g["nodes"].as_array().ok_or("glb: no nodes")?;
+    let node = |i: usize| nodes.get(i).ok_or_else(|| format!("glb: no node {i}"));
+    let mut joints: Vec<Joint> = Vec::with_capacity(ids.len());
+    let mut local = Vec::with_capacity(ids.len());
+    for &i in &ids {
+        let n = node(i)?;
+        let identity = |key: &str, id: &[f64]| {
+            n[key].as_array().is_none_or(|a| {
+                a.len() == id.len()
+                    && a.iter()
+                        .zip(id)
+                        .all(|(x, i)| (x.as_f64().unwrap_or(f64::NAN) - i).abs() < 1e-6)
+            })
+        };
+        if !n["matrix"].is_null()
+            || !identity("rotation", &[0.0, 0.0, 0.0, 1.0])
+            || !identity("scale", &[1.0, 1.0, 1.0])
+        {
+            return Err("glb: a joint with a rotation or scale at rest is not supported".into());
+        }
+        let t = n["translation"]
+            .as_array()
+            .map(|a| [0, 1, 2].map(|k| a.get(k).and_then(Value::as_f64).unwrap_or(0.0) as f32))
+            .unwrap_or([0.0; 3]);
+        local.push(t);
+        joints.push(Joint {
+            name: n["name"].as_str().unwrap_or("").to_string(),
+            parent: None,
+            rest: t,
+        });
+    }
+    // Parents: the joint whose node lists this one as a child.
+    for (k, &i) in ids.iter().enumerate() {
+        let parent_node = nodes.iter().position(|n| {
+            n["children"]
+                .as_array()
+                .is_some_and(|c| c.iter().any(|x| x.as_u64() == Some(i as u64)))
+        });
+        if let Some(pn) = parent_node {
+            let p = ids
+                .iter()
+                .position(|&x| x == pn)
+                .ok_or("glb: a joint's parent node is not a joint")?;
+            joints[k].parent = Some(p);
+        }
+    }
+    // Rest positions: the translations added up from the root.
+    for k in 0..joints.len() {
+        let (mut at, mut sum, mut steps) = (k, [0.0f32; 3], 0);
+        loop {
+            for c in 0..3 {
+                sum[c] += local[at][c];
+            }
+            match joints[at].parent {
+                Some(p) if steps <= joints.len() => (at, steps) = (p, steps + 1),
+                Some(_) => return Err("glb: the joints' parents go in a circle".into()),
+                None => break,
+            }
+        }
+        joints[k].rest = sum;
+    }
+    // The inverse bind matrices must say the same: a shift by minus the rest position.
+    if let Some(acc) = skin["inverseBindMatrices"].as_u64() {
+        let (data, stride, count, ctype, comps) = accessor(acc as usize)?;
+        if ctype != 5126 || comps != 16 || count != joints.len() {
+            return Err("glb: inverseBindMatrices must be one float MAT4 per joint".into());
+        }
+        for (k, j) in joints.iter().enumerate() {
+            let e = &data[k * stride..];
+            let m: [f32; 16] = std::array::from_fn(|c| {
+                f32::from_le_bytes(e[c * 4..c * 4 + 4].try_into().unwrap())
+            });
+            let want = [
+                1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -j.rest[0], -j.rest[1],
+                -j.rest[2], 1.0,
+            ];
+            if m.iter().zip(want).any(|(a, b)| (a - b).abs() > 1e-4) {
+                return Err(format!(
+                    "glb: joint {} has a bind matrix other than a shift to its rest position",
+                    j.name
+                ));
+            }
+        }
+    }
+    Ok(joints)
 }
 
 #[cfg(test)]
@@ -513,6 +801,7 @@ mod tests {
         let m = Mesh {
             positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.5, -2.0]],
             indices: vec![0, 1, 2],
+            skin: None,
         };
         let b = write(&m, "test");
         assert_eq!(b.len() % 4, 0);

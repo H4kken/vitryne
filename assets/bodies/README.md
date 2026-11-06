@@ -36,4 +36,10 @@ trousers): the pieces are placed and hang sensibly. The garments are drafted for
 avatar and don't resize, so a T-shirt cut for an 849 mm chest sits differently on a 982 mm one,
 and its sleeves crumple on the female body.
 
+**Skin.** Each `body.glb` also carries a skeleton of 22 joints and weights (`tools/avatar/rig.py`:
+MakeHuman's default rig, its weights remapped onto the body's vertices, folded from 139 weighted
+bones into 22, four joints per vertex at most). The mesh is the same as without it, so the
+collision field's key does not change. Tests (`vitryne-format`, `skin.rs`) read all six, check the
+weights, and pose an arm: the hand turns rigidly about the shoulder and the far side stays put.
+
 **Licence:** CC0, MakeHuman's own ([assets/LICENSES.md](../LICENSES.md)).

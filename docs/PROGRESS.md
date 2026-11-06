@@ -1423,9 +1423,10 @@ work was asked for: skin, then measurements and variety, then poses.
 | Phase | What | State |
 | --- | --- | --- |
 | 1 | Skin tone and the Avatar tab (a viewing preference of the browser) | Merged (#22) |
-| 2a | The avatar carries its measurements; six bundled bodies (female and male, slim, average, fuller) built from MakeHuman's macro targets; regions derived from the skeleton's joints | Done on `feature/avatar-bodies` |
-| 2b | Choosing a body in the editor: one undoable edit, pieces put back on the new body by `import::move_to_body` (same place, same share of the way, nothing resized), the body's field baked in the browser on first use (option A) | Done, same branch |
-| 3 | Skeleton and skinning: MakeHuman's rig (139 weighted bones, CC0) reduced to about 30 to 40 bones, a glTF skin in `body.glb`, regions relative to bones, a pose control in the viewer | Next |
+| 2a | The avatar carries its measurements; six bundled bodies (female and male, slim, average, fuller) built from MakeHuman's macro targets; regions derived from the skeleton's joints | Done on `feature/avatar-bodies`, waiting for review |
+| 2b | Choosing a body in the editor: one undoable edit, pieces put back on the new body by `import::move_to_body` (same place, same share of the way, nothing resized), the body's field baked in the browser on first use (option A) | Done, same branch, waiting for review |
+| 3a | The skin as data: MakeHuman's rig (139 weighted bones, CC0) folded into 22 joints, weights remapped onto the body's vertices, a glTF skin in the six bundled bodies' `body.glb`, a reader and CPU skinning in `vitryne-format` | Done on `feature/avatar-skeleton`, waiting for review |
+| 3b | What a pose needs: the project's `pose` reference (a format change), the pose control in the editor, regions relative to bones, a posed collider (phase 4) | Next |
 | 4 | Moving collider spike (alongside 3): per-bone SDFs, live mesh queries or capsule proxies, measured on cost and on how cloth behaves | Planned |
 | 5 | Motion and a soft layer: a layered body (skinned base, fat layer, pose-driven muscle, per-region tissue), cloth coupling one way then two | Planned |
 | 6 | **Morphing body**: sliders instead of fixed bodies (see below) | Planned, after 3 and 4 |
@@ -1468,3 +1469,34 @@ collision cost decides whether sliders apply live or on release).
 - The skin tone stays a per-browser preference until the avatar format carries one.
 - Pre-baked fields per body (option B) are deferred: bake in the browser first, and revisit if the
   wait is noticed.
+
+### Phase 3a: the skin as data (2026-11-06, waiting for review)
+
+What it is: each bundled body's `body.glb` carries a skeleton and weights; `vitryne-format` reads
+them (`glb::read`, `skin::Skin`) and poses a mesh by linear blend skinning (`Skin::pose`). Nothing
+in the editor poses a body yet, and no file the examples or goldens use changed.
+
+| Check | Result |
+| --- | --- |
+| Vertex mapping: the base mesh's `body` group, scaled and shifted as `convert.py` does, against `assets/body/makehuman_body_m.obj` (13,380 vertices) | **Exact**: 0.0000 mm. `rig.py` stops if it isn't. |
+| The default avatar and the examples | **Untouched**: no byte changed in `assets/body/`, `assets/examples/` or `skirt.vtry`. |
+| The six bodies' geometry | **Identical** to before (positions and indices compared): the collision fields' keys don't change. |
+| `glb::write` with no skin | **Byte for byte** what it was: the bundled avatar's file read and written again is identical (test). |
+| Khronos glTF validator on a skinned body | **0 errors, 0 warnings**, `hasSkins`, 4 influences. |
+| Rebuild twice | **Identical** files. |
+| Rest pose | Moves no vertex by more than 1e-5 m (test, six bodies). |
+| An upper arm turned 40° | The hand turns rigidly about the shoulder joint within 0.1 mm, vertices with no share in the arm stay within 1 µm (test, six bodies). A front-view plot shows the shoulder, torso and the other arm in place and the elbow bending; linear blending's usual artefacts were not looked for beyond that. |
+
+The reduction, on the first avatar's mesh (`rig.py --check`): 22 joints from 139 weighted bones.
+Weight folded into an ancestor: mean 58.6% (most of it the spine and the pelvis into their kept
+neighbours). Lost to the four-joint limit: mean 0.07%, but 208 vertices lose more than 1% and the
+worst loses 18.3%. They sit around the collar, the neck and the front of the shoulders (mostly
+y 1.3 to 1.4 m, within 15 cm of the midline; the worst two are at the front of each shoulder joint,
+(±0.09, 1.32, 0.11) m), where more than four of the 22 joints share a vertex: worth a look before a
+pose is trusted near the collar. MakeHuman's weights
+add up to 0.95 to 1.06 per vertex before they are scaled to one.
+
+Choices worth a review: the rest pose is translation only (a pose is one rotation per joint; no
+bone roll or plane is ported, so a pose control must pick its own axes); joints sit at their
+bone's head; the breast joints are kept for a later soft layer; hands and feet are one joint each
+(no fingers or toes).
