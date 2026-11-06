@@ -1413,3 +1413,58 @@ counts twice.
   within 0.1 mm) is still not done, as for Valentina.
 - Not supported: see the gaps above; anything newer than format 0.7.4 is best effort.
 
+
+## Avatar plan (2026-11-06)
+
+Where the avatar work stands and what comes next. The aim is realism over time: bone, muscle and
+fat that don't move as one, on bodies that change with the person. Priorities, in the order the
+work was asked for: skin, then measurements and variety, then poses.
+
+| Phase | What | State |
+| --- | --- | --- |
+| 1 | Skin tone and the Avatar tab (a viewing preference of the browser) | Merged (#22) |
+| 2a | The avatar carries its measurements; six bundled bodies (female and male, slim, average, fuller) built from MakeHuman's macro targets; regions derived from the skeleton's joints | Done on `feature/avatar-bodies` |
+| 2b | Choosing a body in the editor: one undoable edit, pieces put back on the new body by `import::move_to_body` (same place, same share of the way, nothing resized), the body's field baked in the browser on first use (option A) | Done, same branch |
+| 3 | Skeleton and skinning: MakeHuman's rig (139 weighted bones, CC0) reduced to about 30 to 40 bones, a glTF skin in `body.glb`, regions relative to bones, a pose control in the viewer | Next |
+| 4 | Moving collider spike (alongside 3): per-bone SDFs, live mesh queries or capsule proxies, measured on cost and on how cloth behaves | Planned |
+| 5 | Motion and a soft layer: a layered body (skinned base, fat layer, pose-driven muscle, per-region tissue), cloth coupling one way then two | Planned |
+| 6 | **Morphing body**: sliders instead of fixed bodies (see below) | Planned, after 3 and 4 |
+
+### Phase 6: a morphing body
+
+Instead of loading one file per body, the editor keeps one base mesh and a few morph targets and
+builds the body from sliders (gender, weight, muscle, height), as other garment tools do. The six
+bundled bodies stay as presets and as test fixtures: they are samples of the same space, made by
+`tools/avatar/makehuman_body.py`, which already composes the targets with MakeHuman's own
+weighting rules.
+
+What it needs:
+
+1. **A compact target set in the app.** Only the targets for gender, weight, muscle and height at
+   the default age and ethnicity, in a binary form, shipped once. MakeHuman's whole macro folder
+   is 106 MB, so the subset must be measured before this is promised.
+2. **The morph in Rust, in the worker** (`vitryne-pattern` or a small new module), producing the
+   mesh from slider values; the same code as the tool, tested against the bundled bodies
+   (a body built live equals the file in `assets/bodies/`).
+3. **Regions and measurements from the mesh, live.** `tools/avatar/derive.py` is the reference;
+   it needs a Rust port, checked against the Python on the six bodies.
+4. **A collision field that follows.** Today the SDF takes 4 to 30 s to bake, so a slider can
+   only apply on release, with a wait. A GPU bake (option E in the discussion, the phase 4
+   spike's other half) would turn that into about a second; this phase depends on it for the
+   sliders to feel live, but works without it.
+5. **The project stores the sliders**, not only the mesh, so a body can be edited again (a
+   format change: an `avatar` field for the morph values, with the mesh kept as the baked result).
+6. **Garments don't resize.** Moving a slider moves the pieces onto the body (`move_to_body`) and
+   nothing else; poor fit is shown, not corrected (patents.md, rule 6: no grading from the
+   difference between two bodies). The panel says so.
+
+Order: after phase 3 (so the morph and the skeleton share one mesh pipeline) and phase 4 (the
+collision cost decides whether sliders apply live or on release).
+
+### Decisions so far
+
+- Garments never resize from the avatar; fit is shown, not fixed (patents.md).
+- The default avatar stays the first one until the examples and goldens are regenerated on purpose.
+- The skin tone stays a per-browser preference until the avatar format carries one.
+- Pre-baked fields per body (option B) are deferred: bake in the browser first, and revisit if the
+  wait is noticed.
