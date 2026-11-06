@@ -3,7 +3,8 @@
 Six bodies to drape on, each a project file's avatar part (`avatar.json` and `body.glb`; see
 [File format](../../packages/vitryne-docs/content/docs/developers/file-format.md), Avatar):
 female and male, each slim, average and fuller. They sit beside the first avatar in
-[../body/](../body/README.md), which the example projects and the golden drapes still use.
+[../body/](../body/README.md), which the example projects and the golden drapes still use. The
+editor's Avatar panel offers all seven (`vitryne export-app-assets` copies them to `bodies/`).
 
 | Folder | Height | Chest | Waist | Hips |
 |---|---|---|---|---|

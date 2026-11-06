@@ -20,6 +20,7 @@ import type { ShapeKind } from "@/pattern/draw";
 import { DiskFiles } from "@/storage/storage";
 import type { PointerTool } from "@/worker/protocol";
 import { EngineSession, useEngine } from "@/worker/session";
+import { useAvatarSwap } from "../hooks/useAvatarSwap";
 import { BlockedDialog } from "../dialogs/BlockedDialog";
 import { SharePanel } from "../dialogs/SharePanel";
 import { ViewOnlyBar } from "./ViewOnlyBar";
@@ -183,6 +184,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
       selection.setSelection({ kind: "cut", pieceId, cutId });
     },
   });
+  const avatars = useAvatarSwap({ session, store, showInfo: files.showInfo });
   const imports = useImport({
     session,
     store,
@@ -345,6 +347,7 @@ export function EditorLayout({ cloud }: { cloud: Cloud }) {
           loadOthers={loadOthers}
           selection={selection}
           sewing={sewing}
+          avatars={avatars}
           rewrap={rewrap}
           pickPart={pickPart}
           onPlaceIn3d={

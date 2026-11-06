@@ -522,6 +522,96 @@ const CHIN: f32 = 0.87;
 const HOOD_ABOVE: f32 = 0.03;
 
 impl BodyPlace {
+    /// Every place, for finding the one a stored wrap is nearest to.
+    pub const ALL: [BodyPlace; 13] = [
+        BodyPlace::BodyFront,
+        BodyPlace::BodyBack,
+        BodyPlace::BodyLeft,
+        BodyPlace::BodyRight,
+        BodyPlace::ArmLeft,
+        BodyPlace::ArmRight,
+        BodyPlace::LegLeftFront,
+        BodyPlace::LegLeftBack,
+        BodyPlace::LegRightFront,
+        BodyPlace::LegRightBack,
+        BodyPlace::HeadLeft,
+        BodyPlace::HeadRight,
+        BodyPlace::OverHead,
+    ];
+
+    /// The place a stored wrap is on: the one on its region whose angle is nearest, if any.
+    pub fn of_wrap(w: &Wrap) -> Option<BodyPlace> {
+        use std::f64::consts::{PI, TAU};
+        let apart = |a: f64| ((a + PI).rem_euclid(TAU) - PI).abs();
+        Self::ALL
+            .into_iter()
+            .filter(|p| p.region() == w.region)
+            .min_by(|a, b| apart(w.angle - a.angle()).total_cmp(&apart(w.angle - b.angle())))
+    }
+}
+
+/// How far down a region a wrap's `top` (mm) sits, as a number that means the same on another
+/// body: the height as a fraction of the avatar's for a region that rises (torso, legs, head),
+/// the share of the centreline's length for an arm. None for a region neither describes.
+fn top_share(
+    top_mm: f64,
+    region: &str,
+    regions: &BTreeMap<String, Region>,
+    height: f32,
+) -> Option<f64> {
+    match regions.get(region)? {
+        Region::Path(p) => {
+            let len = path_length(&p.points);
+            (len > 0.0).then(|| -top_mm / 1000.0 / len as f64)
+        }
+        Region::Axis(_) => {
+            let f = region_frame(regions, region).ok()?;
+            (f.a.y.abs() >= 0.1)
+                .then(|| (f.o.y as f64 + f.a.y as f64 * top_mm / 1000.0) / height as f64)
+        }
+    }
+}
+
+/// The inverse of `top_share` on another body (mm, whole).
+fn top_from_share(
+    share: f64,
+    region: &str,
+    regions: &BTreeMap<String, Region>,
+    height: f32,
+) -> Option<f64> {
+    let top = match regions.get(region)? {
+        Region::Path(p) => -share * path_length(&p.points) as f64,
+        Region::Axis(_) => {
+            let f = region_frame(regions, region).ok()?;
+            if f.a.y.abs() < 0.1 {
+                return None;
+            }
+            (share * height as f64 - f.o.y as f64) / f.a.y as f64
+        }
+    };
+    Some((top * 1000.0).round() + 0.0)
+}
+
+fn path_length(points: &[[f64; 3]]) -> f32 {
+    points
+        .windows(2)
+        .map(|w| metres(w[0]).distance(metres(w[1])))
+        .sum()
+}
+
+/// A wrap's top edge on another body: at the same share of the way (`top_share`), so a waistband
+/// stays at the waist. None where the region has no such measure.
+pub fn carry_top(
+    top_mm: f64,
+    region: &str,
+    from: (&BTreeMap<String, Region>, &BodyFacts),
+    to: (&BTreeMap<String, Region>, &BodyFacts),
+) -> Option<f64> {
+    let share = top_share(top_mm, region, from.0, from.1.height)?;
+    top_from_share(share, region, to.0, to.1.height)
+}
+
+impl BodyPlace {
     pub fn region(self) -> &'static str {
         use BodyPlace::*;
         match self {

@@ -9,9 +9,12 @@ use std::collections::BTreeMap;
 
 use glam::Vec3;
 use serde::Serialize;
-use vitryne_format::{Bounds, Document, Entities, Id, IdGen, Kind, Piece, Placement, Wrap};
+use vitryne_format::{
+    Avatar, Bounds, Document, Entities, File, Id, IdGen, Kind, Piece, Placement, Wrap,
+    manifest::MEDIA_GLB,
+};
 use vitryne_pattern::{
-    import::{Addition, Choice, ImportSource, import_bounds, rewrap},
+    import::{Addition, Choice, ImportSource, import_bounds, move_to_body, rewrap},
     placement::{BodyFacts, BodyPlace, Landmark},
     project::{Placer, ProjectGarment, avatar_mesh, for_drape},
     seams::{self, CutEdge, EdgePick, SeamProposal},
@@ -100,6 +103,12 @@ pub struct PlacedPiece {
     pub placements: Vec<Wrap>,
     /// A collision box for the garment when its own wouldn't cover the piece.
     pub bounds: Option<Bounds>,
+}
+
+/// A project on another avatar: its entities (JSON) and what could not move.
+pub struct SwappedAvatar {
+    pub entities: String,
+    pub notes: Vec<String>,
 }
 
 /// An import into a new project: the file, and what the import had to say.
@@ -287,6 +296,77 @@ impl ProjectFile {
             .ok_or("the project has no avatar")?;
         let mesh = avatar_mesh(&self.doc)?.ok_or("the project has no avatar")?;
         Ok((&avatar.regions, mesh.pos))
+    }
+
+    /// The project on another avatar (`avatar`: its JSON, `glb`: its mesh): the entities it would
+    /// have, as JSON, for the editor to apply as one edit. The mesh goes into the file now (the
+    /// old one stays, so the edit can be undone); the entities do not change until the editor
+    /// sends them back. Every wrapped cut is put on the new body where it was on the old one
+    /// (`move_to_body`: same place, same top share, no resizing), and a garment's collision box
+    /// follows the body. The notes say what could not move.
+    pub fn swap_avatar(&mut self, avatar: &str, glb: &[u8]) -> Result<SwappedAvatar, String> {
+        let avatar: Avatar =
+            serde_json::from_str(avatar).map_err(|e| format!("the avatar: {e}"))?;
+        let mesh = vitryne_format::glb::read(glb).map_err(|e| format!("{}: {e}", avatar.mesh))?;
+        let new_body: Vec<Vec3> = mesh.positions.iter().map(|&p| Vec3::from(p)).collect();
+        let (old_regions, old_body) = {
+            let (r, b) = self.body()?;
+            (r.clone(), b)
+        };
+        let old_facts = BodyFacts::measure(&old_body, &old_regions)?;
+        let new_facts = BodyFacts::measure(&new_body, &avatar.regions)?;
+        let old_id = self
+            .doc
+            .project_avatar()
+            .map(|a| a.id.clone())
+            .ok_or("the project has no avatar")?;
+
+        let mut next = self.doc.clone();
+        next.files.insert(
+            avatar.mesh.clone(),
+            File {
+                media_type: MEDIA_GLB.into(),
+                role: None,
+                bytes: glb.to_vec(),
+            },
+        );
+        let mut notes = Vec::new();
+        let (from, to) = ((&old_regions, &old_facts), (&avatar.regions, &new_facts));
+        let (old_box, new_box) = (import_bounds(&old_body), import_bounds(&new_body));
+        for g in &mut next.garments {
+            for n in move_to_body(g, from, to)? {
+                notes.push(format!("{}: {n}", g.name));
+            }
+            // The box a person made bigger stays; the one an import made follows the body.
+            if let Some(sim) = g.simulation.as_mut() {
+                sim.collision_bounds = match sim.collision_bounds.take() {
+                    Some(b) if b.min == old_box.min && b.max == old_box.max => {
+                        Some(new_box.clone())
+                    }
+                    Some(b) => Some(Bounds {
+                        min: [0, 1, 2].map(|k| b.min[k].min(new_box.min[k])),
+                        max: [0, 1, 2].map(|k| b.max[k].max(new_box.max[k])),
+                        other: b.other,
+                    }),
+                    None => Some(new_box.clone()),
+                };
+            }
+        }
+        next.avatars.retain(|a| a.id != old_id);
+        next.avatars.push(avatar.clone());
+        if let Some(p) = next.project.as_mut() {
+            p.avatar = avatar.id.clone();
+        }
+        let report = next.validate();
+        if !report.errors.is_empty() {
+            return Err(report.errors.join("; "));
+        }
+        // Only the mesh is taken now; the rest waits for the editor's edit.
+        self.doc
+            .files
+            .insert(avatar.mesh.clone(), next.files[&avatar.mesh].clone());
+        let entities = serde_json::to_string(&next.entities()).expect("entities serialize");
+        Ok(SwappedAvatar { entities, notes })
     }
 
     /// Every whole edge of every cut of the first garment, and whether a seam sews it.
@@ -742,6 +822,73 @@ mod tests {
         let r = file.rewrap(front, BodyPlace::BodyFront, None).unwrap();
         let b = r.bounds.unwrap();
         assert_eq!((b.min[1], b.max[1]), (0.0, 1720.0));
+    }
+
+    /// The bundled bodies as `swap_avatar` takes them.
+    fn bundled_body(slug: &str) -> (String, Vec<u8>) {
+        let dir =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../../assets/bodies/{slug}"));
+        (
+            std::fs::read_to_string(dir.join("avatar.json")).unwrap(),
+            std::fs::read(dir.join("body.glb")).unwrap(),
+        )
+    }
+
+    /// Another body under the same garment: the project stays valid, the pieces are untouched,
+    /// the wraps follow the new body (a waistband stays at the waist), the edit can be undone,
+    /// and the garment prepares for a drape on the new mesh.
+    #[test]
+    fn swapping_the_avatar_puts_the_pieces_on_the_new_body() {
+        for name in ["tshirt", "trousers"] {
+            let (mut file, _) = ProjectFile::open(&example_zip(name)).unwrap();
+            let before = file.entities_json();
+            let old_mesh = file.document().project_avatar().unwrap().mesh.clone();
+            let old_key = file.prepare().unwrap().info.sdf_key;
+            let (avatar, glb) = bundled_body("female-slim");
+            let swapped = file.swap_avatar(&avatar, &glb).unwrap();
+            // Nothing but the mesh changed until the editor applies the edit.
+            assert_eq!(file.entities_json(), before, "{name}");
+            file.set_entities_json(&swapped.entities).unwrap();
+            let doc = file.document();
+            assert_eq!(doc.avatars.len(), 1, "{name}");
+            assert_eq!(doc.avatars[0].name, "Female, slim");
+            assert!(doc.files.contains_key(&old_mesh), "{name}: kept for undo");
+            let now = file.prepare().unwrap();
+            assert_ne!(
+                now.info.sdf_key, old_key,
+                "{name}: the body's field is its own"
+            );
+            // The same pieces, the wraps moved.
+            let g = &doc.garments[0];
+            let old: Document = Document::from_zip(&example_zip(name)).unwrap().doc;
+            assert_eq!(g.pieces.len(), old.garments[0].pieces.len());
+            for (a, b) in g.pieces.iter().zip(&old.garments[0].pieces) {
+                assert_eq!(a.outline, b.outline, "{name}: nothing resizes");
+                for (ca, cb) in a.cuts.iter().zip(&b.cuts) {
+                    if let (Placement::Wrap(wa), Placement::Wrap(wb)) =
+                        (&ca.placement, &cb.placement)
+                    {
+                        assert_eq!(wa.region, wb.region);
+                        assert_eq!(wa.angle, wb.angle);
+                    }
+                }
+            }
+            if name == "trousers" {
+                // The waist is at 0.65 of the height on both: 1030 mm of 1590 vs 1083 of 1666.
+                let top = |d: &Document| match &d.garments[0].pieces[0].cuts[0].placement {
+                    Placement::Wrap(w) => w.top,
+                    _ => unreachable!(),
+                };
+                assert!(top(doc) < top(&old), "{} vs {}", top(doc), top(&old));
+            }
+            // Undo: the old entities fit the file that now holds both meshes.
+            file.set_entities_json(&before).unwrap();
+            assert_eq!(
+                file.prepare().unwrap().info.sdf_key,
+                old_key,
+                "{name}: undone"
+            );
+        }
     }
 
     /// A drawn piece, not in the garment yet, wrapped as a pair on the legs: each cut gets its

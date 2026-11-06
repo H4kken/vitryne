@@ -189,6 +189,15 @@ const handlers: Handlers = {
     };
   },
 
+  async swapAvatar({ avatar, glb }) {
+    const f = needFile();
+    const r = JSON.parse(f.swap_avatar(avatar, new Uint8Array(glb))) as {
+      entities: string;
+      notes: string[];
+    };
+    return { ...r, zip: f.save().buffer as ArrayBuffer };
+  },
+
   async pickBody({ x, y }) {
     return { point: Array.from(needViewport().pick_body(x, y)) };
   },

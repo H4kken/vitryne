@@ -175,6 +175,16 @@ export interface Requests {
     };
     reply: { addition: string };
   };
+  /**
+   * The open project on another avatar (`avatar`: its JSON, `glb`: its mesh): the entities it
+   * would have, and notes on what could not move (Rust `ProjectFile::swap_avatar`). The mesh
+   * joins the worker's file; the entities change only when the editor sends them back as an
+   * edit. `zip` is the file with the mesh in it, which a restarted worker reopens.
+   */
+  swapAvatar: {
+    args: { avatar: string; glb: ArrayBuffer };
+    reply: { entities: string; notes: string[]; zip: ArrayBuffer };
+  };
   /** The avatar's point under the pointer (normalized device coordinates), metres, or none. */
   pickBody: {
     args: { x: number; y: number };

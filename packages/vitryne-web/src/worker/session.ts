@@ -345,6 +345,31 @@ export class EngineSession {
     return (await this.need().request("importAddition", args)).addition;
   }
 
+  /**
+   * The project on another avatar (see `Requests.swapAvatar`). The worker's file holds the new
+   * mesh from now on, so that is what a restarted worker reopens (with the last accepted
+   * entities on top, as after a save).
+   */
+  async swapAvatar(
+    avatar: string,
+    glb: ArrayBuffer,
+    rev: number,
+  ): Promise<{ entities: string; notes: string[] }> {
+    const { zip, ...reply } = await this.need().request(
+      "swapAvatar",
+      { avatar, glb },
+      [glb],
+    );
+    if (this.restore)
+      this.restore = {
+        data: { form: "zip", bytes: zip.slice(0) },
+        openedEntities: this.restore.entities,
+        entities: this.restore.entities,
+        rev,
+      };
+    return reply;
+  }
+
   /** The avatar's point under the pointer (normalized device coordinates), metres; null off the body. */
   async pickBody(
     x: number,

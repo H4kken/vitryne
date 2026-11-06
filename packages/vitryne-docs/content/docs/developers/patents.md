@@ -156,6 +156,11 @@ choice of place, suggested from names, rule 4); its sewing comes from the same s
 Sew tool (rules 1 to 3). Picking a size of the pattern's own size chart works out the author's
 formulas at that size: no grading from avatar strain (rule 6), and no measure tool (rule 5).
 
+Changing the avatar puts every wrapped cut back on the new body with the same hand-set rules
+(`import::move_to_body`: the place a cut's region and angle are nearest to, `auto_wrap`, the same
+share of the way along the region). It is a position only, read by nothing in sewing; the pieces
+keep their size (no grading, rule 6) and no model is involved (rule 4).
+
 Drawing and editing pieces is not covered by any listed claim. Where it meets the rules:
 
 | Rule                               | In the code                                                                                                                                                                                                                                                                                                                                                                              |

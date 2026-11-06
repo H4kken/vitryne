@@ -10,6 +10,7 @@ import { AvatarPanel } from "@/properties/AvatarPanel";
 import { PANEL_TITLES } from "@/properties/panelTitles";
 import { PiecesPanel } from "@/properties/PiecesPanel";
 import { SettingsPanel } from "@/properties/SettingsPanel";
+import type { useAvatarSwap } from "../hooks/useAvatarSwap";
 import type { usePanel } from "../hooks/usePanel";
 import type { useOtherFabrics } from "../hooks/useOtherFabrics";
 import type { useSelection } from "../hooks/useSelection";
@@ -24,6 +25,7 @@ export function SidePanel(props: {
   loadOthers: ReturnType<typeof useOtherFabrics>;
   selection: ReturnType<typeof useSelection>;
   sewing: ReturnType<typeof useSewing>;
+  avatars: ReturnType<typeof useAvatarSwap>;
   rewrap: (cutId: string, place: Place, at?: string) => void;
   /** The part of the body under a screen point of the 3D view. */
   pickPart: PickPart;
@@ -47,6 +49,7 @@ export function SidePanel(props: {
     onFlip,
     onMirror,
     startsOut,
+    avatars,
   } = props;
   const {
     panel,
@@ -138,7 +141,13 @@ export function SidePanel(props: {
                 }}
               />
             )}
-            {displayedPanel === "avatar" && <AvatarPanel />}
+            {displayedPanel === "avatar" && (
+              <AvatarPanel
+                current={doc.entities.project?.avatar}
+                readOnly={doc.readOnly}
+                avatars={avatars}
+              />
+            )}
             {displayedPanel === "settings" && (
               <SettingsPanel store={store} entities={doc.entities} />
             )}

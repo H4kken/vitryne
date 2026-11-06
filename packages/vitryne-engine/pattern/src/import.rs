@@ -31,7 +31,7 @@ use crate::{
     convert::{ConvertOptions, convert_with, dxf_piece, fabric_entity, project_document},
     drafting::{self, SizeOption, pieces::Shape},
     garment::Garment as SidecarGarment,
-    placement::{BodyFacts, BodyPlace, Landmark, auto_wrap, default_avatar, flat_wrap},
+    placement::{BodyFacts, BodyPlace, Landmark, auto_wrap, carry_top, default_avatar, flat_wrap},
 };
 
 /// How far a piece placed on another one sits off it, mm (the hoodie's pocket).
@@ -883,6 +883,46 @@ pub fn rewrap(
         wrap.top = (l.top(place, regions, facts)? as f64 * 1000.0).round() + 0.0;
     }
     Ok(wrap)
+}
+
+/// The garment's wrapped cuts put on another body, each where it was on the old one: the same
+/// place (front, a sleeve, a leg), the same angle, the top edge at the same share of the way
+/// (a waistband stays at the waist), the size from the piece as `auto_wrap` makes it, and the
+/// cut's rotation and offset kept. Nothing resizes: the pieces are the same. A cut that
+/// follows another moves with it; a wrap on a region the new body lacks stays as it is, and
+/// the notes say so.
+pub fn move_to_body(
+    garment: &mut Garment,
+    from: (&BTreeMap<String, Region>, &BodyFacts),
+    to: (&BTreeMap<String, Region>, &BodyFacts),
+) -> Result<Vec<String>, String> {
+    let mut notes = Vec::new();
+    for pi in 0..garment.pieces.len() {
+        let piece = garment.pieces[pi].clone();
+        for (ci, cut) in piece.cuts.iter().enumerate() {
+            let Placement::Wrap(old) = &cut.placement else {
+                continue;
+            };
+            let Some(place) = BodyPlace::of_wrap(old) else {
+                continue;
+            };
+            if !to.0.contains_key(&old.region) {
+                notes.push(format!(
+                    "{}: the new body has no {} region, so the piece stays where it was",
+                    piece.name, old.region
+                ));
+                continue;
+            }
+            let mut wrap = rewrap(&piece, cut, place, None, to.0, to.1)?;
+            wrap.angle = old.angle;
+            wrap.offset = old.offset;
+            if let Some(top) = carry_top(old.top, &old.region, from, to) {
+                wrap.top = top;
+            }
+            garment.pieces[pi].cuts[ci].placement = Placement::Wrap(wrap);
+        }
+    }
+    Ok(notes)
 }
 
 #[cfg(test)]

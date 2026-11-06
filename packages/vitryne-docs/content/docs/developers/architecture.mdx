@@ -417,6 +417,22 @@ gets one fixed box (the body's own, with room behind the back and above the head
 the app for the test avatar), and moving a cut asks Rust (`rewrap`) whether the garment's box
 still covers it with 5 cm to spare, growing it only when it doesn't.
 
+#### Changing the avatar
+
+The Avatar panel lists the bundled bodies (`export-app-assets` writes `bodies/index.json` and
+`bodies/<slug>/{avatar.json,body.glb}`; the file is fetched when a body is picked). Picking one is
+a single edit: the worker's `swap_avatar` (`ProjectFile::swap_avatar`) puts the new mesh into its
+file, keeping the old one so the edit can be undone, and returns the entities the project would
+then have; the editor applies them as one command (`swapAvatar`) and Rust validates the result
+like any edit. Each wrapped cut moves with `import::move_to_body`: the place is the one its region
+and angle are nearest to, the size comes from the piece as `auto_wrap` works it out, the angle,
+rotation and offset are kept, and the top edge stays at the same share of the way (the height as a
+fraction of the avatar's for torso, legs and head; the share of the centreline's length for an
+arm). Nothing resizes, and nothing about the new body is measured to change a pattern
+([patents](/developers/patents), rule 6). An imported garment's collision box follows the body; one
+the person made bigger only grows. The body's SDF has its own key (it hashes the mesh), so the
+first drape on a body bakes it in the browser and keeps it in OPFS, like any other.
+
 #### The flat view
 
 The flat view draws every cut (a mirrored cut mirrored) where `cut.layout` puts it, else side

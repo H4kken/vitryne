@@ -812,6 +812,63 @@ fn sdf_cache_path(mesh: &BodyMesh, p: &SdfParams) -> String {
     format!("{SDF_CACHE}/{}.bin", p.cache_key(mesh))
 }
 
+/// The bodies the Avatar panel offers: the test avatar (`default`, the one every example
+/// carries) and each `assets/bodies/<slug>/`, as `bodies/<slug>/{avatar.json,body.glb}` and an
+/// index of their names and main measurements. The editor fetches one when it is picked.
+fn export_bodies(dir: &str, default: &vitryne_format::Avatar, default_glb: &[u8]) {
+    let mut index = Vec::new();
+    let mut add = |slug: &str, avatar: serde_json::Value, glb: &[u8]| {
+        let out = format!("{dir}/bodies/{slug}");
+        std::fs::create_dir_all(&out).expect("bodies dir");
+        let json = serde_json::to_string(&avatar).expect("avatar json");
+        std::fs::write(format!("{out}/avatar.json"), &json).expect("write avatar.json");
+        std::fs::write(format!("{out}/body.glb"), glb).expect("write body.glb");
+        let m = |k: &str| avatar["measurements"][k].clone();
+        index.push(serde_json::json!({
+            "slug": slug,
+            "id": avatar["id"],
+            "name": avatar["name"],
+            "height": m("height"),
+            "chest": m("chest"),
+            "waist": m("waist"),
+            "hips": m("hips"),
+        }));
+    };
+    add(
+        "default",
+        serde_json::to_value(default).expect("avatar"),
+        default_glb,
+    );
+    let mut slugs: Vec<String> = std::fs::read_dir("assets/bodies")
+        .expect("assets/bodies/")
+        .filter_map(|e| {
+            let e = e.ok()?;
+            e.path()
+                .join("avatar.json")
+                .is_file()
+                .then(|| e.file_name().into_string().ok())?
+        })
+        .collect();
+    slugs.sort();
+    for slug in slugs {
+        let src = format!("assets/bodies/{slug}");
+        let avatar = std::fs::read_to_string(format!("{src}/avatar.json"))
+            .unwrap_or_else(|e| panic!("{src}: {e}"));
+        let glb = std::fs::read(format!("{src}/body.glb")).unwrap_or_else(|e| panic!("{src}: {e}"));
+        add(
+            &slug,
+            serde_json::from_str(&avatar).unwrap_or_else(|e| panic!("{src}: {e}")),
+            &glb,
+        );
+    }
+    std::fs::write(
+        format!("{dir}/bodies/index.json"),
+        serde_json::to_string_pretty(&index).unwrap() + "\n",
+    )
+    .expect("write bodies index");
+    println!("wrote {dir}/bodies/ ({} bodies)", index.len());
+}
+
 /// The editor's bundled assets: each `assets/examples/<name>.vtry` folder as a zip, its body SDF
 /// under the key the browser computes (so opening an example never bakes), and an index; the
 /// test avatar's mesh and the SDF for imported patterns.
@@ -868,6 +925,7 @@ fn export_app_assets(dir: &str) {
     let glb = &doc.files[&avatar.mesh].bytes;
     std::fs::create_dir_all(format!("{dir}/avatar")).expect("avatar dir");
     std::fs::write(format!("{dir}/avatar/body.glb"), glb).expect("write avatar");
+    export_bodies(dir, avatar, glb);
     let dxf = std::fs::read_to_string("assets/garments/tshirt/tshirt.dxf").expect("tshirt.dxf");
     let imp = PatternImport::read("tshirt.dxf", &dxf, None).expect("import tshirt.dxf");
     let choices = imp

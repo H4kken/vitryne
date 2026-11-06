@@ -432,6 +432,14 @@ impl VtryFile {
         Ok(serde_json::to_string(&r).expect("rewrap serializes"))
     }
 
+    /// The project on another avatar (`avatar`: its JSON, `glb`: its mesh): `{ entities, notes }`
+    /// as JSON (`project::ProjectFile::swap_avatar`). The mesh joins the file; the entities
+    /// are the editor's to apply.
+    pub fn swap_avatar(&mut self, avatar: &str, glb: &[u8]) -> Result<String, JsValue> {
+        let r = self.file.swap_avatar(avatar, glb)?;
+        Ok(serde_json::json!({ "entities": r.entities, "notes": r.notes }).to_string())
+    }
+
     /// A new piece (`piece`: its JSON, cuts included) wrapped around the body, cut `k` at
     /// `places[k]` (a JSON array of `placement::BodyPlace` names): `project::PlacedPiece` as
     /// JSON. The project is unchanged.

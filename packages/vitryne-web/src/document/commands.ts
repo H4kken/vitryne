@@ -2108,3 +2108,46 @@ export function recoverChanges(saved: Entities, current: Entities): Command {
     throw new CommandError("the recovery copy has no changes");
   return { label: "Recover unsaved changes", drape: true, changes };
 }
+
+/**
+ * The project on another avatar: from `current` to `next` (what Rust made of it: the new avatar,
+ * the project pointing at it, the garments' cuts put on the new body and their collision
+ * boxes), as one undoable step. `notes` are what could not move.
+ */
+export function swapAvatar(
+  current: Entities,
+  next: Entities,
+  notes: readonly string[],
+): Command {
+  const ids = (list: readonly { id: string }[]) => list.map((x) => x.id);
+  const slots: Slot[] = [
+    ...(current.project ? [{ kind: "project" } as const] : []),
+    ...ids(current.garments).map((id) => ({ kind: "garment", id }) as const),
+    ...ids(current.avatars).map((id) => ({ kind: "avatar", id }) as const),
+    ...ids(next.avatars)
+      .filter((id) => !current.avatars.some((a) => a.id === id))
+      .map((id) => ({ kind: "avatar", id }) as const),
+  ];
+  const changes: Change[] = [];
+  for (const slot of slots) {
+    const before = getEntity(current, slot);
+    const after = getEntity(next, slot);
+    if (deepEqual(before, after)) continue;
+    if (after !== undefined) {
+      const problems = schemaErrors(slot.kind, after);
+      if (problems.length)
+        throw new CommandError(
+          `the avatar change is not valid: ${problems.join("; ")}`,
+        );
+    }
+    changes.push({ slot, before, after });
+  }
+  if (!changes.length) throw new CommandError("the avatar: nothing changes");
+  const name = next.avatars.find((a) => a.id === next.project?.avatar)?.name;
+  return {
+    label: name ? `Change avatar to ${name}` : "Change avatar",
+    drape: true,
+    changes,
+    ...(notes.length ? { note: notes.join(". ") } : {}),
+  };
+}
