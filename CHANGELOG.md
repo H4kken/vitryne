@@ -8,6 +8,8 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-07
+
 ### Added
 
 - Save image: **Share → Download → Image (.png)** saves a picture of the view you have now, in
@@ -227,6 +229,7 @@ The first public beta.
   ([Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
+[0.7.0]: https://github.com/H4kken/vitryne/releases/tag/v0.7.0
 [0.6.0]: https://github.com/H4kken/vitryne/releases/tag/v0.6.0
 [0.5.0]: https://github.com/H4kken/vitryne/releases/tag/v0.5.0
 [0.4.0]: https://github.com/H4kken/vitryne/releases/tag/v0.4.0
