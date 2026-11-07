@@ -16,6 +16,7 @@ use vitryne_format::{
 use vitryne_pattern::{
     import::{Addition, Choice, ImportSource, import_bounds, move_to_body, rewrap},
     placement::{BodyFacts, BodyPlace, Landmark},
+    posed::with_posed_regions,
     project::{Placer, ProjectGarment, avatar_mesh, for_drape, posed_avatar_mesh},
     seams::{self, CutEdge, EdgePick, SeamProposal},
 };
@@ -25,6 +26,29 @@ use vitryne_solver::{
     scene::SheetScene,
     sim::SimSettings,
 };
+
+/// The field's box with room for the posed body: a raised arm leaves the box an import made
+/// around the body at rest, and cloth is not held back outside it. Only in a pose, and only
+/// at drape time; the file's own box stays (`swap_avatar` compares it with the body's).
+fn widened(mut sdf: SdfParams, body: &BodyMesh, posed: bool) -> SdfParams {
+    if !posed {
+        return sdf;
+    }
+    let (lo, hi) = body.pos.iter().fold(
+        (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)),
+        |(lo, hi), p| (lo.min(*p), hi.max(*p)),
+    );
+    // The same room the import leaves around a body, in cm steps.
+    let (lo, hi) = (
+        lo - Vec3::new(0.05, 0.0, 0.05),
+        hi + Vec3::new(0.05, 0.05, 0.05),
+    );
+    for k in 0..3 {
+        sdf.min[k] = sdf.min[k].min((lo[k] * 100.0).floor() / 100.0);
+        sdf.max[k] = sdf.max[k].max((hi[k] * 100.0).ceil() / 100.0);
+    }
+    sdf
+}
 
 pub struct ProjectFile {
     doc: Document,
@@ -177,6 +201,10 @@ impl ProjectFile {
     /// only; the SDF is found or baked later, by its key.
     pub fn prepare(&self) -> Result<Prepared, String> {
         let doc = for_drape(&self.doc);
+        // In a pose, wraps resolve around the regions where the bones went; the file's own
+        // regions, and every decision about where a piece goes, stay at rest.
+        let doc = with_posed_regions(&doc)?;
+        let posed = self.doc.project_pose().is_some();
         let pg = ProjectGarment::new(&doc)?;
         let mut settings = SheetScene::config();
         let mut warnings = pg.warnings.clone();
@@ -188,7 +216,7 @@ impl ProjectFile {
             .map_or("avatar".into(), |a| a.name.clone());
         if pg.garment.cuts().next().is_none() {
             // Nothing to drape yet; the body's SDF is the one the first piece will need.
-            let sdf = pg.body_sdf();
+            let sdf = widened(pg.body_sdf(), &mesh, posed);
             return Ok(Prepared {
                 info: PreparedInfo {
                     sdf_key: sdf.cache_key(&mesh),
@@ -206,8 +234,9 @@ impl ProjectFile {
             });
         }
         let vertices = pg.target_vertices();
-        let (garment, placer) = pg.build_with_placer(pg.edge_for_vertices(vertices)?)?;
-        let sdf = garment.sdf.clone();
+        let (mut garment, placer) = pg.build_with_placer(pg.edge_for_vertices(vertices)?)?;
+        let sdf = widened(garment.sdf.clone(), &mesh, posed);
+        garment.sdf = sdf.clone();
         Ok(Prepared {
             info: PreparedInfo {
                 sdf_key: sdf.cache_key(&mesh),
@@ -860,6 +889,30 @@ mod tests {
         assert_ne!(posed.mesh.pos, rest.mesh.pos, "the arm moved");
         assert_ne!(posed.info.sdf_key, rest.info.sdf_key);
         assert_eq!(posed.info.sdf_key, posed.sdf.cache_key(&posed.mesh));
+        // The pieces start around the regions where the arm went, and the field's box holds
+        // the posed body (cloth is not held back outside it).
+        let (a, b) = (rest.cloth.as_ref().unwrap(), posed.cloth.as_ref().unwrap());
+        let moved = a
+            .garment
+            .mesh
+            .pos
+            .iter()
+            .zip(&b.garment.mesh.pos)
+            .filter(|(p, q)| p.distance(**q) > 0.02)
+            .count();
+        assert!(moved > 200, "{moved} vertices follow the arm");
+        let hi = posed
+            .mesh
+            .pos
+            .iter()
+            .fold(Vec3::splat(f32::MIN), |m, p| m.max(*p));
+        let lo = posed
+            .mesh
+            .pos
+            .iter()
+            .fold(Vec3::splat(f32::MAX), |m, p| m.min(*p));
+        assert!((0..3).all(|k| posed.sdf.min[k] <= lo[k] && posed.sdf.max[k] >= hi[k]));
+        assert_eq!(b.garment.sdf.cache_key(&posed.mesh), posed.info.sdf_key);
         // The same pose is the same field; another angle is another.
         assert_eq!(file.prepare().unwrap().info.sdf_key, posed.info.sdf_key);
         with_arm_up(&mut file, 0.5);

@@ -1455,7 +1455,24 @@ that mesh. `SdfParams::cache_key` hashes the vertices, so each pose gets its own
 tested. `pick_body` and the viewport already use the prepared mesh, so they see the posed body.
 `swap_avatar` drops the pose (it belongs to the old skeleton). The spec's drape-cache key lists the
 pose (the cache itself is still not implemented). Garments are still placed on the rest body: until
-(c) a pose that moves a limb through a piece will drape with the piece inside it. The default field box is 1.1 m wide (x -0.55 to 0.55), so a raised arm (a T-pose reaches about 0.75 m) leaves it; (c) must widen the box for a pose.
+(c) a pose that moves a limb through a piece will drape with the piece inside it. An import's field box is the body at rest plus a margin, so a raised arm leaves it; (c) widens it.
+
+**(c) Done: regions that follow their bones.** `pattern/src/posed.rs` moves the avatar's regions
+with the pose, rigid per bone so lengths hold: a path (an arm's centreline) point by point with the
+nearest bone; `head`, `head-over`, `upper-arm-*` and `arm-straight-*` with one bone; `torso` and
+`leg-*` as the line through two joints (root to neck, hip to foot), keeping their distances along it.
+`prepare` resolves wraps against these (`with_posed_regions`, on a copy: the file's regions stay at
+rest, and so does every decision about where a piece goes: `BodyFacts`, `auto_wrap`, `rewrap`,
+`import_addition`, `swap_avatar`), and widens the field's box to hold the posed body (room of 5 cm,
+whole cm; only while posed, never written to the file). Pieces only move: no radius, outline or
+length changes (patents.md rule 6), and nothing reads the regions to join pieces (rule 3: `suggest.rs`
+and `seams.rs` do not mention regions) or learns them (rule 4). Tested on the male body: the rest
+pose moves nothing (sub-mm); a raised arm's centreline keeps its length (2%) and stays within 15 mm
+of its rest distance to the surface; a lean and a step tilt the torso and the leg; the T-shirt's
+vertices follow the raised arm. Known gaps, for (d): the gizmo and `rewrap` preview still read the
+rest body, and a drop on a posed body (`pick_body` returns posed coordinates) maps to a rest place;
+a leg bent at the knee is a straight line from hip to foot, and a path's arc length shifts a little
+near a bent joint (linear, not skinned), so a `top` on a bent arm moves a few mm.
 
 ### Phase 6: a morphing body
 

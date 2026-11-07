@@ -13,6 +13,7 @@ pub mod import;
 pub mod meshing;
 pub mod pattern;
 pub mod placement;
+pub mod posed;
 pub mod preview;
 pub mod project;
 pub mod seams;

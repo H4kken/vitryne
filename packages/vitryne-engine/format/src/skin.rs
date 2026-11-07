@@ -62,6 +62,26 @@ fn rotate(q: Quat, v: [f32; 3]) -> [f32; 3] {
     [0, 1, 2].map(|k| v[k] + q[3] * t[k] + c[k])
 }
 
+/// A joint's move in a pose: the turn of its frame and where its head goes.
+#[derive(Debug, Clone, Copy)]
+pub struct Rigid {
+    q: Quat,
+    to: [f32; 3],
+    from: [f32; 3],
+}
+
+impl Rigid {
+    /// Where a point of the rest pose goes.
+    pub fn point(&self, p: [f32; 3]) -> [f32; 3] {
+        let r = rotate(self.q, [0, 1, 2].map(|k| p[k] - self.from[k]));
+        [0, 1, 2].map(|k| r[k] + self.to[k])
+    }
+    /// Where a direction of the rest pose points.
+    pub fn dir(&self, d: [f32; 3]) -> [f32; 3] {
+        rotate(self.q, d)
+    }
+}
+
 impl Skin {
     /// A joint's place after a pose: the rotation and the position of its head in the posed
     /// avatar space. `pose[j]` turns joint `j` about its head, in the frame of the joint above it.
@@ -90,6 +110,23 @@ impl Skin {
             }
         };
         out[j] = Some(placed);
+    }
+
+    /// The index of the joint called `name`.
+    pub fn joint_index(&self, name: &str) -> Option<usize> {
+        self.joints.iter().position(|j| j.name == name)
+    }
+
+    /// How a pose carries what hangs from joint `j` as one rigid piece (no blending): points of
+    /// the rest pose turn about the joint's head and go with it. For things that are not
+    /// vertices, such as the avatar's regions.
+    pub fn rigid(&self, pose: &[Quat], j: usize) -> Rigid {
+        let (q, to) = self.posed(pose)[j];
+        Rigid {
+            q,
+            to,
+            from: self.joints[j].rest,
+        }
     }
 
     /// One rotation per joint from named turns (a project's pose); a joint not named is at rest.
