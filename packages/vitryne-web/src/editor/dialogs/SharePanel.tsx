@@ -1,12 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The Share panel, like Canva's: a popover under the Share button with the link on top (who can
-// open the project, Copy link) and a Download row that opens the formats. Download the draped garment as glTF 2.0 (.glb) or Wavefront OBJ (.obj + .mtl), or the
+// open the project, Copy link) and a Download row that opens the formats. Save a picture of the view (.png), download the draped garment as glTF 2.0 (.glb) or Wavefront OBJ (.obj + .mtl), or the
 // whole project as a .vtry file (a backup, or to open in another Vitryne). No pattern (.dxf)
 // export until seam allowance exists: a DXF of sewing lines isn't ready to cut (the exporter
 // and `vitryne export` stay, docs/RELEASE_REVIEW.md).
 
 import { type RefObject, useState } from "react";
-import { ChevronLeft, ChevronRight, Download } from "lucide-react";
+import {
+  Box,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileArchive,
+  FileText,
+  Image as ImageIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -15,12 +24,25 @@ import {
 } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { EngineSession } from "@/worker/session";
 import { LinkAccess } from "./LinkAccess";
+import { type ExportFormat, exportOptions } from "./exportOptions";
 
-type ExportFormat = "glb" | "obj" | "vtry";
+/** Long side of the saved picture, in pixels. */
+const IMAGE_SIZES = [
+  { px: 1600, label: "Standard" },
+  { px: 3200, label: "Large" },
+  { px: 4096, label: "Largest" },
+];
 
 function downloadBlob(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
@@ -91,23 +113,42 @@ export interface SharePanelProps {
   canDownload: boolean;
 }
 
-const FORMATS: { id: ExportFormat; title: string; note: string }[] = [
+const FORMATS: {
+  id: ExportFormat;
+  title: string;
+  note: string;
+  icon: LucideIcon;
+}[] = [
+  {
+    id: "png",
+    icon: ImageIcon,
+    title: "Image (.png)",
+    note: "A picture of the view you have now, to share or post",
+  },
   {
     id: "glb",
+    icon: Box,
     title: "glTF 2.0 (.glb)",
     note: "Recommended: one file, opens in Blender and most 3D tools",
   },
   {
     id: "obj",
+    icon: FileText,
     title: "Wavefront (.obj)",
     note: "Two files, .obj and .mtl, for almost any 3D software",
   },
   {
     id: "vtry",
+    icon: FileArchive,
     title: "Project (.vtry)",
     note: "The whole project, to keep a copy or open in another Vitryne",
   },
 ];
+
+const FORMAT_INFO = Object.fromEntries(FORMATS.map((f) => [f.id, f])) as Record<
+  ExportFormat,
+  (typeof FORMATS)[number]
+>;
 
 export function SharePanel({
   open,
@@ -124,8 +165,14 @@ export function SharePanel({
   const [view, setView] = useState<"main" | "download">("main");
   const [format, setFormat] = useState<ExportFormat>("glb");
   const [includeAvatar, setIncludeAvatar] = useState(false);
+  // A picture shows the avatar unless asked not to; a 3D model leaves it out.
+  const [imageAvatar, setImageAvatar] = useState(true);
+  const [imageSide, setImageSide] = useState(1600);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const current = FORMAT_INFO[format];
+  const options = exportOptions(format);
 
   const cleanName =
     garmentName.trim().replace(/[\\/:*?"<>|]/g, "_") || "garment";
@@ -149,6 +196,13 @@ export function SharePanel({
           `${cleanName}.vtry`,
           new Blob([await projectFile()], { type }),
           { description: "Vitryne project", accept: { [type]: [".vtry"] } },
+        );
+      } else if (format === "png") {
+        const { image } = await session.screenshot(imageSide, imageAvatar);
+        done = await saveAs(
+          `${cleanName}.png`,
+          new Blob([image], { type: "image/png" }),
+          { description: "PNG image", accept: { "image/png": [".png"] } },
         );
       } else if (format === "glb") {
         const glb = await session.exportGlb(includeAvatar);
@@ -214,7 +268,7 @@ export function SharePanel({
                 <span className="text-[14px] font-medium">Download</span>
                 <span className="text-muted-foreground text-[12px]">
                   {canDownload
-                    ? "A 3D model, or the whole project"
+                    ? "An image, a 3D model, or the whole project"
                     : "Add a piece to download"}
                 </span>
               </span>
@@ -236,35 +290,91 @@ export function SharePanel({
                 Download
               </h2>
             </div>
-            <div
-              role="radiogroup"
-              aria-label="Format"
-              className="flex flex-col gap-1.5"
-            >
-              {FORMATS.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={format === f.id}
-                  onClick={() => setFormat(f.id)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
-                    format === f.id
-                      ? "border-foreground bg-hover"
-                      : "border-border hover:bg-hover",
-                  )}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-[13px] font-medium">File type</Label>
+              <Select
+                value={format}
+                onValueChange={(v) => setFormat(v as ExportFormat)}
+              >
+                <SelectTrigger
+                  aria-label="File type"
+                  className="h-11 w-full rounded-xl text-[14px]"
                 >
-                  <span className="flex min-w-0 grow flex-col">
-                    <span className="text-[14px] font-medium">{f.title}</span>
-                    <span className="text-muted-foreground text-[12px]">
-                      {f.note}
-                    </span>
-                  </span>
-                </button>
-              ))}
+                  <SelectValue>
+                    <current.icon className="size-4" />
+                    {current.title}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  align="start"
+                  className="rounded-xl"
+                >
+                  {FORMATS.map((f) => (
+                    <SelectItem key={f.id} value={f.id} className="py-2">
+                      <f.icon className="size-5" />
+                      <span className="flex flex-col">
+                        <span className="text-[14px] font-medium">
+                          {f.title}
+                        </span>
+                        <span className="text-muted-foreground text-[12px]">
+                          {f.note}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {format !== "vtry" && (
+            {options.avatar === "image" && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-0.5">
+                    <Label
+                      htmlFor="image-avatar"
+                      className="cursor-pointer text-[14px] font-medium"
+                    >
+                      Show avatar
+                    </Label>
+                    <span className="text-muted-foreground text-[12px]">
+                      Off: the garment alone, as if worn by no one.
+                    </span>
+                  </div>
+                  <Switch
+                    id="image-avatar"
+                    checked={imageAvatar}
+                    onCheckedChange={setImageAvatar}
+                  />
+                </div>
+                <div
+                  role="radiogroup"
+                  aria-label="Image size"
+                  className="flex gap-1.5"
+                >
+                  {IMAGE_SIZES.map((z) => (
+                    <button
+                      key={z.px}
+                      type="button"
+                      role="radio"
+                      aria-checked={imageSide === z.px}
+                      onClick={() => setImageSide(z.px)}
+                      className={cn(
+                        "flex grow flex-col items-center rounded-xl border px-2 py-1.5 text-[13px] transition-colors",
+                        imageSide === z.px
+                          ? "border-foreground bg-hover"
+                          : "border-border hover:bg-hover",
+                      )}
+                    >
+                      <span className="font-medium">{z.label}</span>
+                      <span className="text-muted-foreground text-[11px]">
+                        {z.px} px
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {options.avatar === "model" && (
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
                   <Label

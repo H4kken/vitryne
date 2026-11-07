@@ -207,6 +207,15 @@ export interface Requests {
     args: { width: number; height: number };
     reply: { image: ArrayBuffer; type: string };
   };
+  /**
+   * The drape as the person sees it (their camera, the viewport's shape) as a PNG whose longer
+   * side is `longSide` pixels (less where the GPU can't), on the light ground, with or without
+   * the avatar.
+   */
+  screenshot: {
+    args: { longSide: number; includeAvatar: boolean };
+    reply: { image: ArrayBuffer; width: number; height: number };
+  };
   exportGlb: { args: { includeAvatar: boolean }; reply: { glb: ArrayBuffer } };
   /** Wavefront OBJ (.obj + .mtl) export of the draped garment, with UVs and PBR materials. */
   exportObj: {

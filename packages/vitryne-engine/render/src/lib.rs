@@ -325,6 +325,8 @@ pub struct Renderer {
     seam_params: wgpu::Buffer,
     seams: Option<SeamLines>,
     show_seams: bool,
+    /// False: the collider isn't drawn (a picture of the garment alone).
+    show_body: bool,
 }
 
 /// The cloth a renderer draws: its mesh, sewing pairs and the solver's positions.
@@ -910,6 +912,7 @@ impl Renderer {
             seam_params,
             seams: None,
             show_seams: false,
+            show_body: true,
             weld_pipeline,
             normals_pipeline,
             cloth,
@@ -1054,6 +1057,19 @@ impl Renderer {
         h: u32,
         camera: &OrbitCamera,
     ) -> Snapshot {
+        self.snapshot_with(device, queue, w, h, camera, true)
+    }
+
+    /// `snapshot`, with the body drawn or left out (`body`).
+    pub fn snapshot_with(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        w: u32,
+        h: u32,
+        camera: &OrbitCamera,
+        body: bool,
+    ) -> Snapshot {
         let size = wgpu::Extent3d {
             width: w,
             height: h,
@@ -1078,6 +1094,7 @@ impl Renderer {
         });
         let mut enc = device.create_command_encoder(&Default::default());
         let seams = std::mem::replace(&mut self.show_seams, false);
+        let shown = std::mem::replace(&mut self.show_body, body);
         self.draw_to(
             device,
             queue,
@@ -1089,6 +1106,7 @@ impl Renderer {
             1,
         );
         self.show_seams = seams;
+        self.show_body = shown;
         enc.copy_texture_to_buffer(
             tex.as_image_copy(),
             wgpu::TexelCopyBufferInfo {
@@ -1175,7 +1193,8 @@ impl Renderer {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.camera_bg, &[]);
         let cloth = self.cloth.as_ref().map(|c| &c.draw);
-        for m in cloth.into_iter().chain(self.collider.as_ref()) {
+        let body = self.collider.as_ref().filter(|_| self.show_body);
+        for m in cloth.into_iter().chain(body) {
             pass.set_bind_group(1, &m.material, &[]);
             pass.set_vertex_buffer(0, m.pos.slice(..));
             pass.set_vertex_buffer(1, m.nrm.slice(..));

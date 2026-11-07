@@ -406,6 +406,14 @@ export class EngineSession {
     return await this.need().request("thumbnail", { width, height });
   }
 
+  /** The drape as the person sees it, as a PNG (*Save image*). */
+  async screenshot(
+    longSide: number,
+    includeAvatar: boolean,
+  ): Promise<{ image: ArrayBuffer; width: number; height: number }> {
+    return await this.need().request("screenshot", { longSide, includeAvatar });
+  }
+
   async exportGlb(includeAvatar = false): Promise<ArrayBuffer> {
     const { glb } = await this.need().request("exportGlb", { includeAvatar });
     return glb;

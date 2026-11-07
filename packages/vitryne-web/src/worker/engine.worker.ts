@@ -3,6 +3,7 @@
 // canvas, the drape, and the file (see protocol.ts). Requests run one at a time, in order;
 // inputs and frames run between them.
 
+import { imageSize } from "./imageSize";
 import { sceneStyle } from "@/editor/viewport/sceneStyle";
 import init, {
   type PreparedScene,
@@ -245,6 +246,35 @@ const handlers: Handlers = {
     return { image: await blob.arrayBuffer(), type: blob.type };
   },
 
+  async screenshot({ longSide, includeAvatar }) {
+    const vp = needViewport();
+    if (!canvas) throw new Error("no viewport");
+    // The viewport's shape, so the picture frames what the person sees.
+    const { width, height } = imageSize(
+      canvas.width,
+      canvas.height,
+      longSide,
+      vp.max_side(),
+    );
+    vp.set_style(new Float32Array(sceneStyle("light")));
+    let rgba: Uint8Array;
+    try {
+      rgba = await vp.screenshot(width, height, includeAvatar);
+    } finally {
+      if (style) vp.set_style(style);
+    }
+    const out = new OffscreenCanvas(width, height);
+    const ctx = out.getContext("2d");
+    if (!ctx) throw new Error("no 2D canvas in the worker");
+    ctx.putImageData(
+      new ImageData(new Uint8ClampedArray(rgba), width, height),
+      0,
+      0,
+    );
+    const blob = await out.convertToBlob({ type: "image/png" });
+    return { image: await blob.arrayBuffer(), width, height };
+  },
+
   async exportGlb({ includeAvatar }) {
     const v = needViewport();
     const bytes: Uint8Array = await v.export_glb(includeAvatar);
@@ -298,7 +328,9 @@ function request(m: RequestMessage) {
               ? [(value as Requests["exportGlb"]["reply"]).glb]
               : m.op === "thumbnail"
                 ? [(value as Requests["thumbnail"]["reply"]).image]
-                : [];
+                : m.op === "screenshot"
+                  ? [(value as Requests["screenshot"]["reply"]).image]
+                  : [];
       post({ kind: "reply", id: m.id, ok: true, value }, transfer);
     } catch (e) {
       if (crashed) return;

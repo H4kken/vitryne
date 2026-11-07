@@ -10,6 +10,8 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 ### Added
 
+- Save image: **Share → Download → Image (.png)** saves a picture of the view you have now, in
+  three sizes up to 4096 px, with the avatar shown or left out.
 - Symmetric pieces: a new piece for an arm, a leg or a side of the body is cut as a left and right
   pair by default (the **Symmetric pair** switch in the new-piece dialog), and the two are one
   piece, so editing one changes the other. A piece cut once gets its mirror image with **Make
