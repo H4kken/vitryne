@@ -726,7 +726,7 @@ always safe to delete.** Readers that can't use it ignore it.
     "engine": { "name": "vitryne-solver", "version": "0.1.0" },
     "garments": [ <each garment part, in layering order> ],
     "fabrics": [ <each fabric used, by id order> ],
-    "avatar": { "mesh": "<sha256 of body.glb>", "regions": { … } },
+    "avatar": { "mesh": "<sha256 of body.glb>", "regions": { … }, "pose": <project.pose, or null> },
     "simulation": <the resolved settings: engine defaults, then project, then garment overrides>
   }
   ```

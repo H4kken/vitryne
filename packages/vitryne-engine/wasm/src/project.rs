@@ -16,7 +16,7 @@ use vitryne_format::{
 use vitryne_pattern::{
     import::{Addition, Choice, ImportSource, import_bounds, move_to_body, rewrap},
     placement::{BodyFacts, BodyPlace, Landmark},
-    project::{Placer, ProjectGarment, avatar_mesh, for_drape},
+    project::{Placer, ProjectGarment, avatar_mesh, for_drape, posed_avatar_mesh},
     seams::{self, CutEdge, EdgePick, SeamProposal},
 };
 use vitryne_solver::{
@@ -181,7 +181,7 @@ impl ProjectFile {
         let mut settings = SheetScene::config();
         let mut warnings = pg.warnings.clone();
         warnings.extend(pg.apply_settings(&mut settings));
-        let mesh = avatar_mesh(&self.doc)?.ok_or("the project has no avatar")?;
+        let mesh = posed_avatar_mesh(&self.doc)?.ok_or("the project has no avatar")?;
         let avatar = self
             .doc
             .project_avatar()
@@ -356,6 +356,8 @@ impl ProjectFile {
         next.avatars.push(avatar.clone());
         if let Some(p) = next.project.as_mut() {
             p.avatar = avatar.id.clone();
+            // A pose is for one skeleton; the new body starts at rest.
+            p.pose = None;
         }
         let report = next.validate();
         if !report.errors.is_empty() {
@@ -832,6 +834,42 @@ mod tests {
             std::fs::read_to_string(dir.join("avatar.json")).unwrap(),
             std::fs::read(dir.join("body.glb")).unwrap(),
         )
+    }
+
+    /// A pose moves the body the drape is baked on: the mesh and the field's key change, the
+    /// same pose gives the same key, and a swap to another body starts at rest.
+    #[test]
+    fn a_pose_changes_the_body_the_drape_sees() {
+        let (mut file, _) = ProjectFile::open(&example_zip("tshirt")).unwrap();
+        let (avatar, glb) = bundled_body("male-average");
+        let swapped = file.swap_avatar(&avatar, &glb).unwrap();
+        file.set_entities_json(&swapped.entities).unwrap();
+        let rest = file.prepare().unwrap();
+
+        let with_arm_up = |file: &mut ProjectFile, angle: f64| {
+            let mut e: serde_json::Value = serde_json::from_str(&file.entities_json()).unwrap();
+            let id = e["project"]["avatar"].clone();
+            let (s, c) = ((angle / 2.0).sin(), (angle / 2.0).cos());
+            e["project"]["pose"] =
+                serde_json::json!({ "avatar": id, "joints": { "upperarm01.L": [0.0, 0.0, s, c] } });
+            file.set_entities_json(&e.to_string()).unwrap();
+        };
+        with_arm_up(&mut file, 1.0);
+        let posed = file.prepare().unwrap();
+        assert_eq!(posed.mesh.pos.len(), rest.mesh.pos.len());
+        assert_ne!(posed.mesh.pos, rest.mesh.pos, "the arm moved");
+        assert_ne!(posed.info.sdf_key, rest.info.sdf_key);
+        assert_eq!(posed.info.sdf_key, posed.sdf.cache_key(&posed.mesh));
+        // The same pose is the same field; another angle is another.
+        assert_eq!(file.prepare().unwrap().info.sdf_key, posed.info.sdf_key);
+        with_arm_up(&mut file, 0.5);
+        assert_ne!(file.prepare().unwrap().info.sdf_key, posed.info.sdf_key);
+
+        // Another body: the pose is dropped, as it belongs to the old skeleton.
+        let (avatar, glb) = bundled_body("female-slim");
+        let swapped = file.swap_avatar(&avatar, &glb).unwrap();
+        let e: serde_json::Value = serde_json::from_str(&swapped.entities).unwrap();
+        assert!(e["project"].get("pose").is_none());
     }
 
     /// Another body under the same garment: the project stays valid, the pieces are untouched,

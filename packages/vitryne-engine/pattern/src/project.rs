@@ -807,8 +807,19 @@ impl Placer {
     }
 }
 
-/// The avatar mesh of a project (its glTF part, metres).
+/// The avatar mesh of a project (its glTF part, metres), at rest.
 pub fn avatar_mesh(doc: &Document) -> Result<Option<BodyMesh>, String> {
+    mesh_of(doc, false)
+}
+
+/// The avatar mesh in the project's pose (`project.pose`); at rest when the project has none
+/// (or one made for another avatar). The collision field is baked over this mesh, and
+/// `SdfParams::cache_key` hashes the vertices, so each pose has its own cached field.
+pub fn posed_avatar_mesh(doc: &Document) -> Result<Option<BodyMesh>, String> {
+    mesh_of(doc, true)
+}
+
+fn mesh_of(doc: &Document, posed: bool) -> Result<Option<BodyMesh>, String> {
     let Some(avatar) = doc.project_avatar() else {
         return Ok(None);
     };
@@ -817,8 +828,17 @@ pub fn avatar_mesh(doc: &Document) -> Result<Option<BodyMesh>, String> {
         .get(&avatar.mesh)
         .ok_or_else(|| format!("avatar mesh {} missing", avatar.mesh))?;
     let mesh = glb::read(&file.bytes).map_err(|e| format!("{}: {e}", avatar.mesh))?;
+    let mut pos = mesh.positions;
+    if let (true, Some(pose)) = (posed, doc.project_pose()) {
+        let skin = mesh
+            .skin
+            .as_ref()
+            .ok_or_else(|| format!("{}: the pose needs a skeleton", avatar.mesh))?;
+        let turns = pose.joints.iter().map(|(k, q)| (k.clone(), *q)).collect();
+        pos = skin.pose(&pos, &skin.rotations(&turns)?);
+    }
     Ok(Some(BodyMesh::new(
-        mesh.positions.iter().map(|&p| Vec3::from(p)).collect(),
+        pos.iter().map(|&p| Vec3::from(p)).collect(),
         mesh.indices.as_chunks::<3>().0.to_vec(),
     )))
 }

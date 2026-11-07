@@ -1448,6 +1448,15 @@ their manifest's version; the golden drapes are unchanged. Patents: posing moves
 pieces or measures, so `patents.md` rules 1 to 6 are not touched; placement (c) keeps pieces
 moving only, never resizing.
 
+**(b) Done: the posed body in the worker.** `ProjectFile::prepare` poses the avatar mesh
+(`posed_avatar_mesh`: `Skin::pose` over the file's `body.glb`) and the collision field is baked from
+that mesh. `SdfParams::cache_key` hashes the vertices, so each pose gets its own cached field
+(OPFS in the browser; the first time costs the 4 to 30 s of any bake); the same pose is the same key,
+tested. `pick_body` and the viewport already use the prepared mesh, so they see the posed body.
+`swap_avatar` drops the pose (it belongs to the old skeleton). The spec's drape-cache key lists the
+pose (the cache itself is still not implemented). Garments are still placed on the rest body: until
+(c) a pose that moves a limb through a piece will drape with the piece inside it. The default field box is 1.1 m wide (x -0.55 to 0.55), so a raised arm (a T-pose reaches about 0.75 m) leaves it; (c) must widen the box for a pose.
+
 ### Phase 6: a morphing body
 
 Instead of loading one file per body, the editor keeps one base mesh and a few morph targets and
