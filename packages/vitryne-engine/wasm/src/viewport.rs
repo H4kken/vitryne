@@ -816,6 +816,25 @@ impl Viewport {
     /// The drape as it is now, `w` × `h`, from the garment's own camera (not the one the person
     /// turned): RGBA8 pixels as a `Uint8Array`, for the project's thumbnail.
     pub fn thumbnail(&self, w: u32, h: u32) -> js_sys::Promise {
+        self.picture(w, h, true, false)
+    }
+
+    /// The drape as the person sees it now (the camera they turned), `w` × `h`: RGBA8 pixels,
+    /// for *Save image*. `body`: with the avatar. The largest side the GPU allows is `max_side`.
+    pub fn screenshot(&self, w: u32, h: u32, body: bool) -> js_sys::Promise {
+        self.picture(w, h, body, true)
+    }
+
+    pub fn max_side(&self) -> u32 {
+        self.core
+            .engine
+            .gpu()
+            .device
+            .limits()
+            .max_texture_dimension_2d
+    }
+
+    fn picture(&self, w: u32, h: u32, body: bool, as_viewed: bool) -> js_sys::Promise {
         let c = self.core.clone();
         wasm_bindgen_futures::future_to_promise(async move {
             let gpu = c.engine.gpu();
@@ -826,26 +845,43 @@ impl Viewport {
             let shot = match (live, bare) {
                 (Some(live), _) => {
                     let (target, distance) = live.sim.garment().desc.camera;
-                    let camera = OrbitCamera::looking_at(target, distance);
+                    let camera = if as_viewed {
+                        *c.camera.borrow()
+                    } else {
+                        OrbitCamera::looking_at(target, distance)
+                    };
                     // The thumbnail shows every cut in its colour, even while one is picked out.
                     let picked = c.highlight.borrow().is_some();
                     if picked {
                         c.paint(&live, true);
                     }
-                    let shot =
-                        live.renderer
-                            .borrow_mut()
-                            .snapshot(&gpu.device, &gpu.queue, w, h, &camera);
+                    let shot = live.renderer.borrow_mut().snapshot_with(
+                        &gpu.device,
+                        &gpu.queue,
+                        w,
+                        h,
+                        &camera,
+                        body,
+                    );
                     if picked {
                         c.paint(&live, false);
                     }
                     shot
                 }
                 (None, Some(bare)) => {
-                    let camera = OrbitCamera::looking_at(bare.camera.0, bare.camera.1);
-                    bare.renderer
-                        .borrow_mut()
-                        .snapshot(&gpu.device, &gpu.queue, w, h, &camera)
+                    let camera = if as_viewed {
+                        *c.camera.borrow()
+                    } else {
+                        OrbitCamera::looking_at(bare.camera.0, bare.camera.1)
+                    };
+                    bare.renderer.borrow_mut().snapshot_with(
+                        &gpu.device,
+                        &gpu.queue,
+                        w,
+                        h,
+                        &camera,
+                        body,
+                    )
                 }
                 (None, None) => return Err(JsValue::from_str("no garment loaded")),
             };
