@@ -198,6 +198,9 @@ pub(crate) fn check(doc: &Document) -> Report {
             r.errors
                 .push(format!("project: avatar {} has no part", p.avatar));
         }
+        if let Some(pose) = &p.pose {
+            check_pose(doc, &p.avatar, pose, &mut r);
+        }
     }
     // Physical ranges (the schemas say the same; checked here too, since a file edited by
     // hand, or an editor's JSON, reaches the engine through this check only).
@@ -715,5 +718,28 @@ fn check_garment(
                 r.errors.push(sa("a run needs two different nodes".into()));
             }
         }
+    }
+}
+
+/// A project's pose (file-format.md, Pose): a pose made for another avatar is stale and ignored
+/// (a warning); one for this avatar must name joints its skeleton has, with unit turns.
+fn check_pose(doc: &Document, avatar: &crate::Id, pose: &crate::Pose, r: &mut Report) {
+    if &pose.avatar != avatar {
+        r.warnings
+            .push("project: the pose is for another avatar and is ignored".into());
+        return;
+    }
+    let skin = doc
+        .avatar(avatar)
+        .and_then(|a| doc.files.get(&a.mesh))
+        .and_then(|f| crate::glb::read(&f.bytes).ok())
+        .and_then(|m| m.skin);
+    let Some(skin) = skin else {
+        r.errors
+            .push("project: the pose needs an avatar with a skeleton".into());
+        return;
+    };
+    if let Err(e) = skin.rotations(&pose.joints) {
+        r.errors.push(format!("project: {e}"));
     }
 }

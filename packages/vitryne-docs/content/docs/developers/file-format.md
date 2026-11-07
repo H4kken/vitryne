@@ -225,6 +225,31 @@ for that, and tools print them (the example's seams are readable through the nod
 - `appearances` (version 2, optional) lists every appearance part the same way; absent when
   there are none.
 - `avatar` is the avatar every garment is draped on.
+- `pose` (version 7, optional) is the pose the avatar is draped in; absent means its rest pose.
+
+### Pose
+
+```json
+"pose": {
+  "avatar": "01a13cdb-cc04-728e-9afd-3f992133737d",
+  "joints": { "upperarm01.L": [0, 0, 0.2588, 0.9659] }
+}
+```
+
+- `joints` maps a joint name (as named in the avatar's [skin](#avatar)) to a unit quaternion
+  `[x, y, z, w]`, glTF's order: the joint's turn about its own head, in the frame of the joint
+  above it. A joint not listed is at rest, so `{}` is the rest pose. Names the skeleton lacks, turns
+  that aren't unit length (within 1e-3) and a pose for an avatar with no skeleton are refused.
+- `avatar` is the avatar the pose was made for. **Why:** the meaning of a joint name depends on the
+  avatar, and an app that doesn't know poses (version 6 and below) can still swap the avatar and
+  keep the member; a pose whose `avatar` is not the project's is stale, and every reader ignores
+  it (a warning). That is how this stays valid under the rule in
+  [Versions and migrations](#versions-and-migrations), so the version is not a breaking one.
+- It is not the avatar's own `pose` (a label of the mesh's rest pose, `A` or `T`): that is how the
+  mesh is built, this is how it is worn.
+- A pose is a rotation per joint on the standard linear blend skinning of the avatar's skin: no
+  correction of its known artefacts (a collapsing elbow, a candy-wrapper twist). The posed mesh is
+  what pieces collide with, and its field is baked from it like any other body's.
 
 ## Garment
 
@@ -749,6 +774,8 @@ produce.
   looks as it did.
 - **Version 5 is additive:** `view.json` gained `drape`. The migration is a no-op.
 - **Version 6 is additive:** cuts gained `state`. The migration is a no-op.
+- **Version 7 is additive:** the project gained `pose` (see [Pose](#pose)). The migration is a
+  no-op.
 - **A rule for future additive features:** if a new field's meaning depends on other data
   (e.g. per-size node offsets), it must stay valid when an older app edits that data, or the
   change has to be breaking, or it goes in a required extension.
@@ -778,7 +805,7 @@ How the planned features fit, without breaking v1 files:
 | **Colourways and textures**   | Appearances exist since version 2 (colour only), and fabrics name a default one since version 3. Next: texture parts and print scale on the appearance, and `colourways` on the garment mapping cuts to appearances. Physics stays in fabrics, so nothing existing changes. |
 | **Multi-garment outfits**     | Already there: `project.garments` is in layering order. Per-garment visibility or grouping are additions.                                                                                                                                                                   |
 | **Avatars from measurements** | `avatar.source = {generator, measurements}`, with `body.glb` as the generated (and regenerable) mesh.                                                                                                                                                                       |
-| **Animations and poses**      | The skin is in `body.glb` now (see Avatar, Skin); animations and a project-level `pose` reference are still to come. The cache key gains the pose.                                                                                                                          |
+| **Animations and poses**      | The skin is in `body.glb` now (see Avatar, Skin); animations are still to come. The project-level [`pose`](#pose) exists since version 7; the drape's cache key gains it.                                                                                                   |
 | **Collaboration**             | Stable ids per entity are what operation-based sync needs; per-entity parts let edits travel as small objects. Metadata (authors, comments) goes on entities in `extras` or an extension. The file stays a snapshot.                                                        |
 | **Seam allowance, arcs**      | `VTRY_seam_allowance` per edge; new `edge.type` values (`arc`), which a reader that doesn't know them must refuse, so they go in `extensionsRequired` until they're core, as `cubic` does (`VTRY_curves`, [Curved edges](#curved-edges-vtry_curves)).                       |
 

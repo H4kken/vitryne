@@ -38,6 +38,7 @@ export interface Project {
    */
   appearances?: string[];
   simulation?: Simulation;
+  pose?: Pose;
   extensions?: Extensions;
   /**
    * Application-specific data with no meaning in the format. Preserved, never interpreted.
@@ -71,6 +72,32 @@ export interface Simulation {
  */
 export interface Extensions {
   [k: string]: unknown;
+}
+/**
+ * The pose the avatar is draped in (version 7). Absent: the avatar's rest pose. A pose made for another avatar than `avatar` is stale and ignored.
+ */
+export interface Pose {
+  /**
+   * A UUID (RFC 9562), lowercase, hyphenated. Writers create version 7; readers accept any version. Unique across the whole file.
+   */
+  avatar: string;
+  /**
+   * Joint name (as in the avatar's skin) to a unit quaternion [x, y, z, w]: the joint's turn about its own head, in the frame of the joint above it. A joint not listed is at rest.
+   */
+  joints: {
+    /**
+     * @minItems 4
+     * @maxItems 4
+     */
+    [k: string]: [number, number, number, number] | undefined;
+  };
+  extensions?: Extensions;
+  /**
+   * Application-specific data with no meaning in the format. Preserved, never interpreted.
+   */
+  extras?: {
+    [k: string]: unknown | undefined;
+  };
 }
 
 // ---- garment.schema.json

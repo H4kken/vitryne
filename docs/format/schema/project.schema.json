@@ -31,12 +31,40 @@
       "uniqueItems": true
     },
     "simulation": { "$ref": "#/$defs/simulation" },
+    "pose": {
+      "description": "The pose the avatar is draped in (version 7). Absent: the avatar's rest pose. A pose made for another avatar than `avatar` is stale and ignored.",
+      "$ref": "#/$defs/pose"
+    },
     "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
     "extras": { "$ref": "common.schema.json#/$defs/extras" }
   },
   "required": ["id", "garments", "avatar", "fabrics"],
   "unevaluatedProperties": false,
   "$defs": {
+    "pose": {
+      "description": "A turn for some joints of an avatar's skeleton (the skin in its body.glb).",
+      "type": "object",
+      "properties": {
+        "avatar": {
+          "description": "The avatar the pose was made for.",
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "joints": {
+          "description": "Joint name (as in the avatar's skin) to a unit quaternion [x, y, z, w]: the joint's turn about its own head, in the frame of the joint above it. A joint not listed is at rest.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "number", "minimum": -1, "maximum": 1 },
+            "minItems": 4,
+            "maxItems": 4
+          }
+        },
+        "extensions": { "$ref": "common.schema.json#/$defs/extensions" },
+        "extras": { "$ref": "common.schema.json#/$defs/extras" }
+      },
+      "required": ["avatar", "joints"],
+      "unevaluatedProperties": false
+    },
     "simulation": {
       "description": "How the drape is computed. Garments may override any of it (garment.simulation).",
       "type": "object",

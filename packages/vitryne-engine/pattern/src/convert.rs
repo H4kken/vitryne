@@ -735,6 +735,7 @@ pub(crate) fn project_document(
             engine: None,
             other: Map::new(),
         }),
+        pose: None,
         other: Map::new(),
     });
     let (target, distance) = camera.unwrap_or(([0.0, 1.12, 0.03], 1.5));

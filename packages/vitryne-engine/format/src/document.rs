@@ -137,6 +137,11 @@ impl Document {
     pub fn avatar(&self, id: &Id) -> Option<&Avatar> {
         self.avatars.iter().find(|a| &a.id == id)
     }
+    /// The pose the project's avatar is in, if it has one that was made for this avatar.
+    pub fn project_pose(&self) -> Option<&crate::Pose> {
+        let p = self.project.as_ref()?;
+        p.pose.as_ref().filter(|pose| pose.avatar == p.avatar)
+    }
     /// The avatar the project's garments are draped on.
     pub fn project_avatar(&self) -> Option<&Avatar> {
         self.avatar(&self.project.as_ref()?.avatar)

@@ -1431,6 +1431,23 @@ work was asked for: skin, then measurements and variety, then poses.
 | 5 | Motion and a soft layer: a layered body (skinned base, fat layer, pose-driven muscle, per-region tissue), cloth coupling one way then two | Planned |
 | 6 | **Morphing body**: sliders instead of fixed bodies (see below) | Planned, after 3 and 4 |
 
+### Phase 3b: a pose in the project (in progress)
+
+Four steps, each ending in a commit: (a) the format; (b) the posed body in the worker, with its
+field baked from the posed mesh (not the moving-collider kernels: a static pose is draped once, and
+phase 4b's numbers say a re-bake resolves the armpit crease that a per-vertex projection cannot);
+(c) regions that follow their bones; (d) the pose control in the Avatar tab, mocked first.
+
+**(a) Done: format version 7.** `project.pose = {avatar, joints}`: a unit quaternion per joint
+name, local to the joint above it; absent is the rest pose. It names the avatar it was made for,
+so a pose left behind by an app that swapped the avatar without knowing poses is ignored (a
+warning) instead of applied to the wrong skeleton. Refused: joints the skeleton lacks, turns that
+are not unit length, a pose on an avatar with no skeleton. Additive (`minReaderVersion` stays),
+the migration is a no-op, a v6 fixture was added. Checked: the examples and the skirt change only
+their manifest's version; the golden drapes are unchanged. Patents: posing moves the body, not
+pieces or measures, so `patents.md` rules 1 to 6 are not touched; placement (c) keeps pieces
+moving only, never resizing.
+
 ### Phase 6: a morphing body
 
 Instead of loading one file per body, the editor keeps one base mesh and a few morph targets and

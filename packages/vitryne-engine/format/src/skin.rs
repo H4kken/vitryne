@@ -92,6 +92,29 @@ impl Skin {
         out[j] = Some(placed);
     }
 
+    /// One rotation per joint from named turns (a project's pose); a joint not named is at rest.
+    /// A name this skeleton doesn't have is an error, and so is a turn that isn't a unit
+    /// quaternion (within 1e-3 of length one).
+    pub fn rotations(
+        &self,
+        turns: &std::collections::BTreeMap<String, Quat>,
+    ) -> Result<Vec<Quat>, String> {
+        let mut out = vec![IDENTITY; self.joints.len()];
+        for (name, q) in turns {
+            let j = self
+                .joints
+                .iter()
+                .position(|j| &j.name == name)
+                .ok_or_else(|| format!("pose: the skeleton has no joint {name}"))?;
+            let len = q.iter().map(|x| x * x).sum::<f32>().sqrt();
+            if !(len.is_finite() && (len - 1.0).abs() <= 1e-3) {
+                return Err(format!("pose: the turn of {name} is not a unit quaternion"));
+            }
+            out[j] = *q;
+        }
+        Ok(out)
+    }
+
     /// The vertices moved by `pose` (one rotation per joint, missing ones the identity). With
     /// every rotation the identity, `positions` come back as they are.
     pub fn pose(&self, positions: &[[f32; 3]], pose: &[Quat]) -> Vec<[f32; 3]> {

@@ -914,3 +914,92 @@ fn folds_lines_and_grain_are_checked() {
     let e = with(grain([50.0, 50.0])).errors;
     assert!(e.iter().any(|m| m.contains("no length")), "{e:?}");
 }
+
+// ---- pose (version 7) ---------------------------------------------------------------------
+
+/// The tshirt example with a bundled, skinned body as its avatar's mesh.
+fn on_skinned_body() -> Document {
+    let mut doc = Document::open(&example("tshirt")).unwrap().doc;
+    let body = std::fs::read(root().join("assets/bodies/male-average/body.glb")).unwrap();
+    let mesh = doc.avatars[0].mesh.clone();
+    doc.files.get_mut(&mesh).unwrap().bytes = body;
+    doc
+}
+
+fn with_pose(doc: &mut Document, avatar: Id, joints: Value) {
+    let p = doc.project.as_mut().unwrap();
+    p.pose = Some(
+        serde_json::from_value(json!({ "avatar": avatar.to_string(), "joints": joints })).unwrap(),
+    );
+}
+
+#[test]
+fn a_pose_is_kept_and_checked() {
+    let mut doc = on_skinned_body();
+    let avatar = doc.project.as_ref().unwrap().avatar.clone();
+    assert!(doc.project_pose().is_none());
+    assert!(doc.validate().errors.is_empty());
+
+    // 30 degrees about z.
+    let (s, c) = (15f32.to_radians().sin(), 15f32.to_radians().cos());
+    with_pose(
+        &mut doc,
+        avatar.clone(),
+        json!({ "upperarm01.L": [0, 0, s, c] }),
+    );
+    assert!(doc.validate().errors.is_empty(), "{:?}", doc.validate());
+    assert!(doc.project_pose().is_some());
+    let back = Document::from_zip(&doc.to_zip_checked().unwrap())
+        .unwrap()
+        .doc;
+    assert_eq!(back.project, doc.project);
+
+    // A joint the skeleton lacks, and a turn that isn't a unit quaternion.
+    with_pose(&mut doc, avatar.clone(), json!({ "elbow": [0, 0, 0, 1] }));
+    assert!(doc.validate().errors[0].contains("no joint elbow"));
+    with_pose(
+        &mut doc,
+        avatar.clone(),
+        json!({ "upperarm01.L": [0, 0, 1, 1] }),
+    );
+    assert!(doc.validate().errors[0].contains("unit quaternion"));
+}
+
+#[test]
+fn a_pose_needs_a_skeleton_and_a_stale_one_is_ignored() {
+    // The example's own avatar has no skin.
+    let mut doc = Document::open(&example("tshirt")).unwrap().doc;
+    let avatar = doc.project.as_ref().unwrap().avatar.clone();
+    with_pose(&mut doc, avatar, json!({}));
+    assert!(doc.validate().errors[0].contains("needs an avatar with a skeleton"));
+
+    // Made for another avatar (an older app swapped it): ignored, with a warning, not an error.
+    let mut doc = on_skinned_body();
+    with_pose(
+        &mut doc,
+        vitryne_format::Id::parse("01a13cdb-cc04-728e-9afd-3f992133737e").unwrap(),
+        json!({ "nobody": [0, 0, 0, 1] }),
+    );
+    let report = doc.validate();
+    assert!(report.errors.is_empty(), "{report:?}");
+    assert!(report.warnings.iter().any(|w| w.contains("another avatar")));
+    assert!(doc.project_pose().is_none());
+}
+
+/// Without a pose the files are what they were: the examples carry none.
+#[test]
+fn no_pose_writes_nothing() {
+    for name in EXAMPLES {
+        let doc = Document::open(&example(name)).unwrap().doc;
+        assert!(doc.project.as_ref().unwrap().pose.is_none());
+        let project = &doc
+            .to_entries()
+            .unwrap()
+            .iter()
+            .find(|(p, _)| p == "project.json")
+            .unwrap()
+            .1
+            .clone();
+        assert!(!String::from_utf8_lossy(project).contains("pose"));
+    }
+}

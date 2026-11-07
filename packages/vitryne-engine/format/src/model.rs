@@ -56,6 +56,23 @@ pub struct Project {
     pub appearances: Vec<Id>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub simulation: Option<ProjectSimulation>,
+    /// The pose the avatar is draped in (format version 7); absent = its rest pose.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pose: Option<Pose>,
+    #[serde(flatten)]
+    pub other: Other,
+}
+
+/// A pose of an avatar's skeleton: a turn for some of its joints. It names the avatar it was
+/// made for, so an app that doesn't know poses (and swaps the avatar) leaves a pose that is
+/// recognised as stale and ignored, never one that is applied to the wrong skeleton.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pose {
+    pub avatar: Id,
+    /// Joint name (as in the avatar's skin) to a unit quaternion `[x, y, z, w]`: the joint's
+    /// turn about its own head, in the frame of the joint above it. A joint not listed is at rest.
+    pub joints: BTreeMap<String, [f32; 4]>,
     #[serde(flatten)]
     pub other: Other,
 }
