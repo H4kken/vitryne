@@ -32,3 +32,40 @@ export async function fetchBody(
   if (!a.ok || !g.ok) throw new Error(`the body ${slug} could not be loaded`);
   return { avatar: await a.text(), glb: await g.arrayBuffer() };
 }
+
+/** How the panel lays the bodies out: the first avatar on its own, then the rest by sex, slim to
+ *  fuller. Read from the slug (`female-slim`); a body whose slug doesn't fit goes under "Other". */
+export interface BodyGroups {
+  original: BodyOption | undefined;
+  groups: { label: string; items: { body: BodyOption; label: string }[] }[];
+}
+
+const BUILDS = ["slim", "average", "full"] as const;
+const BUILD_LABEL: Record<(typeof BUILDS)[number], string> = {
+  slim: "Slim",
+  average: "Average",
+  full: "Fuller",
+};
+
+export function groupBodies(bodies: BodyOption[]): BodyGroups {
+  const original = bodies.find((b) => b.slug === "default");
+  const groups: BodyGroups["groups"] = [];
+  const add = (label: string, body: BodyOption, item: string) => {
+    let g = groups.find((x) => x.label === label);
+    if (!g) groups.push((g = { label, items: [] }));
+    g.items.push({ body, label: item });
+  };
+  for (const sex of ["female", "male"]) {
+    for (const build of BUILDS) {
+      const body = bodies.find((b) => b.slug === `${sex}-${build}`);
+      if (body)
+        add(sex === "female" ? "Female" : "Male", body, BUILD_LABEL[build]);
+    }
+  }
+  for (const b of bodies) {
+    if (b === original || groups.some((g) => g.items.some((i) => i.body === b)))
+      continue;
+    add("Other", b, b.name);
+  }
+  return { original, groups };
+}

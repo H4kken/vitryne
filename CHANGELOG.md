@@ -31,7 +31,8 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 - An **Avatar** tab in the left rail changes the body's skin tone (seven swatches). It is
   kept in this browser, like the theme, and never changes a drape or an export.
 - The Avatar tab also changes the **body**: the first avatar and six more (female and male, each
-  slim, average and fuller, built from MakeHuman's macro targets, with their tape measures). The
+  slim, average and fuller, built from MakeHuman's macro targets), shown as outlines drawn from
+  their tape measures on one scale; the selected body's measurements are listed under them. The
   project's pieces move onto the new body at the same places (the waist stays at the waist) and
   keep their size, so a pattern made for another body may not fit well; garments are never
   resized. It is one undoable edit. The first time a body is used its collision field is baked in
