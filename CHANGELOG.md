@@ -8,6 +8,11 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 ## [Unreleased]
 
+### Added
+
+- The start screen's top bar links to the GitHub repository with its star count. The count is
+  fetched from GitHub's public API by your browser (no referrer, remembered for 6 hours).
+
 ## [0.7.0] - 2026-11-07
 
 ### Added
