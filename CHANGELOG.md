@@ -8,6 +8,11 @@ release renames that section ([Maintaining](packages/vitryne-docs/content/docs/d
 
 ## [Unreleased]
 
+### Added
+
+- The start screen has a footer at the bottom of the page with the version number and a link to
+  the AGPL licence; the privacy policy and terms links moved into it.
+
 ## [0.7.1] - 2026-11-10
 
 ### Added
