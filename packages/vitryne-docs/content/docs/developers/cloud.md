@@ -275,7 +275,8 @@ for 29 days and an idle account.
 
 - **Network:** the app and its assets (`config.json` included), and the backend only when the
   person saves, opens or signs in (a Google account's picture is loaded from Google when the account
-  dialog opens, without a referrer). Never telemetry. Opening an example without changing it sends
+  dialog opens, without a referrer; the start screen's GitHub star count is fetched from
+  `api.github.com`, without a referrer or cookies, at most every 6 hours). Never telemetry. Opening an example without changing it sends
   nothing.
 - **Without an account:** an anonymous user (an id, no email) and their draft, deleted 30 days
   after their last visit. The privacy page says so.

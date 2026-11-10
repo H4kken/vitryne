@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DOCS_URL } from "@/links";
 import { type Example, exampleId, fetchExample } from "../examples";
 import { Logo } from "../icons/Logo";
+import { GithubStars } from "./GithubStars";
 import { PRESET_ART } from "../icons/presetArt";
 import { Import, PencilRuler } from "lucide-react";
 
@@ -110,6 +111,7 @@ export function StartScreen(props: {
             Free · no account needed to try
           </span>
         )}
+        <GithubStars />
         {props.account}
       </div>
       {props.banner}
