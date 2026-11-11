@@ -21,8 +21,9 @@ while True:
     folders |= parents
 
 content = "packages/vitryne-docs/content/docs/"
-# contributing.md is generated from CONTRIBUTING.md by the docs package (scripts/sync-contributing.mjs).
-pages = {"developers/contributing"}
+# contributing.md and changelog.md are generated from CONTRIBUTING.md and CHANGELOG.md by the docs
+# package (scripts/sync-contributing.mjs).
+pages = {"developers/contributing", "changelog"}
 for f in files:
     if f.startswith(content) and f.endswith((".md", ".mdx")):
         page = f[len(content):].rsplit(".", 1)[0]
