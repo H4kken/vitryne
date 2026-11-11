@@ -3,10 +3,17 @@
 What changes for people who use or self-host Vitryne, one section per release. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/) (0.x: anything may change between minor versions).
-Add a line under **Unreleased** with your pull request when it changes what people see; a
-release renames that section ([Maintaining](packages/vitryne-docs/content/docs/developers/maintaining.md#releasing)).
+Add a line under **Unreleased** with your pull request when it changes what people see, in a
+`### Added`, `### Changed` or `### Fixed` group, always in that order and leaving out empty
+groups (`make hygiene` checks it); a release renames that section ([Maintaining](packages/vitryne-docs/content/docs/developers/maintaining.md#releasing)).
 
 ## [Unreleased]
+
+### Added
+
+- The start screen has a footer at the bottom of the page with the version number and a link to
+  the AGPL licence; the privacy policy and terms links moved into it.
+- A Changelog page in the documentation, generated from this file.
 
 ## [0.7.1] - 2026-11-10
 

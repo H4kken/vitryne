@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -88,8 +88,19 @@ const cloudDev: Plugin = {
 // then, because its websocket doesn't go through the tunnel.
 const tunnel = process.env.TUNNEL === "1";
 
+// The release version lives once, in the Rust workspace (packages/vitryne-engine/Cargo.toml);
+// the footer shows it as __APP_VERSION__.
+const appVersion =
+  /^version\s*=\s*"([^"]+)"/m.exec(
+    readFileSync(
+      resolve(import.meta.dirname, "../vitryne-engine/Cargo.toml"),
+      "utf8",
+    ),
+  )?.[1] ?? "dev";
+
 export default defineConfig({
   plugins: [react(), tailwindcss(), benchSink, cloudDev],
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   resolve: { alias: { "@": resolve(import.meta.dirname, "src") } },
   server: {
     headers: isolation,

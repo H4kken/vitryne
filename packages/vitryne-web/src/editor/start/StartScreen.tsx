@@ -5,7 +5,7 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DOCS_URL } from "@/links";
+import { DOCS_URL, LICENSE_URL } from "@/links";
 import { type Example, exampleId, fetchExample } from "../examples";
 import { Logo } from "../icons/Logo";
 import { GithubStars } from "./GithubStars";
@@ -116,7 +116,7 @@ export function StartScreen(props: {
       </div>
       {props.banner}
 
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-10 px-8 pt-10 pb-14">
+      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-10 px-8 pt-10 pb-14 grow">
         <section aria-labelledby="create-title" className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <h1
@@ -235,9 +235,10 @@ export function StartScreen(props: {
         </section>
 
         {props.projects}
-
-        {(props.privacyPolicy || props.termsOfService) && (
-          <footer className="text-muted-foreground border-border flex flex-wrap gap-x-5 gap-y-1 border-t pt-6 text-sm">
+      </div>
+      <footer className="border-border mt-auto w-full shrink-0 border-t">
+        <div className="text-muted-foreground mx-auto flex w-full max-w-[1120px] flex-wrap justify-between gap-x-5 gap-y-1 px-8 py-5 text-sm">
+          <div className="flex flex-wrap gap-x-5 gap-y-1">
             {props.privacyPolicy && (
               <a
                 href={props.privacyPolicy}
@@ -258,9 +259,23 @@ export function StartScreen(props: {
                 Terms
               </a>
             )}
-          </footer>
-        )}
-      </div>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1">
+            <span>v{__APP_VERSION__}</span>
+            <span>
+              Licensed under{" "}
+              <a
+                href={LICENSE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-foreground underline underline-offset-4"
+              >
+                AGPL
+              </a>
+            </span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

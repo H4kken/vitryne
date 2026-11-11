@@ -44,7 +44,8 @@ The commits imported from the spike (before the first signed-off commit) predate
 6. **A maintainer reviews and squash-merges it.** It needs CI green, one approval and every
    conversation resolved. If your change touches the solver, the mesher, the importer or the
    shaders, run `make regress` on a GPU and say so: CI can't.
-7. **A line under Unreleased** in [CHANGELOG.md](CHANGELOG.md) if people will notice the change.
+7. **A line under Unreleased** in [CHANGELOG.md](CHANGELOG.md) if people will notice the change, under
+   `### Added`, `### Changed` or `### Fixed`, in that order.
 
 How pull requests are merged and releases made: [Maintaining](packages/vitryne-docs/content/docs/developers/maintaining.md).
 

@@ -29,9 +29,10 @@ The pages in Developers are the only copy of those documents: `architecture` (`.
 file trees), `algorithms`, `cloud`, `fabrics`, `file-format`, `patents` and `maintaining` (`.md`), and
 `docker-stack.mdx`. Self-hosting is the same: its pages (`self-hosting/`, including `static-hosting`)
 are the only copy of the instructions for running an instance. Edit them here; the repository's code
-comments and READMEs link to these files. The one exception is `contributing.md`: GitHub shows the
-root `CONTRIBUTING.md` to anyone opening a pull request, so that file stays the source and
-`scripts/sync-contributing.mjs` writes the page from it (the H1 becomes the `title`, links to pages
+comments and READMEs link to these files. The exceptions are `contributing.md` and `changelog.md`: GitHub shows the
+root `CONTRIBUTING.md` to anyone opening a pull request, and the release notes read the root
+`CHANGELOG.md`, so those files stay the source and
+`scripts/sync-contributing.mjs` writes the pages from them (the H1 becomes the `title`, links to pages
 become site URLs, links into the repository point at GitHub; it runs before `dev`, `check` and
 `build`, and its output is git-ignored). `docs/PROGRESS.md` stays on GitHub only: it is the
 project's history, not documentation.
