@@ -6,9 +6,10 @@ const ex = (file: string): Example => ({ file, title: file, sdfKey: file });
 
 describe("startExample", () => {
   it("prefers the T-shirt, else the first, else nothing", () => {
-    const list = [ex("examples/hoodie.vtry"), ex("examples/tshirt.vtry")];
-    expect(startExample(list)).toBe(list[1]);
-    expect(startExample([list[0]])).toBe(list[0]);
+    const hoodie = ex("examples/hoodie.vtry");
+    const tshirt = ex("examples/tshirt.vtry");
+    expect(startExample([hoodie, tshirt])).toBe(tshirt);
+    expect(startExample([hoodie])).toBe(hoodie);
     expect(startExample([])).toBeUndefined();
   });
 });

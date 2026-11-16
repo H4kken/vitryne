@@ -44,7 +44,8 @@ export function CloudButton(props: {
             </>
           ) : (
             <>
-              <CloudIcon />
+              {/* On a phone the label is hidden, so the icon is all there is. */}
+              <CloudIcon className="sm:hidden" />
               <span className="truncate max-sm:hidden">Sign in</span>
             </>
           )}
