@@ -28,6 +28,11 @@ description: "Building Vitryne, the checks, and how to send a change."
   {
     source: "CHANGELOG.md",
     out: "changelog.md",
+    // The site shows released versions only: no contributor intro, no Unreleased section.
+    trim: (text) =>
+      text
+        .replace(/^[\s\S]*?(?=^## )/m, "")
+        .replace(/^## \[Unreleased\][\s\S]*?(?=^## )/m, ""),
     front: `---
 title: "Changelog"
 icon: ScrollText
@@ -40,9 +45,9 @@ description: "What changed in each release of Vitryne."
   },
 ];
 
-for (const { source: name, out, front } of pages) {
+for (const { source: name, out, front, trim = (text) => text } of pages) {
   const source = join(root, name);
-  const body = readFileSync(source, "utf8")
+  const body = trim(readFileSync(source, "utf8"))
     .replace(/^# .*\n+/, "")
     .replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, (whole, text, target) => {
       if (/^(https?:|mailto:|#|\/)/.test(target)) return whole;
