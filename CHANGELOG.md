@@ -13,7 +13,7 @@ groups (`make hygiene` checks it); a release renames that section ([Maintaining]
 
 - The start screen has a landing hero for visitors with nothing saved: a headline over a cutting mat
   with sewing terms and measurements floating behind it that lean toward the mouse, a short
-  description at the bottom left and a "Start drafting" button at the bottom right, which opens the
+  description at the bottom left and a "Start creating" button at the bottom right, which opens the
   T-shirt example.
   People with projects still see their projects first. The top bar is now a full width bar with the logo,
   Docs, the GitHub stars, the appearance menu, the account and the same button.

@@ -135,7 +135,7 @@ export function HeroSection(props: { action: ReactNode }) {
         >
           <span
             style={{ "--d": `${(i * 900) % 3000}ms` } as CSSProperties}
-            className={`word-drift block ${tilt} ${size} ${
+            className={`word-drift block opacity-50 ${tilt} ${size} ${
               chip
                 ? "font-medium rounded-lg bg-white/70 px-3 py-1 text-emerald-900 shadow-sm dark:bg-muted dark:text-foreground"
                 : "font-medium text-muted-foreground"

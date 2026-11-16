@@ -41,7 +41,7 @@ export function StartScreen(props: {
   termsOfService: string | null;
   /** The landing hero: only for people with nothing saved; everyone else wants their projects first. */
   showHero: boolean;
-  /** A real account (not an anonymous draft): the top bar drops the Start drafting button. */
+  /** A real account (not an anonymous draft): the top bar drops the Start creating button. */
   signedIn: boolean;
   onPreset: (e: Example) => void;
   /** An empty project. */
@@ -75,7 +75,7 @@ export function StartScreen(props: {
       disabled={!!props.busy}
       onClick={open}
     >
-      Start drafting
+      Start creating
     </Button>
   );
   const startWithArrow = (
@@ -84,7 +84,7 @@ export function StartScreen(props: {
       disabled={!!props.busy}
       onClick={open}
     >
-      Start drafting
+      Start creating
       <ArrowRight className="size-6" />
     </Button>
   );
@@ -137,8 +137,9 @@ export function StartScreen(props: {
         {/* A full width bar fixed to the top of the page. Its items share one 36px height and an 8px radius. */}
         <header className="bg-background/50 sticky top-0 z-30 flex shrink-0 flex-wrap backdrop-blur-md items-center justify-between gap-x-6 gap-y-2 border-b border-border px-4 py-2 [&_[data-size=icon]]:size-9 [&_a]:h-9 [&_a]:rounded-lg [&_a]:border-transparent [&_button]:h-9 [&_button:not([data-avatar])]:rounded-lg [&_img]:rounded-lg">
           <div className="flex items-center gap-2">
-            <Logo size={36} />
-            <span className="heading-6">Vitryne</span>
+            <a href={import.meta.env.BASE_URL} aria-label="Vitryne, home">
+              <Logo size={36} />
+            </a>
             {/* On a phone there is no room: the footer has the links. */}
             <Button variant="ghost" className="max-sm:hidden" asChild>
               <a href={DOCS_URL} target="_blank" rel="noreferrer">
