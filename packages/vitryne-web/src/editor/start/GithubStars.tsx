@@ -89,7 +89,7 @@ export function GithubStars() {
   const stars = useStars();
   const shown = useCountUp(stars);
   return (
-    <Button variant="outline" size="sm" asChild>
+    <Button variant="ghost" size="sm" asChild>
       <a
         className="group"
         href={REPO_URL}

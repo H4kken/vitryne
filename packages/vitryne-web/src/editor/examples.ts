@@ -18,6 +18,10 @@ export async function listExamples(): Promise<Example[]> {
 export const exampleId = (e: Example) =>
   (e.file.split("/").pop() ?? e.file).replace(/\.vtry$/, "");
 
+/** The example the start screen's main button opens: the T-shirt, else the first. */
+export const startExample = (examples: Example[]): Example | undefined =>
+  examples.find((e) => exampleId(e) === "tshirt") ?? examples[0];
+
 const fetched = new Map<string, Promise<ArrayBuffer>>();
 
 /** An example's file, downloaded once per page (`fetchExample` early: pointing at it). */

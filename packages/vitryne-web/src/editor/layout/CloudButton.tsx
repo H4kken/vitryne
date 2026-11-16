@@ -24,8 +24,13 @@ export function CloudButton(props: {
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
+          // Signed in the button is just the round avatar, so it is round too.
+          size={account ? "icon" : "default"}
+          data-avatar={account ? "" : undefined}
           aria-label={account ? undefined : "Sign in"}
-          className="max-w-[220px] gap-1.5 px-3 font-medium"
+          className={
+            account ? "rounded-full" : "max-w-[220px] gap-2 px-3 font-medium"
+          }
           onClick={props.onClick}
         >
           {account ? (

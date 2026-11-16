@@ -5,7 +5,6 @@ import { ProjectGridSkeleton } from "@/cloud/ProjectGridSkeleton";
 import type { Cloud } from "@/cloud/useCloud";
 import type { Example } from "../examples";
 import { CloudButton } from "../layout/CloudButton";
-import { HelpMenu } from "../layout/HelpMenu";
 import { ThemeMenu } from "../layout/ThemeMenu";
 import { NoticeCard } from "../layout/NoticeCard";
 import { StartScreen } from "./StartScreen";
@@ -37,6 +36,7 @@ export function StartPage(props: {
       privacyPolicy={cloud.config.privacyPolicy}
       termsOfService={cloud.config.termsOfService}
       signedIn={!!cloud.user && !cloud.user.anonymous}
+      showHero={!cloud.user || cloud.projects?.length === 0}
       examples={props.examples}
       busy={props.busy}
       onPreset={props.onPreset}
@@ -47,7 +47,6 @@ export function StartPage(props: {
       account={
         <>
           <ThemeMenu />
-          <HelpMenu />
           <CloudButton user={cloud.user} onClick={onAccount} />
         </>
       }
@@ -61,7 +60,7 @@ export function StartPage(props: {
             title={hasDraft ? "Your draft" : "Your projects"}
             note={
               hasDraft && (
-                <p className="text-body-text m-0 text-[15px]">
+                <p className="body-3 text-body-text m-0">
                   Without an account you keep one project.{" "}
                   <button
                     type="button"

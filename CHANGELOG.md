@@ -9,6 +9,17 @@ groups (`make hygiene` checks it); a release renames that section ([Maintaining]
 
 ## [Unreleased]
 
+### Changed
+
+- The start screen has a landing hero for visitors with nothing saved: a headline over a cutting mat
+  with sewing terms and measurements floating behind it that lean toward the mouse, a short
+  description at the bottom left and a "Start drafting" button at the bottom right, which opens the
+  T-shirt example.
+  People with projects still see their projects first. The top bar is now a full width bar with the logo,
+  Docs, the GitHub stars, the appearance menu, the account and the same button.
+- The start screen's footer has a short description and links in columns (resources, community, legal),
+  and the help menu left the start screen's top bar (its links moved to the footer).
+
 ## [0.7.2] - 2026-11-11
 
 ### Added
