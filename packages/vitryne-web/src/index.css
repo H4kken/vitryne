@@ -176,3 +176,105 @@
 @utility flat-grid {
   background-color: var(--canvas-flat);
 }
+
+/* The start screen follows the landing-page skill (.agents/skills/landing-page-design): named text styles on the Tailwind scale, a flat dark ground from its palette, one easing curve.
+   Scoped here so the editor keeps its own colours. */
+/* Dark grounds from the skill's palette only. */
+.dark .start-page {
+  --background: #181818;
+  --card: #1f1f1f;
+  --muted: #272727;
+  --hover: #272727;
+  --border: #313131;
+  --input: #313131;
+  background: #181818;
+}
+.heading-1 {
+  @apply font-display text-4xl font-semibold sm:text-6xl;
+  text-wrap: balance;
+}
+.heading-3 {
+  @apply font-display text-2xl font-semibold sm:text-4xl;
+  text-wrap: balance;
+}
+.heading-4 {
+  @apply font-display text-3xl font-semibold;
+}
+.heading-6 {
+  @apply font-display text-xl font-semibold;
+}
+.title-2 {
+  @apply text-lg font-medium;
+}
+.body-3 {
+  @apply text-base font-normal;
+  text-wrap: pretty;
+}
+.body-6 {
+  @apply text-sm font-normal;
+}
+.button-lg {
+  @apply text-lg font-semibold;
+}
+.button-md {
+  @apply text-base font-semibold;
+}
+.caption-2 {
+  @apply text-sm font-normal;
+}
+.caption-4 {
+  @apply text-xs font-medium;
+}
+.hero-gradient {
+  background: linear-gradient(to right, #000000, #666666);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.dark .hero-gradient {
+  background-image: linear-gradient(to right, #ffffff, #9b9b9b);
+}
+.ease-weighted {
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+.rise-in {
+  animation: rise-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rise-in {
+    animation: none;
+  }
+}
+
+/* The hero's words arrive one after another, then drift. Only transform and opacity move. */
+@keyframes word-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@keyframes word-drift {
+  50% {
+    transform: translateY(-8px);
+  }
+}
+.word-in {
+  animation: word-rise 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+.word-drift {
+  animation: word-drift 7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation-delay: var(--d, 0ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .word-in,
+  .word-drift {
+    animation: none;
+  }
+}
