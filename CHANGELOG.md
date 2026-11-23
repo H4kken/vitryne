@@ -9,6 +9,8 @@ groups (`make hygiene` checks it); a release renames that section ([Maintaining]
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-23
+
 ### Changed
 
 - The start screen has a landing hero for visitors with nothing saved: a headline over a cutting mat
@@ -256,6 +258,7 @@ The first public beta.
   ([Cloud backend](packages/vitryne-docs/content/docs/developers/cloud.md)).
 - The `vitryne` command line: viewer, benchmarks, `.vtry` conversion, DXF-AAMA export.
 
+[0.8.0]: https://github.com/H4kken/vitryne/releases/tag/v0.8.0
 [0.7.2]: https://github.com/H4kken/vitryne/releases/tag/v0.7.2
 [0.7.1]: https://github.com/H4kken/vitryne/releases/tag/v0.7.1
 [0.7.0]: https://github.com/H4kken/vitryne/releases/tag/v0.7.0
